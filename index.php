@@ -246,6 +246,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <aside class="app-sidebar" id="app-sidebar">
+            <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
             <div class="sidebar-search">
                 <input type="text" id="search-input" class="search-input" placeholder="Search documentation...">
             </div>

@@ -1,66 +1,76 @@
 {
-  "title": "Standalone Qwiki",
-  "logoText": "QWIKI",
-  "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
-  "defaultBook": "getting-started",
-  "books": [
-    {
-      "id": "getting-started",
-      "title": "Getting Started",
-      "chapters": [
+    "title": "Standalone Qwiki",
+    "logoText": "QWIKI",
+    "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
+    "defaultBook": "getting-started",
+    "books": [
         {
-          "title": "Installation Guide",
-          "slug": "installation",
-          "type": "markdown",
-          "file": "content/getting-started/installation.md"
+            "id": "getting-started",
+            "title": "Getting Started",
+            "chapters": [
+                {
+                    "title": "Sample PDF Document",
+                    "slug": "sample-pdf",
+                    "type": "pdf",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/sample.pdf"
+                },
+                {
+                    "title": "Installation Guide",
+                    "slug": "installation",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/installation.md"
+                },
+                {
+                    "title": "System Features",
+                    "slug": "features",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/features.md"
+                },
+                {
+                    "title": "Live Google Doc Demo",
+                    "slug": "live-google-doc",
+                    "type": "gdoc",
+                    "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
+                    "editUrl": "",
+                    "file": ""
+                }
+            ],
+            "subfolders": [
+                {
+                    "id": "advanced-topics",
+                    "title": "Advanced Topics",
+                    "chapters": [
+                        {
+                            "title": "Performance Optimization",
+                            "slug": "performance",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/getting-started/advanced-topics/performance.md"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "title": "System Features",
-          "slug": "features",
-          "type": "markdown",
-          "file": "content/getting-started/features.md"
-        },
-        {
-          "title": "Sample PDF Document",
-          "slug": "sample-pdf",
-          "type": "pdf",
-          "file": "content/getting-started/sample.pdf"
-        },
-        {
-          "title": "Live Google Doc Demo",
-          "slug": "live-google-doc",
-          "type": "gdoc",
-          "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
-          "editUrl": ""
+            "id": "api-docs",
+            "title": "API Documentation",
+            "chapters": [
+                {
+                    "title": "Authentication Guide",
+                    "slug": "authentication-guide",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/api-docs/authentication-guide.md"
+                }
+            ]
         }
-      ],
-      "subfolders": [
-        {
-          "id": "advanced-topics",
-          "title": "Advanced Topics",
-          "chapters": [
-            {
-              "title": "Performance Optimization",
-              "slug": "performance",
-              "type": "markdown",
-              "file": "content/getting-started/advanced-topics/performance.md"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "api-docs",
-      "title": "API Documentation",
-      "folder": "content/api-docs",
-      "chapters": [
-        {
-          "title": "Authentication Guide",
-          "slug": "authentication-guide",
-          "type": "markdown",
-          "file": "content/api-docs/authentication-guide.md"
-        }
-      ]
-    }
-  ]
+    ]
 }

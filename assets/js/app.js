@@ -13,13 +13,52 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Restore saved sidebar width
+  const savedWidth = localStorage.getItem('qwiki_sidebar_width');
+  if (savedWidth) {
+    document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
+  }
+
   // Mobile Sidebar Toggle
   const mobileToggle = document.getElementById('mobile-toggle');
   const sidebar = document.getElementById('app-sidebar');
+  const resizer = document.getElementById('sidebar-resizer');
 
   if (mobileToggle && sidebar) {
     mobileToggle.addEventListener('click', () => {
       sidebar.classList.toggle('open');
+    });
+  }
+
+  // Sidebar Drag Resizing Engine
+  if (resizer && sidebar) {
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      isResizing = true;
+      resizer.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 550) newWidth = 550;
+
+      document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+      localStorage.setItem('qwiki_sidebar_width', newWidth);
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        resizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
     });
   }
 
