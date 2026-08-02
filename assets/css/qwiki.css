@@ -395,11 +395,45 @@ body {
   font-size: 1.05rem;
 }
 
-.content-body h1, .content-body h2, .content-body h3 {
-  margin-top: 1.75rem;
+.content-body > *:first-child {
+  margin-top: 0 !important;
+}
+
+.content-body h1 {
+  font-size: 2rem;
+  margin-top: 2rem;
   margin-bottom: 1rem;
   color: var(--text-primary);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+}
+
+.content-body h2 {
+  font-size: 1.5rem;
+  margin-top: 1.85rem;
+  margin-bottom: 0.85rem;
+  color: var(--text-primary);
   font-weight: 700;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.4rem;
+}
+
+.content-body h3 {
+  font-size: 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.content-body h4, .content-body h5, .content-body h6 {
+  font-size: 1.1rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .content-body p {
@@ -407,13 +441,86 @@ body {
   color: var(--text-secondary);
 }
 
+/* Lists Alignment */
+.content-body ul, .content-body ol {
+  padding-left: 1.75rem;
+  margin-bottom: 1.25rem;
+  color: var(--text-secondary);
+}
+
+.content-body li {
+  margin-bottom: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.content-body li > ul, .content-body li > ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.content-body blockquote {
+  border-left: 4px solid var(--accent-color);
+  background: var(--bg-secondary);
+  padding: 0.85rem 1.25rem;
+  margin: 1.5rem 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.content-body blockquote p {
+  margin-bottom: 0;
+}
+
+/* Tables Styling */
+.content-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5rem;
+  margin-bottom: 1.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.content-body th, .content-body td {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.content-body th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.content-body tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.content-body hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 2rem 0;
+}
+
+.content-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  margin: 1.25rem 0;
+  border: 1px solid var(--border-color);
+}
+
 .content-body code {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
-  font-size: 0.9em;
-  font-family: monospace;
+  font-size: 0.88em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .content-body pre {
@@ -430,14 +537,6 @@ body {
   border: none;
   padding: 0;
   color: #e6edf3;
-}
-
-.content-body blockquote {
-  border-left: 4px solid var(--accent-color);
-  padding-left: 1rem;
-  margin: 1.5rem 0;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 .pdf-viewer-container {
