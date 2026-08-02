@@ -245,7 +245,7 @@ if ($activeChapter) {
             </div>
 
             <!-- Tab 1: Create Markdown Online -->
-            <form id="form-create-md" class="tab-content active">
+            <form id="tab-create-md" class="tab-content active">
                 <div class="form-group">
                     <label class="form-label">Target Book</label>
                     <select name="bookId" class="form-control" required>
@@ -266,7 +266,7 @@ if ($activeChapter) {
             </form>
 
             <!-- Tab 2: Upload File -->
-            <form id="form-upload-file" class="tab-content" enctype="multipart/form-data">
+            <form id="tab-upload" class="tab-content" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">Target Book</label>
                     <select name="bookId" class="form-control" required>
@@ -287,7 +287,7 @@ if ($activeChapter) {
             </form>
 
             <!-- Tab 3: Google Doc -->
-            <form id="form-add-gdoc" class="tab-content">
+            <form id="tab-gdoc" class="tab-content">
                 <div class="form-group">
                     <label class="form-label">Target Book</label>
                     <select name="bookId" class="form-control" required>

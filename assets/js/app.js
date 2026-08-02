@@ -110,9 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bind Form Submissions
   submitAdminForm('login-form', 'login');
   submitAdminForm('add-book-form', 'add_book');
-  submitAdminForm('form-create-md', 'create_markdown');
-  submitAdminForm('form-upload-file', 'upload_file');
-  submitAdminForm('form-add-gdoc', 'add_gdoc');
+  submitAdminForm('tab-create-md', 'create_markdown');
+  submitAdminForm('tab-upload', 'upload_file');
+  submitAdminForm('tab-gdoc', 'add_gdoc');
   submitAdminForm('settings-form', 'update_settings');
 
   // Admin Logout
