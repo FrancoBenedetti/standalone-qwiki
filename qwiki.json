@@ -3,19 +3,12 @@
     "logoText": "QWIKI",
     "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
     "defaultBook": "getting-started",
+    "requireLoginToView": false,
     "books": [
         {
             "id": "getting-started",
             "title": "Getting Started",
             "chapters": [
-                {
-                    "title": "Sample PDF Document",
-                    "slug": "sample-pdf",
-                    "type": "pdf",
-                    "url": "",
-                    "editUrl": "",
-                    "file": "content/getting-started/sample.pdf"
-                },
                 {
                     "title": "Installation Guide",
                     "slug": "installation",
@@ -31,6 +24,14 @@
                     "url": "",
                     "editUrl": "",
                     "file": "content/getting-started/features.md"
+                },
+                {
+                    "title": "Sample PDF Document",
+                    "slug": "sample-pdf",
+                    "type": "pdf",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/sample.pdf"
                 },
                 {
                     "title": "Live Google Doc Demo",

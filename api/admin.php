@@ -598,10 +598,12 @@ switch ($action) {
         $title = trim($_POST['title'] ?? '');
         $logoText = trim($_POST['logoText'] ?? '');
         $defaultBook = trim($_POST['defaultBook'] ?? '');
+        $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
 
         if (!empty($title)) $config['title'] = $title;
         if (!empty($logoText)) $config['logoText'] = $logoText;
         if (!empty($defaultBook)) $config['defaultBook'] = $defaultBook;
+        $config['requireLoginToView'] = $requireLoginToView;
 
         save_config($configFile, $config);
         echo json_encode(['success' => true]);

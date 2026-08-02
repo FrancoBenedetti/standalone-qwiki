@@ -14,6 +14,8 @@ $config = json_decode(file_get_contents($configFile), true);
 $currentUser = $_SESSION['qwiki_user'] ?? null;
 $isAdmin = (!empty($currentUser) && $currentUser['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
 $isViewer = !empty($currentUser);
+$requireLoginToView = !empty($config['requireLoginToView']);
+$canViewContent = !$requireLoginToView || $isViewer || $isAdmin;
 
 // Routing parameters
 $requestedBookId = $_GET['book'] ?? $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
@@ -294,7 +296,16 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
 
                 <div class="content-body">
-                    <?= $renderedContent ?>
+                    <?php if ($canViewContent): ?>
+                        <?= $renderedContent ?>
+                    <?php else: ?>
+                        <div style="text-align: center; padding: 4rem 2rem;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
+                            <h2>Private Documentation Portal</h2>
+                            <p style="color: var(--text-muted); margin-bottom: 2rem;">Authentication is required to view documentation content.</p>
+                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In to Access</button>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="content-body">
@@ -548,6 +559,13 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= (($config['defaultBook'] ?? '') === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
                         <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-access-mode">Access Mode</label>
+                    <select name="requireLoginToView" id="setting-access-mode" class="form-control">
+                        <option value="0" <?= empty($config['requireLoginToView']) ? 'selected' : '' ?>>Public Access (Anyone can view docs without logging in)</option>
+                        <option value="1" <?= !empty($config['requireLoginToView']) ? 'selected' : '' ?>>Private Portal (Login required to view documentation)</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Settings</button>
