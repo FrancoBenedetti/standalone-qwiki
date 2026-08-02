@@ -27,6 +27,13 @@
                     "file": "content/getting-started/sample.pdf"
                 },
                 {
+                    "title": "Live Google Doc Demo",
+                    "slug": "live-google-doc",
+                    "type": "gdoc",
+                    "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
+                    "editUrl": ""
+                },
+                {
                     "title": "External Google Doc Demo",
                     "slug": "google-doc-demo",
                     "type": "gdoc",
@@ -47,6 +54,25 @@
                     "file": "content/api-docs/authentication-guide.md"
                 }
             ]
+        },
+        {
+            "id": "better-books",
+            "title": "Better Books",
+            "folder": "content/better-books",
+            "chapters": [
+                {
+                    "title": "Improved speed",
+                    "slug": "improved-speed",
+                    "type": "markdown",
+                    "file": "content/better-books/improved-speed.md"
+                }
+            ]
+        },
+        {
+            "id": "gd",
+            "title": "Another Google Doc",
+            "folder": "content/gd",
+            "chapters": []
         }
     ]
 }
