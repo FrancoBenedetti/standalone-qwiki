@@ -4,6 +4,26 @@
 
 ---
 
+## 🌐 Sub-Folder & Sub-Domain Deployment
+
+Standalone Qwiki is **100% location-agnostic**:
+- It can be deployed in **any sub-folder** of your server root (e.g. `/help`, `/documentation`, `/docs/v1`, `/wiki`) or as a root domain.
+- **Zero Hardcoded Paths**: All web assets, navigation links, and API requests use relative paths (`index.php?`, `assets/css/`, `api/admin.php`).
+- **Zero Configuration Required**: Simply place the `standalone-qwiki` folder into your desired directory on your server; no rewrite rules or configuration changes are needed!
+
+---
+
+## 🔒 Public vs. Private Access Modes
+
+Admins can control whether documentation is publicly readable or requires authentication:
+
+1. Open **`⚙️ Settings`** in the header as Admin.
+2. Select **Access Mode**:
+   - **Public Access (Default)**: Anyone can view and search documentation without logging in. Authentication is only required for editing, uploading, reordering, and user management.
+   - **Private Portal**: Authentication (as Viewer or Admin) is strictly required to view documentation content. Unauthenticated visitors see a secure login prompt.
+
+---
+
 ## 🌟 Key Features
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
@@ -18,7 +38,10 @@
   - **Admin**: Full rights to edit categories, create documents, upload media, reorder menus, and manage users.
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
-- **🎨 Rich Modern Aesthetics**: Dark/light mode toggle, collapsible category accordions, live sidebar search with auto-expanding matches, and responsive mobile navigation.
+- **🛡️ Security Hardening**:
+  - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
+  - Strict path traversal prevention (`realpath` + project root boundary checks).
+  - Sanitized filenames and extension whitelisting.
 
 ---
 
@@ -34,9 +57,8 @@
 
 1. **Clone or Extract the Repository**:
    ```bash
-   cd /path/to/webroot
-   git clone <repository-url> standalone-qwiki
-   cd standalone-qwiki
+   cd /path/to/webroot/help   # Or any subfolder/domain
+   git clone <repository-url> .
    ```
 
 2. **Set File Permissions**:
@@ -45,11 +67,8 @@
    chmod -R 775 content/ uploads/ qwiki.json users.json
    ```
 
-3. **Run Local Dev Server** (Optional for testing):
-   ```bash
-   php -S 127.0.0.1:8000
-   ```
-   Open your browser at `http://127.0.0.1:8000`.
+3. **Access in Browser**:
+   Open `http://your-domain.com/help/` (or your chosen subfolder).
 
 ---
 
@@ -60,20 +79,13 @@ When accessing for the first time, click **Login** in the top right header:
 - **Username**: `admin`
 - **Password**: `admin`
 
-### Admin Capabilities:
-- **`+ Category`**: Create new top-level categories or sub-folders.
-- **`+ Document`**: Add new Markdown pages online, upload `.md`/`.pdf` files, or link Google Docs.
-- **`✏️ Edit Content`**: Open the full-screen visual Markdown editor with in-editor image upload.
-- **`⚙️ Edit Details`**: Update document titles, type, file paths, or Google Doc URLs.
-- **`👥 Users`**: Manage user accounts, create Viewers/Admins, or remove accounts.
-- **`⚙️ Settings`**: Update portal title, logo text, and default category.
-
 ---
 
 ## 📁 Directory Structure
 
 ```
 standalone-qwiki/
+├── .htaccess                  # Security rules blocking .json downloads & script execution
 ├── api/
 │   └── admin.php              # REST API endpoint handling auth, CRUD, DND reordering, image uploads
 ├── assets/
@@ -93,52 +105,6 @@ standalone-qwiki/
 ├── qwiki.json                 # Wiki tree structure configuration
 ├── users.json                 # File-based user store & Bcrypt password hashes
 └── README.md                  # System documentation
-```
-
----
-
-## ⚙️ Configuration Schema (`qwiki.json`)
-
-```json
-{
-  "title": "Standalone Qwiki",
-  "logoText": "QWIKI",
-  "defaultBook": "getting-started",
-  "books": [
-    {
-      "id": "getting-started",
-      "title": "Getting Started",
-      "chapters": [
-        {
-          "title": "Installation Guide",
-          "slug": "installation",
-          "type": "markdown",
-          "file": "content/getting-started/installation.md"
-        },
-        {
-          "title": "Live Google Doc Demo",
-          "slug": "live-google-doc",
-          "type": "gdoc",
-          "url": "https://docs.google.com/document/d/e/.../pub?embedded=true"
-        }
-      ],
-      "subfolders": [
-        {
-          "id": "advanced-topics",
-          "title": "Advanced Topics",
-          "chapters": [
-            {
-              "title": "Performance Optimization",
-              "slug": "performance",
-              "type": "markdown",
-              "file": "content/getting-started/advanced-topics/performance.md"
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
 ```
 
 ---
