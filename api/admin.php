@@ -230,6 +230,11 @@ switch ($action) {
             exit;
         }
 
+        // Automatically ensure embedded=true parameter
+        if (strpos($url, 'embedded=true') === false) {
+            $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
+        }
+
         $slug = make_slug($title);
 
         foreach ($config['books'] as &$book) {

@@ -69,6 +69,10 @@ if ($activeChapter) {
     } elseif ($type === 'gdoc') {
         $docUrl = $activeChapter['url'] ?? '';
         if ($docUrl) {
+            // Auto append embedded=true if missing
+            if (strpos($docUrl, 'embedded=true') === false) {
+                $docUrl .= (strpos($docUrl, '?') !== false) ? '&embedded=true' : '?embedded=true';
+            }
             $ctx = stream_context_create(['http' => ['timeout' => 5, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
             $html = @file_get_contents($docUrl, false, $ctx);
             
