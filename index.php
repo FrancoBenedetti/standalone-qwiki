@@ -69,7 +69,6 @@ if ($activeChapter) {
     } elseif ($type === 'gdoc') {
         $docUrl = $activeChapter['url'] ?? '';
         if ($docUrl) {
-            // Attempt server-side fetch & sanitize with simple_html_dom
             $ctx = stream_context_create(['http' => ['timeout' => 5, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
             $html = @file_get_contents($docUrl, false, $ctx);
             
@@ -120,8 +119,10 @@ if ($activeChapter) {
         <div class="header-actions">
             <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
             <?php if ($isAdmin): ?>
-                <span class="doc-badge badge-md">Admin Mode</span>
-                <button class="btn btn-primary btn-sm" id="btn-upload-doc">+ Upload Doc</button>
+                <span class="doc-badge badge-md">Admin</span>
+                <button class="btn btn-outline btn-sm" id="btn-add-book">+ Book</button>
+                <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Chapter</button>
+                <button class="btn btn-outline btn-sm" id="btn-settings">⚙️ Settings</button>
                 <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
             <?php else: ?>
                 <button class="btn btn-outline btn-sm" id="btn-login">Admin Login</button>
@@ -168,8 +169,11 @@ if ($activeChapter) {
                         <?php if ($activeChapter['type'] === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
                             <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm">Edit Google Doc ↗</a>
                         <?php endif; ?>
-                        <?php if ($isAdmin && $activeChapter['type'] === 'markdown'): ?>
-                            <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Page</button>
+                        <?php if ($isAdmin): ?>
+                            <?php if ($activeChapter['type'] === 'markdown'): ?>
+                                <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Page</button>
+                            <?php endif; ?>
+                            <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Chapter</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -191,7 +195,7 @@ if ($activeChapter) {
         <div class="modal-card">
             <div class="modal-header">
                 <h3>Admin Authentication</h3>
-                <button class="modal-close" id="login-modal-close">&times;</button>
+                <button class="modal-close" data-close="login-modal">&times;</button>
             </div>
             <form id="login-form">
                 <div class="form-group">
@@ -203,52 +207,159 @@ if ($activeChapter) {
         </div>
     </div>
 
-    <!-- Upload Document Modal (Admin) -->
-    <div class="modal-overlay" id="upload-modal">
+    <?php if ($isAdmin): ?>
+    <!-- Add Book Modal -->
+    <div class="modal-overlay" id="book-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Upload New Document</h3>
-                <button class="modal-close" id="upload-modal-close">&times;</button>
+                <h3>Add New Book Category</h3>
+                <button class="modal-close" data-close="book-modal">&times;</button>
             </div>
-            <form id="upload-form" enctype="multipart/form-data">
+            <form id="add-book-form">
                 <div class="form-group">
-                    <label class="form-label" for="upload-book">Target Book</label>
-                    <select name="bookId" id="upload-book" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>"><?= htmlspecialchars($b['title']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="form-label" for="book-title">Book Title</label>
+                    <input type="text" name="title" id="book-title" class="form-control" placeholder="e.g. Developer APIs" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="upload-title">Chapter Title</label>
-                    <input type="text" name="title" id="upload-title" class="form-control" placeholder="e.g. User Manual PDF" required>
+                    <label class="form-label" for="book-id-input">Book Slug / Folder (Optional)</label>
+                    <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-apis">
                 </div>
-                <div class="form-group">
-                    <label class="form-label" for="upload-file">Select File (.md or .pdf)</label>
-                    <input type="file" name="document" id="upload-file" class="form-control" accept=".md,.pdf" required>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Upload & Publish</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Book</button>
             </form>
         </div>
     </div>
 
-    <!-- Edit Markdown Modal (Admin) -->
-    <?php if ($isAdmin && $activeChapter && $activeChapter['type'] === 'markdown'): ?>
+    <!-- Unified Add Chapter Modal -->
+    <div class="modal-overlay" id="chapter-modal">
+        <div class="modal-card" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Add New Chapter</h3>
+                <button class="modal-close" data-close="chapter-modal">&times;</button>
+            </div>
+            
+            <!-- Type Selector Tabs -->
+            <div class="tab-header">
+                <button class="tab-btn active" data-tab="tab-create-md">✏️ New Markdown</button>
+                <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
+                <button class="tab-btn" data-tab="tab-gdoc">🌐 Google Doc</button>
+            </div>
+
+            <!-- Tab 1: Create Markdown Online -->
+            <form id="form-create-md" class="tab-content active">
+                <div class="form-group">
+                    <label class="form-label">Target Book</label>
+                    <select name="bookId" class="form-control" required>
+                        <?php foreach ($config['books'] as $b): ?>
+                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Chapter Title</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Initial Markdown Content</label>
+                    <textarea name="content" class="form-control" style="min-height: 180px;" placeholder="# Chapter Title&#10;&#10;Write your documentation here..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Chapter</button>
+            </form>
+
+            <!-- Tab 2: Upload File -->
+            <form id="form-upload-file" class="tab-content" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label class="form-label">Target Book</label>
+                    <select name="bookId" class="form-control" required>
+                        <?php foreach ($config['books'] as $b): ?>
+                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Chapter Title</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. Specification Datasheet" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Select File (.md or .pdf)</label>
+                    <input type="file" name="document" class="form-control" accept=".md,.pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Upload & Add</button>
+            </form>
+
+            <!-- Tab 3: Google Doc -->
+            <form id="form-add-gdoc" class="tab-content">
+                <div class="form-group">
+                    <label class="form-label">Target Book</label>
+                    <select name="bookId" class="form-control" required>
+                        <?php foreach ($config['books'] as $b): ?>
+                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Chapter Title</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. User Guide Google Doc" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Published Google Doc URL</label>
+                    <input type="url" name="url" class="form-control" placeholder="https://docs.google.com/document/d/e/.../pub?embedded=true" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Google Doc Edit URL (Optional)</label>
+                    <input type="url" name="editUrl" class="form-control" placeholder="https://docs.google.com/document/d/.../edit">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Link Google Doc</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Wiki Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Wiki Settings</h3>
+                <button class="modal-close" data-close="settings-modal">&times;</button>
+            </div>
+            <form id="settings-form">
+                <div class="form-group">
+                    <label class="form-label" for="setting-title">Documentation Portal Title</label>
+                    <input type="text" name="title" id="setting-title" class="form-control" value="<?= htmlspecialchars($config['title'] ?? '') ?>" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-logo">Logo Text</label>
+                    <input type="text" name="logoText" id="setting-logo" class="form-control" value="<?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-default-book">Default Book</label>
+                    <select name="defaultBook" id="setting-default-book" class="form-control">
+                        <?php foreach ($config['books'] as $b): ?>
+                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= (($config['defaultBook'] ?? '') === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Settings</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Markdown Modal -->
+    <?php if ($activeChapter && $activeChapter['type'] === 'markdown'): ?>
     <div class="modal-overlay" id="editor-modal">
         <div class="modal-card" style="max-width: 900px;">
             <div class="modal-header">
                 <h3>Edit Markdown: <?= htmlspecialchars($activeChapter['title']) ?></h3>
-                <button class="modal-close" id="editor-modal-close">&times;</button>
+                <button class="modal-close" data-close="editor-modal">&times;</button>
             </div>
             <div class="form-group">
                 <textarea id="markdown-editor-textarea" class="form-control"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button class="btn btn-outline" id="editor-cancel" onclick="document.getElementById('editor-modal').classList.remove('open')">Cancel</button>
+                <button class="btn btn-outline" data-close="editor-modal">Cancel</button>
                 <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Changes</button>
             </div>
         </div>
     </div>
+    <?php endif; ?>
     <?php endif; ?>
 
     <script src="assets/js/app.js"></script>

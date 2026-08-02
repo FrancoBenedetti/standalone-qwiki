@@ -1,0 +1,3 @@
+# Authentication
+
+Use Bearer Token.

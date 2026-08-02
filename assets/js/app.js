@@ -30,49 +30,93 @@ document.addEventListener('DOMContentLoaded', () => {
       const term = e.target.value.toLowerCase();
       document.querySelectorAll('.nav-link').forEach(link => {
         const text = link.textContent.toLowerCase();
-        if (text.includes(term)) {
-          link.style.display = 'flex';
-        } else {
-          link.style.display = 'none';
-        }
+        link.style.display = text.includes(term) ? 'flex' : 'none';
       });
     });
   }
 
-  // Admin Modal logic
-  const loginBtn = document.getElementById('btn-login');
-  const logoutBtn = document.getElementById('btn-logout');
-  const loginModal = document.getElementById('login-modal');
-  const loginClose = document.getElementById('login-modal-close');
-  const loginForm = document.getElementById('login-form');
+  // Generic Modal Close handler
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const modalId = btn.getAttribute('data-close');
+      const modal = document.getElementById(modalId);
+      if (modal) modal.classList.remove('open');
+    });
+  });
 
-  if (loginBtn) {
-    loginBtn.addEventListener('click', () => loginModal.classList.add('open'));
-  }
-  if (loginClose) {
-    loginClose.addEventListener('click', () => loginModal.classList.remove('open'));
-  }
+  // Modal Open Trigger buttons
+  const triggers = [
+    { btnId: 'btn-login', modalId: 'login-modal' },
+    { btnId: 'btn-add-book', modalId: 'book-modal' },
+    { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
+    { btnId: 'btn-settings', modalId: 'settings-modal' },
+    { btnId: 'btn-upload-doc', modalId: 'chapter-modal' },
+    { btnId: 'btn-edit-markdown', modalId: 'editor-modal' }
+  ];
 
-  if (loginForm) {
-    loginForm.addEventListener('submit', async (e) => {
+  triggers.forEach(({ btnId, modalId }) => {
+    const btn = document.getElementById(btnId);
+    const modal = document.getElementById(modalId);
+    if (btn && modal) {
+      btn.addEventListener('click', () => modal.classList.add('open'));
+    }
+  });
+
+  // Tab Switcher inside Modals
+  document.querySelectorAll('.tab-btn').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => {
+      const parentModal = tabBtn.closest('.modal-card');
+      parentModal.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      parentModal.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      tabBtn.classList.add('active');
+      const targetTabId = tabBtn.getAttribute('data-tab');
+      const targetContent = parentModal.querySelector('#' + targetTabId);
+      if (targetContent) targetContent.classList.add('active');
+    });
+  });
+
+  // Helper for Form Submissions
+  async function submitAdminForm(formId, actionName, successRedirect = true) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(loginForm);
-      formData.append('action', 'login');
+      const formData = new FormData(form);
+      formData.append('action', actionName);
 
       try {
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
         const data = await res.json();
+
         if (data.success) {
-          window.location.reload();
+          if (successRedirect) {
+            if (data.bookId && data.slug) {
+              window.location.href = `index.php?book=${encodeURIComponent(data.bookId)}&chapter=${encodeURIComponent(data.slug)}`;
+            } else {
+              window.location.reload();
+            }
+          }
         } else {
-          alert('Login failed: ' + (data.error || 'Unknown error'));
+          alert('Operation failed: ' + (data.error || 'Unknown error'));
         }
       } catch (err) {
-        alert('Login request failed');
+        alert('Server request failed');
       }
     });
   }
 
+  // Bind Form Submissions
+  submitAdminForm('login-form', 'login');
+  submitAdminForm('add-book-form', 'add_book');
+  submitAdminForm('form-create-md', 'create_markdown');
+  submitAdminForm('form-upload-file', 'upload_file');
+  submitAdminForm('form-add-gdoc', 'add_gdoc');
+  submitAdminForm('settings-form', 'update_settings');
+
+  // Admin Logout
+  const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       await fetch('api/admin.php?action=logout');
@@ -80,24 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Markdown Editor Logic
-  const editMarkdownBtn = document.getElementById('btn-edit-markdown');
-  const editorModal = document.getElementById('editor-modal');
-  const editorClose = document.getElementById('editor-modal-close');
+  // Save Markdown Editor
   const saveMarkdownBtn = document.getElementById('btn-save-markdown');
   const markdownTextarea = document.getElementById('markdown-editor-textarea');
-
-  if (editMarkdownBtn && editorModal) {
-    editMarkdownBtn.addEventListener('click', () => {
-      editorModal.classList.add('open');
-    });
-  }
-
-  if (editorClose && editorModal) {
-    editorClose.addEventListener('click', () => {
-      editorModal.classList.remove('open');
-    });
-  }
 
   if (saveMarkdownBtn && markdownTextarea) {
     saveMarkdownBtn.addEventListener('click', async () => {
@@ -122,35 +151,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Upload Document Modal
-  const uploadBtn = document.getElementById('btn-upload-doc');
-  const uploadModal = document.getElementById('upload-modal');
-  const uploadClose = document.getElementById('upload-modal-close');
-  const uploadForm = document.getElementById('upload-form');
+  // Delete Chapter
+  const deleteChapterBtn = document.getElementById('btn-delete-chapter');
+  if (deleteChapterBtn) {
+    deleteChapterBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this chapter from the wiki structure?')) {
+        return;
+      }
+      const bookId = deleteChapterBtn.getAttribute('data-book');
+      const slug = deleteChapterBtn.getAttribute('data-slug');
 
-  if (uploadBtn && uploadModal) {
-    uploadBtn.addEventListener('click', () => uploadModal.classList.add('open'));
-  }
-  if (uploadClose && uploadModal) {
-    uploadClose.addEventListener('click', () => uploadModal.classList.remove('open'));
-  }
-
-  if (uploadForm) {
-    uploadForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(uploadForm);
-      formData.append('action', 'upload_file');
+      const formData = new FormData();
+      formData.append('action', 'delete_chapter');
+      formData.append('bookId', bookId);
+      formData.append('slug', slug);
 
       try {
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          window.location.reload();
+          window.location.href = `index.php?book=${encodeURIComponent(bookId)}`;
         } else {
-          alert('Upload failed: ' + (data.error || 'Unknown error'));
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
         }
       } catch (err) {
-        alert('Upload request failed');
+        alert('Delete request failed');
       }
     });
   }

@@ -1,39 +1,52 @@
 {
-  "title": "Standalone Qwiki",
-  "logoText": "QWIKI",
-  "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
-  "defaultBook": "getting-started",
-  "books": [
-    {
-      "id": "getting-started",
-      "title": "Getting Started",
-      "chapters": [
+    "title": "Standalone Qwiki",
+    "logoText": "QWIKI",
+    "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
+    "defaultBook": "getting-started",
+    "books": [
         {
-          "title": "Installation Guide",
-          "slug": "installation",
-          "type": "markdown",
-          "file": "content/getting-started/installation.md"
+            "id": "getting-started",
+            "title": "Getting Started",
+            "chapters": [
+                {
+                    "title": "Installation Guide",
+                    "slug": "installation",
+                    "type": "markdown",
+                    "file": "content/getting-started/installation.md"
+                },
+                {
+                    "title": "System Features",
+                    "slug": "features",
+                    "type": "markdown",
+                    "file": "content/getting-started/features.md"
+                },
+                {
+                    "title": "Sample PDF Document",
+                    "slug": "sample-pdf",
+                    "type": "pdf",
+                    "file": "content/getting-started/sample.pdf"
+                },
+                {
+                    "title": "External Google Doc Demo",
+                    "slug": "google-doc-demo",
+                    "type": "gdoc",
+                    "url": "https://docs.google.com/document/d/e/2PACX-1vT_13P3j2y6d2-sample/pub?embedded=true",
+                    "editUrl": "https://docs.google.com/document/d/sample/edit"
+                }
+            ]
         },
         {
-          "title": "System Features",
-          "slug": "features",
-          "type": "markdown",
-          "file": "content/getting-started/features.md"
-        },
-        {
-          "title": "Sample PDF Document",
-          "slug": "sample-pdf",
-          "type": "pdf",
-          "file": "content/getting-started/sample.pdf"
-        },
-        {
-          "title": "External Google Doc Demo",
-          "slug": "google-doc-demo",
-          "type": "gdoc",
-          "url": "https://docs.google.com/document/d/e/2PACX-1vT_13P3j2y6d2-sample/pub?embedded=true",
-          "editUrl": "https://docs.google.com/document/d/sample/edit"
+            "id": "api-docs",
+            "title": "API Documentation",
+            "folder": "content/api-docs",
+            "chapters": [
+                {
+                    "title": "Authentication Guide",
+                    "slug": "authentication-guide",
+                    "type": "markdown",
+                    "file": "content/api-docs/authentication-guide.md"
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }
