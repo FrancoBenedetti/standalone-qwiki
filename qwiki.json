@@ -40,6 +40,12 @@
                     "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
                     "editUrl": "",
                     "file": ""
+                },
+                {
+                    "title": "Xentara Concept",
+                    "slug": "xentara-concept",
+                    "type": "markdown",
+                    "file": "content/getting-started/xentara-concept.md"
                 }
             ],
             "subfolders": [

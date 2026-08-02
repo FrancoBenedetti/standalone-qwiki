@@ -273,7 +273,18 @@ switch ($action) {
 
         $bookId = $_POST['bookId'] ?? '';
         $title = trim($_POST['title'] ?? '');
-        $content = $_POST['content'] ?? "# {$title}\n\nWrite your documentation content here...";
+        $content = $_POST['content'] ?? "";
+
+        // Auto-extract title from first H1 heading if title was left blank
+        if (empty($title) && !empty($content)) {
+            if (preg_match('/^#\s+(.+)$/m', $content, $matches)) {
+                $title = trim(strip_tags($matches[1]));
+            }
+        }
+
+        if (empty($content)) {
+            $content = "# {$title}\n\nWrite your documentation content here...";
+        }
 
         if (empty($bookId) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category and title are required']);

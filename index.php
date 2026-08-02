@@ -439,8 +439,8 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Document Title</label>
-                    <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview" required>
+                    <label class="form-label">Document Title (Auto-detected from # Heading if left blank)</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Initial Markdown Content</label>
