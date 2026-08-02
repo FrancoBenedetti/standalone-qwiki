@@ -521,9 +521,15 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             <div class="form-group">
                 <textarea id="markdown-editor-textarea" class="form-control"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button class="btn btn-outline" data-close="editor-modal">Cancel</button>
-                <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Content Changes</button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <input type="file" id="input-insert-image" accept="image/*" style="display: none;">
+                    <button type="button" class="btn btn-outline" id="btn-insert-image">📷 Insert Image</button>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="btn btn-outline" data-close="editor-modal">Cancel</button>
+                    <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Content Changes</button>
+                </div>
             </div>
         </div>
     </div>

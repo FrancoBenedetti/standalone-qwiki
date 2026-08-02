@@ -237,6 +237,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Insert Image into Markdown Editor
+  const btnInsertImage = document.getElementById('btn-insert-image');
+  const inputInsertImage = document.getElementById('input-insert-image');
+
+  if (btnInsertImage && inputInsertImage && markdownTextarea) {
+    btnInsertImage.addEventListener('click', () => {
+      inputInsertImage.click();
+    });
+
+    inputInsertImage.addEventListener('change', async () => {
+      const file = inputInsertImage.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('action', 'upload_image');
+      formData.append('image', file);
+
+      btnInsertImage.disabled = true;
+      btnInsertImage.textContent = 'Uploading...';
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+          const imageTag = `\n![${data.alt || 'Image'}](${data.url})\n`;
+          
+          const startPos = markdownTextarea.selectionStart;
+          const endPos = markdownTextarea.selectionEnd;
+          const textBefore = markdownTextarea.value.substring(0, startPos);
+          const textAfter = markdownTextarea.value.substring(endPos);
+
+          markdownTextarea.value = textBefore + imageTag + textAfter;
+          markdownTextarea.selectionStart = markdownTextarea.selectionEnd = startPos + imageTag.length;
+          markdownTextarea.focus();
+        } else {
+          alert('Image upload failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed during image upload');
+      } finally {
+        btnInsertImage.disabled = false;
+        btnInsertImage.textContent = '📷 Insert Image';
+        inputInsertImage.value = '';
+      }
+    });
+  }
+
   // Delete Chapter
   const deleteChapterBtn = document.getElementById('btn-delete-chapter');
   if (deleteChapterBtn) {

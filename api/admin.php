@@ -459,6 +459,43 @@ switch ($action) {
         echo json_encode(['success' => false, 'error' => 'Invalid tree data provided']);
         break;
 
+    case 'upload_image':
+        if (empty($_SESSION['qwiki_admin'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'error' => 'No image file uploaded or upload error']);
+            exit;
+        }
+
+        $fileName = basename($_FILES['image']['name']);
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $allowedExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+
+        if (!in_array($ext, $allowedExts)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid image format. Allowed: png, jpg, jpeg, gif, svg, webp']);
+            exit;
+        }
+
+        $uploadDir = __DIR__ . '/../uploads/images/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $safeName = preg_replace('/[^a-z0-9\._-]/', '-', strtolower(pathinfo($fileName, PATHINFO_FILENAME)));
+        $newFileName = time() . '-' . $safeName . '.' . $ext;
+        $targetPath = $uploadDir . $newFileName;
+        $relUrl = 'uploads/images/' . $newFileName;
+
+        if (move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+            echo json_encode(['success' => true, 'url' => $relUrl, 'alt' => pathinfo($fileName, PATHINFO_FILENAME)]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save image to server']);
+        }
+        break;
+
     default:
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
         break;
