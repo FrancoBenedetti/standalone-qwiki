@@ -232,6 +232,38 @@ body {
   gap: 0.4rem;
 }
 
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-right: 0.35rem;
+  user-select: none;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.drag-handle:hover {
+  opacity: 1;
+  color: var(--accent-color);
+}
+
+.dragging {
+  opacity: 0.4;
+}
+
+.drag-over-above {
+  border-top: 2px solid var(--accent-color) !important;
+}
+
+.drag-over-below {
+  border-bottom: 2px solid var(--accent-color) !important;
+}
+
+.drag-over-inside {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-radius: var(--radius-sm);
+}
+
 .btn-edit-cat-icon {
   background: none;
   border: none;

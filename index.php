@@ -164,9 +164,13 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     $icon = ($depth === 0) ? '📂' : '📁';
     $indentClass = 'depth-' . min($depth, 5);
 
-    echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "'>";
+    $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "'" : "";
+
+    echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
     echo "<div class='nav-category-header'>";
-    echo "<span>{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
+    echo "<span>";
+    if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+    echo "{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
     echo "<span class='header-actions-inline'>";
     if ($isAdmin) {
         echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' title='Rename Category'>✏️</button> ";
@@ -175,15 +179,20 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     echo "</span>";
     echo "</div>";
 
-    echo "<div class='nav-document-list'>";
+    echo "<div class='nav-document-list' data-parent-node-id='" . htmlspecialchars($nodeId) . "'>";
 
     if (!empty($node['chapters'])) {
         foreach ($node['chapters'] as $ch) {
             $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
             $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
             $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
-            echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "'>";
-            echo "<span>" . htmlspecialchars($ch['title']) . "</span>";
+            
+            $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "'" : "";
+
+            echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
+            echo "<span>";
+            if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+            echo htmlspecialchars($ch['title']) . "</span>";
             echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
             echo "</a>";
         }

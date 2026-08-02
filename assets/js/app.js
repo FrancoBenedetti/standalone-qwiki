@@ -26,8 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Category Accordion Toggle
   document.querySelectorAll('.nav-category-header').forEach(header => {
     header.addEventListener('click', (e) => {
-      // Don't toggle accordion if clicking edit icon
-      if (e.target.closest('.btn-edit-cat-icon')) return;
+      if (e.target.closest('.btn-edit-cat-icon') || e.target.closest('.drag-handle')) return;
       const catItem = header.closest('.nav-category-item');
       if (catItem) {
         catItem.classList.toggle('collapsed');
@@ -227,4 +226,147 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ----------------------------------------------------
+  // HTML5 Drag and Drop Engine for Menu Reordering
+  // ----------------------------------------------------
+  let draggedElement = null;
+
+  function clearDragHighlights() {
+    document.querySelectorAll('.drag-over-above, .drag-over-below, .drag-over-inside').forEach(el => {
+      el.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-inside');
+    });
+  }
+
+  // Extract tree array recursively from DOM structure
+  function extractCategoryNodeFromDOM(catEl) {
+    const nodeId = catEl.getAttribute('data-node-id');
+    const nodeTitle = catEl.getAttribute('data-node-title');
+    const docList = catEl.querySelector(':scope > .nav-document-list');
+
+    const chapters = [];
+    const subfolders = [];
+
+    if (docList) {
+      // Extract immediate chapters
+      docList.querySelectorAll(':scope > .nav-link[data-drag-type="document"]').forEach(docEl => {
+        chapters.push({
+          title: docEl.getAttribute('data-doc-title'),
+          slug: docEl.getAttribute('data-doc-slug'),
+          type: docEl.getAttribute('data-doc-type'),
+          url: docEl.getAttribute('data-doc-url') || '',
+          editUrl: docEl.getAttribute('data-doc-editurl') || '',
+          file: docEl.getAttribute('data-doc-file') || ''
+        });
+      });
+
+      // Extract immediate subfolders
+      docList.querySelectorAll(':scope > .nav-category-item[data-drag-type="category"]').forEach(subCatEl => {
+        subfolders.push(extractCategoryNodeFromDOM(subCatEl));
+      });
+    }
+
+    const result = { id: nodeId, title: nodeTitle };
+    if (chapters.length > 0) result.chapters = chapters;
+    if (subfolders.length > 0) result.subfolders = subfolders;
+    return result;
+  }
+
+  async function saveTreeStructureToBackend() {
+    const tree = [];
+    document.querySelectorAll('.sidebar-nav > .nav-category-item[data-drag-type="category"]').forEach(topCatEl => {
+      tree.push(extractCategoryNodeFromDOM(topCatEl));
+    });
+
+    try {
+      const res = await fetch('api/admin.php?action=reorder_tree', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tree })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert('Failed to save reordered menu structure: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Network request failed while saving reordered menu');
+    }
+  }
+
+  const draggables = document.querySelectorAll('[draggable="true"]');
+  draggables.forEach(el => {
+    el.addEventListener('dragstart', (e) => {
+      e.stopPropagation();
+      draggedElement = el;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+
+    el.addEventListener('dragend', (e) => {
+      e.stopPropagation();
+      if (draggedElement) draggedElement.classList.remove('dragging');
+      draggedElement = null;
+      clearDragHighlights();
+    });
+
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!draggedElement || draggedElement === el) return;
+
+      clearDragHighlights();
+      const rect = el.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const height = rect.height;
+
+      const draggedType = draggedElement.getAttribute('data-drag-type');
+      const targetType = el.getAttribute('data-drag-type');
+
+      // Drag document onto a Category -> Drop inside
+      if (draggedType === 'document' && targetType === 'category') {
+        if (offsetY > height * 0.25 && offsetY < height * 0.75) {
+          el.classList.add('drag-over-inside');
+          return;
+        }
+      }
+
+      if (offsetY < height / 2) {
+        el.classList.add('drag-over-above');
+      } else {
+        el.classList.add('drag-over-below');
+      }
+    });
+
+    el.addEventListener('dragleave', (e) => {
+      e.stopPropagation();
+      el.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-inside');
+    });
+
+    el.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!draggedElement || draggedElement === el) return;
+
+      const isAbove = el.classList.contains('drag-over-above');
+      const isBelow = el.classList.contains('drag-over-below');
+      const isInside = el.classList.contains('drag-over-inside');
+
+      clearDragHighlights();
+
+      if (isInside && el.getAttribute('data-drag-type') === 'category') {
+        const targetDocList = el.querySelector(':scope > .nav-document-list');
+        if (targetDocList) {
+          targetDocList.appendChild(draggedElement);
+          el.classList.remove('collapsed');
+        }
+      } else if (isAbove) {
+        el.parentNode.insertBefore(draggedElement, el);
+      } else if (isBelow) {
+        el.parentNode.insertBefore(draggedElement, el.nextSibling);
+      }
+
+      await saveTreeStructureToBackend();
+    });
+  });
 });

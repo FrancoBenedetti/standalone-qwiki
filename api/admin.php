@@ -435,6 +435,30 @@ switch ($action) {
         echo json_encode(['success' => true]);
         break;
 
+    case 'reorder_tree':
+        if (empty($_SESSION['qwiki_admin'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $rawInput = file_get_contents('php://input');
+        $json = json_decode($rawInput, true);
+        $tree = $json['tree'] ?? $_POST['tree'] ?? null;
+
+        if (is_string($tree)) {
+            $tree = json_decode($tree, true);
+        }
+
+        if (is_array($tree)) {
+            $config['books'] = $tree;
+            if (save_config($configFile, $config)) {
+                echo json_encode(['success' => true]);
+                exit;
+            }
+        }
+        echo json_encode(['success' => false, 'error' => 'Invalid tree data provided']);
+        break;
+
     default:
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
         break;
