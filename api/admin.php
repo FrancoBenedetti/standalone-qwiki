@@ -11,17 +11,34 @@ if (!file_exists($configFile)) {
 $config = json_decode(file_get_contents($configFile), true);
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-// Helper to save qwiki.json safely
 function save_config($configFile, $config) {
     return file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;
 }
 
-// Helper to sanitize slug
 function make_slug($text) {
     $slug = strtolower(trim($text));
     $slug = preg_replace('/[^a-z0-9\-]/', '-', $slug);
     $slug = preg_replace('/-+/', '-', $slug);
     return trim($slug, '-');
+}
+
+/**
+ * Recursive helper to insert chapter into matching book or subfolder node
+ */
+function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
+    if (($node['id'] ?? '') === $targetFolderId) {
+        if (!isset($node['chapters'])) $node['chapters'] = [];
+        $node['chapters'][] = $chapterData;
+        return true;
+    }
+    if (!empty($node['subfolders'])) {
+        foreach ($node['subfolders'] as &$sub) {
+            if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 switch ($action) {
@@ -51,19 +68,10 @@ switch ($action) {
         $bookId = make_slug($_POST['id'] ?? $title);
 
         if (empty($title) || empty($bookId)) {
-            echo json_encode(['success' => false, 'error' => 'Book title is required']);
+            echo json_encode(['success' => false, 'error' => 'Category title is required']);
             exit;
         }
 
-        // Check if book already exists
-        foreach ($config['books'] as $b) {
-            if ($b['id'] === $bookId) {
-                echo json_encode(['success' => false, 'error' => 'Book with this ID already exists']);
-                exit;
-            }
-        }
-
-        // Auto-create folder if needed
         $bookFolder = __DIR__ . '/../content/' . $bookId;
         if (!is_dir($bookFolder)) {
             mkdir($bookFolder, 0755, true);
@@ -94,7 +102,7 @@ switch ($action) {
         $content = $_POST['content'] ?? "# {$title}\n\nWrite your documentation content here...";
 
         if (empty($bookId) || empty($title)) {
-            echo json_encode(['success' => false, 'error' => 'Book and title are required']);
+            echo json_encode(['success' => false, 'error' => 'Category and title are required']);
             exit;
         }
 
@@ -102,7 +110,6 @@ switch ($action) {
         $targetRelDir = 'content/' . $bookId;
         $targetAbsDir = __DIR__ . '/../' . $targetRelDir;
 
-        // Auto-create directory structure if needed
         if (!is_dir($targetAbsDir)) {
             mkdir($targetAbsDir, 0755, true);
         }
@@ -115,16 +122,16 @@ switch ($action) {
             exit;
         }
 
-        // Update qwiki.json
+        $chapterData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'markdown',
+            'file' => $targetRelFile
+        ];
+
         $added = false;
         foreach ($config['books'] as &$book) {
-            if ($book['id'] === $bookId) {
-                $book['chapters'][] = [
-                    'title' => $title,
-                    'slug' => $slug,
-                    'type' => 'markdown',
-                    'file' => $targetRelFile
-                ];
+            if (insert_chapter_into_node($book, $bookId, $chapterData)) {
                 $added = true;
                 break;
             }
@@ -187,7 +194,6 @@ switch ($action) {
         $targetRelDir = 'content/' . $bookId;
         $targetAbsDir = __DIR__ . '/../' . $targetRelDir;
 
-        // Auto-create directory structure if needed
         if (!is_dir($targetAbsDir)) {
             mkdir($targetAbsDir, 0755, true);
         }
@@ -196,14 +202,15 @@ switch ($action) {
         $targetAbsFile = __DIR__ . '/../' . $targetRelFile;
 
         if (move_uploaded_file($_FILES['document']['tmp_name'], $targetAbsFile)) {
+            $chapterData = [
+                'title' => $title,
+                'slug' => $slug,
+                'type' => ($ext === 'pdf') ? 'pdf' : 'markdown',
+                'file' => $targetRelFile
+            ];
+
             foreach ($config['books'] as &$book) {
-                if ($book['id'] === $bookId) {
-                    $book['chapters'][] = [
-                        'title' => $title,
-                        'slug' => $slug,
-                        'type' => ($ext === 'pdf') ? 'pdf' : 'markdown',
-                        'file' => $targetRelFile
-                    ];
+                if (insert_chapter_into_node($book, $bookId, $chapterData)) {
                     break;
                 }
             }
@@ -230,22 +237,21 @@ switch ($action) {
             exit;
         }
 
-        // Automatically ensure embedded=true parameter
         if (strpos($url, 'embedded=true') === false) {
             $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
         }
 
         $slug = make_slug($title);
+        $chapterData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'gdoc',
+            'url' => $url,
+            'editUrl' => $editUrl
+        ];
 
         foreach ($config['books'] as &$book) {
-            if ($book['id'] === $bookId) {
-                $book['chapters'][] = [
-                    'title' => $title,
-                    'slug' => $slug,
-                    'type' => 'gdoc',
-                    'url' => $url,
-                    'editUrl' => $editUrl
-                ];
+            if (insert_chapter_into_node($book, $bookId, $chapterData)) {
                 break;
             }
         }
@@ -267,17 +273,25 @@ switch ($action) {
             exit;
         }
 
-        foreach ($config['books'] as &$book) {
-            if ($book['id'] === $bookId) {
-                $newChapters = [];
-                foreach ($book['chapters'] as $ch) {
+        function delete_chapter_from_node(&$node, $slug) {
+            if (!empty($node['chapters'])) {
+                $newCh = [];
+                foreach ($node['chapters'] as $ch) {
                     if ($ch['slug'] !== $slug) {
-                        $newChapters[] = $ch;
+                        $newCh[] = $ch;
                     }
                 }
-                $book['chapters'] = $newChapters;
-                break;
+                $node['chapters'] = $newCh;
             }
+            if (!empty($node['subfolders'])) {
+                foreach ($node['subfolders'] as &$sub) {
+                    delete_chapter_from_node($sub, $slug);
+                }
+            }
+        }
+
+        foreach ($config['books'] as &$book) {
+            delete_chapter_from_node($book, $slug);
         }
         save_config($configFile, $config);
         echo json_encode(['success' => true]);

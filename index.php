@@ -13,9 +13,10 @@ $isAdmin = !empty($_SESSION['qwiki_admin']);
 
 // Routing parameters
 $requestedBookId = $_GET['book'] ?? $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
-$requestedChapterSlug = $_GET['chapter'] ?? '';
+$requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
+$requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
 
-// Find active book and active chapter
+// Active tree resolution state
 $activeBook = null;
 foreach ($config['books'] as $book) {
     if ($book['id'] === $requestedBookId) {
@@ -28,17 +29,75 @@ if (!$activeBook && !empty($config['books'])) {
 }
 
 $activeChapter = null;
-if ($activeBook && !empty($activeBook['chapters'])) {
-    if ($requestedChapterSlug) {
-        foreach ($activeBook['chapters'] as $ch) {
-            if ($ch['slug'] === $requestedChapterSlug) {
-                $activeChapter = $ch;
-                break;
+$breadcrumbsTrail = [];
+$activePathIds = [$activeBook['id']];
+
+/**
+ * Recursive search to locate active folder & chapter, building breadcrumb trail and active path IDs
+ */
+function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds) {
+    $nodeId = $node['id'] ?? '';
+    $nodeTitle = $node['title'] ?? '';
+    $currentTrail = array_merge($trail, [['title' => $nodeTitle, 'id' => $nodeId]]);
+    $currentActiveIds = array_merge($activeIds, [$nodeId]);
+
+    // Check if target folder matches or if we're searching inside
+    $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
+
+    // 1. Search chapters in this node
+    if (!empty($node['chapters'])) {
+        if ($targetChapterSlug) {
+            foreach ($node['chapters'] as $ch) {
+                if ($ch['slug'] === $targetChapterSlug) {
+                    if (!$targetFolderId || $isFolderMatch) {
+                        $trail = $currentTrail;
+                        $activeIds = $currentActiveIds;
+                        return $ch;
+                    }
+                }
+            }
+        } elseif ($isFolderMatch) {
+            // First chapter of matched folder
+            $trail = $currentTrail;
+            $activeIds = $currentActiveIds;
+            return $node['chapters'][0];
+        }
+    }
+
+    // 2. Search subfolders recursively
+    if (!empty($node['subfolders'])) {
+        foreach ($node['subfolders'] as $sub) {
+            $found = find_chapter_and_path($sub, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds);
+            if ($found) {
+                $trail = $currentTrail;
+                $activeIds = $currentActiveIds;
+                return $found;
             }
         }
     }
-    if (!$activeChapter) {
+
+    // Fallback: If no specific chapter matched yet in top book, pick first available chapter
+    if (!$targetFolderId && !$targetChapterSlug && !empty($node['chapters'])) {
+        $trail = $currentTrail;
+        $activeIds = $currentActiveIds;
+        return $node['chapters'][0];
+    }
+
+    return null;
+}
+
+$dummyTrail = [];
+$dummyIds = [];
+$activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds);
+
+if ($activeChapter) {
+    $breadcrumbsTrail = $dummyTrail;
+    $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
+} else {
+    // Fallback to first chapter in active book
+    if (!empty($activeBook['chapters'])) {
         $activeChapter = $activeBook['chapters'][0];
+        $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
     }
 }
 
@@ -69,7 +128,6 @@ if ($activeChapter) {
     } elseif ($type === 'gdoc') {
         $docUrl = $activeChapter['url'] ?? '';
         if ($docUrl) {
-            // Auto append embedded=true if missing
             if (strpos($docUrl, 'embedded=true') === false) {
                 $docUrl .= (strpos($docUrl, '?') !== false) ? '&embedded=true' : '?embedded=true';
             }
@@ -97,6 +155,48 @@ if ($activeChapter) {
             $renderedContent = "<p>No Google Doc URL provided.</p>";
         }
     }
+}
+
+/**
+ * Recursive function to render sidebar navigation with subfolders
+ */
+function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0) {
+    $nodeId = $node['id'] ?? '';
+    $nodeTitle = $node['title'] ?? '';
+    $isExpanded = in_array($nodeId, $activePathIds);
+    $icon = ($depth === 0) ? '📂' : '📁';
+    $indentClass = 'depth-' . min($depth, 5);
+
+    echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "'>";
+    echo "<div class='nav-category-header'>";
+    echo "<span>{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
+    echo "<span class='chevron-icon'>▾</span>";
+    echo "</div>";
+
+    echo "<div class='nav-document-list'>";
+
+    // Render Chapters
+    if (!empty($node['chapters'])) {
+        foreach ($node['chapters'] as $ch) {
+            $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
+            $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
+            $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
+            echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "'>";
+            echo "<span>" . htmlspecialchars($ch['title']) . "</span>";
+            echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
+            echo "</a>";
+        }
+    }
+
+    // Render Subfolders recursively
+    if (!empty($node['subfolders'])) {
+        foreach ($node['subfolders'] as $sub) {
+            render_sidebar_node($sub, $bookId, $activePathIds, $activeChapterSlug, $depth + 1);
+        }
+    }
+
+    echo "</div>";
+    echo "</div>";
 }
 ?>
 <!DOCTYPE html>
@@ -142,28 +242,7 @@ if ($activeChapter) {
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php $isBookActive = ($activeBook && $activeBook['id'] === $book['id']); ?>
-                    <div class="nav-category-item <?= $isBookActive ? '' : 'collapsed' ?>">
-                        <div class="nav-category-header">
-                            <span>📂 <?= htmlspecialchars($book['title']) ?></span>
-                            <span class="chevron-icon">▾</span>
-                        </div>
-                        <?php if (!empty($book['chapters'])): ?>
-                            <div class="nav-document-list">
-                                <?php foreach ($book['chapters'] as $ch): ?>
-                                    <?php 
-                                        $isActive = ($isBookActive && $activeChapter && $activeChapter['slug'] === $ch['slug']); 
-                                        $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
-                                    ?>
-                                    <a href="index.php?book=<?= urlencode($book['id']) ?>&chapter=<?= urlencode($ch['slug']) ?>" 
-                                       class="nav-link <?= $isActive ? 'active' : '' ?>">
-                                        <span><?= htmlspecialchars($ch['title']) ?></span>
-                                        <span class="doc-badge <?= $badgeClass ?>"><?= htmlspecialchars($ch['type']) ?></span>
-                                    </a>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? ''); ?>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -173,7 +252,10 @@ if ($activeChapter) {
             <?php if ($activeChapter): ?>
                 <div class="content-header">
                     <div class="breadcrumbs">
-                        <a href="index.php?book=<?= urlencode($activeBook['id']) ?>"><?= htmlspecialchars($activeBook['title']) ?></a>
+                        <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
+                            <?php if ($index > 0): ?><span>/</span><?php endif; ?>
+                            <a href="index.php?book=<?= urlencode($activeBook['id']) ?>&folder=<?= urlencode($crumb['id']) ?>"><?= htmlspecialchars($crumb['title']) ?></a>
+                        <?php endforeach; ?>
                         <span>/</span>
                         <span><?= htmlspecialchars($activeChapter['title']) ?></span>
                     </div>
@@ -259,7 +341,7 @@ if ($activeChapter) {
             <!-- Tab 1: Create Markdown Online -->
             <form id="tab-create-md" class="tab-content active">
                 <div class="form-group">
-                    <label class="form-label">Target Category</label>
+                    <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
@@ -280,7 +362,7 @@ if ($activeChapter) {
             <!-- Tab 2: Upload File -->
             <form id="tab-upload" class="tab-content" enctype="multipart/form-data">
                 <div class="form-group">
-                    <label class="form-label">Target Category</label>
+                    <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
@@ -301,7 +383,7 @@ if ($activeChapter) {
             <!-- Tab 3: Google Doc -->
             <form id="tab-gdoc" class="tab-content">
                 <div class="form-group">
-                    <label class="form-label">Target Category</label>
+                    <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>

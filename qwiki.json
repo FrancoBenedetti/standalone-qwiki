@@ -1,85 +1,66 @@
 {
-    "title": "Standalone Qwiki",
-    "logoText": "QWIKI",
-    "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
-    "defaultBook": "getting-started",
-    "books": [
+  "title": "Standalone Qwiki",
+  "logoText": "QWIKI",
+  "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
+  "defaultBook": "getting-started",
+  "books": [
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "chapters": [
         {
-            "id": "getting-started",
-            "title": "Getting Started",
-            "chapters": [
-                {
-                    "title": "Installation Guide",
-                    "slug": "installation",
-                    "type": "markdown",
-                    "file": "content/getting-started/installation.md"
-                },
-                {
-                    "title": "System Features",
-                    "slug": "features",
-                    "type": "markdown",
-                    "file": "content/getting-started/features.md"
-                },
-                {
-                    "title": "Sample PDF Document",
-                    "slug": "sample-pdf",
-                    "type": "pdf",
-                    "file": "content/getting-started/sample.pdf"
-                },
-                {
-                    "title": "Live Google Doc Demo",
-                    "slug": "live-google-doc",
-                    "type": "gdoc",
-                    "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
-                    "editUrl": ""
-                },
-                {
-                    "title": "External Google Doc Demo",
-                    "slug": "google-doc-demo",
-                    "type": "gdoc",
-                    "url": "https://docs.google.com/document/d/e/2PACX-1vT_13P3j2y6d2-sample/pub?embedded=true",
-                    "editUrl": "https://docs.google.com/document/d/sample/edit"
-                }
-            ]
+          "title": "Installation Guide",
+          "slug": "installation",
+          "type": "markdown",
+          "file": "content/getting-started/installation.md"
         },
         {
-            "id": "api-docs",
-            "title": "API Documentation",
-            "folder": "content/api-docs",
-            "chapters": [
-                {
-                    "title": "Authentication Guide",
-                    "slug": "authentication-guide",
-                    "type": "markdown",
-                    "file": "content/api-docs/authentication-guide.md"
-                }
-            ]
+          "title": "System Features",
+          "slug": "features",
+          "type": "markdown",
+          "file": "content/getting-started/features.md"
         },
         {
-            "id": "better-books",
-            "title": "Better Books",
-            "folder": "content/better-books",
-            "chapters": [
-                {
-                    "title": "Improved speed",
-                    "slug": "improved-speed",
-                    "type": "markdown",
-                    "file": "content/better-books/improved-speed.md"
-                },
-                {
-                    "title": "A test case",
-                    "slug": "a-test-case",
-                    "type": "gdoc",
-                    "url": "https://docs.google.com/document/d/e/2PACX-1vRWM2ZyfeCrNijKV6Yb2Wa-HzbibgRL5mjLowxQes64IWAlaM4jL3uj7SI-1MOx4F0iO09-IWh4dt3x/pub?embedded=true",
-                    "editUrl": "https://docs.google.com/document/d/1Ngt4VnZPqxm1GjYN8ihVjVy43o-rbjjUbTfFXHEwkHc/edit"
-                }
-            ]
+          "title": "Sample PDF Document",
+          "slug": "sample-pdf",
+          "type": "pdf",
+          "file": "content/getting-started/sample.pdf"
         },
         {
-            "id": "gd",
-            "title": "Another Google Doc",
-            "folder": "content/gd",
-            "chapters": []
+          "title": "Live Google Doc Demo",
+          "slug": "live-google-doc",
+          "type": "gdoc",
+          "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
+          "editUrl": ""
         }
-    ]
+      ],
+      "subfolders": [
+        {
+          "id": "advanced-topics",
+          "title": "Advanced Topics",
+          "chapters": [
+            {
+              "title": "Performance Optimization",
+              "slug": "performance",
+              "type": "markdown",
+              "file": "content/getting-started/advanced-topics/performance.md"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api-docs",
+      "title": "API Documentation",
+      "folder": "content/api-docs",
+      "chapters": [
+        {
+          "title": "Authentication Guide",
+          "slug": "authentication-guide",
+          "type": "markdown",
+          "file": "content/api-docs/authentication-guide.md"
+        }
+      ]
+    }
+  ]
 }
