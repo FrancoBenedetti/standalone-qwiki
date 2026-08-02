@@ -41,6 +41,50 @@ function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
     return false;
 }
 
+/**
+ * Recursive helper to update folder/book node metadata
+ */
+function update_node_title(&$node, $targetId, $newTitle) {
+    if (($node['id'] ?? '') === $targetId) {
+        $node['title'] = $newTitle;
+        return true;
+    }
+    if (!empty($node['subfolders'])) {
+        foreach ($node['subfolders'] as &$sub) {
+            if (update_node_title($sub, $targetId, $newTitle)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Recursive helper to update chapter metadata
+ */
+function update_chapter_in_node(&$node, $slug, $updatedData) {
+    if (!empty($node['chapters'])) {
+        foreach ($node['chapters'] as &$ch) {
+            if ($ch['slug'] === $slug) {
+                if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                return true;
+            }
+        }
+    }
+    if (!empty($node['subfolders'])) {
+        foreach ($node['subfolders'] as &$sub) {
+            if (update_chapter_in_node($sub, $slug, $updatedData)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 switch ($action) {
     case 'login':
         $password = $_POST['password'] ?? '';
@@ -88,6 +132,35 @@ switch ($action) {
             echo json_encode(['success' => true, 'bookId' => $bookId]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        }
+        break;
+
+    case 'edit_book':
+        if (empty($_SESSION['qwiki_admin'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+
+        if (empty($bookId) || empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
+            exit;
+        }
+
+        $updated = false;
+        foreach ($config['books'] as &$book) {
+            if (update_node_title($book, $bookId, $title)) {
+                $updated = true;
+                break;
+            }
+        }
+
+        if ($updated && save_config($configFile, $config)) {
+            echo json_encode(['success' => true, 'bookId' => $bookId]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Category not found or save failed']);
         }
         break;
 
@@ -141,6 +214,53 @@ switch ($action) {
             echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        }
+        break;
+
+    case 'edit_chapter':
+        if (empty($_SESSION['qwiki_admin'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $slug = $_POST['slug'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $type = $_POST['type'] ?? 'markdown';
+        $url = trim($_POST['url'] ?? '');
+        $editUrl = trim($_POST['editUrl'] ?? '');
+        $file = trim($_POST['file'] ?? '');
+
+        if (empty($slug) || empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Document Slug and Title are required']);
+            exit;
+        }
+
+        if ($type === 'gdoc' && !empty($url)) {
+            if (strpos($url, 'embedded=true') === false) {
+                $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
+            }
+        }
+
+        $updatedData = [
+            'title' => $title,
+            'type' => $type,
+            'url' => $url,
+            'editUrl' => $editUrl,
+            'file' => $file
+        ];
+
+        $updated = false;
+        foreach ($config['books'] as &$book) {
+            if (update_chapter_in_node($book, $slug, $updatedData)) {
+                $updated = true;
+                break;
+            }
+        }
+
+        if ($updated && save_config($configFile, $config)) {
+            echo json_encode(['success' => true, 'slug' => $slug]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Document entry not found or save failed']);
         }
         break;
 

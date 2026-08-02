@@ -41,7 +41,6 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
     $currentTrail = array_merge($trail, [['title' => $nodeTitle, 'id' => $nodeId]]);
     $currentActiveIds = array_merge($activeIds, [$nodeId]);
 
-    // Check if target folder matches or if we're searching inside
     $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
 
     // 1. Search chapters in this node
@@ -57,7 +56,6 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
                 }
             }
         } elseif ($isFolderMatch) {
-            // First chapter of matched folder
             $trail = $currentTrail;
             $activeIds = $currentActiveIds;
             return $node['chapters'][0];
@@ -94,7 +92,6 @@ if ($activeChapter) {
     $breadcrumbsTrail = $dummyTrail;
     $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
 } else {
-    // Fallback to first chapter in active book
     if (!empty($activeBook['chapters'])) {
         $activeChapter = $activeBook['chapters'][0];
         $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
@@ -160,7 +157,7 @@ if ($activeChapter) {
 /**
  * Recursive function to render sidebar navigation with subfolders
  */
-function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0) {
+function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false) {
     $nodeId = $node['id'] ?? '';
     $nodeTitle = $node['title'] ?? '';
     $isExpanded = in_array($nodeId, $activePathIds);
@@ -170,12 +167,16 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "'>";
     echo "<div class='nav-category-header'>";
     echo "<span>{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
+    echo "<span class='header-actions-inline'>";
+    if ($isAdmin) {
+        echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' title='Rename Category'>✏️</button> ";
+    }
     echo "<span class='chevron-icon'>▾</span>";
+    echo "</span>";
     echo "</div>";
 
     echo "<div class='nav-document-list'>";
 
-    // Render Chapters
     if (!empty($node['chapters'])) {
         foreach ($node['chapters'] as $ch) {
             $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
@@ -188,10 +189,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         }
     }
 
-    // Render Subfolders recursively
     if (!empty($node['subfolders'])) {
         foreach ($node['subfolders'] as $sub) {
-            render_sidebar_node($sub, $bookId, $activePathIds, $activeChapterSlug, $depth + 1);
+            render_sidebar_node($sub, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin);
         }
     }
 
@@ -242,7 +242,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? ''); ?>
+                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin); ?>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -265,8 +265,15 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <?php endif; ?>
                         <?php if ($isAdmin): ?>
                             <?php if ($activeChapter['type'] === 'markdown'): ?>
-                                <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Page</button>
+                                <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Content</button>
                             <?php endif; ?>
+                            <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta"
+                                    data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
+                                    data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
+                                    data-type="<?= htmlspecialchars($activeChapter['type']) ?>"
+                                    data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
+                                    data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
+                                    data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">⚙️ Edit Details</button>
                             <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
                         <?php endif; ?>
                     </div>
@@ -323,6 +330,24 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
+    <!-- Edit Category Modal -->
+    <div class="modal-overlay" id="edit-book-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Edit Category Title</h3>
+                <button class="modal-close" data-close="edit-book-modal">&times;</button>
+            </div>
+            <form id="edit-book-form">
+                <input type="hidden" name="bookId" id="edit-book-id-hidden">
+                <div class="form-group">
+                    <label class="form-label" for="edit-book-title-input">Category Title</label>
+                    <input type="text" name="title" id="edit-book-title-input" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Category Title</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Unified Add Document Modal -->
     <div class="modal-overlay" id="chapter-modal">
         <div class="modal-card" style="max-width: 700px;">
@@ -331,7 +356,6 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 <button class="modal-close" data-close="chapter-modal">&times;</button>
             </div>
             
-            <!-- Type Selector Tabs -->
             <div class="tab-header">
                 <button class="tab-btn active" data-tab="tab-create-md">✏️ New Markdown</button>
                 <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
@@ -407,6 +431,46 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
+    <!-- Edit Document Metadata Modal -->
+    <?php if ($activeChapter): ?>
+    <div class="modal-overlay" id="edit-chapter-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Edit Document Entry Details</h3>
+                <button class="modal-close" data-close="edit-chapter-modal">&times;</button>
+            </div>
+            <form id="edit-chapter-form">
+                <input type="hidden" name="slug" id="edit-chapter-slug-hidden" value="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-title">Document Title</label>
+                    <input type="text" name="title" id="edit-chapter-title" class="form-control" value="<?= htmlspecialchars($activeChapter['title']) ?>" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-type">Type</label>
+                    <select name="type" id="edit-chapter-type" class="form-control">
+                        <option value="markdown" <?= ($activeChapter['type'] === 'markdown') ? 'selected' : '' ?>>Markdown (.md)</option>
+                        <option value="gdoc" <?= ($activeChapter['type'] === 'gdoc') ? 'selected' : '' ?>>Google Doc (URL)</option>
+                        <option value="pdf" <?= ($activeChapter['type'] === 'pdf') ? 'selected' : '' ?>>PDF Document (.pdf)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="group-edit-gdoc-url">
+                    <label class="form-label" for="edit-chapter-url">Published Google Doc URL</label>
+                    <input type="url" name="url" id="edit-chapter-url" class="form-control" value="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>">
+                </div>
+                <div class="form-group" id="group-edit-gdoc-editurl">
+                    <label class="form-label" for="edit-chapter-editurl">Google Doc Edit URL (Optional)</label>
+                    <input type="url" name="editUrl" id="edit-chapter-editurl" class="form-control" value="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>">
+                </div>
+                <div class="form-group" id="group-edit-file">
+                    <label class="form-label" for="edit-chapter-file">File Path</label>
+                    <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Wiki Settings Modal -->
     <div class="modal-overlay" id="settings-modal">
         <div class="modal-card">
@@ -441,7 +505,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <div class="modal-overlay" id="editor-modal">
         <div class="modal-card" style="max-width: 900px;">
             <div class="modal-header">
-                <h3>Edit Markdown: <?= htmlspecialchars($activeChapter['title']) ?></h3>
+                <h3>Edit Markdown Content: <?= htmlspecialchars($activeChapter['title']) ?></h3>
                 <button class="modal-close" data-close="editor-modal">&times;</button>
             </div>
             <div class="form-group">
@@ -449,7 +513,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 1rem;">
                 <button class="btn btn-outline" data-close="editor-modal">Cancel</button>
-                <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Changes</button>
+                <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Content Changes</button>
             </div>
         </div>
     </div>

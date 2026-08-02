@@ -226,6 +226,25 @@ body {
   display: inline-block;
 }
 
+.header-actions-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-edit-cat-icon {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-edit-cat-icon:hover {
+  opacity: 1;
+}
+
 .nav-category-item.collapsed .chevron-icon {
   transform: rotate(-90deg);
 }

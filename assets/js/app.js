@@ -25,7 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Category Accordion Toggle
   document.querySelectorAll('.nav-category-header').forEach(header => {
-    header.addEventListener('click', () => {
+    header.addEventListener('click', (e) => {
+      // Don't toggle accordion if clicking edit icon
+      if (e.target.closest('.btn-edit-cat-icon')) return;
       const catItem = header.closest('.nav-category-item');
       if (catItem) {
         catItem.classList.toggle('collapsed');
@@ -69,14 +71,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Modal Open Trigger buttons
+  // Trigger buttons
   const triggers = [
     { btnId: 'btn-login', modalId: 'login-modal' },
     { btnId: 'btn-add-book', modalId: 'book-modal' },
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
-    { btnId: 'btn-upload-doc', modalId: 'chapter-modal' },
-    { btnId: 'btn-edit-markdown', modalId: 'editor-modal' }
+    { btnId: 'btn-edit-markdown', modalId: 'editor-modal' },
+    { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
   ];
 
   triggers.forEach(({ btnId, modalId }) => {
@@ -85,6 +87,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn && modal) {
       btn.addEventListener('click', () => modal.classList.add('open'));
     }
+  });
+
+  // Category Edit Pencil Icons in Sidebar
+  document.querySelectorAll('.btn-edit-cat-icon').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const bookId = btn.getAttribute('data-book-id');
+      const bookTitle = btn.getAttribute('data-book-title');
+
+      const editBookIdInput = document.getElementById('edit-book-id-hidden');
+      const editBookTitleInput = document.getElementById('edit-book-title-input');
+      const editBookModal = document.getElementById('edit-book-modal');
+
+      if (editBookIdInput && editBookTitleInput && editBookModal) {
+        editBookIdInput.value = bookId;
+        editBookTitleInput.value = bookTitle;
+        editBookModal.classList.add('open');
+      }
+    });
   });
 
   // Tab Switcher inside Modals
@@ -135,9 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Bind Form Submissions
   submitAdminForm('login-form', 'login');
   submitAdminForm('add-book-form', 'add_book');
+  submitAdminForm('edit-book-form', 'edit_book');
   submitAdminForm('tab-create-md', 'create_markdown');
   submitAdminForm('tab-upload', 'upload_file');
   submitAdminForm('tab-gdoc', 'add_gdoc');
+  submitAdminForm('edit-chapter-form', 'edit_chapter');
   submitAdminForm('settings-form', 'update_settings');
 
   // Admin Logout
@@ -149,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Save Markdown Editor
+  // Save Markdown Editor Content
   const saveMarkdownBtn = document.getElementById('btn-save-markdown');
   const markdownTextarea = document.getElementById('markdown-editor-textarea');
 
@@ -180,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteChapterBtn = document.getElementById('btn-delete-chapter');
   if (deleteChapterBtn) {
     deleteChapterBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this chapter from the wiki structure?')) {
+      if (!confirm('Are you sure you want to delete this document entry from the wiki structure?')) {
         return;
       }
       const bookId = deleteChapterBtn.getAttribute('data-book');
