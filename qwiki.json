@@ -65,6 +65,13 @@
                     "slug": "improved-speed",
                     "type": "markdown",
                     "file": "content/better-books/improved-speed.md"
+                },
+                {
+                    "title": "A test case",
+                    "slug": "a-test-case",
+                    "type": "gdoc",
+                    "url": "https://docs.google.com/document/d/e/2PACX-1vRWM2ZyfeCrNijKV6Yb2Wa-HzbibgRL5mjLowxQes64IWAlaM4jL3uj7SI-1MOx4F0iO09-IWh4dt3x/pub?embedded=true",
+                    "editUrl": "https://docs.google.com/document/d/1Ngt4VnZPqxm1GjYN8ihVjVy43o-rbjjUbTfFXHEwkHc/edit"
                 }
             ]
         },

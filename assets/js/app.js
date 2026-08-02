@@ -23,14 +23,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Sidebar Filter Search
+  // Category Accordion Toggle
+  document.querySelectorAll('.nav-category-header').forEach(header => {
+    header.addEventListener('click', () => {
+      const catItem = header.closest('.nav-category-item');
+      if (catItem) {
+        catItem.classList.toggle('collapsed');
+      }
+    });
+  });
+
+  // Sidebar Filter Search (with Auto-Expand)
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase();
-      document.querySelectorAll('.nav-link').forEach(link => {
-        const text = link.textContent.toLowerCase();
-        link.style.display = text.includes(term) ? 'flex' : 'none';
+      const term = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.nav-category-item').forEach(catItem => {
+        let catMatch = false;
+        catItem.querySelectorAll('.nav-link').forEach(link => {
+          const text = link.textContent.toLowerCase();
+          if (term === '' || text.includes(term)) {
+            link.style.display = 'flex';
+            catMatch = true;
+          } else {
+            link.style.display = 'none';
+          }
+        });
+        if (term !== '') {
+          if (catMatch) {
+            catItem.classList.remove('collapsed');
+          } else {
+            catItem.classList.add('collapsed');
+          }
+        }
       });
     });
   }

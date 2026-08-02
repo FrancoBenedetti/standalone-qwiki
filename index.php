@@ -124,8 +124,8 @@ if ($activeChapter) {
             <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
             <?php if ($isAdmin): ?>
                 <span class="doc-badge badge-md">Admin</span>
-                <button class="btn btn-outline btn-sm" id="btn-add-book">+ Book</button>
-                <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Chapter</button>
+                <button class="btn btn-outline btn-sm" id="btn-add-book">+ Category</button>
+                <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
                 <button class="btn btn-outline btn-sm" id="btn-settings">⚙️ Settings</button>
                 <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
             <?php else: ?>
@@ -142,20 +142,28 @@ if ($activeChapter) {
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <div class="nav-book-title"><?= htmlspecialchars($book['title']) ?></div>
-                    <?php if (!empty($book['chapters'])): ?>
-                        <?php foreach ($book['chapters'] as $ch): ?>
-                            <?php 
-                                $isActive = ($activeBook['id'] === $book['id'] && $activeChapter['slug'] === $ch['slug']); 
-                                $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
-                            ?>
-                            <a href="index.php?book=<?= urlencode($book['id']) ?>&chapter=<?= urlencode($ch['slug']) ?>" 
-                               class="nav-link <?= $isActive ? 'active' : '' ?>">
-                                <span><?= htmlspecialchars($ch['title']) ?></span>
-                                <span class="doc-badge <?= $badgeClass ?>"><?= htmlspecialchars($ch['type']) ?></span>
-                            </a>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <?php $isBookActive = ($activeBook && $activeBook['id'] === $book['id']); ?>
+                    <div class="nav-category-item <?= $isBookActive ? '' : 'collapsed' ?>">
+                        <div class="nav-category-header">
+                            <span>📂 <?= htmlspecialchars($book['title']) ?></span>
+                            <span class="chevron-icon">▾</span>
+                        </div>
+                        <?php if (!empty($book['chapters'])): ?>
+                            <div class="nav-document-list">
+                                <?php foreach ($book['chapters'] as $ch): ?>
+                                    <?php 
+                                        $isActive = ($isBookActive && $activeChapter && $activeChapter['slug'] === $ch['slug']); 
+                                        $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
+                                    ?>
+                                    <a href="index.php?book=<?= urlencode($book['id']) ?>&chapter=<?= urlencode($ch['slug']) ?>" 
+                                       class="nav-link <?= $isActive ? 'active' : '' ?>">
+                                        <span><?= htmlspecialchars($ch['title']) ?></span>
+                                        <span class="doc-badge <?= $badgeClass ?>"><?= htmlspecialchars($ch['type']) ?></span>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -177,7 +185,7 @@ if ($activeChapter) {
                             <?php if ($activeChapter['type'] === 'markdown'): ?>
                                 <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Page</button>
                             <?php endif; ?>
-                            <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Chapter</button>
+                            <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -187,8 +195,8 @@ if ($activeChapter) {
                 </div>
             <?php else: ?>
                 <div class="content-body">
-                    <h1>No Documentation Selected</h1>
-                    <p>Select a book or chapter from the sidebar to view content.</p>
+                    <h1>No Document Selected</h1>
+                    <p>Select a category or document from the sidebar to view content.</p>
                 </div>
             <?php endif; ?>
         </main>
@@ -212,32 +220,32 @@ if ($activeChapter) {
     </div>
 
     <?php if ($isAdmin): ?>
-    <!-- Add Book Modal -->
+    <!-- Add Category Modal -->
     <div class="modal-overlay" id="book-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Add New Book Category</h3>
+                <h3>Add New Category</h3>
                 <button class="modal-close" data-close="book-modal">&times;</button>
             </div>
             <form id="add-book-form">
                 <div class="form-group">
-                    <label class="form-label" for="book-title">Book Title</label>
-                    <input type="text" name="title" id="book-title" class="form-control" placeholder="e.g. Developer APIs" required>
+                    <label class="form-label" for="book-title">Category Title</label>
+                    <input type="text" name="title" id="book-title" class="form-control" placeholder="e.g. Developer Guides" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="book-id-input">Book Slug / Folder (Optional)</label>
-                    <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-apis">
+                    <label class="form-label" for="book-id-input">Category Folder / Slug (Optional)</label>
+                    <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-guides">
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Book</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Category</button>
             </form>
         </div>
     </div>
 
-    <!-- Unified Add Chapter Modal -->
+    <!-- Unified Add Document Modal -->
     <div class="modal-overlay" id="chapter-modal">
         <div class="modal-card" style="max-width: 700px;">
             <div class="modal-header">
-                <h3>Add New Chapter</h3>
+                <h3>Add New Document</h3>
                 <button class="modal-close" data-close="chapter-modal">&times;</button>
             </div>
             
@@ -251,7 +259,7 @@ if ($activeChapter) {
             <!-- Tab 1: Create Markdown Online -->
             <form id="tab-create-md" class="tab-content active">
                 <div class="form-group">
-                    <label class="form-label">Target Book</label>
+                    <label class="form-label">Target Category</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
@@ -259,20 +267,20 @@ if ($activeChapter) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Chapter Title</label>
+                    <label class="form-label">Document Title</label>
                     <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Initial Markdown Content</label>
-                    <textarea name="content" class="form-control" style="min-height: 180px;" placeholder="# Chapter Title&#10;&#10;Write your documentation here..."></textarea>
+                    <textarea name="content" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Chapter</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>
             </form>
 
             <!-- Tab 2: Upload File -->
             <form id="tab-upload" class="tab-content" enctype="multipart/form-data">
                 <div class="form-group">
-                    <label class="form-label">Target Book</label>
+                    <label class="form-label">Target Category</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
@@ -280,7 +288,7 @@ if ($activeChapter) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Chapter Title</label>
+                    <label class="form-label">Document Title</label>
                     <input type="text" name="title" class="form-control" placeholder="e.g. Specification Datasheet" required>
                 </div>
                 <div class="form-group">
@@ -293,7 +301,7 @@ if ($activeChapter) {
             <!-- Tab 3: Google Doc -->
             <form id="tab-gdoc" class="tab-content">
                 <div class="form-group">
-                    <label class="form-label">Target Book</label>
+                    <label class="form-label">Target Category</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
@@ -301,7 +309,7 @@ if ($activeChapter) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Chapter Title</label>
+                    <label class="form-label">Document Title</label>
                     <input type="text" name="title" class="form-control" placeholder="e.g. User Guide Google Doc" required>
                 </div>
                 <div class="form-group">
@@ -334,7 +342,7 @@ if ($activeChapter) {
                     <input type="text" name="logoText" id="setting-logo" class="form-control" value="<?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="setting-default-book">Default Book</label>
+                    <label class="form-label" for="setting-default-book">Default Category</label>
                     <select name="defaultBook" id="setting-default-book" class="form-control">
                         <?php foreach ($config['books'] as $b): ?>
                             <option value="<?= htmlspecialchars($b['id']) ?>" <?= (($config['defaultBook'] ?? '') === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>

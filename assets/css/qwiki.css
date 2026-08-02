@@ -190,25 +190,66 @@ body {
   gap: 0.5rem;
 }
 
-.nav-book-title {
-  padding: 0.5rem 1.25rem;
-  font-size: 0.75rem;
+/* Accordion Navigation & Indentation */
+.nav-category-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.nav-category-header:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.chevron-icon {
+  font-size: 0.75rem;
+  transition: transform var(--transition-fast);
+  display: inline-block;
+}
+
+.nav-category-item.collapsed .chevron-icon {
+  transform: rotate(-90deg);
+}
+
+.nav-category-item.collapsed .nav-document-list {
+  display: none;
+}
+
+.nav-document-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--border-color);
+  margin-left: 1.25rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.5rem;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1.25rem;
+  padding: 0.5rem 0.85rem;
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 400;
-  border-left: 3px solid transparent;
+  border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
 }
 
@@ -220,8 +261,7 @@ body {
 .nav-link.active {
   color: var(--accent-color);
   font-weight: 600;
-  border-left-color: var(--accent-color);
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(99, 102, 241, 0.12);
 }
 
 .doc-badge {
