@@ -1,0 +1,16 @@
+{
+    "users": [
+        {
+            "username": "admin",
+            "role": "admin",
+            "passwordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
+            "createdAt": "2026-08-02 15:25:00"
+        },
+        {
+            "username": "john_viewer",
+            "role": "viewer",
+            "passwordHash": "$2y$10$4SEfA43cG92BYkBWO5iYsuyXI8P6m3utnFpAEPPajiCE.SVi6VhHW",
+            "createdAt": "2026-08-02 13:27:45"
+        }
+    ]
+}

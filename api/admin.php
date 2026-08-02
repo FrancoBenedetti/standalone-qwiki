@@ -3,16 +3,39 @@ session_start();
 header('Content-Type: application/json');
 
 $configFile = __DIR__ . '/../qwiki.json';
+$usersFile  = __DIR__ . '/../users.json';
+
 if (!file_exists($configFile)) {
     echo json_encode(['success' => false, 'error' => 'Configuration file missing']);
     exit;
 }
 
 $config = json_decode(file_get_contents($configFile), true);
+
+// Initialize users store if missing
+if (!file_exists($usersFile)) {
+    $initialUsers = [
+        'users' => [
+            [
+                'username' => 'admin',
+                'role' => 'admin',
+                'passwordHash' => '$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm',
+                'createdAt' => date('Y-m-d H:i:s')
+            ]
+        ]
+    ];
+    file_put_contents($usersFile, json_encode($initialUsers, JSON_PRETTY_PRINT));
+}
+
+$userData = json_decode(file_get_contents($usersFile), true);
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 function save_config($configFile, $config) {
     return file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;
+}
+
+function save_users($usersFile, $userData) {
+    return file_put_contents($usersFile, json_encode($userData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;
 }
 
 function make_slug($text) {
@@ -22,88 +45,151 @@ function make_slug($text) {
     return trim($slug, '-');
 }
 
-/**
- * Recursive helper to insert chapter into matching book or subfolder node
- */
-function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-    if (($node['id'] ?? '') === $targetFolderId) {
-        if (!isset($node['chapters'])) $node['chapters'] = [];
-        $node['chapters'][] = $chapterData;
-        return true;
-    }
-    if (!empty($node['subfolders'])) {
-        foreach ($node['subfolders'] as &$sub) {
-            if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/**
- * Recursive helper to update folder/book node metadata
- */
-function update_node_title(&$node, $targetId, $newTitle) {
-    if (($node['id'] ?? '') === $targetId) {
-        $node['title'] = $newTitle;
-        return true;
-    }
-    if (!empty($node['subfolders'])) {
-        foreach ($node['subfolders'] as &$sub) {
-            if (update_node_title($sub, $targetId, $newTitle)) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-/**
- * Recursive helper to update chapter metadata
- */
-function update_chapter_in_node(&$node, $slug, $updatedData) {
-    if (!empty($node['chapters'])) {
-        foreach ($node['chapters'] as &$ch) {
-            if ($ch['slug'] === $slug) {
-                if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
-                if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
-                if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
-                if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
-                if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
-                return true;
-            }
-        }
-    }
-    if (!empty($node['subfolders'])) {
-        foreach ($node['subfolders'] as &$sub) {
-            if (update_chapter_in_node($sub, $slug, $updatedData)) {
-                return true;
-            }
-        }
-    }
-    return false;
+function is_admin() {
+    return (!empty($_SESSION['qwiki_user']) && $_SESSION['qwiki_user']['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
 }
 
 switch ($action) {
     case 'login':
+        $username = trim($_POST['username'] ?? 'admin');
         $password = $_POST['password'] ?? '';
-        if (password_verify($password, $config['adminPasswordHash'] ?? '')) {
-            $_SESSION['qwiki_admin'] = true;
-            echo json_encode(['success' => true]);
+
+        $matchedUser = null;
+        if (!empty($userData['users'])) {
+            foreach ($userData['users'] as $u) {
+                if (strtolower($u['username']) === strtolower($username)) {
+                    $matchedUser = $u;
+                    break;
+                }
+            }
+        }
+
+        // Fallback check against qwiki.json legacy admin hash if user store doesn't have match
+        if (!$matchedUser && strtolower($username) === 'admin') {
+            if (password_verify($password, $config['adminPasswordHash'] ?? '')) {
+                $_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+                $_SESSION['qwiki_admin'] = true;
+                echo json_encode(['success' => true, 'role' => 'admin', 'username' => 'admin']);
+                exit;
+            }
+        }
+
+        if ($matchedUser && password_verify($password, $matchedUser['passwordHash'])) {
+            $_SESSION['qwiki_user'] = [
+                'username' => $matchedUser['username'],
+                'role' => $matchedUser['role']
+            ];
+            if ($matchedUser['role'] === 'admin') {
+                $_SESSION['qwiki_admin'] = true;
+            } else {
+                unset($_SESSION['qwiki_admin']);
+            }
+            echo json_encode(['success' => true, 'role' => $matchedUser['role'], 'username' => $matchedUser['username']]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Invalid password']);
+            echo json_encode(['success' => false, 'error' => 'Invalid username or password']);
         }
         break;
 
     case 'logout':
+        unset($_SESSION['qwiki_user']);
         unset($_SESSION['qwiki_admin']);
         session_destroy();
         echo json_encode(['success' => true]);
         break;
 
+    case 'list_users':
+        if (!is_admin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $safeList = [];
+        if (!empty($userData['users'])) {
+            foreach ($userData['users'] as $u) {
+                $safeList[] = [
+                    'username' => $u['username'],
+                    'role' => $u['role'],
+                    'createdAt' => $u['createdAt'] ?? ''
+                ];
+            }
+        }
+        echo json_encode(['success' => true, 'users' => $safeList]);
+        break;
+
+    case 'add_user':
+        if (!is_admin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $newUsername = trim($_POST['username'] ?? '');
+        $newPassword = $_POST['password'] ?? '';
+        $newRole     = $_POST['role'] ?? 'viewer';
+
+        if (empty($newUsername) || empty($newPassword)) {
+            echo json_encode(['success' => false, 'error' => 'Username and password are required']);
+            exit;
+        }
+
+        if (!in_array($newRole, ['admin', 'viewer'])) {
+            $newRole = 'viewer';
+        }
+
+        foreach ($userData['users'] as $u) {
+            if (strtolower($u['username']) === strtolower($newUsername)) {
+                echo json_encode(['success' => false, 'error' => 'User with this username already exists']);
+                exit;
+            }
+        }
+
+        $userData['users'][] = [
+            'username' => $newUsername,
+            'role' => $newRole,
+            'passwordHash' => password_hash($newPassword, PASSWORD_DEFAULT),
+            'createdAt' => date('Y-m-d H:i:s')
+        ];
+
+        if (save_users($usersFile, $userData)) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save users database']);
+        }
+        break;
+
+    case 'delete_user':
+        if (!is_admin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $targetUsername = trim($_POST['username'] ?? '');
+        if (empty($targetUsername)) {
+            echo json_encode(['success' => false, 'error' => 'Username is required']);
+            exit;
+        }
+
+        if (strtolower($targetUsername) === 'admin' || (isset($_SESSION['qwiki_user']) && strtolower($_SESSION['qwiki_user']['username']) === strtolower($targetUsername))) {
+            echo json_encode(['success' => false, 'error' => 'Cannot delete the primary admin or currently logged-in account']);
+            exit;
+        }
+
+        $newList = [];
+        foreach ($userData['users'] as $u) {
+            if (strtolower($u['username']) !== strtolower($targetUsername)) {
+                $newList[] = $u;
+            }
+        }
+        $userData['users'] = $newList;
+
+        if (save_users($usersFile, $userData)) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save users database']);
+        }
+        break;
+
     case 'add_book':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -136,7 +222,7 @@ switch ($action) {
         break;
 
     case 'edit_book':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -147,6 +233,21 @@ switch ($action) {
         if (empty($bookId) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
             exit;
+        }
+
+        function update_node_title(&$node, $targetId, $newTitle) {
+            if (($node['id'] ?? '') === $targetId) {
+                $node['title'] = $newTitle;
+                return true;
+            }
+            if (!empty($node['subfolders'])) {
+                foreach ($node['subfolders'] as &$sub) {
+                    if (update_node_title($sub, $targetId, $newTitle)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         $updated = false;
@@ -165,7 +266,7 @@ switch ($action) {
         break;
 
     case 'create_markdown':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -202,6 +303,22 @@ switch ($action) {
             'file' => $targetRelFile
         ];
 
+        function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
+            if (($node['id'] ?? '') === $targetFolderId) {
+                if (!isset($node['chapters'])) $node['chapters'] = [];
+                $node['chapters'][] = $chapterData;
+                return true;
+            }
+            if (!empty($node['subfolders'])) {
+                foreach ($node['subfolders'] as &$sub) {
+                    if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         $added = false;
         foreach ($config['books'] as &$book) {
             if (insert_chapter_into_node($book, $bookId, $chapterData)) {
@@ -218,7 +335,7 @@ switch ($action) {
         break;
 
     case 'edit_chapter':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -249,6 +366,29 @@ switch ($action) {
             'file' => $file
         ];
 
+        function update_chapter_in_node(&$node, $slug, $updatedData) {
+            if (!empty($node['chapters'])) {
+                foreach ($node['chapters'] as &$ch) {
+                    if ($ch['slug'] === $slug) {
+                        if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                        if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                        if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                        if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                        if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                        return true;
+                    }
+                }
+            }
+            if (!empty($node['subfolders'])) {
+                foreach ($node['subfolders'] as &$sub) {
+                    if (update_chapter_in_node($sub, $slug, $updatedData)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         $updated = false;
         foreach ($config['books'] as &$book) {
             if (update_chapter_in_node($book, $slug, $updatedData)) {
@@ -265,7 +405,7 @@ switch ($action) {
         break;
 
     case 'save_markdown':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -289,7 +429,7 @@ switch ($action) {
         break;
 
     case 'upload_file':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -329,8 +469,24 @@ switch ($action) {
                 'file' => $targetRelFile
             ];
 
+            function insert_chapter_into_node_upload(&$node, $targetFolderId, $chapterData) {
+                if (($node['id'] ?? '') === $targetFolderId) {
+                    if (!isset($node['chapters'])) $node['chapters'] = [];
+                    $node['chapters'][] = $chapterData;
+                    return true;
+                }
+                if (!empty($node['subfolders'])) {
+                    foreach ($node['subfolders'] as &$sub) {
+                        if (insert_chapter_into_node_upload($sub, $targetFolderId, $chapterData)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
             foreach ($config['books'] as &$book) {
-                if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                if (insert_chapter_into_node_upload($book, $bookId, $chapterData)) {
                     break;
                 }
             }
@@ -342,7 +498,7 @@ switch ($action) {
         break;
 
     case 'add_gdoc':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -370,8 +526,24 @@ switch ($action) {
             'editUrl' => $editUrl
         ];
 
+        function insert_chapter_into_node_gdoc(&$node, $targetFolderId, $chapterData) {
+            if (($node['id'] ?? '') === $targetFolderId) {
+                if (!isset($node['chapters'])) $node['chapters'] = [];
+                $node['chapters'][] = $chapterData;
+                return true;
+            }
+            if (!empty($node['subfolders'])) {
+                foreach ($node['subfolders'] as &$sub) {
+                    if (insert_chapter_into_node_gdoc($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         foreach ($config['books'] as &$book) {
-            if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+            if (insert_chapter_into_node_gdoc($book, $bookId, $chapterData)) {
                 break;
             }
         }
@@ -380,7 +552,7 @@ switch ($action) {
         break;
 
     case 'delete_chapter':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -418,7 +590,7 @@ switch ($action) {
         break;
 
     case 'update_settings':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -436,7 +608,7 @@ switch ($action) {
         break;
 
     case 'reorder_tree':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
@@ -460,7 +632,7 @@ switch ($action) {
         break;
 
     case 'upload_image':
-        if (empty($_SESSION['qwiki_admin'])) {
+        if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }

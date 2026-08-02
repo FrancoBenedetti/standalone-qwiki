@@ -9,7 +9,11 @@ if (!file_exists($configFile)) {
 }
 
 $config = json_decode(file_get_contents($configFile), true);
-$isAdmin = !empty($_SESSION['qwiki_admin']);
+
+// User session evaluation
+$currentUser = $_SESSION['qwiki_user'] ?? null;
+$isAdmin = (!empty($currentUser) && $currentUser['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
+$isViewer = !empty($currentUser);
 
 // Routing parameters
 $requestedBookId = $_GET['book'] ?? $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
@@ -43,7 +47,6 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
 
     $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
 
-    // 1. Search chapters in this node
     if (!empty($node['chapters'])) {
         if ($targetChapterSlug) {
             foreach ($node['chapters'] as $ch) {
@@ -62,7 +65,6 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
         }
     }
 
-    // 2. Search subfolders recursively
     if (!empty($node['subfolders'])) {
         foreach ($node['subfolders'] as $sub) {
             $found = find_chapter_and_path($sub, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds);
@@ -74,7 +76,6 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
         }
     }
 
-    // Fallback: If no specific chapter matched yet in top book, pick first available chapter
     if (!$targetFolderId && !$targetChapterSlug && !empty($node['chapters'])) {
         $trail = $currentTrail;
         $activeIds = $currentActiveIds;
@@ -231,14 +232,17 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
         <div class="header-actions">
             <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
-            <?php if ($isAdmin): ?>
-                <span class="doc-badge badge-md">Admin</span>
-                <button class="btn btn-outline btn-sm" id="btn-add-book">+ Category</button>
-                <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
-                <button class="btn btn-outline btn-sm" id="btn-settings">⚙️ Settings</button>
+            <?php if ($isViewer): ?>
+                <span class="doc-badge badge-md"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?> (<?= htmlspecialchars(ucfirst($currentUser['role'] ?? 'viewer')) ?>)</span>
+                <?php if ($isAdmin): ?>
+                    <button class="btn btn-outline btn-sm" id="btn-add-book">+ Category</button>
+                    <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
+                    <button class="btn btn-outline btn-sm" id="btn-users">👥 Users</button>
+                    <button class="btn btn-outline btn-sm" id="btn-settings">⚙️ Settings</button>
+                <?php endif; ?>
                 <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
             <?php else: ?>
-                <button class="btn btn-outline btn-sm" id="btn-login">Admin Login</button>
+                <button class="btn btn-outline btn-sm" id="btn-login">Login</button>
             <?php endif; ?>
         </div>
     </header>
@@ -305,13 +309,17 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <div class="modal-overlay" id="login-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Admin Authentication</h3>
+                <h3>Account Authentication</h3>
                 <button class="modal-close" data-close="login-modal">&times;</button>
             </div>
             <form id="login-form">
                 <div class="form-group">
-                    <label class="form-label" for="admin-password">Admin Password</label>
-                    <input type="password" id="admin-password" name="password" class="form-control" placeholder="Enter password (default: admin)" required>
+                    <label class="form-label" for="login-username">Username</label>
+                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
             </form>
@@ -319,6 +327,43 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     </div>
 
     <?php if ($isAdmin): ?>
+    <!-- User Management Modal -->
+    <div class="modal-overlay" id="users-modal">
+        <div class="modal-card" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>👥 Manage Users & Permissions</h3>
+                <button class="modal-close" data-close="users-modal">&times;</button>
+            </div>
+            
+            <form id="add-user-form" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Add New User</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div>
+                        <label class="form-label">Username</label>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" class="form-control" placeholder="Set password" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Role</label>
+                        <select name="role" class="form-control" required>
+                            <option value="viewer">Viewer (Read-only)</option>
+                            <option value="admin">Admin (Full Access)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">+ Add User</button>
+            </form>
+
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Existing Users</h4>
+            <div id="users-list-container">
+                <p style="color: var(--text-muted);">Loading users...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Category Modal -->
     <div class="modal-overlay" id="book-modal">
         <div class="modal-card">

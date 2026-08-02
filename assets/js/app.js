@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-login', modalId: 'login-modal' },
     { btnId: 'btn-add-book', modalId: 'book-modal' },
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
+    { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
     { btnId: 'btn-edit-markdown', modalId: 'editor-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
@@ -123,9 +124,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById(btnId);
     const modal = document.getElementById(modalId);
     if (btn && modal) {
-      btn.addEventListener('click', () => modal.classList.add('open'));
+      btn.addEventListener('click', () => {
+        modal.classList.add('open');
+        if (modalId === 'users-modal') {
+          loadUsersList();
+        }
+      });
     }
   });
+
+  // Load and render user list in Users Modal
+  async function loadUsersList() {
+    const container = document.getElementById('users-list-container');
+    if (!container) return;
+
+    try {
+      const res = await fetch('api/admin.php?action=list_users');
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.users)) {
+        if (data.users.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-muted);">No users found.</p>';
+          return;
+        }
+
+        let html = '<table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">';
+        html += '<thead style="border-bottom:1px solid var(--border-color); color:var(--text-muted);">';
+        html += '<tr><th style="padding:0.5rem;">Username</th><th style="padding:0.5rem;">Role</th><th style="padding:0.5rem; text-align:right;">Actions</th></tr>';
+        html += '</thead><tbody>';
+
+        data.users.forEach(u => {
+          const isPrimaryAdmin = (u.username.toLowerCase() === 'admin');
+          const badgeClass = (u.role === 'admin') ? 'badge-md' : 'badge-pdf';
+          
+          html += `<tr style="border-bottom:1px solid var(--border-color);">`;
+          html += `<td style="padding:0.6rem; font-weight:600; color:var(--text-primary);">${escapeHtml(u.username)}</td>`;
+          html += `<td style="padding:0.6rem;"><span class="doc-badge ${badgeClass}">${escapeHtml(u.role)}</span></td>`;
+          html += `<td style="padding:0.6rem; text-align:right;">`;
+          if (!isPrimaryAdmin) {
+            html += `<button class="btn btn-outline btn-sm btn-delete-user" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.5rem; color:#f87171;">Delete</button>`;
+          } else {
+            html += `<span style="font-size:0.8rem; color:var(--text-muted);">System Admin</span>`;
+          }
+          html += `</td></tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // Bind delete user triggers
+        container.querySelectorAll('.btn-delete-user').forEach(delBtn => {
+          delBtn.addEventListener('click', async () => {
+            const targetUser = delBtn.getAttribute('data-username');
+            if (!confirm(`Are you sure you want to delete user "${targetUser}"?`)) return;
+
+            const formData = new FormData();
+            formData.append('action', 'delete_user');
+            formData.append('username', targetUser);
+
+            const delRes = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const delData = await delRes.json();
+            if (delData.success) {
+              loadUsersList();
+            } else {
+              alert('Delete failed: ' + (delData.error || 'Unknown error'));
+            }
+          });
+        });
+      } else {
+        container.innerHTML = '<p style="color:#f87171;">Failed to load user list.</p>';
+      }
+    } catch (err) {
+      container.innerHTML = '<p style="color:#f87171;">Network error loading users.</p>';
+    }
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 
   // Category Edit Pencil Icons in Sidebar
   document.querySelectorAll('.btn-edit-cat-icon').forEach(btn => {
@@ -161,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Helper for Form Submissions
-  async function submitAdminForm(formId, actionName, successRedirect = true) {
+  async function submitAdminForm(formId, actionName, successRedirect = true, customCallback = null) {
     const form = document.getElementById(formId);
     if (!form) return;
 
@@ -175,7 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
 
         if (data.success) {
-          if (successRedirect) {
+          if (customCallback) {
+            customCallback(data);
+          } else if (successRedirect) {
             if (data.bookId && data.slug) {
               window.location.href = `index.php?book=${encodeURIComponent(data.bookId)}&chapter=${encodeURIComponent(data.slug)}`;
             } else {
@@ -200,6 +280,30 @@ document.addEventListener('DOMContentLoaded', () => {
   submitAdminForm('tab-gdoc', 'add_gdoc');
   submitAdminForm('edit-chapter-form', 'edit_chapter');
   submitAdminForm('settings-form', 'update_settings');
+
+  // Add User form handler inside Users Modal
+  const addUserForm = document.getElementById('add-user-form');
+  if (addUserForm) {
+    addUserForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(addUserForm);
+      formData.append('action', 'add_user');
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+          addUserForm.reset();
+          loadUsersList();
+        } else {
+          alert('Failed to add user: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      }
+    });
+  }
 
   // Admin Logout
   const logoutBtn = document.getElementById('btn-logout');
