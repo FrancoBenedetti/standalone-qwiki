@@ -2,7 +2,7 @@
     "title": "Standalone Qwiki",
     "logoText": "QWIKI",
     "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
-    "defaultBook": "blog",
+    "defaultBook": "getting-started",
     "requireLoginToView": false,
     "books": [
         {
