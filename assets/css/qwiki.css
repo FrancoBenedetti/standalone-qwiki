@@ -31,10 +31,9 @@
   --border-color: #e2e8f0;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+html, body {
+  height: 100vh;
+  overflow: hidden;
 }
 
 body {
@@ -42,7 +41,6 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.6;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -56,8 +54,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 100;
   backdrop-filter: blur(10px);
 }
@@ -148,6 +145,7 @@ body {
 .app-container {
   display: flex;
   flex: 1;
+  height: calc(100vh - var(--header-height));
   overflow: hidden;
 }
 
@@ -158,11 +156,10 @@ body {
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--header-height));
-  position: sticky;
-  top: var(--header-height);
+  height: 100%;
   overflow: hidden;
   position: relative;
+  flex-shrink: 0;
   z-index: 90;
 }
 
