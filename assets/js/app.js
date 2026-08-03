@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', newTheme);
       localStorage.setItem('qwiki_theme', newTheme);
+      
+      if (typeof window.syncTuiEditorTheme === 'function') {
+        window.syncTuiEditorTheme(newTheme);
+      }
     });
   }
 
@@ -116,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
-    { btnId: 'btn-edit-markdown', modalId: 'editor-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
   ];
 
@@ -347,14 +350,90 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Save Markdown Editor Content
-  const saveMarkdownBtn = document.getElementById('btn-save-markdown');
-  const markdownTextarea = document.getElementById('markdown-editor-textarea');
+  // ----------------------------------------------------
+  // Inline Markdown Editor (Toast UI)
+  // ----------------------------------------------------
+  const btnEditMarkdown = document.getElementById('btn-edit-markdown');
+  const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const btnSaveInline = document.getElementById('btn-save-inline-markdown');
+  const readActions = document.getElementById('read-actions');
+  const editActions = document.getElementById('edit-actions');
+  const contentBody = document.getElementById('content-body');
+  const editorContainer = document.getElementById('inline-editor-container');
+  const rawMarkdownData = document.getElementById('raw-markdown-data');
+  let tuiEditor = null;
 
-  if (saveMarkdownBtn && markdownTextarea) {
-    saveMarkdownBtn.addEventListener('click', async () => {
-      const file = saveMarkdownBtn.getAttribute('data-file');
-      const content = markdownTextarea.value;
+  window.syncTuiEditorTheme = function(theme) {
+    if (editorContainer) {
+      const ui = editorContainer.querySelector('.toastui-editor-defaultUI');
+      if (ui) {
+        if (theme === 'dark') {
+          ui.classList.add('toastui-editor-dark');
+        } else {
+          ui.classList.remove('toastui-editor-dark');
+        }
+      }
+    }
+  };
+
+  if (btnEditMarkdown && editorContainer && rawMarkdownData) {
+    btnEditMarkdown.addEventListener('click', () => {
+      readActions.style.display = 'none';
+      contentBody.style.display = 'none';
+      editActions.style.display = 'flex';
+      editorContainer.style.display = 'block';
+
+      if (!tuiEditor) {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        
+        tuiEditor = new toastui.Editor({
+          el: editorContainer,
+          initialValue: rawMarkdownData.value,
+          initialEditType: 'wysiwyg',
+          previewStyle: 'vertical',
+          height: '600px',
+          theme: isDark ? 'dark' : '',
+          usageStatistics: false,
+          hooks: {
+            addImageBlobHook: async (blob, callback) => {
+              const formData = new FormData();
+              formData.append('action', 'upload_image');
+              formData.append('image', blob);
+
+              try {
+                const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                  callback(data.url, data.alt || 'image');
+                } else {
+                  alert('Image upload failed: ' + (data.error || 'Unknown error'));
+                }
+              } catch (err) {
+                alert('Network request failed during image upload');
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+
+  if (btnCancelEdit) {
+    btnCancelEdit.addEventListener('click', () => {
+      editActions.style.display = 'none';
+      editorContainer.style.display = 'none';
+      readActions.style.display = 'flex';
+      contentBody.style.display = 'block';
+    });
+  }
+
+  if (btnSaveInline) {
+    btnSaveInline.addEventListener('click', async () => {
+      if (!tuiEditor) return;
+      
+      const file = btnSaveInline.getAttribute('data-file');
+      const content = tuiEditor.getMarkdown();
+      
       const formData = new FormData();
       formData.append('action', 'save_markdown');
       formData.append('file', file);
@@ -370,54 +449,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (err) {
         alert('Save request failed');
-      }
-    });
-  }
-
-  // Insert Image into Markdown Editor
-  const btnInsertImage = document.getElementById('btn-insert-image');
-  const inputInsertImage = document.getElementById('input-insert-image');
-
-  if (btnInsertImage && inputInsertImage && markdownTextarea) {
-    btnInsertImage.addEventListener('click', () => {
-      inputInsertImage.click();
-    });
-
-    inputInsertImage.addEventListener('change', async () => {
-      const file = inputInsertImage.files[0];
-      if (!file) return;
-
-      const formData = new FormData();
-      formData.append('action', 'upload_image');
-      formData.append('image', file);
-
-      btnInsertImage.disabled = true;
-      btnInsertImage.textContent = 'Uploading...';
-
-      try {
-        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
-        const data = await res.json();
-
-        if (data.success) {
-          const imageTag = `\n![${data.alt || 'Image'}](${data.url})\n`;
-          
-          const startPos = markdownTextarea.selectionStart;
-          const endPos = markdownTextarea.selectionEnd;
-          const textBefore = markdownTextarea.value.substring(0, startPos);
-          const textAfter = markdownTextarea.value.substring(endPos);
-
-          markdownTextarea.value = textBefore + imageTag + textAfter;
-          markdownTextarea.selectionStart = markdownTextarea.selectionEnd = startPos + imageTag.length;
-          markdownTextarea.focus();
-        } else {
-          alert('Image upload failed: ' + (data.error || 'Unknown error'));
-        }
-      } catch (err) {
-        alert('Network request failed during image upload');
-      } finally {
-        btnInsertImage.disabled = false;
-        btnInsertImage.textContent = '📷 Insert Image';
-        inputInsertImage.value = '';
       }
     });
   }

@@ -28,12 +28,12 @@ Admins can control whether documentation is publicly readable or requires authen
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an online visual/code editor and direct image upload.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor and direct image upload.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
 - **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories. Changes sync instantly to `qwiki.json`.
 - **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`). Preferred width is saved in `localStorage`.
-- **📷 In-Editor Image Upload**: Click **`📷 Insert Image`** inside the Markdown editor to upload images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`) and automatically insert Markdown image tags at your cursor position.
+- **📷 In-Editor Image Upload**: Seamlessly drag and drop or upload images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`) directly into the inline WYSIWYG editor to automatically insert them into your Markdown document.
 - **👥 Multi-User Management & RBAC**:
   - **Admin**: Full rights to edit categories, create documents, upload media, reorder menus, and manage users.
   - **Viewer**: Read-only documentation access.
@@ -111,4 +111,4 @@ standalone-qwiki/
 
 ## 📄 License & Credits
 
-Built with Parsedown and simple_html_dom. Free and open-source software under the MIT License.
+Built with Parsedown, simple_html_dom, and Toast UI Editor. Free and open-source software under the MIT License.

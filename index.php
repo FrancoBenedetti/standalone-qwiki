@@ -221,6 +221,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Toast UI Editor -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/theme/toastui-editor-dark.min.css" />
 </head>
 <body>
 
@@ -276,26 +279,38 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <span><?= htmlspecialchars($activeChapter['title']) ?></span>
                     </div>
                     <div class="content-actions">
-                        <?php if ($activeChapter['type'] === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
-                            <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm">Edit Google Doc ↗</a>
-                        <?php endif; ?>
-                        <?php if ($isAdmin): ?>
-                            <?php if ($activeChapter['type'] === 'markdown'): ?>
-                                <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Content</button>
+                        <div id="read-actions" style="display: flex; gap: 0.75rem;">
+                            <?php if ($activeChapter['type'] === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
+                                <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm">Edit Google Doc ↗</a>
                             <?php endif; ?>
-                            <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta"
-                                    data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
-                                    data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
-                                    data-type="<?= htmlspecialchars($activeChapter['type']) ?>"
-                                    data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
-                                    data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
-                                    data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">⚙️ Edit Details</button>
-                            <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
+                            <?php if ($isAdmin): ?>
+                                <?php if ($activeChapter['type'] === 'markdown'): ?>
+                                    <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Content</button>
+                                <?php endif; ?>
+                                <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta"
+                                        data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
+                                        data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
+                                        data-type="<?= htmlspecialchars($activeChapter['type']) ?>"
+                                        data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
+                                        data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
+                                        data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">⚙️ Edit Details</button>
+                                <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($isAdmin && $activeChapter['type'] === 'markdown'): ?>
+                        <div id="edit-actions" style="display: none; gap: 0.75rem;">
+                            <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
+                            <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
+                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
 
-                <div class="content-body">
+                <?php if ($isAdmin && $activeChapter['type'] === 'markdown'): ?>
+                    <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
+                    <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
+                <?php endif; ?>
+                <div class="content-body" id="content-body">
                     <?php if ($canViewContent): ?>
                         <?= $renderedContent ?>
                     <?php else: ?>
@@ -581,32 +596,10 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
-    <!-- Edit Markdown Modal -->
-    <?php if ($activeChapter && $activeChapter['type'] === 'markdown'): ?>
-    <div class="modal-overlay" id="editor-modal">
-        <div class="modal-card" style="max-width: 900px;">
-            <div class="modal-header">
-                <h3>Edit Markdown Content: <?= htmlspecialchars($activeChapter['title']) ?></h3>
-                <button class="modal-close" data-close="editor-modal">&times;</button>
-            </div>
-            <div class="form-group">
-                <textarea id="markdown-editor-textarea" class="form-control"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <input type="file" id="input-insert-image" accept="image/*" style="display: none;">
-                    <button type="button" class="btn btn-outline" id="btn-insert-image">📷 Insert Image</button>
-                </div>
-                <div style="display: flex; gap: 1rem;">
-                    <button class="btn btn-outline" data-close="editor-modal">Cancel</button>
-                    <button class="btn btn-primary" id="btn-save-markdown" data-file="<?= htmlspecialchars($activeChapter['file']) ?>">Save Content Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
+    <!-- Edit Markdown Modal Removed in favor of inline editor -->
     <?php endif; ?>
 
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="assets/js/app.js"></script>
 </body>
 </html>
