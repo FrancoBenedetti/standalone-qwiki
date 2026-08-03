@@ -224,6 +224,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Delete Category
+  const deleteBookBtn = document.getElementById('btn-delete-book');
+  if (deleteBookBtn) {
+    deleteBookBtn.addEventListener('click', async () => {
+      const bookIdInput = document.getElementById('edit-book-id-hidden');
+      const bookTitleInput = document.getElementById('edit-book-title-input');
+      const bookId = bookIdInput ? bookIdInput.value : '';
+      const bookTitle = bookTitleInput ? bookTitleInput.value : 'this category';
+
+      if (!bookId) return;
+
+      if (!confirm(`Are you sure you want to delete the category "${bookTitle}" and all its sub-folders from the wiki structure?`)) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('action', 'delete_book');
+      formData.append('bookId', bookId);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = 'index.php';
+        } else {
+          alert('Delete category failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Delete category request failed');
+      }
+    });
+  }
+
   // Tab Switcher inside Modals
   document.querySelectorAll('.tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {

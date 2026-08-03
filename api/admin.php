@@ -265,6 +265,45 @@ switch ($action) {
         }
         break;
 
+    case 'delete_book':
+        if (!is_admin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+
+        $bookId = $_POST['bookId'] ?? '';
+        if (empty($bookId)) {
+            echo json_encode(['success' => false, 'error' => 'Category ID is required']);
+            exit;
+        }
+
+        function delete_node_recursive(&$books, $targetId) {
+            $filtered = [];
+            $deleted = false;
+            foreach ($books as $b) {
+                if (($b['id'] ?? '') === $targetId) {
+                    $deleted = true;
+                    continue;
+                }
+                if (!empty($b['subfolders'])) {
+                    if (delete_node_recursive($b['subfolders'], $targetId)) {
+                        $deleted = true;
+                    }
+                }
+                $filtered[] = $b;
+            }
+            $books = array_values($filtered);
+            return $deleted;
+        }
+
+        if (delete_node_recursive($config['books'], $bookId)) {
+            save_config($configFile, $config);
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Category not found or failed to delete']);
+        }
+        break;
+
     case 'create_markdown':
         if (!is_admin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);

@@ -409,7 +409,10 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <label class="form-label" for="edit-book-title-input">Category Title</label>
                     <input type="text" name="title" id="edit-book-title-input" class="form-control" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Category Title</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
+                    <button type="submit" class="btn btn-primary">Save Category Title</button>
+                </div>
             </form>
         </div>
     </div>
