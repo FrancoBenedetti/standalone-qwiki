@@ -6,20 +6,6 @@
     "requireLoginToView": false,
     "books": [
         {
-            "id": "blog",
-            "title": "Franco's Blog",
-            "chapters": [
-                {
-                    "title": "Home",
-                    "slug": "home",
-                    "type": "markdown",
-                    "url": "",
-                    "editUrl": "",
-                    "file": "content/blog/home.md"
-                }
-            ]
-        },
-        {
             "id": "getting-started",
             "title": "About Qwiki",
             "chapters": [
@@ -54,14 +40,6 @@
                     "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
                     "editUrl": "",
                     "file": ""
-                },
-                {
-                    "title": "Xentara Concept",
-                    "slug": "xentara-concept",
-                    "type": "markdown",
-                    "url": "",
-                    "editUrl": "",
-                    "file": "content/getting-started/xentara-concept.md"
                 }
             ],
             "subfolders": [
@@ -70,26 +48,20 @@
                     "title": "Advanced Topics",
                     "chapters": [
                         {
-                            "title": "Performance Optimization",
-                            "slug": "performance",
-                            "type": "markdown",
-                            "url": "",
-                            "editUrl": "",
-                            "file": "content/getting-started/advanced-topics/performance.md"
-                        }
-                    ]
-                },
-                {
-                    "id": "api-docs",
-                    "title": "API Documentation",
-                    "chapters": [
-                        {
                             "title": "Authentication Guide",
                             "slug": "authentication-guide",
                             "type": "markdown",
                             "url": "",
                             "editUrl": "",
                             "file": "content/api-docs/authentication-guide.md"
+                        },
+                        {
+                            "title": "Performance Optimization",
+                            "slug": "performance",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/getting-started/advanced-topics/performance.md"
                         }
                     ]
                 }
