@@ -28,7 +28,7 @@ if (!file_exists($usersFile)) {
 }
 
 $userData = json_decode(file_get_contents($usersFile), true);
-$action = $_GET['action'] ?? $_POST['action'] ?? '';
+$action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 function save_config($configFile, $config) {
     return file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) !== false;

@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
       formData.append('bookId', bookId);
 
       try {
-        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const res = await fetch('api/admin.php?action=delete_book', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
           window.location.href = 'index.php';
@@ -438,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
       formData.append('slug', slug);
 
       try {
-        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const res = await fetch('api/admin.php?action=delete_chapter', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
           window.location.href = `index.php?book=${encodeURIComponent(bookId)}`;
