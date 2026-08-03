@@ -2,12 +2,26 @@
     "title": "Standalone Qwiki",
     "logoText": "QWIKI",
     "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
-    "defaultBook": "getting-started",
+    "defaultBook": "blog",
     "requireLoginToView": false,
     "books": [
         {
+            "id": "blog",
+            "title": "Franco's Blog",
+            "chapters": [
+                {
+                    "title": "Home",
+                    "slug": "home",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/blog/home.md"
+                }
+            ]
+        },
+        {
             "id": "getting-started",
-            "title": "Getting Started",
+            "title": "About Qwiki",
             "chapters": [
                 {
                     "title": "Installation Guide",
@@ -45,6 +59,8 @@
                     "title": "Xentara Concept",
                     "slug": "xentara-concept",
                     "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
                     "file": "content/getting-started/xentara-concept.md"
                 }
             ],
@@ -62,20 +78,20 @@
                             "file": "content/getting-started/advanced-topics/performance.md"
                         }
                     ]
-                }
-            ]
-        },
-        {
-            "id": "api-docs",
-            "title": "API Documentation",
-            "chapters": [
+                },
                 {
-                    "title": "Authentication Guide",
-                    "slug": "authentication-guide",
-                    "type": "markdown",
-                    "url": "",
-                    "editUrl": "",
-                    "file": "content/api-docs/authentication-guide.md"
+                    "id": "api-docs",
+                    "title": "API Documentation",
+                    "chapters": [
+                        {
+                            "title": "Authentication Guide",
+                            "slug": "authentication-guide",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/api-docs/authentication-guide.md"
+                        }
+                    ]
                 }
             ]
         }
