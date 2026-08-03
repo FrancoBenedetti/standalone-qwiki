@@ -161,8 +161,9 @@ body {
   height: calc(100vh - var(--header-height));
   position: sticky;
   top: var(--header-height);
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
+  z-index: 90;
 }
 
 .sidebar-resizer {
@@ -184,6 +185,7 @@ body {
 .sidebar-search {
   padding: 1rem;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -205,6 +207,26 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Custom Scrollbar for Sidebar Nav */
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* Accordion Navigation & Indentation */
