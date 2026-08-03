@@ -649,11 +649,29 @@ switch ($action) {
         $logoText = trim($_POST['logoText'] ?? '');
         $defaultBook = trim($_POST['defaultBook'] ?? '');
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
+        $newAdminPassword = $_POST['newAdminPassword'] ?? '';
 
         if (!empty($title)) $config['title'] = $title;
         if (!empty($logoText)) $config['logoText'] = $logoText;
         if (!empty($defaultBook)) $config['defaultBook'] = $defaultBook;
         $config['requireLoginToView'] = $requireLoginToView;
+
+        if (!empty($newAdminPassword)) {
+            if (strlen($newAdminPassword) < 4) {
+                echo json_encode(['success' => false, 'error' => 'New password must be at least 4 characters']);
+                exit;
+            }
+            $newHash = password_hash($newAdminPassword, PASSWORD_DEFAULT);
+            $config['adminPasswordHash'] = $newHash;
+            if (isset($userData['users']) && is_array($userData['users'])) {
+                foreach ($userData['users'] as &$u) {
+                    if (($u['username'] ?? '') === 'admin') {
+                        $u['passwordHash'] = $newHash;
+                    }
+                }
+                save_users($usersFile, $userData);
+            }
+        }
 
         save_config($configFile, $config);
         echo json_encode(['success' => true]);

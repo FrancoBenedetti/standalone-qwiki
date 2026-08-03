@@ -571,6 +571,11 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <option value="1" <?= !empty($config['requireLoginToView']) ? 'selected' : '' ?>>Private Portal (Login required to view documentation)</option>
                     </select>
                 </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div class="form-group">
+                    <label class="form-label" for="setting-new-password">Change Admin Password</label>
+                    <input type="password" name="newAdminPassword" id="setting-new-password" class="form-control" placeholder="Leave blank to keep current password">
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Settings</button>
             </form>
         </div>
