@@ -26,20 +26,20 @@
                     "file": "content/getting-started/features.md"
                 },
                 {
-                    "title": "Sample PDF Document",
-                    "slug": "sample-pdf",
-                    "type": "pdf",
-                    "url": "",
-                    "editUrl": "",
-                    "file": "content/getting-started/sample.pdf"
-                },
-                {
                     "title": "Live Google Doc Demo",
                     "slug": "live-google-doc",
                     "type": "gdoc",
                     "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
                     "editUrl": "",
                     "file": ""
+                },
+                {
+                    "title": "Sample PDF Document",
+                    "slug": "sample-pdf",
+                    "type": "pdf",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/sample.pdf"
                 }
             ],
             "subfolders": [

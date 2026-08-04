@@ -537,13 +537,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('api/admin.php?action=reorder_tree', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ tree })
       });
       const data = await res.json();
       if (!data.success) {
+        console.error('Save failed:', data);
         alert('Failed to save reordered menu structure: ' + (data.error || 'Unknown error'));
+      } else {
+        console.log('Tree saved successfully:', tree);
       }
     } catch (err) {
+      console.error('Fetch error:', err);
       alert('Network request failed while saving reordered menu');
     }
   }
@@ -569,6 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       e.stopPropagation();
       if (!draggedElement || draggedElement === el) return;
+      if (draggedElement.contains(el)) return;
 
       clearDragHighlights();
       const rect = el.getBoundingClientRect();
@@ -578,12 +584,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const draggedType = draggedElement.getAttribute('data-drag-type');
       const targetType = el.getAttribute('data-drag-type');
 
-      // Drag document onto a Category -> Drop inside
-      if (draggedType === 'document' && targetType === 'category') {
+      // Drag document or category onto a Category -> Drop inside
+      if (targetType === 'category') {
         if (offsetY > height * 0.25 && offsetY < height * 0.75) {
           el.classList.add('drag-over-inside');
           return;
         }
+      }
+
+      // Prevent interleaving documents and categories in the UI, as the JSON backend 
+      // schema stores them in separate arrays (chapters vs subfolders) and renders them sequentially.
+      if (draggedType !== targetType) {
+        const isTopLevelCategory = el.parentNode && el.parentNode.classList.contains('sidebar-nav');
+        if (isTopLevelCategory && draggedType === 'document') {
+          el.classList.add('drag-over-inside');
+        }
+        return;
       }
 
       if (offsetY < height / 2) {
@@ -602,6 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       e.stopPropagation();
       if (!draggedElement || draggedElement === el) return;
+      if (draggedElement.contains(el)) return;
 
       const isAbove = el.classList.contains('drag-over-above');
       const isBelow = el.classList.contains('drag-over-below');

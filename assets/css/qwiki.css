@@ -232,9 +232,10 @@ body {
   flex-direction: column;
 }
 
-.nav-category-item.depth-1 { margin-left: 0.5rem; }
-.nav-category-item.depth-2 { margin-left: 1rem; }
-.nav-category-item.depth-3 { margin-left: 1.5rem; }
+/* Align nested folders exactly with documents */
+.nav-document-list .nav-category-header {
+  padding: 0.65rem 0.85rem;
+}
 
 .nav-category-header {
   display: flex;
