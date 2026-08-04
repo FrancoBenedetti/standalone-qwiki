@@ -211,7 +211,7 @@ switch ($action) {
             'id' => $bookId,
             'title' => $title,
             'folder' => 'content/' . $bookId,
-            'chapters' => []
+            'items' => []
         ];
 
         if (save_config($configFile, $config)) {
@@ -240,10 +240,12 @@ switch ($action) {
                 $node['title'] = $newTitle;
                 return true;
             }
-            if (!empty($node['subfolders'])) {
-                foreach ($node['subfolders'] as &$sub) {
-                    if (update_node_title($sub, $targetId, $newTitle)) {
-                        return true;
+            if (!empty($node['items'])) {
+                foreach ($node['items'] as &$sub) {
+                    if (isset($sub['type']) && $sub['type'] === 'folder') {
+                        if (update_node_title($sub, $targetId, $newTitle)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -277,22 +279,22 @@ switch ($action) {
             exit;
         }
 
-        function delete_node_recursive(&$books, $targetId) {
+        function delete_node_recursive(&$list, $targetId) {
             $filtered = [];
             $deleted = false;
-            foreach ($books as $b) {
+            foreach ($list as &$b) {
                 if (($b['id'] ?? '') === $targetId) {
                     $deleted = true;
                     continue;
                 }
-                if (!empty($b['subfolders'])) {
-                    if (delete_node_recursive($b['subfolders'], $targetId)) {
+                if (!empty($b['items'])) {
+                    if (delete_node_recursive($b['items'], $targetId)) {
                         $deleted = true;
                     }
                 }
                 $filtered[] = $b;
             }
-            $books = array_values($filtered);
+            $list = $filtered;
             return $deleted;
         }
 
@@ -355,14 +357,16 @@ switch ($action) {
 
         function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
             if (($node['id'] ?? '') === $targetFolderId) {
-                if (!isset($node['chapters'])) $node['chapters'] = [];
-                $node['chapters'][] = $chapterData;
+                if (!isset($node['items'])) $node['items'] = [];
+                $node['items'][] = $chapterData;
                 return true;
             }
-            if (!empty($node['subfolders'])) {
-                foreach ($node['subfolders'] as &$sub) {
-                    if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                        return true;
+            if (!empty($node['items'])) {
+                foreach ($node['items'] as &$sub) {
+                    if (isset($sub['type']) && $sub['type'] === 'folder') {
+                        if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -417,22 +421,21 @@ switch ($action) {
         ];
 
         function update_chapter_in_node(&$node, $slug, $updatedData) {
-            if (!empty($node['chapters'])) {
-                foreach ($node['chapters'] as &$ch) {
-                    if ($ch['slug'] === $slug) {
-                        if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
-                        if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
-                        if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
-                        if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
-                        if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
-                        return true;
-                    }
-                }
-            }
-            if (!empty($node['subfolders'])) {
-                foreach ($node['subfolders'] as &$sub) {
-                    if (update_chapter_in_node($sub, $slug, $updatedData)) {
-                        return true;
+            if (!empty($node['items'])) {
+                foreach ($node['items'] as &$ch) {
+                    if (!isset($ch['type']) || $ch['type'] !== 'folder') {
+                        if ($ch['slug'] === $slug) {
+                            if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                            if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                            if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                            if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                            if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                            return true;
+                        }
+                    } else {
+                        if (update_chapter_in_node($ch, $slug, $updatedData)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -521,14 +524,16 @@ switch ($action) {
 
             function insert_chapter_into_node_upload(&$node, $targetFolderId, $chapterData) {
                 if (($node['id'] ?? '') === $targetFolderId) {
-                    if (!isset($node['chapters'])) $node['chapters'] = [];
-                    $node['chapters'][] = $chapterData;
+                    if (!isset($node['items'])) $node['items'] = [];
+                    $node['items'][] = $chapterData;
                     return true;
                 }
-                if (!empty($node['subfolders'])) {
-                    foreach ($node['subfolders'] as &$sub) {
-                        if (insert_chapter_into_node_upload($sub, $targetFolderId, $chapterData)) {
-                            return true;
+                if (!empty($node['items'])) {
+                    foreach ($node['items'] as &$sub) {
+                        if (isset($sub['type']) && $sub['type'] === 'folder') {
+                            if (insert_chapter_into_node_upload($sub, $targetFolderId, $chapterData)) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -578,14 +583,16 @@ switch ($action) {
 
         function insert_chapter_into_node_gdoc(&$node, $targetFolderId, $chapterData) {
             if (($node['id'] ?? '') === $targetFolderId) {
-                if (!isset($node['chapters'])) $node['chapters'] = [];
-                $node['chapters'][] = $chapterData;
+                if (!isset($node['items'])) $node['items'] = [];
+                $node['items'][] = $chapterData;
                 return true;
             }
-            if (!empty($node['subfolders'])) {
-                foreach ($node['subfolders'] as &$sub) {
-                    if (insert_chapter_into_node_gdoc($sub, $targetFolderId, $chapterData)) {
-                        return true;
+            if (!empty($node['items'])) {
+                foreach ($node['items'] as &$sub) {
+                    if (isset($sub['type']) && $sub['type'] === 'folder') {
+                        if (insert_chapter_into_node_gdoc($sub, $targetFolderId, $chapterData)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -616,19 +623,19 @@ switch ($action) {
         }
 
         function delete_chapter_from_node(&$node, $slug) {
-            if (!empty($node['chapters'])) {
-                $newCh = [];
-                foreach ($node['chapters'] as $ch) {
-                    if ($ch['slug'] !== $slug) {
-                        $newCh[] = $ch;
+            if (!empty($node['items'])) {
+                $newItems = [];
+                foreach ($node['items'] as &$item) {
+                    if (!isset($item['type']) || $item['type'] !== 'folder') {
+                        if ($item['slug'] !== $slug) {
+                            $newItems[] = $item;
+                        }
+                    } else {
+                        delete_chapter_from_node($item, $slug);
+                        $newItems[] = $item;
                     }
                 }
-                $node['chapters'] = $newCh;
-            }
-            if (!empty($node['subfolders'])) {
-                foreach ($node['subfolders'] as &$sub) {
-                    delete_chapter_from_node($sub, $slug);
-                }
+                $node['items'] = $newItems;
             }
         }
 

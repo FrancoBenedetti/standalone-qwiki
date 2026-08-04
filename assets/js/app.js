@@ -499,31 +499,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const nodeTitle = catEl.getAttribute('data-node-title');
     const docList = catEl.querySelector(':scope > .nav-document-list');
 
-    const chapters = [];
-    const subfolders = [];
+    const items = [];
 
     if (docList) {
-      // Extract immediate chapters
-      docList.querySelectorAll(':scope > .nav-link[data-drag-type="document"]').forEach(docEl => {
-        chapters.push({
-          title: docEl.getAttribute('data-doc-title'),
-          slug: docEl.getAttribute('data-doc-slug'),
-          type: docEl.getAttribute('data-doc-type'),
-          url: docEl.getAttribute('data-doc-url') || '',
-          editUrl: docEl.getAttribute('data-doc-editurl') || '',
-          file: docEl.getAttribute('data-doc-file') || ''
-        });
-      });
-
-      // Extract immediate subfolders
-      docList.querySelectorAll(':scope > .nav-category-item[data-drag-type="category"]').forEach(subCatEl => {
-        subfolders.push(extractCategoryNodeFromDOM(subCatEl));
+      Array.from(docList.children).forEach(child => {
+        const dragType = child.getAttribute('data-drag-type');
+        if (dragType === 'document') {
+          items.push({
+            title: child.getAttribute('data-doc-title'),
+            slug: child.getAttribute('data-doc-slug'),
+            type: child.getAttribute('data-doc-type'),
+            url: child.getAttribute('data-doc-url') || '',
+            editUrl: child.getAttribute('data-doc-editurl') || '',
+            file: child.getAttribute('data-doc-file') || ''
+          });
+        } else if (dragType === 'category') {
+          items.push(extractCategoryNodeFromDOM(child));
+        }
       });
     }
 
-    const result = { id: nodeId, title: nodeTitle };
-    if (chapters.length > 0) result.chapters = chapters;
-    if (subfolders.length > 0) result.subfolders = subfolders;
+    const result = { id: nodeId, title: nodeTitle, type: 'folder' };
+    if (items.length > 0) result.items = items;
     return result;
   }
 
@@ -592,13 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // Prevent interleaving documents and categories in the UI, as the JSON backend 
-      // schema stores them in separate arrays (chapters vs subfolders) and renders them sequentially.
-      if (draggedType !== targetType) {
-        const isTopLevelCategory = el.parentNode && el.parentNode.classList.contains('sidebar-nav');
-        if (isTopLevelCategory && draggedType === 'document') {
-          el.classList.add('drag-over-inside');
-        }
+      const isTopLevelCategory = el.parentNode && el.parentNode.classList.contains('sidebar-nav');
+      if (isTopLevelCategory && draggedType === 'document') {
+        el.classList.add('drag-over-inside');
         return;
       }
 

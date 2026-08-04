@@ -49,39 +49,55 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
 
     $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
 
-    if (!empty($node['chapters'])) {
+    if (!empty($node['items'])) {
+        $firstDoc = null;
         if ($targetChapterSlug) {
-            foreach ($node['chapters'] as $ch) {
-                if ($ch['slug'] === $targetChapterSlug) {
-                    if (!$targetFolderId || $isFolderMatch) {
-                        $trail = $currentTrail;
-                        $activeIds = $currentActiveIds;
-                        return $ch;
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || $item['type'] !== 'folder') {
+                    if (!$firstDoc) $firstDoc = $item;
+                    if ($item['slug'] === $targetChapterSlug) {
+                        if (!$targetFolderId || $isFolderMatch) {
+                            $trail = $currentTrail;
+                            $activeIds = $currentActiveIds;
+                            return $item;
+                        }
                     }
                 }
             }
-        } elseif ($isFolderMatch) {
-            $trail = $currentTrail;
-            $activeIds = $currentActiveIds;
-            return $node['chapters'][0];
-        }
-    }
-
-    if (!empty($node['subfolders'])) {
-        foreach ($node['subfolders'] as $sub) {
-            $found = find_chapter_and_path($sub, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds);
-            if ($found) {
+        } else {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || $item['type'] !== 'folder') {
+                    $firstDoc = $item;
+                    break;
+                }
+            }
+            if ($isFolderMatch && $firstDoc) {
                 $trail = $currentTrail;
                 $activeIds = $currentActiveIds;
-                return $found;
+                return $firstDoc;
+            }
+        }
+
+        foreach ($node['items'] as $item) {
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds);
+                if ($found) {
+                    $trail = $currentTrail;
+                    $activeIds = $currentActiveIds;
+                    return $found;
+                }
             }
         }
     }
 
-    if (!$targetFolderId && !$targetChapterSlug && !empty($node['chapters'])) {
-        $trail = $currentTrail;
-        $activeIds = $currentActiveIds;
-        return $node['chapters'][0];
+    if (!$targetFolderId && !$targetChapterSlug && !empty($node['items'])) {
+        foreach ($node['items'] as $item) {
+            if (!isset($item['type']) || $item['type'] !== 'folder') {
+                $trail = $currentTrail;
+                $activeIds = $currentActiveIds;
+                return $item;
+            }
+        }
     }
 
     return null;
@@ -95,9 +111,14 @@ if ($activeChapter) {
     $breadcrumbsTrail = $dummyTrail;
     $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
 } else {
-    if (!empty($activeBook['chapters'])) {
-        $activeChapter = $activeBook['chapters'][0];
-        $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+    if (!empty($activeBook['items'])) {
+        foreach ($activeBook['items'] as $item) {
+            if (!isset($item['type']) || $item['type'] !== 'folder') {
+                $activeChapter = $item;
+                $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+                break;
+            }
+        }
     }
 }
 
@@ -184,26 +205,25 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
 
     echo "<div class='nav-document-list' data-parent-node-id='" . htmlspecialchars($nodeId) . "'>";
 
-    if (!empty($node['chapters'])) {
-        foreach ($node['chapters'] as $ch) {
-            $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
-            $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
-            $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
-            
-            $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "'" : "";
+    if (!empty($node['items'])) {
+        foreach ($node['items'] as $item) {
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin);
+            } else {
+                $ch = $item;
+                $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
+                $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
+                $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
+                
+                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "'" : "";
 
-            echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
-            echo "<span>";
-            if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
-            echo htmlspecialchars($ch['title']) . "</span>";
-            echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
-            echo "</a>";
-        }
-    }
-
-    if (!empty($node['subfolders'])) {
-        foreach ($node['subfolders'] as $sub) {
-            render_sidebar_node($sub, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin);
+                echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
+                echo "<span>";
+                if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+                echo htmlspecialchars($ch['title']) . "</span>";
+                echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
+                echo "</a>";
+            }
         }
     }
 
