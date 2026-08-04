@@ -2,6 +2,9 @@
 
 Standalone Qwiki features a lightweight, file-based **Role-Based Access Control (RBAC)** engine stored in `users.json`. It requires no external database while providing enterprise-grade security using PHP Bcrypt password hashing (`password_hash()`).
 
+> [!NOTE]
+> This advanced topic page is primarily provided as an illustration of Qwiki's feature set and documentation style. Feel free to delete it once you're familiar with the system.
+
 ---
 
 ## 👥 User Roles & Permissions

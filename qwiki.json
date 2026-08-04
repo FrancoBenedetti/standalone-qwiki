@@ -11,12 +11,12 @@
             "type": "folder",
             "items": [
                 {
-                    "title": "Installation Guide",
-                    "slug": "installation",
+                    "title": "Introduction",
+                    "slug": "introduction",
                     "type": "markdown",
                     "url": "",
                     "editUrl": "",
-                    "file": "content/getting-started/installation.md"
+                    "file": "content/getting-started/introduction.md"
                 },
                 {
                     "title": "System Features",
@@ -25,6 +25,14 @@
                     "url": "",
                     "editUrl": "",
                     "file": "content/getting-started/features.md"
+                },
+                {
+                    "title": "Installation Guide",
+                    "slug": "installation",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/installation.md"
                 },
                 {
                     "id": "advanced-topics",
@@ -71,7 +79,24 @@
             "id": "user-guide",
             "title": "Admin User Guide",
             "folder": "content/user-guide",
-            "items": []
+            "items": [
+                {
+                    "title": "Managing Content",
+                    "slug": "managing-content",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/user-guide/managing-content.md"
+                },
+                {
+                    "title": "Site Settings & Users",
+                    "slug": "site-settings-users",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/user-guide/site-settings-users.md"
+                }
+            ]
         }
     ]
 }

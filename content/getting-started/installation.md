@@ -35,3 +35,11 @@ You can define books and chapters in `qwiki.json`:
 
 > [!NOTE]
 > Admin users can edit Markdown pages directly inside the UI or upload PDFs to create new chapters seamlessly.
+
+> [!TIP]
+> **Post-Installation Cleanup**
+> The sample sections (like this Getting Started guide, Advanced Topics, and User Guide) are provided for illustration purposes. You can safely delete them from the Admin interface at your discretion once you are familiar with the system.
+
+> [!IMPORTANT]
+> **Security Reminder**
+> Immediately after installation, please navigate to the **Users** section and change the default admin password to secure your site.
