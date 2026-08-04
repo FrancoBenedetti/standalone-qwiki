@@ -66,6 +66,12 @@
                     "file": ""
                 }
             ]
+        },
+        {
+            "id": "user-guide",
+            "title": "Admin User Guide",
+            "folder": "content/user-guide",
+            "items": []
         }
     ]
 }
