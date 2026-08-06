@@ -1,0 +1,8 @@
+# Prevent script execution in uploads directory
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+Options -ExecCGI
