@@ -1,0 +1,48 @@
+/* 
+ * Theme: Newsletter Minimal
+ * Description: Stripped-back, high-contrast style focusing on typography.
+ */
+
+.app-content {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.content-body {
+    font-size: 1.1rem;
+    letter-spacing: 0.02em;
+}
+
+.content-body h1 {
+    font-size: 3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 4px solid var(--text-primary);
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+}
+
+.content-body h2 {
+    text-transform: uppercase;
+    font-size: 1.25rem;
+    letter-spacing: 0.15em;
+    border: none;
+    margin-top: 3rem;
+}
+
+.content-body blockquote {
+    background: transparent;
+    border-left: none;
+    border-top: 2px solid var(--text-primary);
+    border-bottom: 2px solid var(--text-primary);
+    border-radius: 0;
+    text-align: center;
+    font-size: 1.5rem;
+    padding: 2rem;
+    margin: 3rem 0;
+}
+
+.content-body img {
+    filter: grayscale(100%);
+    border-radius: 0;
+}

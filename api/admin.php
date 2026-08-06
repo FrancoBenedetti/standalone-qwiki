@@ -229,21 +229,29 @@ switch ($action) {
 
         $bookId = $_POST['bookId'] ?? '';
         $title = trim($_POST['title'] ?? '');
+        $theme = trim($_POST['theme'] ?? '');
+        $visibility = trim($_POST['visibility'] ?? 'public');
 
         if (empty($bookId) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
             exit;
         }
 
-        function update_node_title(&$node, $targetId, $newTitle) {
+        function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility) {
             if (($node['id'] ?? '') === $targetId) {
                 $node['title'] = $newTitle;
+                if ($newTheme !== '') {
+                    $node['theme'] = $newTheme;
+                } else {
+                    unset($node['theme']);
+                }
+                $node['visibility'] = $newVisibility;
                 return true;
             }
             if (!empty($node['items'])) {
                 foreach ($node['items'] as &$sub) {
                     if (isset($sub['type']) && $sub['type'] === 'folder') {
-                        if (update_node_title($sub, $targetId, $newTitle)) {
+                        if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility)) {
                             return true;
                         }
                     }
@@ -254,7 +262,7 @@ switch ($action) {
 
         $updated = false;
         foreach ($config['books'] as &$book) {
-            if (update_node_title($book, $bookId, $title)) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility)) {
                 $updated = true;
                 break;
             }
@@ -400,6 +408,7 @@ switch ($action) {
         $url = trim($_POST['url'] ?? '');
         $editUrl = trim($_POST['editUrl'] ?? '');
         $file = trim($_POST['file'] ?? '');
+        $theme = trim($_POST['theme'] ?? '');
 
         if (empty($slug) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Document Slug and Title are required']);
@@ -417,7 +426,8 @@ switch ($action) {
             'type' => $type,
             'url' => $url,
             'editUrl' => $editUrl,
-            'file' => $file
+            'file' => $file,
+            'theme' => $theme
         ];
 
         function update_chapter_in_node(&$node, $slug, $updatedData) {
@@ -430,6 +440,11 @@ switch ($action) {
                             if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
                             if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
                             if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                            if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
+                                $ch['theme'] = $updatedData['theme'];
+                            } elseif (isset($ch['theme'])) {
+                                unset($ch['theme']);
+                            }
                             return true;
                         }
                     } else {
@@ -654,13 +669,19 @@ switch ($action) {
 
         $title = trim($_POST['title'] ?? '');
         $logoText = trim($_POST['logoText'] ?? '');
+        $logoUrl = trim($_POST['logoUrl'] ?? '');
+        $theme = trim($_POST['theme'] ?? 'theme-default.css');
         $defaultBook = trim($_POST['defaultBook'] ?? '');
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
+        $hideDocTypesFromPublic = isset($_POST['hideDocTypesFromPublic']) && $_POST['hideDocTypesFromPublic'] === '1';
         $newAdminPassword = $_POST['newAdminPassword'] ?? '';
 
-        if (!empty($title)) $config['title'] = $title;
-        if (!empty($logoText)) $config['logoText'] = $logoText;
-        if (!empty($defaultBook)) $config['defaultBook'] = $defaultBook;
+        if (isset($_POST['title'])) $config['title'] = $title;
+        if (isset($_POST['logoText'])) $config['logoText'] = $logoText;
+        if (isset($_POST['logoUrl'])) $config['logoUrl'] = $logoUrl;
+        if (isset($_POST['theme'])) $config['theme'] = $theme;
+        $config['hideDocTypesFromPublic'] = $hideDocTypesFromPublic;
+        if (isset($_POST['defaultBook'])) $config['defaultBook'] = $defaultBook;
         $config['requireLoginToView'] = $requireLoginToView;
 
         if (!empty($newAdminPassword)) {
@@ -742,6 +763,47 @@ switch ($action) {
             echo json_encode(['success' => true, 'url' => $relUrl, 'alt' => pathinfo($fileName, PATHINFO_FILENAME)]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to save image to server']);
+        }
+        break;
+
+    case 'list_themes':
+        if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themes = [];
+        $dir = __DIR__ . '/../assets/css/';
+        if (is_dir($dir)) {
+            $files = scandir($dir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+        echo json_encode(['success' => true, 'themes' => $themes]);
+        break;
+
+    case 'get_theme':
+        if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themeFile = basename($_POST['theme'] ?? $_GET['theme'] ?? '');
+        if (empty($themeFile)) { echo json_encode(['success' => false, 'error' => 'No theme specified']); exit; }
+        $path = __DIR__ . '/../assets/css/' . $themeFile;
+        if (file_exists($path)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($path)]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Theme not found']);
+        }
+        break;
+
+    case 'save_theme':
+        if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themeFile = basename($_POST['theme'] ?? '');
+        $content = $_POST['content'] ?? '';
+        if (empty($themeFile) || empty($content)) { echo json_encode(['success' => false, 'error' => 'Invalid parameters']); exit; }
+        if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) { echo json_encode(['success' => false, 'error' => 'Invalid theme file name. Must start with theme- and end with .css']); exit; }
+        $path = __DIR__ . '/../assets/css/' . $themeFile;
+        if (file_put_contents($path, $content) !== false) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save theme']);
         }
         break;
 

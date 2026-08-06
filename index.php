@@ -178,10 +178,23 @@ if ($activeChapter) {
     }
 }
 
+// Theme Resolution
+$siteTheme = $config['theme'] ?? 'theme-default.css';
+$categoryTheme = $activeBook['theme'] ?? null;
+$chapterTheme = $activeChapter['theme'] ?? null;
+$resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
+$hideDocTypesFromPublic = !empty($config['hideDocTypesFromPublic']);
+
 /**
  * Recursive function to render sidebar navigation with subfolders
  */
-function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false) {
+function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false, $isViewer = false, $hideDocTypesFromPublic = false) {
+    $visibility = $node['visibility'] ?? 'public';
+    if (!$isAdmin) {
+        if ($visibility === 'admin_only') return;
+        if ($visibility === 'logged_in' && !$isViewer) return;
+    }
+
     $nodeId = $node['id'] ?? '';
     $nodeTitle = $node['title'] ?? '';
     $isExpanded = in_array($nodeId, $activePathIds);
@@ -197,7 +210,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     echo "{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
     echo "<span class='header-actions-inline'>";
     if ($isAdmin) {
-        echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' title='Rename Category'>✏️</button> ";
+        $nodeTheme = htmlspecialchars($node['theme'] ?? '');
+        $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
+        echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' title='Edit Category'>⚙️</button> ";
     }
     echo "<span class='chevron-icon'>▾</span>";
     echo "</span>";
@@ -208,20 +223,24 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     if (!empty($node['items'])) {
         foreach ($node['items'] as $item) {
             if (isset($item['type']) && $item['type'] === 'folder') {
-                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin);
+                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $hideDocTypesFromPublic);
             } else {
                 $ch = $item;
                 $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
                 $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
                 $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
                 
-                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "'" : "";
+                $chTheme = htmlspecialchars($ch['theme'] ?? '');
+                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}'" : "";
 
                 echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
                 echo "<span>";
                 if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
                 echo htmlspecialchars($ch['title']) . "</span>";
-                echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
+                
+                if (!($hideDocTypesFromPublic && !$isAdmin && !$isViewer)) {
+                    echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
+                }
                 echo "</a>";
             }
         }
@@ -238,6 +257,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
     <link rel="stylesheet" href="assets/css/qwiki.css">
+    <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
+        <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
+    <?php endif; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -252,7 +274,11 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         <div class="brand-container">
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
             <a href="index.php" class="brand-logo">
-                ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+                <?php if (!empty($config['logoUrl'])): ?>
+                    <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 32px; border-radius: 4px;">
+                <?php else: ?>
+                    ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+                <?php endif; ?>
             </a>
         </div>
         <div class="header-actions">
@@ -263,7 +289,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <button class="btn btn-outline btn-sm" id="btn-add-book">+ Category</button>
                     <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
                     <button class="btn btn-outline btn-sm" id="btn-users">👥 Users</button>
-                    <button class="btn btn-outline btn-sm" id="btn-settings">⚙️ Settings</button>
+                    <button class="btn btn-outline btn-sm" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
                 <?php endif; ?>
                 <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
             <?php else: ?>
@@ -281,7 +307,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin); ?>
+                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $hideDocTypesFromPublic); ?>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -313,7 +339,8 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                                         data-type="<?= htmlspecialchars($activeChapter['type']) ?>"
                                         data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
                                         data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
-                                        data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">⚙️ Edit Details</button>
+                                        data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
+                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>">⚙️ Edit Details</button>
                                 <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
                             <?php endif; ?>
                         </div>
@@ -444,6 +471,20 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <label class="form-label" for="edit-book-title-input">Category Title</label>
                     <input type="text" name="title" id="edit-book-title-input" class="form-control" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-book-theme-input">Category Theme (Optional)</label>
+                    <select name="theme" id="edit-book-theme-input" class="form-control theme-selector">
+                        <option value="">-- Inherit from Site --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-book-visibility-input">Visibility</label>
+                    <select name="visibility" id="edit-book-visibility-input" class="form-control">
+                        <option value="public">Public (Everyone)</option>
+                        <option value="logged_in">Logged In Users Only</option>
+                        <option value="admin_only">Admins Only</option>
+                    </select>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
                     <button type="submit" class="btn btn-primary">Save Category Title</button>
@@ -481,8 +522,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Initial Markdown Content</label>
-                    <textarea name="content" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
+                    <label class="form-label">Initial Markdown Content <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(Or <a href="#" id="upload-md-link" style="color: var(--primary-color);">upload a .md file</a>)</span></label>
+                    <input type="file" id="md-file-upload-input" accept=".md" style="display: none;">
+                    <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>
             </form>
@@ -569,6 +611,12 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <label class="form-label" for="edit-chapter-file">File Path</label>
                     <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-theme">Document Theme (Optional)</label>
+                    <select name="theme" id="edit-chapter-theme" class="form-control theme-selector">
+                        <option value="">-- Inherit from Category/Site --</option>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
         </div>
@@ -588,9 +636,32 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <input type="text" name="title" id="setting-title" class="form-control" value="<?= htmlspecialchars($config['title'] ?? '') ?>" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="setting-logo">Logo Text</label>
+                    <label class="form-label" for="setting-logo">Logo Text (Fallback)</label>
                     <input type="text" name="logoText" id="setting-logo" class="form-control" value="<?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-logo-upload">Logo Image (Replaces Text)</label>
+                    <input type="file" id="setting-logo-upload" class="form-control" accept="image/*">
+                    <input type="hidden" name="logoUrl" id="setting-logo-url" value="<?= htmlspecialchars($config['logoUrl'] ?? '') ?>">
+                    <?php if (!empty($config['logoUrl'])): ?>
+                        <div style="margin-top: 0.5rem;">
+                            <img src="<?= htmlspecialchars($config['logoUrl']) ?>" style="max-height: 40px; border-radius: 4px; background: #fff; padding: 4px;">
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-site-theme">Site Default Theme</label>
+                    <select name="theme" id="setting-site-theme" class="form-control theme-selector">
+                        <option value="theme-default.css">theme-default.css</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="hideDocTypesFromPublic" value="1" <?= !empty($config['hideDocTypesFromPublic']) ? 'checked' : '' ?>>
+                        Hide Document Type Badges from Public Viewers
+                    </label>
+                </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">
                     <label class="form-label" for="setting-default-book">Default Category</label>
                     <select name="defaultBook" id="setting-default-book" class="form-control">
@@ -616,7 +687,36 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
-    <!-- Edit Markdown Modal Removed in favor of inline editor -->
+    <!-- Theme Editor Modal -->
+    <div class="modal-overlay" id="theme-editor-modal">
+        <div class="modal-card" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>🎨 Theme Editor</h3>
+                <button class="modal-close" data-close="theme-editor-modal">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Select Theme to Edit</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <select id="editor-theme-selector" class="form-control theme-selector" style="flex: 1;">
+                        <option value="">-- Select a Theme --</option>
+                    </select>
+                    <button class="btn btn-outline" id="btn-load-theme">Load</button>
+                </div>
+            </div>
+            <div class="form-group" id="theme-editor-area" style="display: none;">
+                <label class="form-label">CSS Content</label>
+                <textarea id="theme-css-content" class="form-control" style="font-family: monospace; min-height: 300px;"></textarea>
+                
+                <label class="form-label" style="margin-top: 1rem;">Save As (Filename)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="theme-filename" class="form-control" placeholder="theme-custom.css" style="flex: 1;">
+                    <button class="btn btn-primary" id="btn-save-theme">Save Theme</button>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Must start with <code>theme-</code> and end with <code>.css</code>.</p>
+            </div>
+        </div>
+    </div>
+
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>

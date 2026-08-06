@@ -1,0 +1,46 @@
+/* 
+ * Theme: Newsletter Highlights
+ * Description: Prominent titles, narrower reading width, designed for quick scanning.
+ */
+
+.app-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.content-body h1 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: var(--accent-color);
+}
+
+.content-body h2 {
+    text-align: center;
+    border: none;
+    font-size: 1.75rem;
+    margin-top: 3rem;
+}
+
+.content-body h3 {
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.content-body img {
+    border-radius: 50%;
+    max-width: 200px;
+    display: block;
+    margin: 1.5rem auto;
+}
+
+.content-body hr {
+    border-top: 3px dotted var(--border-color);
+    width: 50%;
+    margin: 3rem auto;
+}
+
+.content-body ul {
+    list-style-type: square;
+    padding-left: 2.5rem;
+}

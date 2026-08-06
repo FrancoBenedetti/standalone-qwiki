@@ -1,6 +1,9 @@
 {
     "title": "Standalone Qwiki",
     "logoText": "QWIKI",
+    "logoUrl": "",
+    "theme": "theme-default.css",
+    "hideDocTypesFromPublic": false,
     "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
     "defaultBook": "getting-started",
     "requireLoginToView": false,
@@ -95,6 +98,45 @@
                     "url": "",
                     "editUrl": "",
                     "file": "content/user-guide/site-settings-users.md"
+                },
+                {
+                    "id": "themes-guide",
+                    "title": "Themes & Styling",
+                    "type": "folder",
+                    "items": [
+                        {
+                            "title": "Themes Overview",
+                            "slug": "themes-overview",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/overview.md"
+                        },
+                        {
+                            "title": "Article Layouts",
+                            "slug": "article-layouts",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/article-layouts.md"
+                        },
+                        {
+                            "title": "Newsletter Layouts",
+                            "slug": "newsletter-layouts",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/newsletter-layouts.md"
+                        },
+                        {
+                            "title": "Customizing Themes",
+                            "slug": "customizing-themes",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/customizing-themes.md"
+                        }
+                    ]
                 }
             ]
         }

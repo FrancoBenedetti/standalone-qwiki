@@ -132,9 +132,73 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'users-modal') {
           loadUsersList();
         }
+        if (modalId === 'settings-modal') {
+          const btnSettings = document.getElementById('btn-settings');
+          if (btnSettings) populateThemes(document.getElementById('setting-site-theme'), btnSettings.getAttribute('data-theme'));
+        }
+        if (modalId === 'edit-chapter-modal') {
+          const btnMeta = document.getElementById('btn-edit-chapter-meta');
+          if (btnMeta) populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+        }
       });
     }
   });
+
+  // Settings Logo Upload
+  const logoUpload = document.getElementById('setting-logo-upload');
+  const logoUrlHidden = document.getElementById('setting-logo-url');
+  if (logoUpload && logoUrlHidden) {
+    logoUpload.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('action', 'upload_image');
+      formData.append('image', file);
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          logoUrlHidden.value = data.url;
+          alert('Logo uploaded successfully. Save settings to apply.');
+        } else {
+          alert('Upload failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Upload request failed');
+      }
+    });
+  }
+
+  // Theme Management
+  let availableThemes = [];
+  async function fetchAvailableThemes() {
+    if (availableThemes.length > 0) return availableThemes;
+    try {
+      const res = await fetch('api/admin.php?action=list_themes');
+      const data = await res.json();
+      if (data.success) {
+        availableThemes = data.themes;
+      }
+    } catch(e) {}
+    return availableThemes;
+  }
+
+  async function populateThemes(selectEl, selectedValue) {
+    if (!selectEl) return;
+    const themes = await fetchAvailableThemes();
+    // Keep first option (Inherit / Default)
+    const firstOpt = selectEl.options[0];
+    selectEl.innerHTML = '';
+    if (firstOpt) selectEl.appendChild(firstOpt);
+    
+    themes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      if (t === selectedValue) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
 
   // Load and render user list in Users Modal
   async function loadUsersList() {
@@ -214,14 +278,20 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       const bookId = btn.getAttribute('data-book-id');
       const bookTitle = btn.getAttribute('data-book-title');
+      const bookTheme = btn.getAttribute('data-book-theme');
+      const bookVisibility = btn.getAttribute('data-book-visibility');
 
       const editBookIdInput = document.getElementById('edit-book-id-hidden');
       const editBookTitleInput = document.getElementById('edit-book-title-input');
+      const editBookThemeInput = document.getElementById('edit-book-theme-input');
+      const editBookVisInput = document.getElementById('edit-book-visibility-input');
       const editBookModal = document.getElementById('edit-book-modal');
 
       if (editBookIdInput && editBookTitleInput && editBookModal) {
         editBookIdInput.value = bookId;
         editBookTitleInput.value = bookTitle;
+        if (editBookVisInput) editBookVisInput.value = bookVisibility || 'public';
+        populateThemes(editBookThemeInput, bookTheme);
         editBookModal.classList.add('open');
       }
     });
@@ -634,4 +704,124 @@ document.addEventListener('DOMContentLoaded', () => {
       await saveTreeStructureToBackend();
     });
   });
+
+  // Theme Editor Modal Logic
+  const themeEditorModal = document.getElementById('theme-editor-modal');
+  if (themeEditorModal) {
+    const btnOpenThemeEditor = document.createElement('button');
+    btnOpenThemeEditor.type = 'button';
+    btnOpenThemeEditor.className = 'btn btn-outline';
+    btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
+    btnOpenThemeEditor.style.marginTop = '1rem';
+    btnOpenThemeEditor.style.width = '100%';
+    
+    // Inject it into settings modal
+    const settingsForm = document.getElementById('settings-form');
+    if (settingsForm) {
+      settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
+    }
+
+    btnOpenThemeEditor.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('settings-modal').classList.remove('open');
+      populateThemes(document.getElementById('editor-theme-selector'), '');
+      themeEditorModal.classList.add('open');
+    });
+
+    const btnLoadTheme = document.getElementById('btn-load-theme');
+    const editorArea = document.getElementById('theme-editor-area');
+    const cssContent = document.getElementById('theme-css-content');
+    const filenameInput = document.getElementById('theme-filename');
+    const btnSaveTheme = document.getElementById('btn-save-theme');
+    const themeSelector = document.getElementById('editor-theme-selector');
+
+    btnLoadTheme.addEventListener('click', async () => {
+      const theme = themeSelector.value;
+      if (!theme) return alert('Select a theme to load');
+      
+      const formData = new FormData();
+      formData.append('action', 'get_theme');
+      formData.append('theme', theme);
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          cssContent.value = data.content;
+          filenameInput.value = theme;
+          editorArea.style.display = 'block';
+        } else {
+          alert('Failed to load theme: ' + data.error);
+        }
+      } catch (err) {
+        alert('Network error loading theme');
+      }
+    });
+
+    btnSaveTheme.addEventListener('click', async () => {
+      const theme = filenameInput.value.trim();
+      const content = cssContent.value;
+      if (!theme.match(/^theme-[a-zA-Z0-9-]+\.css$/)) {
+        return alert('Filename must start with theme- and end with .css');
+      }
+
+      const formData = new FormData();
+      formData.append('action', 'save_theme');
+      formData.append('theme', theme);
+      formData.append('content', content);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert('Theme saved successfully!');
+          availableThemes = []; // bust cache
+          populateThemes(themeSelector, theme);
+        } else {
+          alert('Failed to save theme: ' + data.error);
+        }
+      } catch (err) {
+        alert('Network error saving theme');
+      }
+    });
+  }
+
+  // Handle local markdown file upload in the Create Markdown Online tab
+  const uploadMdLink = document.getElementById('upload-md-link');
+  const mdFileUploadInput = document.getElementById('md-file-upload-input');
+  const mdContentTextarea = document.getElementById('md-content-textarea');
+
+  if (uploadMdLink && mdFileUploadInput && mdContentTextarea) {
+    uploadMdLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      mdFileUploadInput.click();
+    });
+
+    mdFileUploadInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        mdContentTextarea.value = evt.target.result;
+        
+        // Auto-fill title if empty and we can find an H1 heading
+        const titleInput = document.querySelector('#tab-create-md input[name="title"]');
+        if (titleInput && !titleInput.value) {
+          const content = evt.target.result;
+          const match = content.match(/^#\s+(.+)$/m);
+          if (match && match[1]) {
+            titleInput.value = match[1].trim();
+          } else {
+            // Use filename as fallback title
+            const fileNameWithoutExt = file.name.replace(/\.md$/i, '');
+            titleInput.value = fileNameWithoutExt;
+          }
+        }
+        
+        // Clear input to allow uploading the same file again
+        mdFileUploadInput.value = '';
+      };
+      reader.readAsText(file);
+    });
+  }
 });
