@@ -1,0 +1,8 @@
+# Ignore user data and configuration
+qwiki.json
+users.json
+content/
+uploads/
+
+# Ignore dependencies
+node_modules/

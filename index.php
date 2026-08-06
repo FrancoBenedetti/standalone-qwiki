@@ -5,7 +5,34 @@ require_once __DIR__ . '/lib/simple_html_dom.php';
 
 $configFile = __DIR__ . '/qwiki.json';
 if (!file_exists($configFile)) {
-    die("Configuration file qwiki.json not found.");
+    // Auto-setup mechanism
+    $demoDir = __DIR__ . '/demo-data';
+    
+    if (file_exists($demoDir . '/qwiki-default.json')) {
+        // Create necessary directories
+        if (!is_dir(__DIR__ . '/uploads')) @mkdir(__DIR__ . '/uploads', 0755, true);
+        
+        // Recursive copy function for content
+        if (!function_exists('qwiki_copy_dir')) {
+            function qwiki_copy_dir($src, $dst) {
+                if (!is_dir($src)) return;
+                @mkdir($dst, 0755, true);
+                $dir = opendir($src);
+                while (false !== ($file = readdir($dir))) {
+                    if (($file != '.') && ($file != '..')) {
+                        if (is_dir($src . '/' . $file)) qwiki_copy_dir($src . '/' . $file, $dst . '/' . $file);
+                        else copy($src . '/' . $file, $dst . '/' . $file);
+                    }
+                }
+                closedir($dir);
+            }
+        }
+        
+        qwiki_copy_dir($demoDir . '/content', __DIR__ . '/content');
+        copy($demoDir . '/qwiki-default.json', $configFile);
+    } else {
+        die("Configuration file qwiki.json not found, and demo-data template is missing.");
+    }
 }
 
 $config = json_decode(file_get_contents($configFile), true);

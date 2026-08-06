@@ -1,0 +1,144 @@
+{
+    "title": "Standalone Qwiki",
+    "logoText": "QWIKI",
+    "logoUrl": "",
+    "theme": "theme-default.css",
+    "hideDocTypesFromPublic": false,
+    "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
+    "defaultBook": "getting-started",
+    "requireLoginToView": false,
+    "books": [
+        {
+            "id": "getting-started",
+            "title": "About Qwiki",
+            "type": "folder",
+            "items": [
+                {
+                    "title": "Introduction",
+                    "slug": "introduction",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/introduction.md"
+                },
+                {
+                    "title": "System Features",
+                    "slug": "features",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/features.md"
+                },
+                {
+                    "title": "Installation Guide",
+                    "slug": "installation",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/installation.md"
+                },
+                {
+                    "id": "advanced-topics",
+                    "title": "Advanced Topics",
+                    "type": "folder",
+                    "items": [
+                        {
+                            "title": "Authentication Guide",
+                            "slug": "authentication-guide",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/api-docs/authentication-guide.md"
+                        },
+                        {
+                            "title": "Performance Optimization",
+                            "slug": "performance",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/getting-started/advanced-topics/performance.md"
+                        }
+                    ]
+                },
+                {
+                    "title": "Sample PDF Document",
+                    "slug": "sample-pdf",
+                    "type": "pdf",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/sample.pdf"
+                },
+                {
+                    "title": "Live Google Doc Demo",
+                    "slug": "live-google-doc",
+                    "type": "gdoc",
+                    "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
+                    "editUrl": "",
+                    "file": ""
+                }
+            ]
+        },
+        {
+            "id": "user-guide",
+            "title": "Admin User Guide",
+            "folder": "content/user-guide",
+            "items": [
+                {
+                    "title": "Managing Content",
+                    "slug": "managing-content",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/user-guide/managing-content.md"
+                },
+                {
+                    "title": "Site Settings & Users",
+                    "slug": "site-settings-users",
+                    "type": "markdown",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/user-guide/site-settings-users.md"
+                },
+                {
+                    "id": "themes-guide",
+                    "title": "Themes & Styling",
+                    "type": "folder",
+                    "items": [
+                        {
+                            "title": "Themes Overview",
+                            "slug": "themes-overview",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/overview.md"
+                        },
+                        {
+                            "title": "Article Layouts",
+                            "slug": "article-layouts",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/article-layouts.md"
+                        },
+                        {
+                            "title": "Newsletter Layouts",
+                            "slug": "newsletter-layouts",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/newsletter-layouts.md"
+                        },
+                        {
+                            "title": "Customizing Themes",
+                            "slug": "customizing-themes",
+                            "type": "markdown",
+                            "url": "",
+                            "editUrl": "",
+                            "file": "content/user-guide/themes/customizing-themes.md"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
