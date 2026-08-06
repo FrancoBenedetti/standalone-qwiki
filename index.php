@@ -256,6 +256,24 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
+    
+    <!-- Open Graph & Social Share Tags -->
+    <?php
+        $ogTitle = htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? ''));
+        $ogDesc = htmlspecialchars($activeChapter['description'] ?? $config['shareDescription'] ?? 'Read this documentation on Qwiki.');
+        $ogImage = htmlspecialchars($activeChapter['image'] ?? $config['shareImageUrl'] ?? $config['logoUrl'] ?? '');
+    ?>
+    <meta property="og:title" content="<?= $ogTitle ?>">
+    <meta property="og:description" content="<?= $ogDesc ?>">
+    <?php if ($ogImage): ?>
+    <meta property="og:image" content="<?= $ogImage ?>">
+    <meta name="twitter:image" content="<?= $ogImage ?>">
+    <?php endif; ?>
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<?= $ogTitle ?>">
+    <meta name="twitter:description" content="<?= $ogDesc ?>">
+
     <link rel="stylesheet" href="assets/css/qwiki.css">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
         <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
@@ -617,6 +635,14 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <option value="">-- Inherit from Category/Site --</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-description">Short Description (for social sharing)</label>
+                    <textarea name="description" id="edit-chapter-description" class="form-control" style="min-height: 80px;"><?= htmlspecialchars($activeChapter['description'] ?? '') ?></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-image">Social Share Image URL</label>
+                    <input type="url" name="image" id="edit-chapter-image" class="form-control" value="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>" placeholder="https://example.com/image.jpg">
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
         </div>
@@ -660,6 +686,15 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <input type="checkbox" name="hideDocTypesFromPublic" value="1" <?= !empty($config['hideDocTypesFromPublic']) ? 'checked' : '' ?>>
                         Hide Document Type Badges from Public Viewers
                     </label>
+                </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div class="form-group">
+                    <label class="form-label" for="setting-share-desc">Global Social Share Description</label>
+                    <textarea name="shareDescription" id="setting-share-desc" class="form-control" style="min-height: 80px;"><?= htmlspecialchars($config['shareDescription'] ?? '') ?></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-share-img">Global Social Share Image URL</label>
+                    <input type="url" name="shareImageUrl" id="setting-share-img" class="form-control" value="<?= htmlspecialchars($config['shareImageUrl'] ?? '') ?>" placeholder="https://example.com/banner.jpg">
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">

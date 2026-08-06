@@ -409,6 +409,8 @@ switch ($action) {
         $editUrl = trim($_POST['editUrl'] ?? '');
         $file = trim($_POST['file'] ?? '');
         $theme = trim($_POST['theme'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $image = trim($_POST['image'] ?? '');
 
         if (empty($slug) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Document Slug and Title are required']);
@@ -427,7 +429,9 @@ switch ($action) {
             'url' => $url,
             'editUrl' => $editUrl,
             'file' => $file,
-            'theme' => $theme
+            'theme' => $theme,
+            'description' => $description,
+            'image' => $image
         ];
 
         function update_chapter_in_node(&$node, $slug, $updatedData) {
@@ -444,6 +448,16 @@ switch ($action) {
                                 $ch['theme'] = $updatedData['theme'];
                             } elseif (isset($ch['theme'])) {
                                 unset($ch['theme']);
+                            }
+                            if (isset($updatedData['description']) && $updatedData['description'] !== '') {
+                                $ch['description'] = $updatedData['description'];
+                            } elseif (isset($ch['description'])) {
+                                unset($ch['description']);
+                            }
+                            if (isset($updatedData['image']) && $updatedData['image'] !== '') {
+                                $ch['image'] = $updatedData['image'];
+                            } elseif (isset($ch['image'])) {
+                                unset($ch['image']);
                             }
                             return true;
                         }
@@ -675,6 +689,8 @@ switch ($action) {
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
         $hideDocTypesFromPublic = isset($_POST['hideDocTypesFromPublic']) && $_POST['hideDocTypesFromPublic'] === '1';
         $newAdminPassword = $_POST['newAdminPassword'] ?? '';
+        $shareDescription = trim($_POST['shareDescription'] ?? '');
+        $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
 
         if (isset($_POST['title'])) $config['title'] = $title;
         if (isset($_POST['logoText'])) $config['logoText'] = $logoText;
@@ -683,6 +699,8 @@ switch ($action) {
         $config['hideDocTypesFromPublic'] = $hideDocTypesFromPublic;
         if (isset($_POST['defaultBook'])) $config['defaultBook'] = $defaultBook;
         $config['requireLoginToView'] = $requireLoginToView;
+        if (isset($_POST['shareDescription'])) $config['shareDescription'] = $shareDescription;
+        if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
 
         if (!empty($newAdminPassword)) {
             if (strlen($newAdminPassword) < 4) {
