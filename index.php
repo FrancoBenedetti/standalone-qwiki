@@ -58,9 +58,11 @@ if (!file_exists($configFile)) {
                 <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 40px auto; border: 1px solid #ffcccc; background: #fff5f5; border-radius: 8px;'>
                     <h2 style='color: #cc0000; margin-top: 0;'>Auto-setup failed</h2>
                     <p>Could not create <code>qwiki.json</code>. The web server does not have write permissions to the Qwiki directory.</p>
-                    <p>To fix this, you need to change the ownership of the directory to your web server user (typically <code>www-data</code> for Apache/Nginx on Ubuntu/Debian). Run the following command in your terminal:</p>
+                    <p><strong>Option 1: Using SSH (Terminal)</strong><br>
+                    Change the ownership of the directory to your web server user (e.g., <code>www-data</code> for Apache/Nginx on Ubuntu):</p>
                     <pre style='background: #333; color: #fff; padding: 15px; border-radius: 4px; overflow-x: auto;'>sudo chown -R www-data:www-data " . realpath(__DIR__) . "</pre>
-                    <p style='margin-bottom: 0; color: #666; font-size: 0.9em;'><em>Note: If you are using CentOS/RHEL, the user might be <code>apache</code> or <code>nginx</code>.</em></p>
+                    <p><strong>Option 2: Using FTP/SFTP (cPanel, FileZilla, etc.)</strong><br>
+                    Right-click the Qwiki folder in your FTP client, select <em>File Permissions</em> (or Attributes), and change the permissions to <strong>755</strong> or <strong>775</strong>. Ensure you apply this to all files and directories.</p>
                 </div>
             ");
         }
