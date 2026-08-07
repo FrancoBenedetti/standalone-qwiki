@@ -54,7 +54,15 @@ if (!file_exists($configFile)) {
         
         $copiedConfig = @copy($demoDir . '/qwiki-default.json', $configFile);
         if (!$copiedConfig) {
-            die("<strong>Auto-setup failed:</strong> Could not create <code>qwiki.json</code>. Please ensure the web server has write permissions to the Qwiki directory.");
+            die("
+                <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 40px auto; border: 1px solid #ffcccc; background: #fff5f5; border-radius: 8px;'>
+                    <h2 style='color: #cc0000; margin-top: 0;'>Auto-setup failed</h2>
+                    <p>Could not create <code>qwiki.json</code>. The web server does not have write permissions to the Qwiki directory.</p>
+                    <p>To fix this, you need to change the ownership of the directory to your web server user (typically <code>www-data</code> for Apache/Nginx on Ubuntu/Debian). Run the following command in your terminal:</p>
+                    <pre style='background: #333; color: #fff; padding: 15px; border-radius: 4px; overflow-x: auto;'>sudo chown -R www-data:www-data " . realpath(__DIR__) . "</pre>
+                    <p style='margin-bottom: 0; color: #666; font-size: 0.9em;'><em>Note: If you are using CentOS/RHEL, the user might be <code>apache</code> or <code>nginx</code>.</em></p>
+                </div>
+            ");
         }
         
         if (!is_dir(__DIR__ . '/uploads')) {
