@@ -825,6 +825,135 @@ switch ($action) {
         }
         break;
 
+    case 'check_updates':
+        if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        
+        $cacheFile = __DIR__ . '/../uploads/update_cache.json';
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+            $cache = json_decode(file_get_contents($cacheFile), true);
+            echo json_encode(['success' => true, 'has_update' => $cache['has_update'], 'version' => $cache['version'], 'notes' => $cache['notes'], 'zip_url' => $cache['zip_url']]);
+            exit;
+        }
+
+        $indexContent = file_get_contents(__DIR__ . '/../index.php');
+        $currentVersion = '1.0.0';
+        if (preg_match("/define\('QWIKI_VERSION',\s*'([^']+)'\)/", $indexContent, $matches)) {
+            $currentVersion = $matches[1];
+        }
+
+        $opts = [
+            'http' => [
+                'method' => 'GET',
+                'header' => ['User-Agent: PHP-Qwiki-Updater']
+            ]
+        ];
+        $context = stream_context_create($opts);
+        $response = @file_get_contents('https://api.github.com/repos/FrancoBenedetti/standalone-qwiki/releases', false, $context);
+        
+        if ($response) {
+            $releases = json_decode($response, true);
+            if (!empty($releases) && is_array($releases)) {
+                $latest = $releases[0]; // Releases API is chronologically sorted
+                $latestVersion = ltrim($latest['tag_name'], 'v');
+                $currVerClean = ltrim($currentVersion, 'v');
+                
+                $hasUpdate = version_compare($latestVersion, $currVerClean, '>');
+                
+                $data = [
+                    'has_update' => $hasUpdate,
+                    'version' => $latest['tag_name'],
+                    'notes' => $latest['body'],
+                    'zip_url' => $latest['zipball_url']
+                ];
+                
+                if (!is_dir(__DIR__ . '/../uploads')) mkdir(__DIR__ . '/../uploads', 0755, true);
+                file_put_contents($cacheFile, json_encode($data));
+                
+                echo json_encode(array_merge(['success' => true], $data));
+                exit;
+            }
+        }
+        echo json_encode(['success' => false, 'error' => 'Failed to check for updates']);
+        break;
+
+    case 'install_update':
+        if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        
+        $zipUrl = $_POST['zip_url'] ?? '';
+        if (empty($zipUrl)) { echo json_encode(['success' => false, 'error' => 'Missing zip URL']); exit; }
+        
+        if (!class_exists('ZipArchive')) {
+            echo json_encode(['success' => false, 'error' => 'ZipArchive PHP extension is not installed']);
+            exit;
+        }
+
+        $tempZip = __DIR__ . '/../uploads/update_temp.zip';
+        $opts = [
+            'http' => [
+                'method' => 'GET',
+                'header' => ['User-Agent: PHP-Qwiki-Updater']
+            ]
+        ];
+        $context = stream_context_create($opts);
+        $zipData = @file_get_contents($zipUrl, false, $context);
+        
+        if (!$zipData) {
+            echo json_encode(['success' => false, 'error' => 'Failed to download update']);
+            exit;
+        }
+        
+        file_put_contents($tempZip, $zipData);
+        
+        $zip = new ZipArchive;
+        if ($zip->open($tempZip) === TRUE) {
+            $rootFolder = '';
+            // Exclude these paths
+            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json'];
+            
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $filename = $zip->getNameIndex($i);
+                if ($i === 0) {
+                    $rootFolder = $filename;
+                }
+                
+                if ($filename === $rootFolder) continue;
+                
+                $relativePath = substr($filename, strlen($rootFolder));
+                if (empty($relativePath)) continue;
+                
+                $skip = false;
+                foreach ($excludes as $ex) {
+                    if (strpos($relativePath, $ex) === 0 || $relativePath === $ex) {
+                        $skip = true;
+                        break;
+                    }
+                }
+                if ($skip) continue;
+                
+                $targetPath = __DIR__ . '/../' . $relativePath;
+                
+                if (substr($filename, -1) === '/') {
+                    if (!is_dir($targetPath)) mkdir($targetPath, 0755, true);
+                } else {
+                    $dir = dirname($targetPath);
+                    if (!is_dir($dir)) mkdir($dir, 0755, true);
+                    
+                    $content = $zip->getFromIndex($i);
+                    file_put_contents($targetPath, $content);
+                }
+            }
+            $zip->close();
+            unlink($tempZip);
+            if (file_exists(__DIR__ . '/../uploads/update_cache.json')) {
+                unlink(__DIR__ . '/../uploads/update_cache.json');
+            }
+            echo json_encode(['success' => true]);
+        } else {
+            @unlink($tempZip);
+            echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
+        }
+        break;
+
     default:
         echo json_encode(['success' => false, 'error' => 'Invalid action']);
         break;

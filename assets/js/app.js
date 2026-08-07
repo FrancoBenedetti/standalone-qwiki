@@ -856,4 +856,58 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.readAsText(file);
     });
   }
+
+  // Update Notification Logic
+  const btnSettings = document.getElementById('btn-settings');
+  const btnUpdateAvailable = document.getElementById('btn-update-available');
+  if (btnSettings && btnUpdateAvailable) {
+    fetch('api/admin.php?action=check_updates')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.has_update) {
+          btnUpdateAvailable.style.display = 'inline-block';
+          
+          btnUpdateAvailable.addEventListener('click', () => {
+            document.getElementById('update-version-text').textContent = data.version;
+            let notesHtml = data.notes.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/```[\s\S]*?```/g, '<pre><code>...</code></pre>');
+            document.getElementById('update-release-notes').innerHTML = notesHtml;
+            document.getElementById('update-zip-url').value = data.zip_url;
+            document.getElementById('update-modal').classList.add('active');
+          });
+        }
+      })
+      .catch(err => console.error('Failed to check for updates', err));
+      
+    const updateForm = document.getElementById('update-form');
+    if (updateForm) {
+      updateForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btnInstall = document.getElementById('btn-install-update');
+        const loadingText = document.getElementById('update-loading-text');
+        
+        btnInstall.disabled = true;
+        loadingText.style.display = 'block';
+        
+        const formData = new FormData(e.target);
+        formData.append('action', 'install_update');
+        
+        try {
+          const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.success) {
+            alert('Update installed successfully! The page will now reload.');
+            window.location.reload(true);
+          } else {
+            alert('Failed to install update: ' + data.error);
+            btnInstall.disabled = false;
+            loadingText.style.display = 'none';
+          }
+        } catch (err) {
+          alert('An error occurred while installing the update.');
+          btnInstall.disabled = false;
+          loadingText.style.display = 'none';
+        }
+      });
+    }
+  }
 });

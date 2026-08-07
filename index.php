@@ -1,5 +1,6 @@
 <?php
 session_start();
+define('QWIKI_VERSION', '1.0.0-beta.2');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -356,6 +357,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
                     <button class="btn btn-outline btn-sm" id="btn-users">👥 Users</button>
                     <button class="btn btn-outline btn-sm" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
+                    <button class="btn btn-primary btn-sm" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff; border-color: #f59e0b;">🎉 Update Available!</button>
                 <?php endif; ?>
                 <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
             <?php else: ?>
@@ -797,6 +799,25 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Must start with <code>theme-</code> and end with <code>.css</code>.</p>
             </div>
+        </div>
+    </div>
+
+    <!-- Update Available Modal -->
+    <div class="modal-overlay" id="update-modal">
+        <div class="modal-card" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>🎉 New Update Available!</h3>
+                <button class="modal-close" data-close="update-modal">&times;</button>
+            </div>
+            <div style="margin-bottom: 1.5rem;">
+                <p>A new version of Standalone Qwiki is available: <strong id="update-version-text"></strong> (Current: <?= QWIKI_VERSION ?>)</p>
+                <div id="update-release-notes" style="background: var(--bg-color); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); max-height: 300px; overflow-y: auto; margin-top: 1rem; font-size: 0.9rem;"></div>
+            </div>
+            <form id="update-form">
+                <input type="hidden" name="zip_url" id="update-zip-url">
+                <button type="submit" class="btn btn-primary" id="btn-install-update" style="width: 100%;">Download & Install Update</button>
+                <p id="update-loading-text" style="display: none; text-align: center; color: var(--primary-color); margin-top: 0.5rem;">Installing update... Please wait and do not close this page.</p>
+            </form>
         </div>
     </div>
 
