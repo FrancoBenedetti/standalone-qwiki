@@ -872,7 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let notesHtml = data.notes.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/```[\s\S]*?```/g, '<pre><code>...</code></pre>');
             document.getElementById('update-release-notes').innerHTML = notesHtml;
             document.getElementById('update-zip-url').value = data.zip_url;
-            document.getElementById('update-modal').classList.add('active');
+            document.getElementById('update-modal').classList.add('open');
           });
         }
       })
