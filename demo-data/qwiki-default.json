@@ -3,6 +3,8 @@
     "logoText": "QWIKI",
     "logoUrl": "",
     "theme": "theme-default.css",
+    "shareDescription": "Standalone Qwiki is a modern, fast, zero-database documentation portal and wiki system.",
+    "shareImageUrl": "https://raw.githubusercontent.com/FrancoBenedetti/standalone-qwiki/main/assets/img/og-preview.png",
     "hideDocTypesFromPublic": false,
     "adminPasswordHash": "$2y$10$H8vIUts/BIGCXGCmw9xFHuCBnPGgNHZ44F59OcQYYxDVKBmD19DIm",
     "defaultBook": "getting-started",
@@ -19,6 +21,8 @@
                     "type": "markdown",
                     "url": "",
                     "editUrl": "",
+                    "description": "Learn how Standalone Qwiki can transform your documentation process.",
+                    "image": "https://raw.githubusercontent.com/FrancoBenedetti/standalone-qwiki/main/assets/img/og-preview.png",
                     "file": "content/getting-started/introduction.md"
                 },
                 {

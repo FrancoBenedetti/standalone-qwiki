@@ -80,27 +80,59 @@ document.addEventListener('DOMContentLoaded', () => {
   // Sidebar Filter Search (with Auto-Expand)
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
+    let searchTimeout = null;
+    let abortController = null;
+    
     searchInput.addEventListener('input', (e) => {
       const term = e.target.value.toLowerCase().trim();
-      document.querySelectorAll('.nav-category-item').forEach(catItem => {
-        let catMatch = false;
-        catItem.querySelectorAll('.nav-link').forEach(link => {
-          const text = link.textContent.toLowerCase();
-          if (term === '' || text.includes(term)) {
+      clearTimeout(searchTimeout);
+      if (abortController) abortController.abort();
+
+      if (term === '') {
+        document.querySelectorAll('.nav-category-item').forEach(catItem => {
+          catItem.querySelectorAll('.nav-link').forEach(link => {
             link.style.display = 'flex';
-            catMatch = true;
-          } else {
-            link.style.display = 'none';
-          }
+          });
         });
-        if (term !== '') {
-          if (catMatch) {
-            catItem.classList.remove('collapsed');
-          } else {
-            catItem.classList.add('collapsed');
+        return;
+      }
+
+      searchTimeout = setTimeout(async () => {
+        abortController = new AbortController();
+        try {
+          const res = await fetch(`api/search.php?q=${encodeURIComponent(term)}`, { signal: abortController.signal });
+          const data = await res.json();
+          if (data.success) {
+            const matchedSlugs = data.results;
+            
+            document.querySelectorAll('.nav-category-item').forEach(catItem => {
+              let catMatch = false;
+              catItem.querySelectorAll('.nav-link').forEach(link => {
+                const url = new URL(link.href, window.location.origin);
+                const chapterSlug = url.searchParams.get('chapter') || url.searchParams.get('doc');
+                const text = link.textContent.toLowerCase();
+                
+                if (matchedSlugs.includes(chapterSlug) || text.includes(term)) {
+                  link.style.display = 'flex';
+                  catMatch = true;
+                } else {
+                  link.style.display = 'none';
+                }
+              });
+              
+              if (catMatch) {
+                catItem.classList.remove('collapsed');
+              } else {
+                catItem.classList.add('collapsed');
+              }
+            });
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+             console.error('Search failed', err);
           }
         }
-      });
+      }, 300);
     });
   }
 

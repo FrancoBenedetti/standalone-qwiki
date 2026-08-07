@@ -3,6 +3,27 @@ session_start();
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
+class QwikiParsedown extends Parsedown {
+    protected function inlineLink($Excerpt) {
+        $Inline = parent::inlineLink($Excerpt);
+        if ( ! isset($Inline)) {
+            return;
+        }
+
+        $href = $Inline['element']['attributes']['href'] ?? '';
+        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+        $parsedUrl = parse_url($href);
+        $linkHost = $parsedUrl['host'] ?? '';
+        
+        if ($linkHost && $linkHost !== $currentHost) {
+            $Inline['element']['attributes']['target'] = '_blank';
+            $Inline['element']['attributes']['rel'] = 'noopener noreferrer';
+        }
+        
+        return $Inline;
+    }
+}
+
 $configFile = __DIR__ . '/qwiki.json';
 if (!file_exists($configFile)) {
     // Auto-setup mechanism
@@ -160,7 +181,7 @@ if ($activeChapter) {
         $filePath = __DIR__ . '/' . ($activeChapter['file'] ?? '');
         if (file_exists($filePath)) {
             $rawMarkdownContent = file_get_contents($filePath);
-            $parsedown = new Parsedown();
+            $parsedown = new QwikiParsedown();
             $renderedContent = $parsedown->text($rawMarkdownContent);
         } else {
             $renderedContent = "<div class='alert warning'>Markdown file not found: " . htmlspecialchars($activeChapter['file'] ?? '') . "</div>";
@@ -320,7 +341,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
             <a href="index.php" class="brand-logo">
                 <?php if (!empty($config['logoUrl'])): ?>
-                    <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 32px; border-radius: 4px;">
+                    <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
                 <?php else: ?>
                     ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
                 <?php endif; ?>

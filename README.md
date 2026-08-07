@@ -58,20 +58,21 @@ Admins can control whether documentation is publicly readable or requires authen
 
 ## 🚀 Quick Start & Installation
 
-1. **Clone or Extract the Repository**:
-   ```bash
-   cd /path/to/webroot/help   # Or any subfolder/domain
-   git clone <repository-url> .
-   ```
+1. **Download the Latest Release**:
+   Download the latest `.zip` file from the [GitHub Releases page](https://github.com/FrancoBenedetti/standalone-qwiki/releases/latest) and extract it to your web server root or subfolder.
 
 2. **Set File Permissions**:
-   Ensure write access for the `content/`, `uploads/`, `qwiki.json`, and `users.json` paths:
+   Ensure PHP has write access to the directory so it can run the auto-setup:
    ```bash
-   chmod -R 775 content/ uploads/ qwiki.json users.json
+   chmod -R 775 /path/to/your/qwiki-folder
    ```
 
-3. **Access in Browser**:
-   Open `http://your-domain.com/help/` (or your chosen subfolder).
+3. **Run Auto-Setup**:
+   Simply open `http://your-domain.com/qwiki/` in your browser. 
+   Qwiki will automatically detect that it's a new installation, create your `qwiki.json` and `users.json` files, and generate the `content/` and `uploads/` directories using the included demo data.
+
+### Upgrading Qwiki
+Because Qwiki uses an Auto-Setup mechanism, **updating is completely safe**. Just download the newest Release `.zip` and extract it over your existing installation. Your live `qwiki.json`, `users.json`, `content/`, and `uploads/` are completely ignored by the update and will remain perfectly intact.
 
 ---
 
@@ -89,6 +90,7 @@ When accessing for the first time, click **Login** in the top right header:
 ```
 standalone-qwiki/
 ├── .htaccess                  # Security rules blocking .json downloads & script execution
+├── .gitignore                 # Ignores live user data (qwiki.json, content, users.json)
 ├── api/
 │   └── admin.php              # REST API endpoint handling auth, CRUD, DND reordering, image uploads
 ├── assets/
@@ -96,18 +98,20 @@ standalone-qwiki/
 │   │   └── qwiki.css          # Design system, dark/light theme, drag indicators, responsive styles
 │   └── js/
 │       └── app.js             # Theme toggle, search auto-expand, DND engine, sidebar resizer
-├── content/                   # Documentation content store
-│   ├── api-docs/              # Sample API documentation files
-│   └── getting-started/       # Sample Getting Started guides, sub-folders, and PDF
+├── demo-data/                 # Auto-Setup templates for fresh installs
+│   ├── content/               # Demo documentation files
+│   └── qwiki-default.json     # Demo wiki tree structure
 ├── lib/
 │   ├── Parsedown.php          # Single-file Markdown parser
 │   └── simple_html_dom.php    # HTML DOM cleaner for Google Docs
-├── uploads/                   # Uploaded media & assets
-│   └── images/                # Uploaded Markdown images
-├── index.php                  # Main application entry point & routing engine
-├── qwiki.json                 # Wiki tree structure configuration
-├── users.json                 # File-based user store & Bcrypt password hashes
+├── index.php                  # Main application entry point, routing engine, and Auto-Setup script
 └── README.md                  # System documentation
+
+(Generated after first run)
+├── content/                   # Live documentation content store
+├── uploads/                   # Live uploaded media & assets
+├── qwiki.json                 # Live wiki tree structure configuration
+└── users.json                 # Live file-based user store & Bcrypt password hashes
 ```
 
 ---
