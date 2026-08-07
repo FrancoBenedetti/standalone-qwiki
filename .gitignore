@@ -1,8 +1,6 @@
-# Ignore dependencies
-node_modules/
 
 # User Data (Ignored to protect updates and auto-setup)
-content/
-uploads/
-qwiki.json
-users.json
+/content/
+/uploads/
+/qwiki.json
+/users.json
