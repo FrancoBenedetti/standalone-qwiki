@@ -1,6 +1,7 @@
 
+/node_modules
 # User Data (Ignored to protect updates and auto-setup)
-/content/
-/uploads/
+/content
+/uploads
 /qwiki.json
 /users.json
