@@ -70,7 +70,7 @@ Admins can control whether documentation is publicly readable or requires authen
    ```
 
 3. **Run Auto-Setup**:
-   Simply open `http://your-domain.com/qwiki/` in your browser. 
+   Simply open your deployment URL (e.g. `http://your-domain.com/` or `http://your-domain.com/your-subfolder/`) in your browser. 
    Qwiki will automatically detect that it's a new installation, create your `qwiki.json` and `users.json` files, and generate the `content/` and `uploads/` directories using the included demo data.
 
 ### Upgrading Qwiki
