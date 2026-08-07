@@ -52,6 +52,14 @@ if (!file_exists($configFile)) {
         
         qwiki_copy_dir($demoDir . '/content', __DIR__ . '/content');
         copy($demoDir . '/qwiki-default.json', $configFile);
+        
+        if (!is_dir(__DIR__ . '/uploads')) {
+            mkdir(__DIR__ . '/uploads', 0755, true);
+        }
+        if (file_exists($demoDir . '/htaccess-uploads')) {
+            copy($demoDir . '/htaccess-uploads', __DIR__ . '/uploads/.htaccess');
+        }
+        
     } else {
         die("Configuration file qwiki.json not found, and demo-data template is missing.");
     }
