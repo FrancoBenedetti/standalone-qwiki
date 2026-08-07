@@ -28,19 +28,20 @@ Admins can control whether documentation is publicly readable or requires authen
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor and direct image upload.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor. Supports direct image uploading and importing existing local Markdown files.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
+- **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and Markdown file contents, respecting category visibility rules.
 - **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories. Changes sync instantly to `qwiki.json`.
 - **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`). Preferred width is saved in `localStorage`.
-- **📷 In-Editor Image Upload**: Seamlessly drag and drop or upload images (`.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`) directly into the inline WYSIWYG editor to automatically insert them into your Markdown document.
 - **👥 Multi-User Management & RBAC**:
   - **Admin**: Full rights to edit categories, create documents, upload media, reorder menus, and manage users.
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
 - **🎨 Cascading Themes & Built-in UI Editor**: Assign different CSS themes across the site, specific categories, or individual documents. Write and preview themes via a live CSS editor directly in the browser!
 - **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Hide document type badges (MD, PDF, GDOC) from public viewers.
-- **🖼️ Custom Logo Support**: Easily upload a custom logo from the Settings panel to replace the default text-based branding.
+- **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
+- **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).
@@ -51,7 +52,7 @@ Admins can control whether documentation is publicly readable or requires authen
 ## 📋 System Requirements
 
 - **PHP**: PHP 7.4 or PHP 8.x
-- **PHP Extensions**: `json`, `session`, `mbstring`, `fileinfo`
+- **PHP Extensions**: `json`, `session`, `mbstring`, `fileinfo`, `zip` (for 1-click updates)
 - **Web Server**: Apache, Nginx, or Caddy (or built-in PHP CLI dev server for local testing).
 
 ---
@@ -65,6 +66,7 @@ Admins can control whether documentation is publicly readable or requires authen
    Ensure PHP has write access to the directory so it can run the auto-setup:
    ```bash
    chmod -R 775 /path/to/your/qwiki-folder
+   chown -R www-data:www-data /path/to/your/qwiki-folder
    ```
 
 3. **Run Auto-Setup**:
@@ -72,7 +74,9 @@ Admins can control whether documentation is publicly readable or requires authen
    Qwiki will automatically detect that it's a new installation, create your `qwiki.json` and `users.json` files, and generate the `content/` and `uploads/` directories using the included demo data.
 
 ### Upgrading Qwiki
-Because Qwiki uses an Auto-Setup mechanism, **updating is completely safe**. Just download the newest Release `.zip` and extract it over your existing installation. Your live `qwiki.json`, `users.json`, `content/`, and `uploads/` are completely ignored by the update and will remain perfectly intact.
+Because Qwiki uses a safe separation of logic and data, updating is incredibly simple:
+- **1-Click Auto Update**: When logged in as Admin, click the "Update Available" button in your header to automatically fetch and apply the latest release.
+- **Manual Zip Update**: Download the newest Release `.zip` and extract it over your existing installation. Your live `qwiki.json`, `users.json`, `content/`, and `uploads/` are completely ignored by the update ZIP and will remain perfectly intact.
 
 ---
 

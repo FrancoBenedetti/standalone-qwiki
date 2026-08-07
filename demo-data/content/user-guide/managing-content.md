@@ -7,7 +7,8 @@ As an Admin, you have full control over the documentation tree and content direc
 1. Navigate to any section or document you want to edit.
 2. Click the **✏️ Edit Content** button in the top right corner.
 3. This opens the **WYSIWYG Markdown Editor** where you can write text, format it, and add tables.
-4. Click **Save Changes** when you're done.
+4. **Import existing files**: You can also use the `Upload .md File` button in the editor tab to quickly upload an existing Markdown file from your computer. Qwiki will automatically try to extract the title from the first `# Heading` in your document.
+5. Click **Save Changes** when you're done.
 
 ## 📷 Uploading Images
 

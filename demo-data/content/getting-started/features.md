@@ -9,7 +9,8 @@
 ### A. Local Markdown Files (`.md`)
 - Server-side GitHub-Flavored Markdown parsing via `lib/Parsedown.php`.
 - Full online visual/code editor (`✏️ Edit Content`) for real-time document editing.
-- **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload `.png`, `.jpg`, `.svg`, or `.webp` files directly to `uploads/images/` and auto-insert Markdown tags at your cursor position.
+- **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload images directly to `uploads/images/` and auto-insert Markdown tags.
+- **Markdown File Import**: Upload existing `.md` files directly from your computer into the editor for quick creation.
 
 ### B. Published Google Docs (`gdoc`)
 - Embed published Google Doc URLs directly into your wiki tree.
@@ -21,7 +22,15 @@
 
 ---
 
-## 🖐️ 2. Drag & Drop Navigation Reordering
+## 🔍 2. Advanced Search Engine
+
+- **Server-Side Rendering**: Searches instantly query the backend for high performance.
+- **Deep Indexing**: Searches hit document titles, meta descriptions, and the full content of Markdown (`.md`) files.
+- **Role-Aware**: Search results strictly respect category visibility settings (e.g. Viewer vs Admin).
+
+---
+
+## 🖐️ 3. Drag & Drop Navigation Reordering
 
 When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu item in the sidebar:
 - **Reorder Documents**: Drag pages up or down within a section.
@@ -31,14 +40,14 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## ↔️ 3. Resizable Sidebar Menu Width
+## ↔️ 4. Resizable Sidebar Menu Width
 
 - Drag the **right edge of the sidebar** to widen or narrow the navigation panel (between `200px` and `550px`).
 - Your preferred width is saved in `localStorage` and remembered on every page reload.
 
 ---
 
-## 👥 4. Multi-User Access Control (RBAC)
+## 👥 5. Multi-User Access Control (RBAC)
 
 - Lightweight user store in `users.json` with PHP Bcrypt password encryption.
 - **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, and user management.
@@ -46,7 +55,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## 🎨 5. Theming Engine & Customization
+## 🎨 6. Theming Engine & Customization
 
 - **Cascading Themes**: Apply different CSS themes to the entire site, to specific categories, or to individual documents. Documents inherit themes from their parent category, which inherit from the site default.
 - **Pre-Built Themes**: Ships with modern, classic, and newsletter layout themes for beautiful reading experiences.
@@ -55,7 +64,23 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## 👁️ 6. Visibility Controls
+## 👁️ 7. Visibility Controls
 
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
 - **UI Customization**: Hide the document type badges (`MD`, `PDF`, `GDOC`) from public viewers to present a cleaner interface.
+
+---
+
+## 📡 8. RSS Feed Syndication
+
+- Access full-text RSS feeds for any category by appending its ID to the feed endpoint (e.g., `/api/feed.php?category=blog`).
+- Content is fully localized, transforming relative image and link paths to absolute URLs for RSS readers.
+- Out-of-the-box compatibility with **RSSHub**!
+
+---
+
+## 🎉 9. 1-Click Auto Updates
+
+- Standalone Qwiki polls GitHub for new releases.
+- Admins are notified of new versions via a dashboard badge.
+- Updates can be downloaded and securely extracted with a single click inside the Admin Settings—safely preserving all your existing files, data, and users!
