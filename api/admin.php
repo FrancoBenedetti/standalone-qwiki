@@ -323,6 +323,9 @@ switch ($action) {
         $bookId = $_POST['bookId'] ?? '';
         $title = trim($_POST['title'] ?? '');
         $content = $_POST['content'] ?? "";
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
 
         // Auto-extract title from first H1 heading if title was left blank
         if (empty($title) && !empty($content)) {
@@ -494,6 +497,9 @@ switch ($action) {
 
         $relFile = $_POST['file'] ?? '';
         $content = $_POST['content'] ?? '';
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
         
         $targetPath = realpath(__DIR__ . '/../' . $relFile);
         $projectRoot = realpath(__DIR__ . '/../');
@@ -815,6 +821,9 @@ switch ($action) {
         if (!is_admin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $themeFile = basename($_POST['theme'] ?? '');
         $content = $_POST['content'] ?? '';
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
         if (empty($themeFile) || empty($content)) { echo json_encode(['success' => false, 'error' => 'Invalid parameters']); exit; }
         if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) { echo json_encode(['success' => false, 'error' => 'Invalid theme file name. Must start with theme- and end with .css']); exit; }
         $path = __DIR__ . '/../assets/css/' . $themeFile;

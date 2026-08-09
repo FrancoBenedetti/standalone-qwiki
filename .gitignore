@@ -5,3 +5,5 @@
 /uploads
 /qwiki.json
 /users.json
+test_*
+admin_test*

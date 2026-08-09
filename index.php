@@ -93,16 +93,27 @@ $requestedBookId = $_GET['book'] ?? $config['defaultBook'] ?? ($config['books'][
 $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
 $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
 
+// Filter books based on visibility
+$allowedBooks = [];
+foreach ($config['books'] as $book) {
+    $visibility = $book['visibility'] ?? 'public';
+    if (!$isAdmin) {
+        if ($visibility === 'admin_only') continue;
+        if ($visibility === 'logged_in' && !$isViewer) continue;
+    }
+    $allowedBooks[] = $book;
+}
+
 // Active tree resolution state
 $activeBook = null;
-foreach ($config['books'] as $book) {
+foreach ($allowedBooks as $book) {
     if ($book['id'] === $requestedBookId) {
         $activeBook = $book;
         break;
     }
 }
-if (!$activeBook && !empty($config['books'])) {
-    $activeBook = $config['books'][0];
+if (!$activeBook && !empty($allowedBooks)) {
+    $activeBook = $allowedBooks[0];
 }
 
 $activeChapter = null;
@@ -112,7 +123,13 @@ $activePathIds = [$activeBook['id']];
 /**
  * Recursive search to locate active folder & chapter, building breadcrumb trail and active path IDs
  */
-function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds) {
+function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds, $isAdmin = false, $isViewer = false) {
+    $visibility = $node['visibility'] ?? 'public';
+    if (!$isAdmin) {
+        if ($visibility === 'admin_only') return null;
+        if ($visibility === 'logged_in' && !$isViewer) return null;
+    }
+
     $nodeId = $node['id'] ?? '';
     $nodeTitle = $node['title'] ?? '';
     $currentTrail = array_merge($trail, [['title' => $nodeTitle, 'id' => $nodeId]]);
@@ -151,7 +168,7 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
 
         foreach ($node['items'] as $item) {
             if (isset($item['type']) && $item['type'] === 'folder') {
-                $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds);
+                $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer);
                 if ($found) {
                     $trail = $currentTrail;
                     $activeIds = $currentActiveIds;
@@ -176,7 +193,7 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
 
 $dummyTrail = [];
 $dummyIds = [];
-$activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds);
+$activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
 if ($activeChapter) {
     $breadcrumbsTrail = $dummyTrail;
