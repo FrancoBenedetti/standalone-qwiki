@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.0.0-beta.3');
+define('QWIKI_VERSION', '1.0.0-beta.4');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
