@@ -171,6 +171,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'edit-chapter-modal') {
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
           if (btnMeta) populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+          
+          const typeSelect = document.getElementById('edit-chapter-type');
+          const toggleFields = () => {
+            if (!typeSelect) return;
+            const gdocUrlGrp = document.getElementById('group-edit-gdoc-url');
+            const gdocEditGrp = document.getElementById('group-edit-gdoc-editurl');
+            const fileGrp = document.getElementById('group-edit-file');
+            if (typeSelect.value === 'gdoc') {
+              if (gdocUrlGrp) gdocUrlGrp.style.display = 'block';
+              if (gdocEditGrp) gdocEditGrp.style.display = 'block';
+              if (fileGrp) fileGrp.style.display = 'none';
+            } else {
+              if (gdocUrlGrp) gdocUrlGrp.style.display = 'none';
+              if (gdocEditGrp) gdocEditGrp.style.display = 'none';
+              if (fileGrp) fileGrp.style.display = 'block';
+            }
+          };
+          if (typeSelect) {
+            typeSelect.removeEventListener('change', toggleFields);
+            typeSelect.addEventListener('change', toggleFields);
+            toggleFields();
+          }
         }
       });
     }

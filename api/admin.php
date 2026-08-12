@@ -697,6 +697,8 @@ switch ($action) {
         $newAdminPassword = $_POST['newAdminPassword'] ?? '';
         $shareDescription = trim($_POST['shareDescription'] ?? '');
         $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
+        $feedItemCount = isset($_POST['feedItemCount']) ? (int)$_POST['feedItemCount'] : 10;
+        $feedAccessToken = trim($_POST['feedAccessToken'] ?? '');
 
         if (isset($_POST['title'])) $config['title'] = $title;
         if (isset($_POST['logoText'])) $config['logoText'] = $logoText;
@@ -707,6 +709,8 @@ switch ($action) {
         $config['requireLoginToView'] = $requireLoginToView;
         if (isset($_POST['shareDescription'])) $config['shareDescription'] = $shareDescription;
         if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
+        $config['feedItemCount'] = $feedItemCount;
+        $config['feedAccessToken'] = $feedAccessToken;
 
         if (!empty($newAdminPassword)) {
             if (strlen($newAdminPassword) < 4) {

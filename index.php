@@ -803,6 +803,22 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">
+                    <label class="form-label" for="setting-feed-item-count">RSS Feed Item Count</label>
+                    <input type="number" name="feedItemCount" id="setting-feed-item-count" class="form-control" value="<?= htmlspecialchars($config['feedItemCount'] ?? '10') ?>" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-feed-token">RSS Feed Access Token (For Private Mode)</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" name="feedAccessToken" id="setting-feed-token" class="form-control" value="<?= htmlspecialchars($config['feedAccessToken'] ?? '') ?>" placeholder="Leave blank to disable">
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('setting-feed-token').value = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);">Generate</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">RSS Feed URL</label>
+                    <input type="text" class="form-control" readonly value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\') . '/api/feed.php' . (!empty($config['feedAccessToken']) ? '?token=' . urlencode($config['feedAccessToken']) : '')) ?>" onclick="this.select();">
+                </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div class="form-group">
                     <label class="form-label" for="setting-new-password">Change Admin Password</label>
                     <input type="password" name="newAdminPassword" id="setting-new-password" class="form-control" placeholder="Leave blank to keep current password">
                 </div>

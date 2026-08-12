@@ -13,17 +13,16 @@ if (!file_exists($configFile)) {
 $config = json_decode(file_get_contents($configFile), true);
 
 if (!empty($config['requireLoginToView'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Feed not available. Private portal mode is enabled.']);
-    exit;
+    $feedToken = $_GET['token'] ?? '';
+    $validToken = $config['feedAccessToken'] ?? null;
+    if (empty($feedToken) || empty($validToken) || $feedToken !== $validToken) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Feed not available. Private portal mode is enabled.']);
+        exit;
+    }
 }
 
 $categoryId = $_GET['category'] ?? '';
-if (empty($categoryId)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Missing category parameter.']);
-    exit;
-}
 
 // Find the category and its context path
 function findCategoryPath($nodes, $targetId, $bookId = null, $folderId = null) {
@@ -49,17 +48,6 @@ function findCategoryPath($nodes, $targetId, $bookId = null, $folderId = null) {
     return null;
 }
 
-$foundCtx = findCategoryPath($config['books'] ?? [], $categoryId);
-if (!$foundCtx) {
-    http_response_code(404);
-    echo json_encode(['error' => 'Category not found.']);
-    exit;
-}
-
-$targetCategory = $foundCtx['node'];
-$foundBookId = $foundCtx['bookId'];
-$foundFolderId = $foundCtx['folderId'];
-
 // Gather all markdown files under this category
 function gatherMarkdownFiles($node, &$files, $bookId, $folderId) {
     if (!empty($node['items'])) {
@@ -78,7 +66,27 @@ function gatherMarkdownFiles($node, &$files, $bookId, $folderId) {
 }
 
 $markdownFiles = [];
-gatherMarkdownFiles($targetCategory, $markdownFiles, $foundBookId, $foundFolderId);
+
+if (empty($categoryId)) {
+    // If no category specified, gather all files across all books
+    foreach ($config['books'] ?? [] as $book) {
+        gatherMarkdownFiles($book, $markdownFiles, $book['id'], $book['id']);
+    }
+    $targetCategory = ['title' => 'All Updates'];
+} else {
+    $foundCtx = findCategoryPath($config['books'] ?? [], $categoryId);
+    if (!$foundCtx) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Category not found.']);
+        exit;
+    }
+    
+    $targetCategory = $foundCtx['node'];
+    $foundBookId = $foundCtx['bookId'];
+    $foundFolderId = $foundCtx['folderId'];
+    
+    gatherMarkdownFiles($targetCategory, $markdownFiles, $foundBookId, $foundFolderId);
+}
 
 // Sort by filemtime descending
 usort($markdownFiles, function($a, $b) {
@@ -87,8 +95,10 @@ usort($markdownFiles, function($a, $b) {
     return $timeB - $timeA;
 });
 
-// Take top 5
-$topFiles = array_slice($markdownFiles, 0, 5);
+// Take the requested amount
+$itemCount = isset($config['feedItemCount']) ? (int)$config['feedItemCount'] : 10;
+if ($itemCount < 1) $itemCount = 10;
+$topFiles = array_slice($markdownFiles, 0, $itemCount);
 
 // Determine base URL
 $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http");
