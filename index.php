@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.0.0-beta.5');
+define('QWIKI_VERSION', '1.0.0-beta.6');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -123,7 +123,7 @@ $activePathIds = [$activeBook['id']];
 /**
  * Recursive search to locate active folder & chapter, building breadcrumb trail and active path IDs
  */
-function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds, $isAdmin = false, $isViewer = false) {
+function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds, $isAdmin = false, $isViewer = false, $inTargetFolder = false) {
     $visibility = $node['visibility'] ?? 'public';
     if (!$isAdmin) {
         if ($visibility === 'admin_only') return null;
@@ -136,13 +136,13 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
     $currentActiveIds = array_merge($activeIds, [$nodeId]);
 
     $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
+    $isTargetContext = ($inTargetFolder || $isFolderMatch || !$targetFolderId);
 
     if (!empty($node['items'])) {
-        $firstDoc = null;
         if ($targetChapterSlug) {
+            // Looking for a specific document
             foreach ($node['items'] as $item) {
                 if (!isset($item['type']) || $item['type'] !== 'folder') {
-                    if (!$firstDoc) $firstDoc = $item;
                     if ($item['slug'] === $targetChapterSlug) {
                         if (!$targetFolderId || $isFolderMatch) {
                             $trail = $currentTrail;
@@ -152,38 +152,47 @@ function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$tra
                     }
                 }
             }
-        } else {
+            // Recurse into subfolders
             foreach ($node['items'] as $item) {
-                if (!isset($item['type']) || $item['type'] !== 'folder') {
-                    $firstDoc = $item;
-                    break;
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
+                    if ($found) {
+                        $trail = $currentTrail;
+                        $activeIds = $currentActiveIds;
+                        return $found;
+                    }
                 }
             }
-            if ($isFolderMatch && $firstDoc) {
-                $trail = $currentTrail;
-                $activeIds = $currentActiveIds;
-                return $firstDoc;
-            }
-        }
-
-        foreach ($node['items'] as $item) {
-            if (isset($item['type']) && $item['type'] === 'folder') {
-                $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer);
-                if ($found) {
-                    $trail = $currentTrail;
-                    $activeIds = $currentActiveIds;
-                    return $found;
+        } else {
+            // Looking for the first document in the target context
+            if ($isTargetContext) {
+                // Pre-order traversal: return the first document we encounter
+                foreach ($node['items'] as $item) {
+                    if (!isset($item['type']) || $item['type'] !== 'folder') {
+                        $trail = $currentTrail;
+                        $activeIds = $currentActiveIds;
+                        return $item;
+                    } else {
+                        $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, true);
+                        if ($found) {
+                            $trail = $currentTrail;
+                            $activeIds = $currentActiveIds;
+                            return $found;
+                        }
+                    }
                 }
-            }
-        }
-    }
-
-    if (!$targetFolderId && !$targetChapterSlug && !empty($node['items'])) {
-        foreach ($node['items'] as $item) {
-            if (!isset($item['type']) || $item['type'] !== 'folder') {
-                $trail = $currentTrail;
-                $activeIds = $currentActiveIds;
-                return $item;
+            } else {
+                // Not in target context yet, keep searching for the target folder
+                foreach ($node['items'] as $item) {
+                    if (isset($item['type']) && $item['type'] === 'folder') {
+                        $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
+                        if ($found) {
+                            $trail = $currentTrail;
+                            $activeIds = $currentActiveIds;
+                            return $found;
+                        }
+                    }
+                }
             }
         }
     }
@@ -362,7 +371,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <meta name="twitter:title" content="<?= $ogTitle ?>">
     <meta name="twitter:description" content="<?= $ogDesc ?>">
 
-    <link rel="stylesheet" href="assets/css/qwiki.css">
+    <link rel="stylesheet" href="assets/css/qwiki.css?v=<?= filemtime(__DIR__ . '/assets/css/qwiki.css') ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
         <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
     <?php endif; ?>
@@ -390,15 +399,22 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         <div class="header-actions">
             <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
             <?php if ($isViewer): ?>
-                <span class="doc-badge badge-md"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?> (<?= htmlspecialchars(ucfirst($currentUser['role'] ?? 'viewer')) ?>)</span>
-                <?php if ($isAdmin): ?>
-                    <button class="btn btn-outline btn-sm" id="btn-add-book">+ Category</button>
-                    <button class="btn btn-primary btn-sm" id="btn-add-chapter">+ Document</button>
-                    <button class="btn btn-outline btn-sm" id="btn-users">👥 Users</button>
-                    <button class="btn btn-outline btn-sm" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
-                    <button class="btn btn-primary btn-sm" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff; border-color: #f59e0b;">🎉 Update Available!</button>
-                <?php endif; ?>
-                <button class="btn btn-outline btn-sm" id="btn-logout">Logout</button>
+                <div class="dropdown">
+                    <button class="btn btn-outline btn-sm dropdown-toggle" id="user-dropdown-toggle">
+                        <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.3rem;"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?></span> ▾
+                    </button>
+                    <div class="dropdown-menu">
+                        <?php if ($isAdmin): ?>
+                            <button class="dropdown-item" id="btn-add-book">+ Category</button>
+                            <button class="dropdown-item" id="btn-add-chapter">+ Document</button>
+                            <button class="dropdown-item" id="btn-users">👥 Users</button>
+                            <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
+                            <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">🎉 Update Available!</button>
+                            <div class="dropdown-divider"></div>
+                        <?php endif; ?>
+                        <button class="dropdown-item text-danger" id="btn-logout">Logout</button>
+                    </div>
+                </div>
             <?php else: ?>
                 <button class="btn btn-outline btn-sm" id="btn-login">Login</button>
             <?php endif; ?>
@@ -879,6 +895,6 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
-    <script src="assets/js/app.js"></script>
+    <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
 </body>
 </html>

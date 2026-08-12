@@ -145,6 +145,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // User Dropdown Toggle
+  const userDropdownToggle = document.getElementById('user-dropdown-toggle');
+  if (userDropdownToggle) {
+    const dropdownMenu = userDropdownToggle.nextElementSibling;
+    userDropdownToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdownMenu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!userDropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
+        dropdownMenu.classList.remove('show');
+      }
+    });
+  }
+
   // Trigger buttons
   const triggers = [
     { btnId: 'btn-login', modalId: 'login-modal' },
