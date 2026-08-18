@@ -39,7 +39,7 @@ Admins can control whether documentation is publicly readable or requires authen
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
 - **🎨 Cascading Themes & Built-in UI Editor**: Assign different CSS themes across the site, specific categories, or individual documents. Write and preview themes via a live CSS editor directly in the browser!
-- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Hide document type badges (MD, PDF, GDOC) from public viewers.
+- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC) to admin users.
 - **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
 - **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data.
 - **🛡️ Security Hardening**:

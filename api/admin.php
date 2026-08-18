@@ -693,7 +693,7 @@ switch ($action) {
         $theme = trim($_POST['theme'] ?? 'theme-default.css');
         $defaultBook = trim($_POST['defaultBook'] ?? '');
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
-        $hideDocTypesFromPublic = isset($_POST['hideDocTypesFromPublic']) && $_POST['hideDocTypesFromPublic'] === '1';
+        $showDocTypesOnlyToAdmin = isset($_POST['showDocTypesOnlyToAdmin']) && $_POST['showDocTypesOnlyToAdmin'] === '1';
         $newAdminPassword = $_POST['newAdminPassword'] ?? '';
         $shareDescription = trim($_POST['shareDescription'] ?? '');
         $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
@@ -704,7 +704,10 @@ switch ($action) {
         if (isset($_POST['logoText'])) $config['logoText'] = $logoText;
         if (isset($_POST['logoUrl'])) $config['logoUrl'] = $logoUrl;
         if (isset($_POST['theme'])) $config['theme'] = $theme;
-        $config['hideDocTypesFromPublic'] = $hideDocTypesFromPublic;
+        $config['showDocTypesOnlyToAdmin'] = $showDocTypesOnlyToAdmin;
+        if (isset($config['hideDocTypesFromPublic'])) {
+            unset($config['hideDocTypesFromPublic']);
+        }
         if (isset($_POST['defaultBook'])) $config['defaultBook'] = $defaultBook;
         $config['requireLoginToView'] = $requireLoginToView;
         if (isset($_POST['shareDescription'])) $config['shareDescription'] = $shareDescription;

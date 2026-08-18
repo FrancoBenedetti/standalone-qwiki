@@ -355,6 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const editBookTitleInput = document.getElementById('edit-book-title-input');
       const editBookThemeInput = document.getElementById('edit-book-theme-input');
       const editBookVisInput = document.getElementById('edit-book-visibility-input');
+      const editBookRssUrlInput = document.getElementById('edit-book-rss-url');
       const editBookModal = document.getElementById('edit-book-modal');
 
       if (editBookIdInput && editBookTitleInput && editBookModal) {
@@ -362,10 +363,74 @@ document.addEventListener('DOMContentLoaded', () => {
         editBookTitleInput.value = bookTitle;
         if (editBookVisInput) editBookVisInput.value = bookVisibility || 'public';
         populateThemes(editBookThemeInput, bookTheme);
+
+        if (editBookRssUrlInput) {
+          const mainRssInput = document.getElementById('setting-rss-feed-url');
+          if (mainRssInput && mainRssInput.value) {
+            const baseUrl = mainRssInput.value;
+            const categoryVal = bookId || bookTitle;
+            const separator = baseUrl.includes('?') ? '&' : '?';
+            editBookRssUrlInput.value = baseUrl + separator + 'category=' + encodeURIComponent(categoryVal);
+          }
+        }
+
         editBookModal.classList.add('open');
       }
     });
   });
+
+  // Copy RSS Feed URL to Clipboard
+  document.querySelectorAll('.btn-copy-rss').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetId = btn.getAttribute('data-copy-target');
+      const inputEl = targetId ? document.getElementById(targetId) : null;
+      if (!inputEl || !inputEl.value) return;
+
+      const textToCopy = inputEl.value;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(textToCopy);
+        } else {
+          inputEl.select();
+          document.execCommand('copy');
+        }
+
+        const origContent = btn.innerHTML;
+        const origTitle = btn.getAttribute('title');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        btn.setAttribute('title', 'Copied!');
+        setTimeout(() => {
+          btn.innerHTML = origContent;
+          if (origTitle) btn.setAttribute('title', origTitle);
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+    });
+  });
+
+  // Dynamic token update for main RSS Feed URL in Qwiki Settings
+  const feedTokenInput = document.getElementById('setting-feed-token');
+  const mainRssInput = document.getElementById('setting-rss-feed-url');
+  if (feedTokenInput && mainRssInput) {
+    const updateMainRssUrl = () => {
+      try {
+        const url = new URL(mainRssInput.value);
+        const tokenVal = feedTokenInput.value.trim();
+        if (tokenVal) {
+          url.searchParams.set('token', tokenVal);
+        } else {
+          url.searchParams.delete('token');
+        }
+        mainRssInput.value = url.toString();
+      } catch (e) {}
+    };
+    feedTokenInput.addEventListener('input', updateMainRssUrl);
+    feedTokenInput.addEventListener('change', updateMainRssUrl);
+    feedTokenInput.addEventListener('keyup', updateMainRssUrl);
+  }
 
   // Delete Category
   const deleteBookBtn = document.getElementById('btn-delete-book');

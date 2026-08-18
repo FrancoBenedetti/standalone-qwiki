@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.0.2');
+define('QWIKI_VERSION', '1.0.3');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -280,12 +280,12 @@ $siteTheme = $config['theme'] ?? 'theme-default.css';
 $categoryTheme = $activeBook['theme'] ?? null;
 $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
-$hideDocTypesFromPublic = !empty($config['hideDocTypesFromPublic']);
+$showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
 
 /**
  * Recursive function to render sidebar navigation with subfolders
  */
-function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false, $isViewer = false, $hideDocTypesFromPublic = false) {
+function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false, $isViewer = false, $showDocTypesOnlyToAdmin = true) {
     $visibility = $node['visibility'] ?? 'public';
     if (!$isAdmin) {
         if ($visibility === 'admin_only') return;
@@ -320,7 +320,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     if (!empty($node['items'])) {
         foreach ($node['items'] as $item) {
             if (isset($item['type']) && $item['type'] === 'folder') {
-                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $hideDocTypesFromPublic);
+                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
             } else {
                 $ch = $item;
                 $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
@@ -335,8 +335,19 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
                 echo htmlspecialchars($ch['title']) . "</span>";
                 
-                if (!($hideDocTypesFromPublic && !$isAdmin && !$isViewer)) {
-                    echo "<span class='doc-badge {$badgeClass}'>" . htmlspecialchars($ch['type']) . "</span>";
+                if ($isAdmin || !$showDocTypesOnlyToAdmin) {
+                    $docType = strtolower($ch['type'] ?? 'markdown');
+                    $badgeTitle = strtoupper($docType);
+                    if ($docType === 'markdown' || $docType === 'md') {
+                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 208 128" width="16" height="10" fill="currentColor" aria-hidden="true"><rect width="198" height="118" x="5" y="5" rx="14" fill="none" stroke="currentColor" stroke-width="14"/><path d="M30 98V30h20l20 25 20-25h20v68H90V55L70 80 50 55v43H30zm135 0l-30-35h20V30h20v33h20l-30 35z"/></svg>';
+                    } elseif ($docType === 'pdf') {
+                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 8.5c0 .8-.7 1.5-1.5 1.5H7v2H5.5V9H8c.8 0 1.5.7 1.5 1.5v1zm5 2c0 .8-.7 1.5-1.5 1.5h-2.5V9H13c.8 0 1.5.7 1.5 1.5v3zm3.5-3.5h-2.5v1.5H17V13h-1.5v2H14V9h4v1.5zM7 10.5h1v1H7v-1zm5.5 0h1v3h-1v-3z"/></svg>';
+                    } elseif ($docType === 'gdoc') {
+                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M14.5 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zM14 8V3.5L18.5 8H14zm-6 3h8v1.5H8V11zm0 3h8v1.5H8V14zm0 3h5v1.5H8V17z"/></svg>';
+                    } else {
+                        $iconSvg = htmlspecialchars($ch['type']);
+                    }
+                    echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars($badgeTitle) . " Document'>{$iconSvg}</span>";
                 }
                 echo "</a>";
             }
@@ -430,7 +441,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $hideDocTypesFromPublic); ?>
+                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin); ?>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -608,6 +619,15 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <option value="admin_only">Admins Only</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Category RSS Feed URL</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="edit-book-rss-url" class="form-control" readonly value="" onclick="this.select();" style="flex: 1;">
+                        <button type="button" class="btn btn-outline btn-copy-rss" id="btn-copy-cat-rss" title="Copy Category RSS Feed URL" data-copy-target="edit-book-rss-url">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                    </div>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
                     <button type="submit" class="btn btn-primary">Save Category Title</button>
@@ -754,11 +774,11 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     </div>
     <?php endif; ?>
 
-    <!-- Wiki Settings Modal -->
+    <!-- Qwiki Settings Modal -->
     <div class="modal-overlay" id="settings-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Wiki Settings</h3>
+                <h3>Qwiki Settings</h3>
                 <button class="modal-close" data-close="settings-modal">&times;</button>
             </div>
             <form id="settings-form">
@@ -788,8 +808,8 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
                 <div class="form-group">
                     <label class="form-label">
-                        <input type="checkbox" name="hideDocTypesFromPublic" value="1" <?= !empty($config['hideDocTypesFromPublic']) ? 'checked' : '' ?>>
-                        Hide Document Type Badges from Public Viewers
+                        <input type="checkbox" name="showDocTypesOnlyToAdmin" value="1" <?= $showDocTypesOnlyToAdmin ? 'checked' : '' ?>>
+                        Show Document Type Badges Only to Admin Users
                     </label>
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
@@ -831,7 +851,12 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
                 <div class="form-group">
                     <label class="form-label">RSS Feed URL</label>
-                    <input type="text" class="form-control" readonly value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\') . '/api/feed.php' . (!empty($config['feedAccessToken']) ? '?token=' . urlencode($config['feedAccessToken']) : '')) ?>" onclick="this.select();">
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="setting-rss-feed-url" class="form-control" readonly value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\') . '/api/feed.php' . (!empty($config['feedAccessToken']) ? '?token=' . urlencode($config['feedAccessToken']) : '')) ?>" onclick="this.select();" style="flex: 1;">
+                        <button type="button" class="btn btn-outline btn-copy-rss" id="btn-copy-main-rss" title="Copy RSS Feed URL" data-copy-target="setting-rss-feed-url">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">

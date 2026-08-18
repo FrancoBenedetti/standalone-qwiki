@@ -16,7 +16,7 @@ This allows you to maintain a consistent global look while styling specific sect
 
 In addition to styling, you can control who sees what:
 
-* **Site-wide Badges**: You can hide the document type badges (MD, PDF, GDOC) from public users in the main settings.
+* **Site-wide Badges**: You can restrict document type badges (MD, PDF, GDOC) to admin users in the main settings.
 * **Category Visibility**: When editing a category, you can set its visibility to:
   * `Public`: Visible to everyone.
   * `Logged In Users`: Visible to anyone with an account.

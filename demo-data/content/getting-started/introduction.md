@@ -39,7 +39,7 @@ Admins can control whether documentation is publicly readable or requires authen
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
 - **🎨 Cascading Themes & Built-in UI Editor**: Assign different CSS themes across the site, specific categories, or individual documents. Write and preview themes via a live CSS editor directly in the browser!
-- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Hide document type badges (MD, PDF, GDOC) from public viewers.
+- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC) to admin users.
 - **🖼️ Custom Logo Support**: Easily upload a custom logo from the Settings panel to replace the default text-based branding.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.

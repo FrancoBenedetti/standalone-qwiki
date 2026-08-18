@@ -67,7 +67,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 ## 👁️ 7. Visibility Controls
 
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
-- **UI Customization**: Hide the document type badges (`MD`, `PDF`, `GDOC`) from public viewers to present a cleaner interface.
+- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`) to admin users to present a cleaner interface for visitors.
 
 ---
 

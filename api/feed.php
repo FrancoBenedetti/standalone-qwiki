@@ -70,6 +70,7 @@ function resolveEffectiveVisibility($nodeVisibility, $parentVisibility = 'public
 function findCategoryPath($nodes, $targetId, $bookId = null, $folderId = null, $parentVisibility = 'public') {
     foreach ($nodes as $node) {
         $nodeId = $node['id'] ?? $node['slug'] ?? null;
+        $nodeTitle = $node['title'] ?? null;
         $currentBook = $bookId;
         $currentFolder = $folderId;
 
@@ -81,7 +82,10 @@ function findCategoryPath($nodes, $targetId, $bookId = null, $folderId = null, $
             $currentFolder = $nodeId ?? $currentFolder;
         }
 
-        if ($nodeId !== null && $nodeId === $targetId) {
+        $matchId = ($nodeId !== null && strcasecmp((string)$nodeId, (string)$targetId) === 0);
+        $matchTitle = ($nodeTitle !== null && strcasecmp((string)$nodeTitle, (string)$targetId) === 0);
+
+        if ($matchId || $matchTitle) {
             $nodeCopy = $node;
             $nodeCopy['visibility'] = $effectiveVis;
             return ['node' => $nodeCopy, 'bookId' => $currentBook, 'folderId' => $currentFolder];
