@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.0.3');
+define('QWIKI_VERSION', '1.1.0');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -510,6 +510,12 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
             <?php endif; ?>
         </main>
+
+        <!-- Table of Contents Sidebar -->
+        <aside class="app-toc" id="app-toc">
+            <div class="toc-header">Table of Contents</div>
+            <div class="toc-content" id="toc-content"></div>
+        </aside>
     </div>
 
     <!-- Login Modal -->

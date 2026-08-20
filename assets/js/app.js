@@ -1044,7 +1044,132 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ----------------------------------------------------
+  // Generate Table of Contents
+  // ----------------------------------------------------
+  function generateTableOfContents() {
+    const contentBody = document.getElementById('content-body');
+    const tocContainer = document.getElementById('app-toc');
+    const tocContent = document.getElementById('toc-content');
+    
+    if (!contentBody || !tocContainer || !tocContent) return;
+    
+    const headings = contentBody.querySelectorAll('h1, h2, h3');
+    if (headings.length === 0) return;
+    
+    // Show the TOC container
+    tocContainer.classList.add('show');
+    
+    const slugify = (text) => {
+      return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+    };
+    
+    const rootUl = document.createElement('ul');
+    let stack = [{ level: 0, el: rootUl }];
+    
+    headings.forEach((heading, index) => {
+      const level = parseInt(heading.tagName.substring(1));
+      
+      // Ensure heading has an ID
+      if (!heading.id) {
+        let baseId = slugify(heading.textContent) || 'section-' + index;
+        let id = baseId;
+        let counter = 1;
+        while (document.getElementById(id)) {
+          id = baseId + '-' + counter;
+          counter++;
+        }
+        heading.id = id;
+      }
+      
+      const li = document.createElement('li');
+      
+      const linkContainer = document.createElement('div');
+      linkContainer.className = 'toc-link-container';
+      
+      const toggleBtn = document.createElement('div');
+      toggleBtn.className = 'toc-toggle empty';
+      toggleBtn.innerHTML = '▶';
+      
+      const link = document.createElement('a');
+      link.className = 'toc-link';
+      link.href = '#' + heading.id;
+      link.textContent = heading.textContent;
+      
+      linkContainer.appendChild(toggleBtn);
+      linkContainer.appendChild(link);
+      li.appendChild(linkContainer);
+      
+      const childUl = document.createElement('ul');
+      li.appendChild(childUl);
+      
+      // Adjust stack for nesting
+      while (stack.length > 1 && stack[stack.length - 1].level >= level) {
+        stack.pop();
+      }
+      
+      // Append to parent
+      const parentNode = stack[stack.length - 1];
+      parentNode.el.appendChild(li);
+      
+      // If we added this to a parent, update parent's toggle button
+      if (stack.length > 1) {
+        const parentLi = parentNode.el.closest('li');
+        if (parentLi) {
+          const parentToggle = parentLi.querySelector('.toc-toggle');
+          if (parentToggle && parentToggle.classList.contains('empty')) {
+            parentToggle.classList.remove('empty');
+            // Add click listener
+            parentToggle.addEventListener('click', (e) => {
+              e.stopPropagation();
+              parentToggle.classList.toggle('expanded');
+              const ulToToggle = parentLi.querySelector('ul');
+              if (ulToToggle) ulToToggle.classList.toggle('expanded');
+            });
+          }
+        }
+      }
+      
+      // Push new parent to stack
+      stack.push({ level: level, el: childUl });
+    });
+    
+    tocContent.appendChild(rootUl);
+    
+    // Active link highlighting on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
+          const activeLink = document.querySelector(`.toc-link[href="#${id}"]`);
+          if (activeLink) {
+            activeLink.classList.add('active');
+            
+            // Auto expand parents
+            let parentLi = activeLink.closest('li').parentElement.closest('li');
+            while (parentLi) {
+              const toggle = parentLi.querySelector('.toc-toggle');
+              const ul = parentLi.querySelector('ul');
+              if (toggle && !toggle.classList.contains('expanded')) toggle.classList.add('expanded');
+              if (ul && !ul.classList.contains('expanded')) ul.classList.add('expanded');
+              parentLi = parentLi.parentElement.closest('li');
+            }
+          }
+        }
+      });
+    }, { rootMargin: '-10% 0px -80% 0px' });
+    
+    headings.forEach(h => observer.observe(h));
+  }
+
   // Run on page load
   processAsciiDiagrams();
+  generateTableOfContents();
 
 });
