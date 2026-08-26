@@ -33,6 +33,8 @@ Admins can control whether documentation is publicly readable or requires authen
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
 - **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and Markdown file contents, respecting category visibility rules.
 - **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
+- **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
+- **🔗 Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) powered by a smart routing engine that removes redundant folders while maintaining full backward compatibility.
 - **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories. Changes sync instantly to `qwiki.json`.
 - **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`). Preferred width is saved in `localStorage`.
 - **👥 Multi-User Management & RBAC**:

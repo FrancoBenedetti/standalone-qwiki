@@ -268,7 +268,11 @@ $baseUrl = $protocol . "://" . $host . $scriptDir . "/";
 $feedItems = [];
 foreach ($topFiles as $file) {
     $itemSlug = $file['slug'] ?? $file['id'] ?? '';
-    $linkUrl = $baseUrl . "index.php?book=" . urlencode($file['bookId'] ?? '') . "&folder=" . urlencode($file['folderId'] ?? '') . "&chapter=" . urlencode($itemSlug);
+    $linkUrl = $baseUrl . urlencode($file['bookId'] ?? '');
+    if (($file['folderId'] ?? '') !== ($file['bookId'] ?? '')) {
+        $linkUrl .= "/" . urlencode($file['folderId'] ?? '');
+    }
+    $linkUrl .= "/" . urlencode($itemSlug);
 
     $feedItem = [
         'title' => $file['title'] ?? '',
@@ -277,6 +281,15 @@ foreach ($topFiles as $file) {
         'url'   => $linkUrl,
         'date_modified' => date('c', $file['mtime'] ?? time()),
     ];
+
+    $imageUrls = [];
+    if (!empty($file['image'])) {
+        $imgUrl = trim($file['image']);
+        if (!preg_match('/^(http|https|data):/i', $imgUrl)) {
+            $imgUrl = rtrim($baseUrl, '/') . '/' . ltrim($imgUrl, '/');
+        }
+        $imageUrls[] = $imgUrl;
+    }
 
     if ($file['resolvedType'] === 'markdown') {
         $filePath = __DIR__ . '/../' . ltrim($file['file'], '/');
@@ -301,6 +314,29 @@ foreach ($topFiles as $file) {
         }, $content);
 
         $feedItem['content_markdown'] = $content;
+
+        // Extract markdown images: ![alt](url)
+        if (preg_match_all('/!\[.*?\]\(([^)]+)\)/', $content, $mdMatches)) {
+            foreach ($mdMatches[1] as $matchUrl) {
+                $parts = explode(' ', trim($matchUrl));
+                $imgUrl = $parts[0];
+                if (!preg_match('/^(http|https|data):/i', $imgUrl)) {
+                    $imgUrl = rtrim($baseUrl, '/') . '/' . ltrim($imgUrl, '/');
+                }
+                $imageUrls[] = $imgUrl;
+            }
+        }
+
+        // Extract HTML images: <img src="url">
+        if (preg_match_all('/<img[^>]+src=["\']([^"\']+)["\']/i', $content, $htmlMatches)) {
+            foreach ($htmlMatches[1] as $imgUrl) {
+                $imgUrl = trim($imgUrl);
+                if (!preg_match('/^(http|https|data):/i', $imgUrl)) {
+                    $imgUrl = rtrim($baseUrl, '/') . '/' . ltrim($imgUrl, '/');
+                }
+                $imageUrls[] = $imgUrl;
+            }
+        }
     } else if ($file['resolvedType'] === 'pdf') {
         $rawPdfUrl = !empty($file['file']) ? $file['file'] : ($file['url'] ?? '');
         if (!empty($rawPdfUrl)) {
@@ -318,6 +354,12 @@ foreach ($topFiles as $file) {
         if (!empty($file['editUrl'])) {
             $feedItem['edit_url'] = $file['editUrl'];
         }
+    }
+
+    if (!empty($imageUrls)) {
+        $imageUrls = array_values(array_unique($imageUrls));
+        $feedItem['image'] = $imageUrls[0];
+        $feedItem['image_urls'] = $imageUrls;
     }
 
     $feedItems[] = $feedItem;

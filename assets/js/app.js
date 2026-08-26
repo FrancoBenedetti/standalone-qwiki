@@ -109,7 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
               let catMatch = false;
               catItem.querySelectorAll('.nav-link').forEach(link => {
                 const url = new URL(link.href, window.location.origin);
-                const chapterSlug = url.searchParams.get('chapter') || url.searchParams.get('doc');
+                const pathnameParts = url.pathname.split('/').filter(Boolean);
+                const chapterSlug = url.searchParams.get('chapter') || url.searchParams.get('doc') || pathnameParts[pathnameParts.length - 1];
                 const text = link.textContent.toLowerCase();
                 
                 if (matchedSlugs.includes(chapterSlug) || text.includes(term)) {
@@ -505,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
             customCallback(data);
           } else if (successRedirect) {
             if (data.bookId && data.slug) {
-              window.location.href = `index.php?book=${encodeURIComponent(data.bookId)}&chapter=${encodeURIComponent(data.slug)}`;
+              window.location.href = `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
             } else {
               window.location.reload();
             }
@@ -684,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch('api/admin.php?action=delete_chapter', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          window.location.href = `index.php?book=${encodeURIComponent(bookId)}`;
+          window.location.href = `${encodeURIComponent(bookId)}`;
         } else {
           alert('Delete failed: ' + (data.error || 'Unknown error'));
         }

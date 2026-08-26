@@ -1,5 +1,12 @@
 DirectoryIndex index.php index.html
 
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php?path=$1 [QSA,L]
+</IfModule>
+
 # Protect configuration and user data stores from direct web access
 <FilesMatch "\.(json)$">
     Order allow,deny

@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.1.0');
+define('QWIKI_VERSION', '1.2.0');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -89,9 +89,35 @@ $requireLoginToView = !empty($config['requireLoginToView']);
 $canViewContent = !$requireLoginToView || $isViewer || $isAdmin;
 
 // Routing parameters
-$requestedBookId = $_GET['book'] ?? $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
-$requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
-$requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
+$requestedBookId = '';
+$requestedFolderId = '';
+$requestedChapterSlug = '';
+
+if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
+    $segments = explode('/', trim($_GET['path'], '/'));
+    $requestedBookId = urldecode($segments[0] ?? '');
+    if (count($segments) === 2) {
+        $requestedFolderId = '';
+        $requestedChapterSlug = urldecode($segments[1] ?? '');
+    } else {
+        $requestedFolderId = urldecode($segments[1] ?? '');
+        $requestedChapterSlug = urldecode($segments[2] ?? '');
+    }
+} else {
+    $requestedBookId = $_GET['book'] ?? '';
+    $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
+    $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
+}
+
+if (empty($requestedBookId)) {
+    $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
+}
+
+// Base URL calculation for clean URLs
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$baseDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+$baseUrl = $protocol . $domainName . $baseDir . '/';
 
 // Filter books based on visibility
 $allowedBooks = [];
@@ -204,6 +230,18 @@ $dummyTrail = [];
 $dummyIds = [];
 $activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
+// Fallback for 2-segment URL that might be a folder instead of a chapter
+if (!$activeChapter && isset($_GET['path'])) {
+    $segments = explode('/', trim($_GET['path'], '/'));
+    if (count($segments) === 2) {
+        $dummyTrail = [];
+        $dummyIds = [];
+        $requestedFolderId = urldecode($segments[1]);
+        $requestedChapterSlug = '';
+        $activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
+    }
+}
+
 if ($activeChapter) {
     $breadcrumbsTrail = $dummyTrail;
     $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
@@ -215,6 +253,64 @@ if ($activeChapter) {
                 $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
                 break;
             }
+        }
+    }
+}
+
+// Calculate Previous and Next Document Navigation
+$flatNavList = [];
+if (!function_exists('qwiki_flatten_nav_tree')) {
+    function qwiki_flatten_nav_tree($node, $bookId, &$flatList, $isAdmin = false, $isViewer = false) {
+        $visibility = $node['visibility'] ?? 'public';
+        if (!$isAdmin) {
+            if ($visibility === 'admin_only') return;
+            if ($visibility === 'logged_in' && !$isViewer) return;
+        }
+        
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    qwiki_flatten_nav_tree($item, $bookId, $flatList, $isAdmin, $isViewer);
+                } else {
+                    $ch = $item;
+                    $nodeId = $node['id'] ?? '';
+                    if ($nodeId === $bookId) {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug']);
+                    } else {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug']);
+                    }
+                    $flatList[] = [
+                        'title' => $ch['title'],
+                        'slug' => $ch['slug'],
+                        'bookId' => $bookId,
+                        'url' => $linkUrl
+                    ];
+                }
+            }
+        }
+    }
+}
+
+foreach ($allowedBooks as $book) {
+    qwiki_flatten_nav_tree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
+}
+
+$prevDoc = null;
+$nextDoc = null;
+if ($activeChapter) {
+    $currentIndex = -1;
+    foreach ($flatNavList as $index => $item) {
+        if ($item['bookId'] === $activeBook['id'] && $item['slug'] === $activeChapter['slug']) {
+            $currentIndex = $index;
+            break;
+        }
+    }
+    if ($currentIndex !== -1) {
+        if ($currentIndex > 0) {
+            $prevDoc = $flatNavList[$currentIndex - 1];
+        }
+        if ($currentIndex < count($flatNavList) - 1) {
+            $nextDoc = $flatNavList[$currentIndex + 1];
         }
     }
 }
@@ -325,7 +421,11 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 $ch = $item;
                 $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
                 $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
-                $linkUrl = "index.php?book=" . urlencode($bookId) . "&folder=" . urlencode($nodeId) . "&chapter=" . urlencode($ch['slug']);
+                if ($nodeId === $bookId) {
+                    $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug']);
+                } else {
+                    $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug']);
+                }
                 
                 $chTheme = htmlspecialchars($ch['theme'] ?? '');
                 $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}'" : "";
@@ -362,6 +462,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <base href="<?= htmlspecialchars($baseUrl) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
     
@@ -399,7 +500,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <header class="app-header">
         <div class="brand-container">
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
-            <a href="index.php" class="brand-logo">
+            <a href="<?= htmlspecialchars($baseUrl) ?>" class="brand-logo">
                 <?php if (!empty($config['logoUrl'])): ?>
                     <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
                 <?php else: ?>
@@ -453,7 +554,13 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <div class="breadcrumbs">
                         <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
                             <?php if ($index > 0): ?><span>/</span><?php endif; ?>
-                            <a href="index.php?book=<?= urlencode($activeBook['id']) ?>&folder=<?= urlencode($crumb['id']) ?>"><?= htmlspecialchars($crumb['title']) ?></a>
+                            <?php 
+                            $crumbUrl = urlencode($activeBook['id']);
+                            if ($crumb['id'] !== $activeBook['id']) {
+                                $crumbUrl .= '/' . urlencode($crumb['id']);
+                            }
+                            ?>
+                            <a href="<?= $crumbUrl ?>"><?= htmlspecialchars($crumb['title']) ?></a>
                         <?php endforeach; ?>
                         <span>/</span>
                         <span><?= htmlspecialchars($activeChapter['title']) ?></span>
@@ -513,6 +620,22 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
 
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
+            <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
+                <div class="toc-nav-buttons" style="display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <?php if ($prevDoc): ?>
+                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Previous: <?= htmlspecialchars($prevDoc['title']) ?>">&laquo; Prev</a>
+                    <?php else: ?>
+                        <div style="flex: 1;"></div>
+                    <?php endif; ?>
+                    
+                    <?php if ($nextDoc): ?>
+                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Next: <?= htmlspecialchars($nextDoc['title']) ?>">Next &raquo;</a>
+                    <?php else: ?>
+                        <div style="flex: 1;"></div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+
             <div class="toc-header">Table of Contents</div>
             <div class="toc-content" id="toc-content"></div>
         </aside>
