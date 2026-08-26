@@ -1099,7 +1099,8 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const link = document.createElement('a');
       link.className = 'toc-link';
-      link.href = '#' + heading.id;
+      link.href = window.location.href.split('#')[0] + '#' + heading.id;
+      link.setAttribute('data-target-id', heading.id);
       link.textContent = heading.textContent;
       
       linkContainer.appendChild(toggleBtn);
@@ -1148,7 +1149,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (entry.isIntersecting) {
           const id = entry.target.id;
           document.querySelectorAll('.toc-link').forEach(l => l.classList.remove('active'));
-          const activeLink = document.querySelector(`.toc-link[href="#${id}"]`);
+          const activeLink = document.querySelector(`.toc-link[data-target-id="${id}"]`);
           if (activeLink) {
             activeLink.classList.add('active');
             

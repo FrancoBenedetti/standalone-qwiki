@@ -870,8 +870,8 @@ switch ($action) {
             $releases = json_decode($response, true);
             if (!empty($releases) && is_array($releases)) {
                 $latest = $releases[0]; // Releases API is chronologically sorted
-                $latestVersion = ltrim($latest['tag_name'], 'v');
-                $currVerClean = ltrim($currentVersion, 'v');
+                $latestVersion = preg_replace('/^v\.?/i', '', $latest['tag_name']);
+                $currVerClean = preg_replace('/^v\.?/i', '', $currentVersion);
                 
                 $hasUpdate = version_compare($latestVersion, $currVerClean, '>');
                 
