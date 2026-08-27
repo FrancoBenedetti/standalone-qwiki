@@ -1,6 +1,6 @@
 <?php
 session_start();
-define('QWIKI_VERSION', '1.2.0');
+define('QWIKI_VERSION', '1.3.0');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
 
@@ -394,7 +394,10 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     $icon = ($depth === 0) ? '📂' : '📁';
     $indentClass = 'depth-' . min($depth, 5);
 
-    $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "'" : "";
+    $nodeTheme = htmlspecialchars($node['theme'] ?? '');
+    $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
+    $nodeFolder = htmlspecialchars($node['folder'] ?? '');
+    $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}'" : "";
 
     echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
     echo "<div class='nav-category-header'>";
@@ -403,8 +406,6 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     echo "{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
     echo "<span class='header-actions-inline'>";
     if ($isAdmin) {
-        $nodeTheme = htmlspecialchars($node['theme'] ?? '');
-        $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
         echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' title='Edit Category'>⚙️</button> ";
     }
     echo "<span class='chevron-icon'>▾</span>";
@@ -428,7 +429,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 }
                 
                 $chTheme = htmlspecialchars($ch['theme'] ?? '');
-                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}'" : "";
+                $chDesc = htmlspecialchars($ch['description'] ?? '');
+                $chImg = htmlspecialchars($ch['image'] ?? '');
+                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}'" : "";
 
                 echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
                 echo "<span>";
@@ -1049,6 +1052,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
 </body>
 </html>

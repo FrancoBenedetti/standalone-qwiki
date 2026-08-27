@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof window.syncTuiEditorTheme === 'function') {
         window.syncTuiEditorTheme(newTheme);
       }
+      if (typeof window.reRenderMermaidDiagrams === 'function') {
+        window.reRenderMermaidDiagrams(newTheme);
+      }
     });
   }
 
@@ -710,6 +713,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractCategoryNodeFromDOM(catEl) {
     const nodeId = catEl.getAttribute('data-node-id');
     const nodeTitle = catEl.getAttribute('data-node-title');
+    const nodeVis = catEl.getAttribute('data-node-visibility');
+    const nodeTheme = catEl.getAttribute('data-node-theme');
+    const nodeFolder = catEl.getAttribute('data-node-folder');
     const docList = catEl.querySelector(':scope > .nav-document-list');
 
     const items = [];
@@ -718,14 +724,22 @@ document.addEventListener('DOMContentLoaded', () => {
       Array.from(docList.children).forEach(child => {
         const dragType = child.getAttribute('data-drag-type');
         if (dragType === 'document') {
-          items.push({
+          const docItem = {
             title: child.getAttribute('data-doc-title'),
             slug: child.getAttribute('data-doc-slug'),
             type: child.getAttribute('data-doc-type'),
             url: child.getAttribute('data-doc-url') || '',
             editUrl: child.getAttribute('data-doc-editurl') || '',
             file: child.getAttribute('data-doc-file') || ''
-          });
+          };
+          const docTheme = child.getAttribute('data-doc-theme');
+          if (docTheme) docItem.theme = docTheme;
+          const docDesc = child.getAttribute('data-doc-description');
+          if (docDesc) docItem.description = docDesc;
+          const docImg = child.getAttribute('data-doc-image');
+          if (docImg) docItem.image = docImg;
+
+          items.push(docItem);
         } else if (dragType === 'category') {
           items.push(extractCategoryNodeFromDOM(child));
         }
@@ -733,6 +747,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const result = { id: nodeId, title: nodeTitle, type: 'folder' };
+    if (nodeVis && nodeVis !== 'public') result.visibility = nodeVis;
+    else if (nodeVis === 'public') result.visibility = 'public';
+    if (nodeTheme) result.theme = nodeTheme;
+    if (nodeFolder) result.folder = nodeFolder;
+
     if (items.length > 0) result.items = items;
     return result;
   }
@@ -1023,26 +1042,144 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------
-  // Native Unicode ASCII Diagram Optimization
+  // Visual Diagram Rendering (Mermaid + Svgbob WASM)
   // ----------------------------------------------------
-  function processAsciiDiagrams() {
+  let svgbobInitPromise = null;
+  let svgbobRenderFn = null;
+
+  async function loadSvgbob() {
+    if (svgbobRenderFn) return svgbobRenderFn;
+    if (!svgbobInitPromise) {
+      svgbobInitPromise = (async () => {
+        try {
+          const mod = await import('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm.js');
+          await mod.default('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm_bg.wasm');
+          svgbobRenderFn = mod.render;
+          return svgbobRenderFn;
+        } catch (err) {
+          console.warn('Could not initialize Svgbob WASM:', err);
+          return null;
+        }
+      })();
+    }
+    return svgbobInitPromise;
+  }
+
+  async function renderMermaidDiagrams(theme) {
+    if (typeof mermaid === 'undefined') return;
+
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: theme === 'light' ? 'default' : 'dark',
+        securityLevel: 'loose',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
+
+      const mermaidCodeBlocks = document.querySelectorAll('.content-body pre > code.language-mermaid, .content-body pre.mermaid');
+      for (const codeEl of mermaidCodeBlocks) {
+        const pre = codeEl.closest('pre');
+        if (!pre || pre.dataset.rendered === 'true') continue;
+
+        const rawCode = codeEl.textContent.trim();
+        const container = document.createElement('div');
+        container.className = 'mermaid-diagram-container';
+        container.dataset.mermaidSrc = rawCode;
+        container.dataset.rendered = 'true';
+
+        const diagramEl = document.createElement('div');
+        diagramEl.className = 'mermaid';
+        diagramEl.textContent = rawCode;
+
+        container.appendChild(diagramEl);
+        pre.replaceWith(container);
+      }
+
+      const unrenderedMermaid = document.querySelectorAll('.mermaid-diagram-container .mermaid:not([data-processed="true"])');
+      if (unrenderedMermaid.length > 0) {
+        await mermaid.run({ nodes: unrenderedMermaid });
+      }
+    } catch (err) {
+      console.warn('Mermaid rendering error:', err);
+    }
+  }
+
+  window.reRenderMermaidDiagrams = async function(theme) {
+    if (typeof mermaid === 'undefined') return;
+    const containers = document.querySelectorAll('.mermaid-diagram-container[data-mermaid-src]');
+    if (containers.length === 0) return;
+
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: theme === 'light' ? 'default' : 'dark',
+        securityLevel: 'loose',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
+
+      for (const container of containers) {
+        const src = container.dataset.mermaidSrc;
+        const newDiv = document.createElement('div');
+        newDiv.className = 'mermaid';
+        newDiv.textContent = src;
+        container.innerHTML = '';
+        container.appendChild(newDiv);
+      }
+
+      await mermaid.run({ nodes: document.querySelectorAll('.mermaid-diagram-container .mermaid') });
+    } catch (e) {
+      console.warn('Mermaid re-render failed:', e);
+    }
+  };
+
+  async function renderSvgbobDiagrams() {
     const codeBlocks = document.querySelectorAll('.content-body pre code');
+    if (codeBlocks.length === 0) return;
+
+    const renderFn = await loadSvgbob();
+
     for (const block of codeBlocks) {
-      // If the block contains Unicode box-drawing characters, optimize its display
-      if (/[\u2500-\u257F]/.test(block.textContent)) {
-        const pre = block.parentElement;
-        
-        // Force a strict 1.0 line height to eliminate vertical gaps between characters
-        pre.style.lineHeight = '1.0';
-        
-        // Enforce a strict monospace font that is known to render box characters continuously
-        pre.style.fontFamily = 'Consolas, "Courier New", monospace';
+      const pre = block.parentElement;
+      if (!pre || pre.dataset.rendered === 'true') continue;
+
+      const isSvgbobClass = block.classList.contains('language-bob') ||
+                            block.classList.contains('language-svgbob') ||
+                            block.classList.contains('language-ascii') ||
+                            block.classList.contains('language-diagram');
+
+      const hasBoxChars = /[\u2500-\u257F]/.test(block.textContent);
+      const isCandidate = isSvgbobClass || (hasBoxChars && block.textContent.trim().split('\n').length >= 2);
+
+      if (isCandidate) {
+        if (renderFn) {
+          try {
+            const svgOutput = renderFn(block.textContent);
+            if (svgOutput && svgOutput.includes('<svg')) {
+              const container = document.createElement('div');
+              container.className = 'svgbob-diagram-container';
+              container.dataset.rendered = 'true';
+              container.innerHTML = svgOutput;
+              pre.replaceWith(container);
+              continue;
+            }
+          } catch (err) {
+            console.warn('Svgbob render failed, falling back to styled pre:', err);
+          }
+        }
+
+        // Fallback styling for box characters
+        pre.style.lineHeight = '1.15';
+        pre.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
         block.style.fontFamily = 'inherit';
-        
-        // Reduce padding slightly to fit large diagrams better
         pre.style.padding = '1rem';
       }
     }
+  }
+
+  async function renderVisualDiagrams() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    await renderMermaidDiagrams(currentTheme);
+    await renderSvgbobDiagrams();
   }
 
   // ----------------------------------------------------
@@ -1171,7 +1308,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Run on page load
-  processAsciiDiagrams();
+  renderVisualDiagrams();
   generateTableOfContents();
 
 });

@@ -751,7 +751,89 @@ switch ($action) {
         }
 
         if (is_array($tree)) {
-            $config['books'] = $tree;
+            // Index all existing category and document nodes from current config
+            $existingCategories = [];
+            $existingDocuments = [];
+
+            $indexExistingNodes = function ($nodes) use (&$indexExistingNodes, &$existingCategories, &$existingDocuments) {
+                if (!is_array($nodes)) return;
+                foreach ($nodes as $node) {
+                    if (isset($node['id'])) {
+                        $catCopy = $node;
+                        unset($catCopy['items']);
+                        $existingCategories[$node['id']] = $catCopy;
+                    }
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        foreach ($node['items'] as $item) {
+                            if (isset($item['type']) && $item['type'] === 'folder') {
+                                $indexExistingNodes([$item]);
+                            } elseif (isset($item['slug'])) {
+                                $existingDocuments[$item['slug']] = $item;
+                            }
+                        }
+                    }
+                }
+            };
+            $indexExistingNodes($config['books'] ?? []);
+
+            // Reconstruct the new tree structure while preserving original metadata
+            $mergeTree = function ($nodes) use (&$mergeTree, &$existingCategories, &$existingDocuments) {
+                if (!is_array($nodes)) return [];
+                $merged = [];
+                foreach ($nodes as $node) {
+                    if (!is_array($node)) continue;
+                    $nodeId = $node['id'] ?? null;
+                    if ($nodeId !== null && isset($existingCategories[$nodeId])) {
+                        $orig = $existingCategories[$nodeId];
+                        $mergedNode = array_merge($orig, $node);
+                        if (empty($node['visibility']) && isset($orig['visibility'])) {
+                            $mergedNode['visibility'] = $orig['visibility'];
+                        }
+                        if (empty($node['theme']) && isset($orig['theme'])) {
+                            $mergedNode['theme'] = $orig['theme'];
+                        }
+                        if (empty($node['folder']) && isset($orig['folder'])) {
+                            $mergedNode['folder'] = $orig['folder'];
+                        }
+                    } else {
+                        $mergedNode = $node;
+                    }
+
+                    if (isset($node['items']) && is_array($node['items'])) {
+                        $mergedItems = [];
+                        foreach ($node['items'] as $item) {
+                            if (!is_array($item)) continue;
+                            if (isset($item['type']) && $item['type'] === 'folder') {
+                                $mergedSub = $mergeTree([$item]);
+                                if (!empty($mergedSub)) {
+                                    $mergedItems[] = $mergedSub[0];
+                                }
+                            } elseif (isset($item['slug'])) {
+                                $slug = $item['slug'];
+                                if (isset($existingDocuments[$slug])) {
+                                    $origDoc = $existingDocuments[$slug];
+                                    $mergedDoc = array_merge($origDoc, $item);
+                                    foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl'] as $field) {
+                                        if (empty($item[$field]) && isset($origDoc[$field])) {
+                                            $mergedDoc[$field] = $origDoc[$field];
+                                        }
+                                    }
+                                    $mergedItems[] = $mergedDoc;
+                                } else {
+                                    $mergedItems[] = $item;
+                                }
+                            } else {
+                                $mergedItems[] = $item;
+                            }
+                        }
+                        $mergedNode['items'] = $mergedItems;
+                    }
+                    $merged[] = $mergedNode;
+                }
+                return $merged;
+            };
+
+            $config['books'] = $mergeTree($tree);
             if (save_config($configFile, $config)) {
                 echo json_encode(['success' => true]);
                 exit;

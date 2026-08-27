@@ -16,6 +16,9 @@
   --radius-lg: 16px;
   --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.25);
   --transition-fast: 0.2s ease;
+  --scrollbar-thumb: rgba(148, 163, 184, 0.22);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
+  --scrollbar-track: transparent;
 }
 
 [data-theme="light"] {
@@ -29,6 +32,37 @@
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --border-color: #e2e8f0;
+  --scrollbar-thumb: rgba(100, 116, 139, 0.22);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.45);
+  --scrollbar-track: transparent;
+}
+
+/* Global Subtle Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 html, body {
@@ -259,24 +293,6 @@ body {
   gap: 0.5rem;
   flex: 1;
   overflow-y: auto;
-}
-
-/* Custom Scrollbar for Sidebar Nav */
-.sidebar-nav::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 3px;
-}
-
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
 }
 
 /* Accordion Navigation & Indentation */
@@ -617,6 +633,8 @@ body {
   overflow-x: auto;
   border: 1px solid var(--border-color);
   margin-bottom: 1.5rem;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .content-body pre code {
@@ -624,6 +642,65 @@ body {
   border: none;
   padding: 0;
   color: #e6edf3;
+  line-height: inherit;
+  font-family: inherit;
+}
+
+/* Diagrams & Visual Flowcharts */
+.mermaid-diagram-container,
+.svgbob-diagram-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.mermaid-diagram-container .mermaid {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.svgbob-diagram-container svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Svgbob dark & light mode styling */
+[data-theme="dark"] .svgbob-diagram-container svg text {
+  fill: #e2e8f0 !important;
+}
+[data-theme="dark"] .svgbob-diagram-container svg path,
+[data-theme="dark"] .svgbob-diagram-container svg line,
+[data-theme="dark"] .svgbob-diagram-container svg rect,
+[data-theme="dark"] .svgbob-diagram-container svg polygon,
+[data-theme="dark"] .svgbob-diagram-container svg circle {
+  stroke: #94a3b8 !important;
+}
+[data-theme="dark"] .svgbob-diagram-container svg marker path {
+  fill: #94a3b8 !important;
+  stroke: none !important;
+}
+
+[data-theme="light"] .svgbob-diagram-container svg text {
+  fill: #1e293b !important;
+}
+[data-theme="light"] .svgbob-diagram-container svg path,
+[data-theme="light"] .svgbob-diagram-container svg line,
+[data-theme="light"] .svgbob-diagram-container svg rect,
+[data-theme="light"] .svgbob-diagram-container svg polygon,
+[data-theme="light"] .svgbob-diagram-container svg circle {
+  stroke: #475569 !important;
+}
+[data-theme="light"] .svgbob-diagram-container svg marker path {
+  fill: #475569 !important;
+  stroke: none !important;
 }
 
 .pdf-viewer-container {
