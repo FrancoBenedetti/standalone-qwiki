@@ -1023,8 +1023,10 @@ document.addEventListener('DOMContentLoaded', () => {
           
           btnUpdateAvailable.addEventListener('click', () => {
             document.getElementById('update-version-text').textContent = data.version;
-            let notesHtml = data.notes.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>').replace(/```[\s\S]*?```/g, '<pre><code>...</code></pre>');
-            document.getElementById('update-release-notes').innerHTML = notesHtml;
+            const releaseNotesEl = document.getElementById('update-release-notes');
+            if (releaseNotesEl) {
+              releaseNotesEl.innerHTML = data.notes_html || escapeHtml(data.notes || '').replace(/\n/g, '<br>');
+            }
             document.getElementById('update-zip-url').value = data.zip_url;
             document.getElementById('update-modal').classList.add('open');
           });

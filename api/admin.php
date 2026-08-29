@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../lib/Parsedown.php';
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Auth.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
@@ -8,6 +9,10 @@ use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
+
+if (!defined('QWIKI_VERSION')) {
+    define('QWIKI_VERSION', Config::VERSION);
+}
 
 Auth::startSession();
 header('Content-Type: application/json');
@@ -676,12 +681,25 @@ switch ($action) {
     case 'check_updates':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $cacheFile = $baseDir . '/uploads/update_cache.json';
+        $currVerClean = ltrim(preg_replace('/^v\.?/i', '', trim(QWIKI_VERSION)), 'vV');
+
         if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
             $cache = json_decode(file_get_contents($cacheFile), true);
-            echo json_encode(['success' => true, 'has_update' => $cache['has_update'], 'version' => $cache['version'], 'notes' => $cache['notes'], 'zip_url' => $cache['zip_url']]);
-            exit;
+            if (is_array($cache) && isset($cache['version'])) {
+                $latestVerClean = ltrim(preg_replace('/^v\.?/i', '', trim($cache['version'])), 'vV');
+                $hasUpdate = version_compare($latestVerClean, $currVerClean, '>');
+                echo json_encode([
+                    'success' => true,
+                    'has_update' => $hasUpdate,
+                    'version' => $cache['version'],
+                    'notes' => $cache['notes'] ?? '',
+                    'notes_html' => $cache['notes_html'] ?? '',
+                    'zip_url' => $cache['zip_url'] ?? ''
+                ]);
+                exit;
+            }
         }
-        $currentVersion = defined('QWIKI_VERSION') ? QWIKI_VERSION : '1.3.0';
+
         $opts = ['http' => ['method' => 'GET', 'header' => ['User-Agent: PHP-Qwiki-Updater']]];
         $context = stream_context_create($opts);
         $response = @file_get_contents('https://api.github.com/repos/FrancoBenedetti/standalone-qwiki/releases', false, $context);
@@ -689,14 +707,19 @@ switch ($action) {
             $releases = json_decode($response, true);
             if (!empty($releases) && is_array($releases)) {
                 $latest = $releases[0];
-                $latestVersion = preg_replace('/^v\.?/i', '', $latest['tag_name']);
-                $currVerClean = preg_replace('/^v\.?/i', '', $currentVersion);
+                $latestVersion = ltrim(preg_replace('/^v\.?/i', '', trim($latest['tag_name'] ?? '')), 'vV');
                 $hasUpdate = version_compare($latestVersion, $currVerClean, '>');
+                
+                $parsedown = new Parsedown();
+                $parsedown->setSafeMode(true);
+                $notesHtml = $parsedown->text($latest['body'] ?? '');
+
                 $data = [
                     'has_update' => $hasUpdate,
                     'version' => $latest['tag_name'],
-                    'notes' => $latest['body'],
-                    'zip_url' => $latest['zipball_url']
+                    'notes' => $latest['body'] ?? '',
+                    'notes_html' => $notesHtml,
+                    'zip_url' => $latest['zipball_url'] ?? ''
                 ];
                 if (!is_dir($baseDir . '/uploads')) @mkdir($baseDir . '/uploads', 0755, true);
                 file_put_contents($cacheFile, json_encode($data));

@@ -12,7 +12,9 @@ use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 
 Auth::startSession();
-define('QWIKI_VERSION', '1.4.1');
+if (!defined('QWIKI_VERSION')) {
+    define('QWIKI_VERSION', Config::VERSION);
+}
 
 class QwikiParsedown extends Parsedown {
     protected function inlineLink($Excerpt) {
@@ -797,7 +799,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             </div>
             <div style="margin-bottom: 1.5rem;">
                 <p>A new version of Standalone Qwiki is available: <strong id="update-version-text"></strong> (Current: <?= QWIKI_VERSION ?>)</p>
-                <div id="update-release-notes" style="background: var(--bg-color); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); max-height: 300px; overflow-y: auto; margin-top: 1rem; font-size: 0.9rem;"></div>
+                <div id="update-release-notes" class="article-content" style="background: var(--bg-color); padding: 1.25rem; border-radius: 6px; border: 1px solid var(--border-color); max-height: 350px; overflow-y: auto; margin-top: 1rem; font-size: 0.9rem; line-height: 1.6;"></div>
             </div>
             <form id="update-form">
                 <input type="hidden" name="zip_url" id="update-zip-url">
