@@ -1,22 +1,47 @@
-# Site Settings & Users
+# Site Settings, Users & Updates
 
-Standalone Qwiki lets you control who can access your documentation and manage administrative accounts.
+Standalone Qwiki provides a comprehensive Admin Suite to configure site access, theme styling, syndication, and user accounts.
 
-## ⚙️ Access Modes
+---
 
-To change the site's visibility:
-1. Click **⚙️ Settings** in the top navigation bar.
+## ⚙️ Access Modes & Privacy
+
+To change site visibility:
+1. Click **`⚙️ Settings`** in the header menu.
 2. Choose your preferred **Access Mode**:
-   - **Public Access**: Anyone on the internet can read your documentation. No login required.
-   - **Private Portal**: Visitors must log in to view any content.
+   - **Public Access**: Anyone on the internet can read and search your documentation.
+   - **Private Portal**: Visitors must log in to view any documentation.
 3. Click **Save Settings**.
 
-## 👥 Managing Users
+---
 
-1. Click **👥 Users** in the top navigation bar.
-2. Here you can see a list of all registered accounts.
-3. **Add User**: Enter a username, password, and select a role (Admin or Viewer), then click **Add User**.
-4. **Delete User**: Click the trash icon next to an existing user to remove them. (Note: You cannot delete your own account).
+## 👥 Managing Users (RBAC)
 
-> [!IMPORTANT]
-> The default `admin` account password should be changed immediately to ensure your site is secure.
+1. Click **`👥 Users`** in the header menu.
+2. **Add User**: Enter a username, password, and select a role:
+   - **Admin**: Full rights to create, edit, upload, reorder navigation, and manage users.
+   - **Viewer**: Read-only documentation access.
+3. **Delete User**: Click the trash icon next to an account to remove it. (Note: You cannot delete your own active account).
+
+---
+
+## 🎨 Theme Editor & Brand Settings
+
+- **Default Theme**: Select the global theme from the Settings dialog.
+- **Custom Logo**: Enter a logo image URL to replace the default text logo.
+- **Live Theme Editor**: Launch the Theme Editor to create or customize CSS files directly in the browser.
+
+---
+
+## 📡 RSS Feeds & Syndication
+
+- Category-level RSS and JSON feeds are automatically generated (e.g. `/api/feed.php?category=getting-started`).
+- For private portals, generate an **RSS Access Token** in Settings to securely subscribe via RSS readers (compatible with RSSHub).
+
+---
+
+## 🎉 1-Click Auto Updates
+
+- When a new version of Qwiki is released, an **`🎉 Update Available!`** button appears in the admin menu.
+- Click to view release notes and install core updates with one click.
+- User data (`content/`, `uploads/`, `qwiki.json`, `users.json`) and custom extensions (`assets/extensions/`) are always safely preserved.

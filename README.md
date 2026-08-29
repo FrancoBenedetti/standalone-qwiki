@@ -30,14 +30,15 @@ Admins can control whether documentation is publicly readable or requires authen
 - **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
   - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor. Supports direct image uploading and importing existing local Markdown files.
-  - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with interactive widget execution and toolbar shortcuts.
+  - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with built-in **SunEditor WYSIWYG visual editor** and raw code view toggle for creating and in-place editing of `.html` pages.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
-- **✨ Agentic Visual & Chart Generator**: Integrated AI/vector chart and flow diagram generator creating SVG/PNG visuals directly into the `uploads/` folder and inserting Markdown snippets with 1 click.
+- **✨ Agentic Visual & Chart Generator**: Integrated visual generator producing vector Bar Charts, Line Trends, Pie/Donut Charts, Process Flows, and Status Badges. Generates standalone SVG files saved directly to `uploads/` and inserts Markdown snippets with 1 click.
 - **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, etc.), respecting category visibility rules.
+- **🌓 Instant Zero-Flicker Theming**: Server-side cookie sync paired with immediate synchronous head script execution eliminates all flash-of-unstyled-theme (FOUC) when switching pages in light or dark mode.
 - **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
 - **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
-- **🔗 Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) powered by a smart routing engine that removes redundant folders while maintaining full backward compatibility.
+- **🔗 Universal Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) that resolve automatically across Apache (`mod_rewrite` enabled or disabled), Nginx, and PHP CLI dev server.
 - **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories. Changes sync instantly to `qwiki.json`.
 - **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`). Preferred width is saved in `localStorage`.
 - **👥 Multi-User Management & RBAC**:

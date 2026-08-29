@@ -1,6 +1,6 @@
 # Features & System Capabilities
 
-**Standalone Qwiki** is a modern, fast, zero-database documentation web application. It combines local Markdown, embedded PDFs, and live Google Docs into a unified documentation portal.
+**Standalone Qwiki** is a modern, fast, zero-database documentation web application. It combines local Markdown, rich HTML pages, embedded PDFs, and live Google Docs into a unified documentation portal.
 
 ---
 
@@ -9,28 +9,46 @@
 ### A. Local Markdown Files (`.md`)
 - Server-side GitHub-Flavored Markdown parsing via `lib/Parsedown.php`.
 - Full online visual/code editor (`✏️ Edit Content`) for real-time document editing.
-- **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload images directly to `uploads/images/` and auto-insert Markdown tags.
-- **Markdown File Import**: Upload existing `.md` files directly from your computer into the editor for quick creation.
+- **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload `.png`, `.jpg`, `.svg`, or `.webp` files directly to `uploads/images/` and auto-insert Markdown tags at your cursor position.
 
-### B. Published Google Docs (`gdoc`)
+### B. HTML Documents (`.html`)
+- Native sandboxed HTML embedding with interactive JavaScript execution and isolated styling.
+- **SunEditor WYSIWYG Editor**: Create and visually format HTML documents with headings, font sizes, tables, lists, colors, links, and media.
+- **1-Click Raw Code View**: Seamlessly toggle between visual WYSIWYG editing and raw HTML code editing without tag sanitization or script corruption.
+- **In-Place Editing**: Admins can click **`✏️ Edit HTML`** directly from the viewer toolbar to edit and update `.html` files in real-time.
+- **File Loader**: Upload existing `.html` files directly into the editor.
+
+### C. Published Google Docs (`gdoc`)
 - Embed published Google Doc URLs directly into your wiki tree.
 - Automatic formatting: automatically appends `?embedded=true` if omitted.
 - HTML cleaning & extraction via `lib/simple_html_dom.php` to match dark/light theme styling seamlessly.
 
-### C. PDF Documents (`.pdf`)
+### D. PDF Documents (`.pdf`)
 - Embedded PDF viewer container with zoom, page navigation, and download links.
 
 ---
 
-## 🔍 2. Advanced Search Engine
+## 🧩 2. Self-Contained Extension System
 
-- **Server-Side Rendering**: Searches instantly query the backend for high performance.
-- **Deep Indexing**: Searches hit document titles, meta descriptions, and the full content of Markdown (`.md`) files.
-- **Role-Aware**: Search results strictly respect category visibility settings (e.g. Viewer vs Admin).
+- Extend Qwiki with custom page types and tools packaged in `assets/extensions/` without touching core logic.
+- Auto-discovery via `manifest.json` enables dynamic tab injection, custom badge rendering, backend action routing, and search text extraction.
+- Completely isolated and protected against 1-click core updates.
 
 ---
 
-## 🖐️ 3. Drag & Drop Navigation Reordering
+## ✨ 3. Agentic Visual & Chart Generator
+
+- Create professional vector graphics directly from natural directives:
+  - **📊 Bar Charts**: Metrics, quarterly reports, and comparisons.
+  - **📈 Line Charts**: Trends and time-series data.
+  - **🥧 Pie / Donut Charts**: Proportions with automated color legends.
+  - **🔀 Process & Flow Diagrams**: Multi-stage connected node workflows.
+  - **🏷️ Status Badges**: Architecture and system status pills.
+- Saves generated SVG files permanently to `uploads/` and offers 1-click insertion into the Markdown editor.
+
+---
+
+## 🖐️ 4. Drag & Drop Navigation Reordering
 
 When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu item in the sidebar:
 - **Reorder Documents**: Drag pages up or down within a section.
@@ -40,14 +58,22 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## ↔️ 4. Resizable Sidebar Menu Width
+## ↔️ 5. Resizable Sidebar Menu Width
 
 - Drag the **right edge of the sidebar** to widen or narrow the navigation panel (between `200px` and `550px`).
-- Your preferred width is saved in `localStorage` and remembered on every page reload.
+- Your preferred width is saved in `localStorage` and remembered across sessions.
 
 ---
 
-## 👥 5. Multi-User Access Control (RBAC)
+## 🌓 6. Instant Zero-Flicker Theming
+
+- Server-side cookie sync paired with synchronous head script execution eliminates dark/light mode flashing (FOUC) when clicking between pages.
+- **Cascading Themes**: Apply different CSS themes to the entire site, to specific categories, or to individual documents.
+- **Live Theme Editor**: Open the Theme Editor from the Settings modal to write, edit, and save new CSS themes directly in the browser.
+
+---
+
+## 👥 7. Multi-User Access Control (RBAC)
 
 - Lightweight user store in `users.json` with PHP Bcrypt password encryption.
 - **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, and user management.
@@ -55,32 +81,8 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## 🎨 6. Theming Engine & Customization
-
-- **Cascading Themes**: Apply different CSS themes to the entire site, to specific categories, or to individual documents. Documents inherit themes from their parent category, which inherit from the site default.
-- **Pre-Built Themes**: Ships with modern, classic, and newsletter layout themes for beautiful reading experiences.
-- **Live Theme Editor**: Open the Theme Editor from the Settings modal to write, edit, and save new CSS themes directly in the browser.
-- **Custom Logo Upload**: Replace the text-based brand name with your own uploaded logo image via the Settings menu.
-
----
-
-## 👁️ 7. Visibility Controls
+## 👁️ 8. Visibility Controls & Search
 
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
-- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`) to admin users to present a cleaner interface for visitors.
-
----
-
-## 📡 8. RSS Feed Syndication
-
-- Access full-text RSS feeds for any category by appending its ID to the feed endpoint (e.g., `/api/feed.php?category=blog`).
-- Content is fully localized, transforming relative image and link paths to absolute URLs for RSS readers.
-- Out-of-the-box compatibility with **RSSHub**!
-
----
-
-## 🎉 9. 1-Click Auto Updates
-
-- Standalone Qwiki polls GitHub for new releases.
-- Admins are notified of new versions via a dashboard badge.
-- Updates can be downloaded and securely extracted with a single click inside the Admin Settings—safely preserving all your existing files, data, and users!
+- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`) to admin users.
+- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, and HTML documents.

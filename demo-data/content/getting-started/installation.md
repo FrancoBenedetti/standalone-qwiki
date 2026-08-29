@@ -1,31 +1,66 @@
-# Installation Guide
+# Installation & Quick Start Guide
 
 Welcome to **Standalone Qwiki**! This document explains how to set up and configure your documentation workspace.
 
-## Quick Start
+---
 
-1. **Clone or Download** the repository to your PHP web server.
-2. Ensure write permissions for the `content/` and `uploads/` directories.
-3. Configure your documentation structure in `qwiki.json`.
-4. Access the web interface in your browser!
+## 🚀 Quick Start (Auto-Setup)
 
-### Configuration Example
+1. **Download the Latest Release**:
+   Download the latest release `.zip` from GitHub and extract it to your web server root or any subfolder (e.g. `/help`, `/docs`, `/wiki`).
 
-You can define books and chapters in `qwiki.json`:
+2. **Ensure Write Permissions**:
+   Ensure your web server process has write access to the folder so it can initialize files:
+   ```bash
+   chmod -R 775 /path/to/your/qwiki-folder
+   chown -R www-data:www-data /path/to/your/qwiki-folder
+   ```
+
+3. **Open in Browser**:
+   Navigate to your URL (e.g. `http://your-domain.com/docs/`). 
+   Qwiki will automatically detect a fresh installation, run the **Auto-Setup** script, and initialize `qwiki.json`, `users.json`, `content/`, and `uploads/` using the included demo data.
+
+4. **Login as Administrator**:
+   Click **Login** in the top-right header:
+   - **Username**: `admin`
+   - **Password**: `admin`
+
+---
+
+## ⚙️ Configuration Structure (`qwiki.json`)
+
+Your wiki tree, settings, and navigation are stored in `qwiki.json`:
 
 ```json
 {
-  "title": "Standalone Qwiki Documentation",
+  "title": "Standalone Qwiki",
+  "theme": "theme-default.css",
+  "defaultBook": "getting-started",
+  "requireLoginToView": false,
   "books": [
     {
       "id": "getting-started",
       "title": "Getting Started",
-      "chapters": [
+      "type": "folder",
+      "visibility": "public",
+      "items": [
         {
-          "title": "Installation Guide",
-          "slug": "installation",
+          "title": "Introduction",
+          "slug": "introduction",
           "type": "markdown",
-          "file": "content/getting-started/installation.md"
+          "file": "content/getting-started/introduction.md"
+        },
+        {
+          "title": "Interactive Dashboard",
+          "slug": "interactive-dashboard",
+          "type": "html",
+          "file": "content/getting-started/interactive-dashboard.html"
+        },
+        {
+          "title": "PDF Manual",
+          "slug": "sample-pdf",
+          "type": "pdf",
+          "file": "content/getting-started/sample.pdf"
         }
       ]
     }
@@ -33,13 +68,21 @@ You can define books and chapters in `qwiki.json`:
 }
 ```
 
-> [!NOTE]
-> Admin users can edit Markdown pages directly inside the UI or upload PDFs to create new chapters seamlessly.
+---
 
-> [!TIP]
-> **Post-Installation Cleanup**
-> The sample sections (like this Getting Started guide, Advanced Topics, and User Guide) are provided for illustration purposes. You can safely delete them from the Admin interface at your discretion once you are familiar with the system.
+## 🧩 Installing Extensions
+
+Drop any extension folder into `assets/extensions/{extension-name}/`:
+- **`page-html`**: Native HTML documents with the SunEditor visual WYSIWYG editor.
+- **`tool-ai-visuals`**: Vector chart and flow diagram generator.
+- Custom extensions are automatically discovered and safely preserved during 1-click core updates.
+
+---
 
 > [!IMPORTANT]
 > **Security Reminder**
-> Immediately after installation, please navigate to the **Users** section and change the default admin password to secure your site.
+> Immediately after installation, please open the **`👥 Users`** or **`⚙️ Settings`** panel and change the default `admin` password to secure your site.
+
+> [!TIP]
+> **Post-Installation Cleanup**
+> The sample documentation sections are provided for illustration purposes. You can modify, reorder, or delete them from the Admin interface once you are familiar with the system.
