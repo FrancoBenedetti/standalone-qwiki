@@ -27,11 +27,14 @@ Admins can control whether documentation is publicly readable or requires authen
 ## 🌟 Key Features
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
+- **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
   - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor. Supports direct image uploading and importing existing local Markdown files.
+  - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with interactive widget execution and toolbar shortcuts.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
-- **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and Markdown file contents, respecting category visibility rules.
+- **✨ Agentic Visual & Chart Generator**: Integrated AI/vector chart and flow diagram generator creating SVG/PNG visuals directly into the `uploads/` folder and inserting Markdown snippets with 1 click.
+- **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, etc.), respecting category visibility rules.
 - **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
 - **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
 - **🔗 Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) powered by a smart routing engine that removes redundant folders while maintaining full backward compatibility.
@@ -42,13 +45,48 @@ Admins can control whether documentation is publicly readable or requires authen
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
 - **🎨 Cascading Themes & Built-in UI Editor**: Assign different CSS themes across the site, specific categories, or individual documents. Write and preview themes via a live CSS editor directly in the browser!
-- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC) to admin users.
+- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC, HTML) to admin users.
 - **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
-- **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data.
+- **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data or installed extensions.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).
   - Sanitized filenames and extension whitelisting.
+
+---
+
+## 🧩 Building Extensions for Qwiki
+
+Extensions live in `assets/extensions/{extension-id}/` and require zero core modification.
+
+### 1. Custom Page Type (`manifest.json`):
+```json
+{
+  "id": "html",
+  "type": "page_type",
+  "title": "HTML Document",
+  "icon": "🌐",
+  "badge": { "label": "HTML", "class": "badge-html" },
+  "renderer": "renderer.php",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}
+```
+
+### 2. Agentic Utility / Admin Tool (`manifest.json`):
+```json
+{
+  "id": "ai_visuals",
+  "type": "utility",
+  "title": "Generate Visual / Chart",
+  "icon": "✨",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php"
+}
+```
 
 ---
 
@@ -79,7 +117,7 @@ Admins can control whether documentation is publicly readable or requires authen
 ### Upgrading Qwiki
 Because Qwiki uses a safe separation of logic and data, updating is incredibly simple:
 - **1-Click Auto Update**: When logged in as Admin, click the "Update Available" button in your header to automatically fetch and apply the latest release.
-- **Manual Zip Update**: Download the newest Release `.zip` and extract it over your existing installation. Your live `qwiki.json`, `users.json`, `content/`, and `uploads/` are completely ignored by the update ZIP and will remain perfectly intact.
+- **Manual Zip Update**: Download the newest Release `.zip` and extract it over your existing installation. Your live `qwiki.json`, `users.json`, `content/`, `uploads/`, and custom `assets/extensions/` are completely ignored by the update ZIP and will remain perfectly intact.
 
 ---
 
@@ -99,24 +137,35 @@ standalone-qwiki/
 ├── .htaccess                  # Security rules blocking .json downloads & script execution
 ├── .gitignore                 # Ignores live user data (qwiki.json, content, users.json)
 ├── api/
-│   └── admin.php              # REST API endpoint handling auth, CRUD, DND reordering, image uploads
+│   ├── admin.php              # REST API endpoint delegating to Core & Extensions
+│   ├── feed.php               # RSS / JSON feed syndication endpoint
+│   ├── search.php             # Search endpoint querying all registered page types
+│   └── publish.php            # External publishing endpoint
 ├── assets/
 │   ├── css/
-│   │   └── qwiki.css          # Design system, dark/light theme, drag indicators, responsive styles
-│   └── js/
-│       └── app.js             # Theme toggle, search auto-expand, DND engine, sidebar resizer
+│   │   └── qwiki.css          # Design system, dark/light theme, responsive styles
+│   ├── js/
+│   │   └── app.js             # Theme toggle, search, DND engine, sidebar resizer
+│   └── extensions/            # Self-contained drop-in extensions
+│       ├── page-html/         # HTML Page Type Reference Extension
+│       └── tool-ai-visuals/   # AI Visual & Chart Generator Utility
 ├── demo-data/                 # Auto-Setup templates for fresh installs
 │   ├── content/               # Demo documentation files
 │   └── qwiki-default.json     # Demo wiki tree structure
 ├── lib/
-│   ├── Parsedown.php          # Single-file Markdown parser
+│   ├── Core/
+│   │   ├── Auth.php           # Session, authentication, and RBAC
+│   │   ├── Config.php         # Config persistence and path validation
+│   │   ├── Navigation.php     # Tree traversal, breadcrumbs, next/prev links
+│   │   └── ExtensionManager.php # Dynamic discovery and hook registry
+│   ├── Parsedown.php          # Markdown parser
 │   └── simple_html_dom.php    # HTML DOM cleaner for Google Docs
-├── index.php                  # Main application entry point, routing engine, and Auto-Setup script
+├── index.php                  # Slim entry point (< 250 lines)
 └── README.md                  # System documentation
 
 (Generated after first run)
 ├── content/                   # Live documentation content store
-├── uploads/                   # Live uploaded media & assets
+├── uploads/                   # Live uploaded media & generated visuals
 ├── qwiki.json                 # Live wiki tree structure configuration
 └── users.json                 # Live file-based user store & Bcrypt password hashes
 ```

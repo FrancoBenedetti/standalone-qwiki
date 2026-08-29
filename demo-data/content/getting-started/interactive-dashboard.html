@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Dashboard Demo</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --border: #334155;
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+        }
+        .header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+        h1 { margin: 0 0 0.5rem 0; font-size: 1.75rem; }
+        p { color: var(--muted); margin: 0; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+        }
+        .metric-title { font-size: 0.875rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .metric-val { font-size: 2rem; font-weight: 700; margin: 0.5rem 0; color: var(--text); }
+        .metric-trend { font-size: 0.875rem; color: var(--success); }
+        .interactive-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .interactive-btn:hover { background: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Live System Analytics (HTML Page Extension)</h1>
+        <p>This is a native HTML page extension embedded within Standalone Qwiki.</p>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="metric-title">Total Requests</div>
+            <div class="metric-val" id="val-req">148,290</div>
+            <div class="metric-trend">↑ +14.2% this week</div>
+        </div>
+        <div class="card">
+            <div class="metric-title">Average Latency</div>
+            <div class="metric-val" id="val-lat">12 ms</div>
+            <div class="metric-trend">⚡ 99.98% uptime</div>
+        </div>
+        <div class="card">
+            <div class="metric-title">Active Extensions</div>
+            <div class="metric-val" id="val-ext">2</div>
+            <div class="metric-trend">✨ Modular core enabled</div>
+        </div>
+    </div>
+
+    <div class="card" style="text-align: center; padding: 2rem;">
+        <h3>Interactive Widget Test</h3>
+        <p style="margin-bottom: 1.5rem;">Click the button below to test clientside JavaScript execution inside the sandboxed frame.</p>
+        <button class="interactive-btn" onclick="simulateTraffic()">Simulate Live Ping</button>
+    </div>
+
+    <script>
+        function simulateTraffic() {
+            const req = document.getElementById('val-req');
+            const lat = document.getElementById('val-lat');
+            const current = parseInt(req.innerText.replace(/,/g, ''));
+            req.innerText = (current + Math.floor(Math.random() * 150 + 20)).toLocaleString();
+            lat.innerText = (Math.floor(Math.random() * 8 + 8)) + ' ms';
+        }
+    </script>
+</body>
+</html>

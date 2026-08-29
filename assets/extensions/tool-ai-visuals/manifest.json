@@ -1,0 +1,12 @@
+{
+  "id": "ai_visuals",
+  "type": "utility",
+  "title": "Generate Visual / Chart",
+  "icon": "✨",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": ["ext_ai_generate_visual"],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

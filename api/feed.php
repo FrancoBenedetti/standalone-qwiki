@@ -115,6 +115,9 @@ function detectItemType($item) {
     if (!empty($url) && preg_match('/docs\.google\.com|drive\.google\.com/i', $url)) {
         return 'gdoc';
     }
+    if (!empty($file) && preg_match('/\.(html|htm)($|\?|#)/i', $file)) {
+        return 'html';
+    }
     if (!empty($file) && preg_match('/\.(md|markdown)($|\?|#)/i', $file)) {
         return 'markdown';
     }
@@ -126,6 +129,9 @@ function detectItemType($item) {
         }
         if (in_array($type, ['gdoc', 'googledoc', 'google-doc'])) {
             return 'gdoc';
+        }
+        if (in_array($type, ['html', 'htm'])) {
+            return 'html';
         }
         if (in_array($type, ['md', 'markdown', 'text'])) {
             return 'markdown';
@@ -173,7 +179,7 @@ function processSingleFeedItem($item, &$items, $bookId, $folderId, $isViewer = f
         }
     }
 
-    if ($resolvedType === 'markdown') {
+    if ($resolvedType === 'markdown' || $resolvedType === 'html') {
         if ($mtime !== null) {
             $itemCopy['mtime'] = $mtime;
             $items[] = $itemCopy;

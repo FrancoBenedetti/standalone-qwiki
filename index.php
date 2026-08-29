@@ -1,13 +1,23 @@
 <?php
-session_start();
-define('QWIKI_VERSION', '1.3.0');
 require_once __DIR__ . '/lib/Parsedown.php';
 require_once __DIR__ . '/lib/simple_html_dom.php';
+require_once __DIR__ . '/lib/Core/Config.php';
+require_once __DIR__ . '/lib/Core/Auth.php';
+require_once __DIR__ . '/lib/Core/Navigation.php';
+require_once __DIR__ . '/lib/Core/ExtensionManager.php';
+
+use Qwiki\Core\Config;
+use Qwiki\Core\Auth;
+use Qwiki\Core\Navigation;
+use Qwiki\Core\ExtensionManager;
+
+Auth::startSession();
+define('QWIKI_VERSION', '1.3.0');
 
 class QwikiParsedown extends Parsedown {
     protected function inlineLink($Excerpt) {
         $Inline = parent::inlineLink($Excerpt);
-        if ( ! isset($Inline)) {
+        if (!isset($Inline)) {
             return;
         }
 
@@ -25,68 +35,15 @@ class QwikiParsedown extends Parsedown {
     }
 }
 
-$configFile = __DIR__ . '/qwiki.json';
-if (!file_exists($configFile)) {
-    // Auto-setup mechanism
-    $demoDir = __DIR__ . '/demo-data';
-    
-    if (file_exists($demoDir . '/qwiki-default.json')) {
-        // Create necessary directories
-        if (!is_dir(__DIR__ . '/uploads')) @mkdir(__DIR__ . '/uploads', 0755, true);
-        
-        // Recursive copy function for content
-        if (!function_exists('qwiki_copy_dir')) {
-            function qwiki_copy_dir($src, $dst) {
-                if (!is_dir($src)) return;
-                @mkdir($dst, 0755, true);
-                $dir = opendir($src);
-                while (false !== ($file = readdir($dir))) {
-                    if (($file != '.') && ($file != '..')) {
-                        if (is_dir($src . '/' . $file)) qwiki_copy_dir($src . '/' . $file, $dst . '/' . $file);
-                        else copy($src . '/' . $file, $dst . '/' . $file);
-                    }
-                }
-                closedir($dir);
-            }
-        }
-        
-        @qwiki_copy_dir($demoDir . '/content', __DIR__ . '/content');
-        
-        $copiedConfig = @copy($demoDir . '/qwiki-default.json', $configFile);
-        if (!$copiedConfig) {
-            die("
-                <div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 40px auto; border: 1px solid #ffcccc; background: #fff5f5; border-radius: 8px;'>
-                    <h2 style='color: #cc0000; margin-top: 0;'>Auto-setup failed</h2>
-                    <p>Could not create <code>qwiki.json</code>. The web server does not have write permissions to the Qwiki directory.</p>
-                    <p><strong>Option 1: Using SSH (Terminal)</strong><br>
-                    Change the ownership of the directory to your web server user (e.g., <code>www-data</code> for Apache/Nginx on Ubuntu):</p>
-                    <pre style='background: #333; color: #fff; padding: 15px; border-radius: 4px; overflow-x: auto;'>sudo chown -R www-data:www-data " . realpath(__DIR__) . "</pre>
-                    <p><strong>Option 2: Using FTP/SFTP (cPanel, FileZilla, etc.)</strong><br>
-                    Right-click the Qwiki folder in your FTP client, select <em>File Permissions</em> (or Attributes), and change the permissions to <strong>755</strong> or <strong>775</strong>. Ensure you apply this to all files and directories.</p>
-                </div>
-            ");
-        }
-        
-        if (!is_dir(__DIR__ . '/uploads')) {
-            @mkdir(__DIR__ . '/uploads', 0755, true);
-        }
-        if (file_exists($demoDir . '/htaccess-uploads') && is_dir(__DIR__ . '/uploads')) {
-            @copy($demoDir . '/htaccess-uploads', __DIR__ . '/uploads/.htaccess');
-        }
-        
-    } else {
-        die("<strong>Setup Error:</strong> Configuration file <code>qwiki.json</code> not found, and <code>demo-data</code> template is missing.");
-    }
-}
-
-$config = json_decode(file_get_contents($configFile), true);
+$config = Config::load();
+$baseDir = Config::getBaseDir();
+$extManager = ExtensionManager::getInstance();
 
 // User session evaluation
-$currentUser = $_SESSION['qwiki_user'] ?? null;
-$isAdmin = (!empty($currentUser) && $currentUser['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
-$isViewer = !empty($currentUser);
-$requireLoginToView = !empty($config['requireLoginToView']);
-$canViewContent = !$requireLoginToView || $isViewer || $isAdmin;
+$currentUser = Auth::getCurrentUser();
+$isAdmin = Auth::isAdmin();
+$isViewer = Auth::isViewer();
+$canViewContent = Auth::canView($config);
 
 // Routing parameters
 $requestedBookId = '';
@@ -114,21 +71,13 @@ if (empty($requestedBookId)) {
 }
 
 // Base URL calculation for clean URLs
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$baseDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-$baseUrl = $protocol . $domainName . $baseDir . '/';
+$scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
+$baseUrl = $protocol . $domainName . $scriptDir . '/';
 
 // Filter books based on visibility
-$allowedBooks = [];
-foreach ($config['books'] as $book) {
-    $visibility = $book['visibility'] ?? 'public';
-    if (!$isAdmin) {
-        if ($visibility === 'admin_only') continue;
-        if ($visibility === 'logged_in' && !$isViewer) continue;
-    }
-    $allowedBooks[] = $book;
-}
+$allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
 
 // Active tree resolution state
 $activeBook = null;
@@ -144,114 +93,36 @@ if (!$activeBook && !empty($allowedBooks)) {
 
 $activeChapter = null;
 $breadcrumbsTrail = [];
-$activePathIds = [$activeBook['id']];
+$activePathIds = $activeBook ? [$activeBook['id']] : [];
 
-/**
- * Recursive search to locate active folder & chapter, building breadcrumb trail and active path IDs
- */
-function find_chapter_and_path($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds, $isAdmin = false, $isViewer = false, $inTargetFolder = false) {
-    $visibility = $node['visibility'] ?? 'public';
-    if (!$isAdmin) {
-        if ($visibility === 'admin_only') return null;
-        if ($visibility === 'logged_in' && !$isViewer) return null;
-    }
+if ($activeBook) {
+    $dummyTrail = [];
+    $dummyIds = [];
+    $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
-    $nodeId = $node['id'] ?? '';
-    $nodeTitle = $node['title'] ?? '';
-    $currentTrail = array_merge($trail, [['title' => $nodeTitle, 'id' => $nodeId]]);
-    $currentActiveIds = array_merge($activeIds, [$nodeId]);
-
-    $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
-    $isTargetContext = ($inTargetFolder || $isFolderMatch || !$targetFolderId);
-
-    if (!empty($node['items'])) {
-        if ($targetChapterSlug) {
-            // Looking for a specific document
-            foreach ($node['items'] as $item) {
-                if (!isset($item['type']) || $item['type'] !== 'folder') {
-                    if ($item['slug'] === $targetChapterSlug) {
-                        if (!$targetFolderId || $isFolderMatch) {
-                            $trail = $currentTrail;
-                            $activeIds = $currentActiveIds;
-                            return $item;
-                        }
-                    }
-                }
-            }
-            // Recurse into subfolders
-            foreach ($node['items'] as $item) {
-                if (isset($item['type']) && $item['type'] === 'folder') {
-                    $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
-                    if ($found) {
-                        $trail = $currentTrail;
-                        $activeIds = $currentActiveIds;
-                        return $found;
-                    }
-                }
-            }
-        } else {
-            // Looking for the first document in the target context
-            if ($isTargetContext) {
-                // Pre-order traversal: return the first document we encounter
-                foreach ($node['items'] as $item) {
-                    if (!isset($item['type']) || $item['type'] !== 'folder') {
-                        $trail = $currentTrail;
-                        $activeIds = $currentActiveIds;
-                        return $item;
-                    } else {
-                        $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, true);
-                        if ($found) {
-                            $trail = $currentTrail;
-                            $activeIds = $currentActiveIds;
-                            return $found;
-                        }
-                    }
-                }
-            } else {
-                // Not in target context yet, keep searching for the target folder
-                foreach ($node['items'] as $item) {
-                    if (isset($item['type']) && $item['type'] === 'folder') {
-                        $found = find_chapter_and_path($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
-                        if ($found) {
-                            $trail = $currentTrail;
-                            $activeIds = $currentActiveIds;
-                            return $found;
-                        }
-                    }
-                }
-            }
+    // Fallback for 2-segment URL that might be a folder instead of a chapter
+    if (!$activeChapter && isset($_GET['path'])) {
+        $segments = explode('/', trim($_GET['path'], '/'));
+        if (count($segments) === 2) {
+            $dummyTrail = [];
+            $dummyIds = [];
+            $requestedFolderId = urldecode($segments[1]);
+            $requestedChapterSlug = '';
+            $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
         }
     }
 
-    return null;
-}
-
-$dummyTrail = [];
-$dummyIds = [];
-$activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-
-// Fallback for 2-segment URL that might be a folder instead of a chapter
-if (!$activeChapter && isset($_GET['path'])) {
-    $segments = explode('/', trim($_GET['path'], '/'));
-    if (count($segments) === 2) {
-        $dummyTrail = [];
-        $dummyIds = [];
-        $requestedFolderId = urldecode($segments[1]);
-        $requestedChapterSlug = '';
-        $activeChapter = find_chapter_and_path($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-    }
-}
-
-if ($activeChapter) {
-    $breadcrumbsTrail = $dummyTrail;
-    $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
-} else {
-    if (!empty($activeBook['items'])) {
-        foreach ($activeBook['items'] as $item) {
-            if (!isset($item['type']) || $item['type'] !== 'folder') {
-                $activeChapter = $item;
-                $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
-                break;
+    if ($activeChapter) {
+        $breadcrumbsTrail = $dummyTrail;
+        $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
+    } else {
+        if (!empty($activeBook['items'])) {
+            foreach ($activeBook['items'] as $item) {
+                if (!isset($item['type']) || $item['type'] !== 'folder') {
+                    $activeChapter = $item;
+                    $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+                    break;
+                }
             }
         }
     }
@@ -259,40 +130,8 @@ if ($activeChapter) {
 
 // Calculate Previous and Next Document Navigation
 $flatNavList = [];
-if (!function_exists('qwiki_flatten_nav_tree')) {
-    function qwiki_flatten_nav_tree($node, $bookId, &$flatList, $isAdmin = false, $isViewer = false) {
-        $visibility = $node['visibility'] ?? 'public';
-        if (!$isAdmin) {
-            if ($visibility === 'admin_only') return;
-            if ($visibility === 'logged_in' && !$isViewer) return;
-        }
-        
-        if (!empty($node['items'])) {
-            foreach ($node['items'] as $item) {
-                if (isset($item['type']) && $item['type'] === 'folder') {
-                    qwiki_flatten_nav_tree($item, $bookId, $flatList, $isAdmin, $isViewer);
-                } else {
-                    $ch = $item;
-                    $nodeId = $node['id'] ?? '';
-                    if ($nodeId === $bookId) {
-                        $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug']);
-                    } else {
-                        $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug']);
-                    }
-                    $flatList[] = [
-                        'title' => $ch['title'],
-                        'slug' => $ch['slug'],
-                        'bookId' => $bookId,
-                        'url' => $linkUrl
-                    ];
-                }
-            }
-        }
-    }
-}
-
 foreach ($allowedBooks as $book) {
-    qwiki_flatten_nav_tree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
+    Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
 }
 
 $prevDoc = null;
@@ -300,7 +139,7 @@ $nextDoc = null;
 if ($activeChapter) {
     $currentIndex = -1;
     foreach ($flatNavList as $index => $item) {
-        if ($item['bookId'] === $activeBook['id'] && $item['slug'] === $activeChapter['slug']) {
+        if ($item['bookId'] === ($activeBook['id'] ?? '') && $item['slug'] === ($activeChapter['slug'] ?? '')) {
             $currentIndex = $index;
             break;
         }
@@ -315,58 +154,15 @@ if ($activeChapter) {
     }
 }
 
-// Content rendering logic based on chapter type
+// Content rendering via ExtensionManager
 $renderedContent = '';
 $rawMarkdownContent = '';
-
 if ($activeChapter) {
-    $type = $activeChapter['type'] ?? 'markdown';
-
-    if ($type === 'markdown') {
-        $filePath = __DIR__ . '/' . ($activeChapter['file'] ?? '');
+    $renderedContent = $extManager->renderPage($activeChapter, $activeBook, $config);
+    if (($activeChapter['type'] ?? 'markdown') === 'markdown') {
+        $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
         if (file_exists($filePath)) {
             $rawMarkdownContent = file_get_contents($filePath);
-            $parsedown = new QwikiParsedown();
-            $renderedContent = $parsedown->text($rawMarkdownContent);
-        } else {
-            $renderedContent = "<div class='alert warning'>Markdown file not found: " . htmlspecialchars($activeChapter['file'] ?? '') . "</div>";
-        }
-    } elseif ($type === 'pdf') {
-        $pdfUrl = htmlspecialchars($activeChapter['file'] ?? '');
-        $renderedContent = "
-            <div class='pdf-viewer-container'>
-                <iframe src='{$pdfUrl}' title='PDF Viewer'></iframe>
-            </div>
-            <p style='margin-top: 1rem;'><a href='{$pdfUrl}' target='_blank' class='btn btn-outline btn-sm'>Download Original PDF</a></p>
-        ";
-    } elseif ($type === 'gdoc') {
-        $docUrl = $activeChapter['url'] ?? '';
-        if ($docUrl) {
-            if (strpos($docUrl, 'embedded=true') === false) {
-                $docUrl .= (strpos($docUrl, '?') !== false) ? '&embedded=true' : '?embedded=true';
-            }
-            $ctx = stream_context_create(['http' => ['timeout' => 5, 'header' => "User-Agent: Mozilla/5.0\r\n"]]);
-            $html = @file_get_contents($docUrl, false, $ctx);
-            
-            if ($html && function_exists('str_get_html')) {
-                $dom = str_get_html($html);
-                if ($dom && $dom->find('#contents', 0)) {
-                    $body = $dom->find('#contents', 0)->innertext;
-                    $renderedContent = "<div class='gdoc-content'>" . $body . "</div>";
-                } elseif ($dom && $dom->find('body', 0)) {
-                    $renderedContent = "<div class='gdoc-content'>" . $dom->find('body', 0)->innertext . "</div>";
-                } else {
-                    $renderedContent = "<iframe src='" . htmlspecialchars($docUrl) . "' style='width:100%; height:750px; border:none;'></iframe>";
-                }
-            } else {
-                $renderedContent = "
-                    <div class='gdoc-container'>
-                        <iframe src='" . htmlspecialchars($docUrl) . "' style='width:100%; height:750px; border:1px solid var(--border-color); border-radius:8px;'></iframe>
-                    </div>
-                ";
-            }
-        } else {
-            $renderedContent = "<p>No Google Doc URL provided.</p>";
         }
     }
 }
@@ -378,88 +174,8 @@ $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
 $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
 
-/**
- * Recursive function to render sidebar navigation with subfolders
- */
-function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false, $isViewer = false, $showDocTypesOnlyToAdmin = true) {
-    $visibility = $node['visibility'] ?? 'public';
-    if (!$isAdmin) {
-        if ($visibility === 'admin_only') return;
-        if ($visibility === 'logged_in' && !$isViewer) return;
-    }
-
-    $nodeId = $node['id'] ?? '';
-    $nodeTitle = $node['title'] ?? '';
-    $isExpanded = in_array($nodeId, $activePathIds);
-    $icon = ($depth === 0) ? '📂' : '📁';
-    $indentClass = 'depth-' . min($depth, 5);
-
-    $nodeTheme = htmlspecialchars($node['theme'] ?? '');
-    $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
-    $nodeFolder = htmlspecialchars($node['folder'] ?? '');
-    $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}'" : "";
-
-    echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
-    echo "<div class='nav-category-header'>";
-    echo "<span>";
-    if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
-    echo "{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
-    echo "<span class='header-actions-inline'>";
-    if ($isAdmin) {
-        echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' title='Edit Category'>⚙️</button> ";
-    }
-    echo "<span class='chevron-icon'>▾</span>";
-    echo "</span>";
-    echo "</div>";
-
-    echo "<div class='nav-document-list' data-parent-node-id='" . htmlspecialchars($nodeId) . "'>";
-
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as $item) {
-            if (isset($item['type']) && $item['type'] === 'folder') {
-                render_sidebar_node($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
-            } else {
-                $ch = $item;
-                $isActive = ($isExpanded && $activeChapterSlug === $ch['slug']);
-                $badgeClass = 'badge-' . htmlspecialchars($ch['type']);
-                if ($nodeId === $bookId) {
-                    $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug']);
-                } else {
-                    $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug']);
-                }
-                
-                $chTheme = htmlspecialchars($ch['theme'] ?? '');
-                $chDesc = htmlspecialchars($ch['description'] ?? '');
-                $chImg = htmlspecialchars($ch['image'] ?? '');
-                $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title']) . "' data-doc-slug='" . htmlspecialchars($ch['slug']) . "' data-doc-type='" . htmlspecialchars($ch['type']) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}'" : "";
-
-                echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
-                echo "<span>";
-                if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
-                echo htmlspecialchars($ch['title']) . "</span>";
-                
-                if ($isAdmin || !$showDocTypesOnlyToAdmin) {
-                    $docType = strtolower($ch['type'] ?? 'markdown');
-                    $badgeTitle = strtoupper($docType);
-                    if ($docType === 'markdown' || $docType === 'md') {
-                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 208 128" width="16" height="10" fill="currentColor" aria-hidden="true"><rect width="198" height="118" x="5" y="5" rx="14" fill="none" stroke="currentColor" stroke-width="14"/><path d="M30 98V30h20l20 25 20-25h20v68H90V55L70 80 50 55v43H30zm135 0l-30-35h20V30h20v33h20l-30 35z"/></svg>';
-                    } elseif ($docType === 'pdf') {
-                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 8.5c0 .8-.7 1.5-1.5 1.5H7v2H5.5V9H8c.8 0 1.5.7 1.5 1.5v1zm5 2c0 .8-.7 1.5-1.5 1.5h-2.5V9H13c.8 0 1.5.7 1.5 1.5v3zm3.5-3.5h-2.5v1.5H17V13h-1.5v2H14V9h4v1.5zM7 10.5h1v1H7v-1zm5.5 0h1v3h-1v-3z"/></svg>';
-                    } elseif ($docType === 'gdoc') {
-                        $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M14.5 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zM14 8V3.5L18.5 8H14zm-6 3h8v1.5H8V11zm0 3h8v1.5H8V14zm0 3h5v1.5H8V17z"/></svg>';
-                    } else {
-                        $iconSvg = htmlspecialchars($ch['type']);
-                    }
-                    echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars($badgeTitle) . " Document'>{$iconSvg}</span>";
-                }
-                echo "</a>";
-            }
-        }
-    }
-
-    echo "</div>";
-    echo "</div>";
-}
+// Collect Frontend Assets from Extensions
+$extensionAssets = $extManager->getFrontendAssets();
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
@@ -490,6 +206,12 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
         <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
     <?php endif; ?>
+
+    <!-- Extension Styles -->
+    <?php foreach ($extensionAssets['styles'] as $styleFile): ?>
+        <link rel="stylesheet" href="<?= htmlspecialchars($styleFile) ?>">
+    <?php endforeach; ?>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -522,6 +244,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                         <?php if ($isAdmin): ?>
                             <button class="dropdown-item" id="btn-add-book">+ Category</button>
                             <button class="dropdown-item" id="btn-add-chapter">+ Document</button>
+                            <?php $extManager->renderHeaderUtilityButtons(); ?>
                             <button class="dropdown-item" id="btn-users">👥 Users</button>
                             <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
                             <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">🎉 Update Available!</button>
@@ -545,7 +268,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             </div>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php render_sidebar_node($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin); ?>
+                    <?php Navigation::renderSidebarNode($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
             </nav>
         </aside>
@@ -570,25 +293,25 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     </div>
                     <div class="content-actions">
                         <div id="read-actions" style="display: flex; gap: 0.75rem;">
-                            <?php if ($activeChapter['type'] === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
+                            <?php if (($activeChapter['type'] ?? '') === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
                                 <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm">Edit Google Doc ↗</a>
                             <?php endif; ?>
                             <?php if ($isAdmin): ?>
-                                <?php if ($activeChapter['type'] === 'markdown'): ?>
+                                <?php if (($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                                     <button class="btn btn-primary btn-sm" id="btn-edit-markdown">✏️ Edit Content</button>
                                 <?php endif; ?>
                                 <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta"
                                         data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
                                         data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
-                                        data-type="<?= htmlspecialchars($activeChapter['type']) ?>"
+                                        data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
                                         data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
                                         data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                         data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
                                         data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>">⚙️ Edit Details</button>
-                                <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id']) ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
+                                <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">🗑️ Delete Document</button>
                             <?php endif; ?>
                         </div>
-                        <?php if ($isAdmin && $activeChapter['type'] === 'markdown'): ?>
+                        <?php if ($isAdmin && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                         <div id="edit-actions" style="display: none; gap: 0.75rem;">
                             <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
                             <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
@@ -597,7 +320,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     </div>
                 </div>
 
-                <?php if ($isAdmin && $activeChapter['type'] === 'markdown'): ?>
+                <?php if ($isAdmin && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                     <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
@@ -768,7 +491,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
-    <!-- Unified Add Document Modal -->
+    <!-- Unified Add Document Modal (Dynamic with Extensions) -->
     <div class="modal-overlay" id="chapter-modal">
         <div class="modal-card" style="max-width: 700px;">
             <div class="modal-header">
@@ -778,8 +501,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
             
             <div class="tab-header">
                 <button class="tab-btn active" data-tab="tab-create-md">✏️ New Markdown</button>
-                <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
+                <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF/HTML)</button>
                 <button class="tab-btn" data-tab="tab-gdoc">🌐 Google Doc</button>
+                <?php $extManager->renderAddDocumentTabs(); ?>
             </div>
 
             <!-- Tab 1: Create Markdown Online -->
@@ -819,8 +543,8 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                     <input type="text" name="title" class="form-control" placeholder="e.g. Specification Datasheet" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Select File (.md or .pdf)</label>
-                    <input type="file" name="document" class="form-control" accept=".md,.pdf" required>
+                    <label class="form-label">Select File (.md, .pdf, or .html)</label>
+                    <input type="file" name="document" class="form-control" accept=".md,.pdf,.html,.htm" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Upload & Add</button>
             </form>
@@ -849,6 +573,9 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Link Google Doc</button>
             </form>
+
+            <!-- Dynamic Extension Tabs -->
+            <?php $extManager->renderAddDocumentForms($activeBook, $config); ?>
         </div>
     </div>
 
@@ -869,9 +596,12 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 <div class="form-group">
                     <label class="form-label" for="edit-chapter-type">Type</label>
                     <select name="type" id="edit-chapter-type" class="form-control">
-                        <option value="markdown" <?= ($activeChapter['type'] === 'markdown') ? 'selected' : '' ?>>Markdown (.md)</option>
-                        <option value="gdoc" <?= ($activeChapter['type'] === 'gdoc') ? 'selected' : '' ?>>Google Doc (URL)</option>
-                        <option value="pdf" <?= ($activeChapter['type'] === 'pdf') ? 'selected' : '' ?>>PDF Document (.pdf)</option>
+                        <option value="markdown" <?= (($activeChapter['type'] ?? 'markdown') === 'markdown') ? 'selected' : '' ?>>Markdown (.md)</option>
+                        <option value="gdoc" <?= (($activeChapter['type'] ?? '') === 'gdoc') ? 'selected' : '' ?>>Google Doc (URL)</option>
+                        <option value="pdf" <?= (($activeChapter['type'] ?? '') === 'pdf') ? 'selected' : '' ?>>PDF Document (.pdf)</option>
+                        <?php foreach ($extManager->getPageTypes() as $ptId => $pt): ?>
+                            <option value="<?= htmlspecialchars($ptId) ?>" <?= (($activeChapter['type'] ?? '') === $ptId) ? 'selected' : '' ?>><?= htmlspecialchars($pt['title'] ?? ucfirst($ptId)) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group" id="group-edit-gdoc-url">
@@ -984,7 +714,7 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
                 <div class="form-group">
                     <label class="form-label">RSS Feed URL</label>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <input type="text" id="setting-rss-feed-url" class="form-control" readonly value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\') . '/api/feed.php' . (!empty($config['feedAccessToken']) ? '?token=' . urlencode($config['feedAccessToken']) : '')) ?>" onclick="this.select();" style="flex: 1;">
+                        <input type="text" id="setting-rss-feed-url" class="form-control" readonly value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $scriptDir . '/api/feed.php' . (!empty($config['feedAccessToken']) ? '?token=' . urlencode($config['feedAccessToken']) : '')) ?>" onclick="this.select();" style="flex: 1;">
                         <button type="button" class="btn btn-outline btn-copy-rss" id="btn-copy-main-rss" title="Copy RSS Feed URL" data-copy-target="setting-rss-feed-url">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
@@ -1049,10 +779,18 @@ function render_sidebar_node($node, $bookId, $activePathIds, $activeChapterSlug,
         </div>
     </div>
 
+    <!-- Utility Modals Injected by Extensions -->
+    <?php $extManager->renderUtilityModals(); ?>
+
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
+
+    <!-- Extension Scripts -->
+    <?php foreach ($extensionAssets['scripts'] as $scriptFile): ?>
+        <script src="<?= htmlspecialchars($scriptFile) ?>"></script>
+    <?php endforeach; ?>
 </body>
 </html>

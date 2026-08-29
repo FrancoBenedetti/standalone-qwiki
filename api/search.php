@@ -1,18 +1,20 @@
 <?php
-session_start();
+require_once __DIR__ . '/../lib/Core/Config.php';
+require_once __DIR__ . '/../lib/Core/Auth.php';
+require_once __DIR__ . '/../lib/Core/Navigation.php';
+require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
+
+use Qwiki\Core\Config;
+use Qwiki\Core\Auth;
+use Qwiki\Core\ExtensionManager;
+
+Auth::startSession();
 header('Content-Type: application/json');
 
-$configFile = __DIR__ . '/../qwiki.json';
-if (!file_exists($configFile)) {
-    echo json_encode(['success' => false, 'error' => 'Config file not found']);
-    exit;
-}
-
-$config = json_decode(file_get_contents($configFile), true);
-
-$currentUser = $_SESSION['qwiki_user'] ?? null;
-$isAdmin = (!empty($currentUser) && $currentUser['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
-$isViewer = !empty($currentUser);
+$config = Config::load();
+$baseDir = Config::getBaseDir();
+$isAdmin = Auth::isAdmin();
+$isViewer = Auth::isViewer();
 
 $query = strtolower(trim($_GET['q'] ?? ''));
 if (empty($query)) {
@@ -21,8 +23,9 @@ if (empty($query)) {
 }
 
 $results = [];
+$extManager = ExtensionManager::getInstance();
 
-function search_node($node, $query, $isAdmin, $isViewer, &$results) {
+function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extManager, &$results) {
     $visibility = $node['visibility'] ?? 'public';
     if (!$isAdmin) {
         if ($visibility === 'admin_only') return;
@@ -32,17 +35,17 @@ function search_node($node, $query, $isAdmin, $isViewer, &$results) {
     if (!empty($node['items'])) {
         foreach ($node['items'] as $item) {
             if (isset($item['type']) && $item['type'] === 'folder') {
-                search_node($item, $query, $isAdmin, $isViewer, $results);
+                search_node_tree($item, $query, $isAdmin, $isViewer, $baseDir, $extManager, $results);
             } else {
                 $isMatch = false;
 
-                // Check title
+                // 1. Match title
                 $title = strtolower($item['title'] ?? '');
                 if (strpos($title, $query) !== false) {
                     $isMatch = true;
                 }
-                
-                // Check description
+
+                // 2. Match description
                 if (!$isMatch) {
                     $desc = strtolower($item['description'] ?? '');
                     if (strpos($desc, $query) !== false) {
@@ -50,17 +53,11 @@ function search_node($node, $query, $isAdmin, $isViewer, &$results) {
                     }
                 }
 
-                // Check markdown content
-                if (!$isMatch && ($item['type'] ?? '') === 'markdown') {
-                    $file = $item['file'] ?? '';
-                    if ($file) {
-                        $filePath = __DIR__ . '/../' . $file;
-                        if (file_exists($filePath)) {
-                            $content = strtolower(file_get_contents($filePath));
-                            if (strpos($content, $query) !== false) {
-                                $isMatch = true;
-                            }
-                        }
+                // 3. Match content (via ExtensionManager for Markdown, HTML, and other page types)
+                if (!$isMatch) {
+                    $extracted = $extManager->extractSearchableText($item, $baseDir);
+                    if ($extracted && strpos(strtolower($extracted), $query) !== false) {
+                        $isMatch = true;
                     }
                 }
 
@@ -74,11 +71,11 @@ function search_node($node, $query, $isAdmin, $isViewer, &$results) {
 
 if (!empty($config['books'])) {
     foreach ($config['books'] as $book) {
-        search_node($book, $query, $isAdmin, $isViewer, $results);
+        search_node_tree($book, $query, $isAdmin, $isViewer, $baseDir, $extManager, $results);
     }
 }
 
 echo json_encode([
     'success' => true,
-    'results' => array_unique($results)
+    'results' => array_values(array_unique($results))
 ]);

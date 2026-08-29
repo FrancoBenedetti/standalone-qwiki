@@ -79,6 +79,14 @@
                     "url": "https://docs.google.com/document/d/e/2PACX-1vRFiULOLRdOHd02DCHzFkWYvLLZKCaak7mwBBIeYKcSealvUbc5hbSWwJTkMlO9PiSRHwDJKOTmwbI1/pub?embedded=true",
                     "editUrl": "",
                     "file": ""
+                },
+                {
+                    "title": "Interactive HTML Dashboard",
+                    "slug": "interactive-dashboard",
+                    "type": "html",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/interactive-dashboard.html"
                 }
             ]
         },
