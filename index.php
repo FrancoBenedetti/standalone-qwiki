@@ -676,7 +676,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <h3>Qwiki Settings</h3>
                 <button class="modal-close" data-close="settings-modal">&times;</button>
             </div>
-            <form id="settings-form">
+            <form id="settings-form" autocomplete="off">
                 <div class="form-group">
                     <label class="form-label" for="setting-title">Documentation Portal Title</label>
                     <input type="text" name="title" id="setting-title" class="form-control" value="<?= htmlspecialchars($config['title'] ?? '') ?>" required>
@@ -753,12 +753,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                     </div>
                 </div>
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
-                <div class="form-group">
-                    <label class="form-label" for="setting-new-password">Change Admin Password</label>
-                    <input type="password" name="newAdminPassword" id="setting-new-password" class="form-control" placeholder="Leave blank to keep current password">
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Save Settings</button>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Save Settings</button>
             </form>
         </div>
     </div>

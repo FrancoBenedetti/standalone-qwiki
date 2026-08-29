@@ -54,15 +54,6 @@ class Auth {
             }
         }
 
-        // Fallback check against legacy admin password hash in config
-        if (!$matchedUser && strtolower($username) === 'admin' && !empty($config['adminPasswordHash'])) {
-            if (password_verify($password, $config['adminPasswordHash'])) {
-                $_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
-                $_SESSION['qwiki_admin'] = true;
-                return ['success' => true, 'role' => 'admin', 'username' => 'admin'];
-            }
-        }
-
         if ($matchedUser && password_verify($password, $matchedUser['passwordHash'])) {
             $_SESSION['qwiki_user'] = [
                 'username' => $matchedUser['username'],
@@ -76,7 +67,70 @@ class Auth {
             return ['success' => true, 'role' => $matchedUser['role'], 'username' => $matchedUser['username']];
         }
 
+        // Fallback & self-healing check against adminPasswordHash in config
+        if (strtolower($username) === 'admin' && !empty($config['adminPasswordHash'])) {
+            if (password_verify($password, $config['adminPasswordHash'])) {
+                if ($matchedUser) {
+                    foreach ($userData['users'] as &$u) {
+                        if (strtolower($u['username']) === 'admin') {
+                            $u['passwordHash'] = $config['adminPasswordHash'];
+                        }
+                    }
+                    unset($u);
+                    Config::saveUsers($userData);
+                }
+                $_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+                $_SESSION['qwiki_admin'] = true;
+                return ['success' => true, 'role' => 'admin', 'username' => 'admin'];
+            }
+        }
+
         return ['success' => false, 'error' => 'Invalid username or password'];
+    }
+
+    public static function updateUserPassword($username, $newPassword) {
+        if (!self::isAdmin()) {
+            return ['success' => false, 'error' => 'Unauthorized'];
+        }
+        $username = trim($username);
+        $newPassword = trim($newPassword);
+
+        if (empty($username) || empty($newPassword)) {
+            return ['success' => false, 'error' => 'Username and new password are required'];
+        }
+
+        if (strlen($newPassword) < 4) {
+            return ['success' => false, 'error' => 'Password must be at least 4 characters'];
+        }
+
+        $userData = Config::loadUsers();
+        $found = false;
+        $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+
+        if (!empty($userData['users'])) {
+            foreach ($userData['users'] as &$u) {
+                if (strtolower($u['username']) === strtolower($username)) {
+                    $u['passwordHash'] = $newHash;
+                    $found = true;
+                    break;
+                }
+            }
+            unset($u);
+        }
+
+        if (!$found) {
+            return ['success' => false, 'error' => 'User not found'];
+        }
+
+        Config::saveUsers($userData);
+
+        if (strtolower($username) === 'admin') {
+            $config = Config::load();
+            $config['adminPasswordHash'] = $newHash;
+            Config::save($config);
+        }
+
+        return ['success' => true];
     }
 
     public static function logout() {

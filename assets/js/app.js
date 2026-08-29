@@ -300,17 +300,42 @@ document.addEventListener('DOMContentLoaded', () => {
           html += `<tr style="border-bottom:1px solid var(--border-color);">`;
           html += `<td style="padding:0.6rem; font-weight:600; color:var(--text-primary);">${escapeHtml(u.username)}</td>`;
           html += `<td style="padding:0.6rem;"><span class="doc-badge ${badgeClass}">${escapeHtml(u.role)}</span></td>`;
-          html += `<td style="padding:0.6rem; text-align:right;">`;
+          html += `<td style="padding:0.6rem; text-align:right; white-space:nowrap;">`;
+          html += `<button class="btn btn-outline btn-sm btn-change-user-pwd" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.5rem; margin-right:0.35rem;">🔑 Password</button>`;
           if (!isPrimaryAdmin) {
             html += `<button class="btn btn-outline btn-sm btn-delete-user" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.5rem; color:#f87171;">Delete</button>`;
-          } else {
-            html += `<span style="font-size:0.8rem; color:var(--text-muted);">System Admin</span>`;
           }
           html += `</td></tr>`;
         });
 
         html += '</tbody></table>';
         container.innerHTML = html;
+
+        // Bind change password triggers
+        container.querySelectorAll('.btn-change-user-pwd').forEach(pwdBtn => {
+          pwdBtn.addEventListener('click', async () => {
+            const targetUser = pwdBtn.getAttribute('data-username');
+            const newPassword = prompt(`Enter new password for user "${targetUser}" (min 4 characters):`);
+            if (!newPassword) return;
+            if (newPassword.length < 4) {
+              alert('Password must be at least 4 characters long.');
+              return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'update_user_password');
+            formData.append('username', targetUser);
+            formData.append('newPassword', newPassword);
+
+            const pwdRes = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const pwdData = await pwdRes.json();
+            if (pwdData.success) {
+              alert(`Password for user "${targetUser}" updated successfully.`);
+            } else {
+              alert('Password update failed: ' + (pwdData.error || 'Unknown error'));
+            }
+          });
+        });
 
         // Bind delete user triggers
         container.querySelectorAll('.btn-delete-user').forEach(delBtn => {

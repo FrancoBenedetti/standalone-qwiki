@@ -60,6 +60,10 @@ class Config {
                 return false;
             }
 
+            if (file_exists($demoDir . '/users-default.json') && !file_exists($baseDir . '/users.json')) {
+                @copy($demoDir . '/users-default.json', $baseDir . '/users.json');
+            }
+
             if (file_exists($demoDir . '/htaccess-uploads') && is_dir($baseDir . '/uploads')) {
                 @copy($demoDir . '/htaccess-uploads', $baseDir . '/uploads/.htaccess');
             }

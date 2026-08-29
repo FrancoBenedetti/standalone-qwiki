@@ -162,6 +162,12 @@ switch ($action) {
         echo json_encode(Auth::deleteUser($targetUsername));
         break;
 
+    case 'update_user_password':
+        $targetUsername = trim($_POST['username'] ?? '');
+        $newPassword = $_POST['newPassword'] ?? $_POST['password'] ?? '';
+        echo json_encode(Auth::updateUserPassword($targetUsername, $newPassword));
+        break;
+
     case 'add_book':
         if (!Auth::isAdmin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -467,7 +473,6 @@ switch ($action) {
         $defaultBook = trim($_POST['defaultBook'] ?? '');
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
         $showDocTypesOnlyToAdmin = isset($_POST['showDocTypesOnlyToAdmin']) && $_POST['showDocTypesOnlyToAdmin'] === '1';
-        $newAdminPassword = $_POST['newAdminPassword'] ?? '';
         $shareDescription = trim($_POST['shareDescription'] ?? '');
         $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
         $feedItemCount = isset($_POST['feedItemCount']) ? (int)$_POST['feedItemCount'] : 10;
@@ -487,24 +492,6 @@ switch ($action) {
         if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
         $config['feedItemCount'] = $feedItemCount;
         $config['feedAccessToken'] = $feedAccessToken;
-
-        if (!empty($newAdminPassword)) {
-            if (strlen($newAdminPassword) < 4) {
-                echo json_encode(['success' => false, 'error' => 'New password must be at least 4 characters']);
-                exit;
-            }
-            $newHash = password_hash($newAdminPassword, PASSWORD_DEFAULT);
-            $config['adminPasswordHash'] = $newHash;
-            $userData = Config::loadUsers();
-            if (isset($userData['users']) && is_array($userData['users'])) {
-                foreach ($userData['users'] as &$u) {
-                    if (($u['username'] ?? '') === 'admin') {
-                        $u['passwordHash'] = $newHash;
-                    }
-                }
-                Config::saveUsers($userData);
-            }
-        }
 
         Config::save($config);
         echo json_encode(['success' => true]);
