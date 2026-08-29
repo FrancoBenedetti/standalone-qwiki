@@ -11,13 +11,15 @@ Standalone Qwiki features a lightweight, file-based **Role-Based Access Control 
 
 | Action / Capability | Viewer | Admin |
 | :--- | :---: | :---: |
-| **Read Documentation (Markdown, PDF, Google Docs)** | ✅ | ✅ |
+| **Read Documentation (Markdown, HTML, PDF, Google Docs)** | ✅ | ✅ |
 | **Search & Filter Navigation** | ✅ | ✅ |
 | **Resize Sidebar Width** | ✅ | ✅ |
 | **Create / Upload / Edit Documents & Categories** | ❌ | ✅ |
+| **Edit HTML Documents with SunEditor WYSIWYG** | ❌ | ✅ |
+| **Generate Vector Charts & Diagrams (`uploads/`)** | ❌ | ✅ |
 | **Drag & Drop Menu Reordering** | ❌ | ✅ |
 | **Upload Images inside Markdown Editor** | ❌ | ✅ |
-| **Manage Users & Roles (`users.json`)** | ❌ | ✅ |
+| **Manage Users & Passwords (`users.json`)** | ❌ | ✅ |
 
 ---
 
