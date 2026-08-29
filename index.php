@@ -194,11 +194,26 @@ $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($c
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
+$userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'], ['light', 'dark']) ? $_COOKIE['qwiki_theme'] : 'dark';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="<?= $userTheme ?>">
 <head>
     <meta charset="UTF-8">
+    <script>
+        (function() {
+            try {
+                var savedTheme = localStorage.getItem('qwiki_theme');
+                if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                }
+                var savedWidth = localStorage.getItem('qwiki_sidebar_width');
+                if (savedWidth) {
+                    document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
+                }
+            } catch(e) {}
+        })();
+    </script>
     <base href="<?= htmlspecialchars($baseUrl) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>

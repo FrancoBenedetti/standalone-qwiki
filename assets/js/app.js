@@ -1,15 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Theme Switcher
   const themeToggleBtn = document.getElementById('theme-toggle');
-  const savedTheme = localStorage.getItem('qwiki_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', savedTheme);
 
   if (themeToggleBtn) {
     themeToggleBtn.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', newTheme);
       localStorage.setItem('qwiki_theme', newTheme);
+      document.cookie = 'qwiki_theme=' + encodeURIComponent(newTheme) + '; path=/; max-age=31536000; SameSite=Lax';
       
       if (typeof window.syncTuiEditorTheme === 'function') {
         window.syncTuiEditorTheme(newTheme);
