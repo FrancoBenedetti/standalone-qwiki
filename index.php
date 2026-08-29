@@ -50,15 +50,42 @@ $requestedBookId = '';
 $requestedFolderId = '';
 $requestedChapterSlug = '';
 
+// Base URL calculation for clean URLs
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+$domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
+$baseUrl = $protocol . $domainName . $scriptDir . '/';
+
+// Determine requested path across all server environments
+$rawPath = '';
 if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
-    $segments = explode('/', trim($_GET['path'], '/'));
+    $rawPath = trim($_GET['path'], '/');
+} elseif (!empty($_SERVER['PATH_INFO'])) {
+    $rawPath = trim($_SERVER['PATH_INFO'], '/');
+} elseif (!empty($_SERVER['REQUEST_URI'])) {
+    $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    if ($parsedPath) {
+        if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
+            $parsedPath = substr($parsedPath, strlen($scriptDir));
+        }
+        $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
+        $rawPath = trim($parsedPath, '/');
+    }
+}
+
+if (!empty($rawPath)) {
+    $segments = explode('/', $rawPath);
+    $segCount = count($segments);
     $requestedBookId = urldecode($segments[0] ?? '');
-    if (count($segments) === 2) {
+    if ($segCount === 1) {
+        $requestedFolderId = '';
+        $requestedChapterSlug = '';
+    } elseif ($segCount === 2) {
         $requestedFolderId = '';
         $requestedChapterSlug = urldecode($segments[1] ?? '');
     } else {
         $requestedFolderId = urldecode($segments[1] ?? '');
-        $requestedChapterSlug = urldecode($segments[2] ?? '');
+        $requestedChapterSlug = urldecode($segments[$segCount - 1] ?? '');
     }
 } else {
     $requestedBookId = $_GET['book'] ?? '';
@@ -69,12 +96,6 @@ if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
 if (empty($requestedBookId)) {
     $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
 }
-
-// Base URL calculation for clean URLs
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
-$domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
-$baseUrl = $protocol . $domainName . $scriptDir . '/';
 
 // Filter books based on visibility
 $allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
@@ -100,22 +121,19 @@ if ($activeBook) {
     $dummyIds = [];
     $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
-    // Fallback for 2-segment URL that might be a folder instead of a chapter
-    if (!$activeChapter && isset($_GET['path'])) {
-        $segments = explode('/', trim($_GET['path'], '/'));
-        if (count($segments) === 2) {
-            $dummyTrail = [];
-            $dummyIds = [];
-            $requestedFolderId = urldecode($segments[1]);
-            $requestedChapterSlug = '';
-            $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-        }
+    // Fallback: 2-segment URL might be a subfolder instead of a chapter (e.g. /book/subfolder)
+    if (!$activeChapter && !empty($requestedChapterSlug) && empty($requestedFolderId)) {
+        $dummyTrail = [];
+        $dummyIds = [];
+        $fallbackFolderId = $requestedChapterSlug;
+        $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
     }
 
     if ($activeChapter) {
         $breadcrumbsTrail = $dummyTrail;
         $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
     } else {
+        // Fallback to first document in the active book
         if (!empty($activeBook['items'])) {
             foreach ($activeBook['items'] as $item) {
                 if (!isset($item['type']) || $item['type'] !== 'folder') {
