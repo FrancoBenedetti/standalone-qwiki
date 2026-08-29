@@ -160,6 +160,60 @@ if ($type === 'chart_bar') {
     }
     $svg .= "</svg>";
 
+} elseif ($type === 'chart_pie') {
+    list($labels, $values) = parse_visual_data($prompt, $data);
+    $total = array_sum($values);
+    if ($total <= 0) $total = 1;
+    $width = 600;
+    $height = 360;
+    $cx = 200;
+    $cy = 190;
+    $r = 105;
+    $innerR = 48;
+
+    $colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+    $svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {$width} {$height}' width='100%' height='auto' style='background: #1e1e24; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; border-radius: 8px;'>\n";
+    $svg .= "  <text x='" . ($width / 2) . "' y='40' fill='#ffffff' font-size='18' font-weight='600' text-anchor='middle'>" . htmlspecialchars($prompt) . "</text>\n";
+
+    $currentAngle = 0;
+    foreach ($values as $idx => $val) {
+        $pct = $val / $total;
+        $angle = $pct * 360;
+        $startAngle = $currentAngle;
+        $endAngle = $currentAngle + $angle;
+        $currentAngle = $endAngle;
+
+        $x1 = $cx + $r * cos(deg2rad($startAngle - 90));
+        $y1 = $cy + $r * sin(deg2rad($startAngle - 90));
+        $x2 = $cx + $r * cos(deg2rad($endAngle - 90));
+        $y2 = $cy + $r * sin(deg2rad($endAngle - 90));
+
+        $ix1 = $cx + $innerR * cos(deg2rad($endAngle - 90));
+        $iy1 = $cy + $innerR * sin(deg2rad($endAngle - 90));
+        $ix2 = $cx + $innerR * cos(deg2rad($startAngle - 90));
+        $iy2 = $cy + $innerR * sin(deg2rad($startAngle - 90));
+
+        $largeArc = ($angle > 180) ? 1 : 0;
+        $color = $colors[$idx % count($colors)];
+
+        if (count($values) === 1 || $angle >= 359.9) {
+            $svg .= "  <circle cx='{$cx}' cy='{$cy}' r='{$r}' fill='{$color}' />\n";
+            $svg .= "  <circle cx='{$cx}' cy='{$cy}' r='{$innerR}' fill='#1e1e24' />\n";
+        } else {
+            $pathD = "M {$x1} {$y1} A {$r} {$r} 0 {$largeArc} 1 {$x2} {$y2} L {$ix1} {$iy1} A {$innerR} {$innerR} 0 {$largeArc} 0 {$ix2} {$iy2} Z";
+            $svg .= "  <path d='{$pathD}' fill='{$color}' stroke='#1e1e24' stroke-width='2' />\n";
+        }
+
+        $lbl = $labels[$idx] ?? "Item " . ($idx + 1);
+        $pctFormatted = round($pct * 100, 1) . '%';
+        $ly = 100 + ($idx * 28);
+        if ($ly < $height - 20) {
+            $svg .= "  <rect x='370' y='{$ly}' width='14' height='14' rx='3' fill='{$color}' />\n";
+            $svg .= "  <text x='395' y='" . ($ly + 12) . "' fill='#e2e8f0' font-size='13'>" . htmlspecialchars($lbl) . " (" . $val . " - " . $pctFormatted . ")</text>\n";
+        }
+    }
+    $svg .= "</svg>";
+
 } elseif ($type === 'diagram_flow') {
     $steps = !empty($data) ? array_map('trim', explode("\n", $data)) : [];
     if (empty($steps)) {

@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnOpen && modal) {
         btnOpen.addEventListener('click', (e) => {
             e.preventDefault();
-            modal.classList.add('active');
+            modal.classList.add('open');
             // Check if toast editor or edit mode is active
             const editSection = document.getElementById('markdown-editor-wrapper');
             if (editSection && editSection.style.display !== 'none' && btnInsert) {
@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Modal close triggers
+    document.querySelectorAll('[data-close="modal-ai-visuals"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            modal?.classList.remove('open');
+        });
+    });
 
     if (form) {
         form.addEventListener('submit', (e) => {
@@ -88,12 +95,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const markdownToInsert = snippetInput.value + '\n';
             if (window.toastEditorInstance) {
                 window.toastEditorInstance.insertText(markdownToInsert);
-                if (modal) modal.classList.remove('active');
+                if (modal) modal.classList.remove('open');
             } else {
                 const textarea = document.getElementById('md-content-textarea');
                 if (textarea) {
                     textarea.value += '\n' + markdownToInsert;
-                    if (modal) modal.classList.remove('active');
+                    if (modal) modal.classList.remove('open');
                 } else {
                     alert('Copied to clipboard instead!');
                     navigator.clipboard.writeText(markdownToInsert);

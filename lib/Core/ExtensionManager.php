@@ -219,9 +219,10 @@ class ExtensionManager {
             $handlerFile = $util['base_dir'] . '/' . ($util['handler'] ?? 'handler.php');
             if (file_exists($handlerFile)) {
                 $supportedActions = $util['actions'] ?? [$id, 'ext_' . $id];
-                if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
+                if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0 || strpos($action, 'ext_') === 0) {
                     $utility = $util;
-                    return include $handlerFile;
+                    include $handlerFile;
+                    return true;
                 }
             }
         }
@@ -233,12 +234,13 @@ class ExtensionManager {
                 $supportedActions = $pt['actions'] ?? ['add_' . $id, 'create_' . $id, 'edit_' . $id, 'ext_' . $id];
                 if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
                     $pageType = $pt;
-                    return include $handlerFile;
+                    include $handlerFile;
+                    return true;
                 }
             }
         }
 
-        return null;
+        return false;
     }
 
     public function getFrontendAssets() {
