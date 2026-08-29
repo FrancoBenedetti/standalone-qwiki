@@ -1337,4 +1337,59 @@ document.addEventListener('DOMContentLoaded', () => {
   renderVisualDiagrams();
   generateTableOfContents();
 
+  // Print / Download as PDF
+  const btnPrintChapter = document.getElementById('btn-print-chapter');
+  if (btnPrintChapter) {
+    btnPrintChapter.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
+  // Social Share
+  const btnShareChapter = document.getElementById('btn-share-chapter');
+  if (btnShareChapter) {
+    btnShareChapter.addEventListener('click', async () => {
+      const shareData = {
+        title: document.title,
+        url: window.location.href
+      };
+      
+      // Try using the native Web Share API
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+             console.error('Error sharing:', err);
+          }
+        }
+      } else {
+        // Fallback: Copy to clipboard
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareData.url);
+          } else {
+            const input = document.createElement('input');
+            input.value = shareData.url;
+            document.body.appendChild(input);
+            input.select();
+            document.execCommand('copy');
+            document.body.removeChild(input);
+          }
+          
+          const origContent = btnShareChapter.innerHTML;
+          const origTitle = btnShareChapter.getAttribute('title');
+          btnShareChapter.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          btnShareChapter.setAttribute('title', 'Link Copied!');
+          setTimeout(() => {
+            btnShareChapter.innerHTML = origContent;
+            if (origTitle) btnShareChapter.setAttribute('title', origTitle);
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy fallback link: ', err);
+        }
+      }
+    });
+  }
+
 });

@@ -948,3 +948,64 @@ textarea.form-control {
     padding: 1.5rem 1rem;
   }
 }
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+@media print {
+    /* Hide UI elements */
+    .app-header,
+    .app-sidebar,
+    .app-toc,
+    .content-actions,
+    .breadcrumbs,
+    .mobile-toggle,
+    .toc-nav-buttons {
+        display: none !important;
+    }
+
+    /* Reset layout for printing */
+    html, body, .app-container {
+        display: block;
+        height: auto !important;
+        overflow: visible !important;
+        position: static !important;
+    }
+
+    .app-content {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        max-width: none;
+        overflow: visible !important;
+        background-color: transparent !important;
+        color: #000 !important;
+        height: auto !important;
+    }
+
+    /* Reset background and colors to save ink */
+    body {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+    
+    .content-body {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Handle page breaks */
+    h1, h2, h3 {
+        page-break-after: avoid;
+    }
+    
+    img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+    }
+
+    pre, blockquote {
+        page-break-inside: avoid;
+        border: 1px solid #ccc;
+    }
+}
