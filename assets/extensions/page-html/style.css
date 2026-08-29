@@ -20,7 +20,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.5rem 1rem;
-    background: var(--bg-sidebar, #181818);
+    background: var(--bg-secondary, #181818);
     border-bottom: 1px solid var(--border-color, #333);
 }
 
@@ -29,4 +29,85 @@
     height: 750px;
     border: none;
     background: #ffffff;
+}
+
+/* SunEditor Custom Styling for Qwiki */
+.sun-editor {
+    border-color: var(--border-color, #334155) !important;
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    font-family: inherit !important;
+    border-radius: var(--radius-sm, 6px);
+    overflow: hidden;
+}
+
+.sun-editor .se-toolbar {
+    background-color: var(--bg-secondary, #1e293b) !important;
+    border-bottom: 1px solid var(--border-color, #334155) !important;
+    outline: none !important;
+}
+
+.sun-editor button.se-btn {
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor button.se-btn:hover {
+    background-color: var(--bg-card-hover, #334155) !important;
+}
+
+.sun-editor .se-resizing-bar {
+    background-color: var(--bg-secondary, #1e293b) !important;
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-wrapper .se-wrapper-inner {
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor .se-wrapper-wysiwyg {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    padding: 1.25rem !important;
+}
+
+.sun-editor .se-wrapper-code {
+    background-color: #0f172a !important;
+    color: #38bdf8 !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-size: 0.9rem !important;
+    padding: 1rem !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-content {
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-header {
+    border-bottom: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-footer {
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog input, .sun-editor .se-dialog select {
+    background-color: var(--bg-primary, #0f172a) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+[data-theme="light"] .sun-editor button.se-btn {
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .sun-editor .se-toolbar {
+    background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] .sun-editor .se-wrapper-code {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
 }

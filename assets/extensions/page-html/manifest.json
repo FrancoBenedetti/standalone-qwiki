@@ -11,7 +11,13 @@
   "renderer": "renderer.php",
   "modal": "modal.html.php",
   "handler": "handler.php",
-  "actions": ["create_html", "ext_html_create"],
-  "styles": ["style.css"],
-  "scripts": ["script.js"]
+  "actions": ["create_html", "ext_html_create", "save_html", "ext_html_save"],
+  "styles": [
+    "https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css",
+    "style.css"
+  ],
+  "scripts": [
+    "https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js",
+    "script.js"
+  ]
 }

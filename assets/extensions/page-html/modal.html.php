@@ -20,13 +20,13 @@ $books = $config['books'] ?? [];
     <input type="text" name="title" class="form-control" placeholder="e.g. Interactive Dashboard" required>
 </div>
 <div class="form-group">
-    <label class="form-label">
-        HTML Content 
-        <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">
-            (Or <a href="#" id="upload-html-link" style="color: var(--primary-color);">upload a .html file</a>)
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <label class="form-label" style="margin-bottom: 0;">HTML Content (WYSIWYG & Code View)</label>
+        <span style="font-size: 0.85em; color: var(--text-muted);">
+            <a href="#" id="upload-html-link" style="color: var(--primary-color);">📁 Load HTML file</a>
         </span>
-    </label>
+    </div>
     <input type="file" id="html-file-upload-input" accept=".html,.htm" style="display: none;">
-    <textarea name="content" id="html-content-textarea" class="form-control" style="min-height: 180px; font-family: monospace;" placeholder="<!DOCTYPE html>&#10;<html>&#10;<head><title>Title</title></head>&#10;<body>&#10;<h1>Hello World</h1>&#10;</body>&#10;</html>"></textarea>
+    <textarea name="content" id="html-content-textarea" class="form-control" style="min-height: 250px; display: none;" placeholder="Write or paste HTML content..."></textarea>
 </div>
 <button type="submit" class="btn btn-primary" style="width: 100%;">Create HTML Document</button>

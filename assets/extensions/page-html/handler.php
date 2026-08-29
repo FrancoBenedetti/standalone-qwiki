@@ -7,16 +7,68 @@ use Qwiki\Core\Config;
 
 if (!Auth::isAdmin()) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-    exit;
+    return;
 }
 
+$action = $_POST['action'] ?? 'create_html';
+$baseDir = Config::getBaseDir();
+
+// 1. Save / Update Existing HTML Document
+if ($action === 'save_html' || $action === 'ext_html_save') {
+    $file = trim($_POST['file'] ?? '');
+    $content = $_POST['content'] ?? '';
+
+    if (empty($file)) {
+        echo json_encode(['success' => false, 'error' => 'File path is required']);
+        return;
+    }
+
+    $absolutePath = Config::safePath($baseDir, $file);
+    if (!$absolutePath || !file_exists($absolutePath)) {
+        echo json_encode(['success' => false, 'error' => 'Invalid or non-existent file path']);
+        return;
+    }
+
+    // Verify it is an HTML file
+    if (!preg_match('/\.(html|htm)$/i', $absolutePath)) {
+        echo json_encode(['success' => false, 'error' => 'Only HTML files can be saved with this action']);
+        return;
+    }
+
+    if (file_put_contents($absolutePath, $content) === false) {
+        echo json_encode(['success' => false, 'error' => 'Failed to save HTML file to disk']);
+        return;
+    }
+
+    echo json_encode(['success' => true, 'file' => $file]);
+    return;
+}
+
+// 2. Fetch HTML file content for editor
+if ($action === 'get_html' || $action === 'ext_html_get') {
+    $file = trim($_POST['file'] ?? $_GET['file'] ?? '');
+    $absolutePath = Config::safePath($baseDir, $file);
+    if (!$absolutePath || !file_exists($absolutePath)) {
+        echo json_encode(['success' => false, 'error' => 'File not found']);
+        return;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'file' => $file,
+        'content' => file_get_contents($absolutePath)
+    ]);
+    return;
+}
+
+// 3. Create New HTML Document
 $title = trim($_POST['title'] ?? '');
 $bookId = $_POST['bookId'] ?? '';
 $content = $_POST['content'] ?? '';
 
 if (empty($title)) {
     echo json_encode(['success' => false, 'error' => 'Document title is required']);
-    exit;
+    return;
 }
 
 $slug = Config::makeSlug($title);
@@ -25,7 +77,6 @@ if (empty($slug)) {
 }
 
 $config = Config::load();
-$baseDir = Config::getBaseDir();
 
 function find_target_folder(&$node, $targetId) {
     if (($node['id'] ?? '') === $targetId) {
@@ -86,7 +137,7 @@ if (empty($content)) {
 
 if (file_put_contents($absolutePath, $content) === false) {
     echo json_encode(['success' => false, 'error' => 'Failed to write HTML file']);
-    exit;
+    return;
 }
 
 $chapterData = [
@@ -114,4 +165,4 @@ if ($inserted && Config::save($config)) {
 } else {
     echo json_encode(['success' => false, 'error' => 'Failed to save configuration']);
 }
-exit;
+return;

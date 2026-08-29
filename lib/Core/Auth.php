@@ -4,6 +4,10 @@ namespace Qwiki\Core;
 class Auth {
     public static function startSession() {
         if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+            $defaultPath = session_save_path();
+            if (empty($defaultPath) || !@is_writable($defaultPath)) {
+                @session_save_path(sys_get_temp_dir());
+            }
             session_start();
         }
     }

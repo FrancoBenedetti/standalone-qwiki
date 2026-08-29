@@ -250,7 +250,11 @@ class ExtensionManager {
         foreach ($all as $ext) {
             if (!empty($ext['styles'])) {
                 foreach ((array)$ext['styles'] as $style) {
-                    $styles[] = $ext['web_path'] . '/' . ltrim($style, '/');
+                    if (preg_match('#^(https?:)?//#i', $style)) {
+                        $styles[] = $style;
+                    } else {
+                        $styles[] = $ext['web_path'] . '/' . ltrim($style, '/');
+                    }
                 }
             } elseif (file_exists($ext['base_dir'] . '/style.css')) {
                 $styles[] = $ext['web_path'] . '/style.css';
@@ -258,7 +262,11 @@ class ExtensionManager {
 
             if (!empty($ext['scripts'])) {
                 foreach ((array)$ext['scripts'] as $script) {
-                    $scripts[] = $ext['web_path'] . '/' . ltrim($script, '/');
+                    if (preg_match('#^(https?:)?//#i', $script)) {
+                        $scripts[] = $script;
+                    } else {
+                        $scripts[] = $ext['web_path'] . '/' . ltrim($script, '/');
+                    }
                 }
             } elseif (file_exists($ext['base_dir'] . '/script.js')) {
                 $scripts[] = $ext['web_path'] . '/script.js';
