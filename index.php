@@ -12,7 +12,7 @@ use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 
 Auth::startSession();
-define('QWIKI_VERSION', '1.4.0');
+define('QWIKI_VERSION', '1.4.1');
 
 class QwikiParsedown extends Parsedown {
     protected function inlineLink($Excerpt) {
