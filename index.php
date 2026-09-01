@@ -552,7 +552,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             
             <div class="tab-header">
                 <button class="tab-btn active" data-tab="tab-create-md">✏️ New Markdown</button>
-                <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF/HTML)</button>
+                <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
                 <button class="tab-btn" data-tab="tab-gdoc">🌐 Google Doc</button>
                 <?php $extManager->renderAddDocumentTabs(); ?>
             </div>
@@ -594,8 +594,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" class="form-control" placeholder="e.g. Specification Datasheet" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Select File (.md, .pdf, or .html)</label>
-                    <input type="file" name="document" class="form-control" accept=".md,.pdf,.html,.htm" required>
+                    <label class="form-label">Select File (.md, or .pdf)</label>
+                    <input type="file" name="document" class="form-control" accept=".md,.pdf" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Upload & Add</button>
             </form>

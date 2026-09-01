@@ -47,8 +47,13 @@ $isAdmin = Auth::isAdmin();
         </div>
         <form id="edit-html-form" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
             <input type="hidden" name="file" id="edit-html-file" value="<?= htmlspecialchars($chapter['file'] ?? '') ?>">
-            <div style="flex: 1; margin-bottom: 1rem; overflow-y: auto;">
-                <textarea id="edit-html-textarea" name="content" style="width: 100%; min-height: 380px; display: none;"></textarea>
+            <div style="flex: 1; margin-bottom: 1rem; overflow-y: auto; display: flex; flex-direction: column;">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 0.5rem;">
+                    <label style="font-size: 0.85em; cursor: pointer; color: var(--text-muted);">
+                        <input type="checkbox" id="edit-use-visual-editor" checked> Visual Editor
+                    </label>
+                </div>
+                <textarea id="edit-html-textarea" name="content" style="width: 100%; flex: 1; min-height: 500px; display: none; font-family: monospace; resize: vertical;"></textarea>
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                 <button type="button" class="btn btn-outline" data-close="edit-html-modal">Cancel</button>

@@ -11,13 +11,13 @@
   "renderer": "renderer.php",
   "modal": "modal.html.php",
   "handler": "handler.php",
-  "actions": ["create_html", "ext_html_create", "save_html", "ext_html_save"],
+  "actions": ["create_html", "ext_html_create", "save_html", "ext_html_save", "get_html", "ext_html_get"],
   "styles": [
-    "https://cdn.jsdelivr.net/npm/suneditor@latest/dist/css/suneditor.min.css",
+    "https://cdn.jsdelivr.net/npm/suneditor@2.46.3/dist/css/suneditor.min.css",
     "style.css"
   ],
   "scripts": [
-    "https://cdn.jsdelivr.net/npm/suneditor@latest/dist/suneditor.min.js",
+    "https://cdn.jsdelivr.net/npm/suneditor@2.46.3/dist/suneditor.min.js",
     "script.js"
   ]
 }

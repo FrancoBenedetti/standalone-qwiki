@@ -38,52 +38,142 @@ $filename = 'generated-' . $slug . '-' . $timestamp . '.svg';
 $filepath = $uploadsDir . '/' . $filename;
 $relativeUrl = 'uploads/' . $filename;
 
+// Check if user just pasted raw Mermaid code
+$mermaidKeywords = ['erdiagram', 'flowchart', 'graph', 'sequencediagram', 'classdiagram', 'statediagram-v2', 'statediagram', 'pie', 'gantt', 'gitgraph', 'journey', 'mindmap', 'quadrantchart', 'xychart', 'timeline', 'sankey-beta', 'architecture'];
+
+$isMermaid = false;
+$mermaidCode = '';
+
+// Helper to check if a string starts with any mermaid keyword
+function getMermaidKeyword($text, $keywords) {
+    $lowerText = strtolower(trim($text));
+    foreach ($keywords as $kw) {
+        if (strpos($lowerText, $kw) === 0) {
+            // Check if it's followed by a space, newline, or a character (if newlines were stripped by input type=text)
+            return $kw;
+        }
+    }
+    return false;
+}
+
+if (($kw = getMermaidKeyword($prompt, $mermaidKeywords)) !== false) {
+    $isMermaid = true;
+    // If newlines were stripped, it might be 'erDiagramCUSTOMER'
+    // Let's ensure there's a space after the keyword if it was squished
+    $promptFixed = preg_replace('/^(' . preg_quote($kw, '/') . ')([A-Za-z0-9_])/i', '$1 $2', trim($prompt));
+    $mermaidCode = trim($promptFixed . "\n" . $data);
+} elseif (($kw = getMermaidKeyword($data, $mermaidKeywords)) !== false) {
+    $isMermaid = true;
+    $titleLine = "title: " . htmlspecialchars($prompt, ENT_NOQUOTES);
+    $mermaidCode = "---\n{$titleLine}\n---\n" . trim($data);
+}
+
+if ($isMermaid) {
+    // Treat as raw Mermaid block
+    $markdown = "```mermaid\n" . $mermaidCode . "\n```";
+    $previewHtml = "<div class='mermaid'>" . htmlspecialchars($mermaidCode) . "</div>";
+    
+    echo json_encode([
+        'success' => true,
+        'isMermaid' => true,
+        'markdown' => $markdown,
+        'previewHtml' => $previewHtml
+    ]);
+    return;
+}
+
 // Helper to parse key-value data or comma numbers
 function parse_visual_data($prompt, $data) {
     $labels = [];
     $values = [];
+    $combined = trim($prompt . " " . $data);
 
-    // Check $data for Lines with Labels/Data
+    // 1. Try parsing JSON
+    $trimData = trim($data);
+    if ((strpos($trimData, '{') === 0) || (strpos($trimData, '[') === 0)) {
+        $json = json_decode($trimData, true);
+        if (is_array($json)) {
+            // e.g. {"Jan": 100, "Feb": 200}
+            foreach ($json as $k => $v) {
+                if (is_numeric($v)) {
+                    $labels[] = $k;
+                    $values[] = floatval($v);
+                } elseif (is_array($v) && count($v) >= 2 && is_numeric($v[1])) {
+                    // e.g. [["Jan", 100], ["Feb", 200]]
+                    $labels[] = $v[0];
+                    $values[] = floatval($v[1]);
+                }
+            }
+            if (!empty($labels) && !empty($values)) return [$labels, $values];
+        }
+    }
+
+    // 2. Check for explicit Labels: / Data: lines
     if (!empty($data)) {
         $lines = explode("\n", $data);
+        $tempLabels = [];
+        $tempValues = [];
         foreach ($lines as $line) {
             $line = trim($line);
             if (stripos($line, 'labels:') === 0) {
-                $labels = array_map('trim', explode(',', substr($line, 7)));
+                $tempLabels = array_map('trim', explode(',', substr($line, 7)));
             } elseif (stripos($line, 'data:') === 0 || stripos($line, 'values:') === 0) {
                 $parts = explode(':', $line, 2);
-                $values = array_map('floatval', array_map('trim', explode(',', $parts[1])));
-            } elseif (strpos($line, ':') !== false) {
-                list($k, $v) = explode(':', $line, 2);
-                $labels[] = trim($k);
-                $values[] = floatval(trim($v));
+                $tempValues = array_map('floatval', array_map('trim', explode(',', $parts[1])));
+            }
+        }
+        if (!empty($tempLabels) && !empty($tempValues)) {
+            return [$tempLabels, $tempValues];
+        }
+        
+        // 3. Try parsing 2-row CSV where row 1 = labels, row 2 = values
+        if (count($lines) >= 2) {
+            $firstRow = array_map('trim', explode(',', $lines[0]));
+            $secondRow = array_map('trim', explode(',', $lines[1]));
+            $isNumeric = true;
+            foreach ($secondRow as $val) {
+                if (!is_numeric($val) && !empty($val)) $isNumeric = false;
+            }
+            if ($isNumeric && count($firstRow) > 0 && count($firstRow) === count($secondRow)) {
+                return [$firstRow, array_map('floatval', $secondRow)];
             }
         }
     }
 
-    // Fallback: parse prompt like "Jan: 100, Feb: 200, Mar: 350"
-    if (empty($labels) || empty($values)) {
-        if (preg_match_all('/([A-Za-z0-9\s_-]+)\s*[:=]\s*([0-9.]+)/', $prompt, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $m) {
-                $labels[] = trim($m[1]);
-                $values[] = floatval(trim($m[2]));
+    // 4. Try parsing Key: Value or Key=Value pairs anywhere
+    if (preg_match_all('/([A-Za-z0-9\s_-]+)\s*[:=]\s*([0-9.]+)/', $combined, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $m) {
+            $labels[] = trim($m[1]);
+            $values[] = floatval($m[2]);
+        }
+        if (!empty($labels) && !empty($values)) return [$labels, $values];
+    }
+    
+    // 5. Try parsing CSV rows like "Jan, 100"
+    if (!empty($data)) {
+        $lines = explode("\n", $data);
+        foreach ($lines as $line) {
+            $parts = explode(',', $line);
+            if (count($parts) >= 2 && is_numeric(trim(end($parts)))) {
+                $labels[] = trim($parts[0]);
+                $values[] = floatval(trim(end($parts)));
             }
         }
+        if (!empty($labels) && !empty($values)) return [$labels, $values];
     }
 
-    // Default sample if none found
-    if (empty($labels) || empty($values)) {
-        $labels = ['Phase 1', 'Phase 2', 'Phase 3', 'Phase 4'];
-        $values = [35, 60, 90, 125];
-    }
-
-    return [$labels, $values];
+    // No valid data found
+    return [[], []];
 }
 
 $svg = '';
 
 if ($type === 'chart_bar') {
     list($labels, $values) = parse_visual_data($prompt, $data);
+    if (empty($labels) || empty($values)) {
+        echo json_encode(['success' => false, 'error' => 'No numeric data found. Please provide data points (e.g. Q1: 40, Q2: 50)']);
+        return;
+    }
     $maxVal = max($values) > 0 ? max($values) : 1;
     $width = max(600, count($labels) * 110 + 100);
     $height = 360;
@@ -121,6 +211,10 @@ if ($type === 'chart_bar') {
 
 } elseif ($type === 'chart_line') {
     list($labels, $values) = parse_visual_data($prompt, $data);
+    if (empty($labels) || empty($values)) {
+        echo json_encode(['success' => false, 'error' => 'No numeric data found. Please provide data points (e.g. Q1: 40, Q2: 50)']);
+        return;
+    }
     $maxVal = max($values) > 0 ? max($values) : 1;
     $width = max(600, count($labels) * 110 + 100);
     $height = 360;
@@ -162,6 +256,10 @@ if ($type === 'chart_bar') {
 
 } elseif ($type === 'chart_pie') {
     list($labels, $values) = parse_visual_data($prompt, $data);
+    if (empty($labels) || empty($values)) {
+        echo json_encode(['success' => false, 'error' => 'No numeric data found. Please provide data points (e.g. Q1: 40, Q2: 50)']);
+        return;
+    }
     $total = array_sum($values);
     if ($total <= 0) $total = 1;
     $width = 600;

@@ -53,7 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     if (previewSection) previewSection.style.display = 'block';
                     if (previewContainer) {
-                        if (data.previewSvg) {
+                        if (data.previewHtml) {
+                            previewContainer.innerHTML = data.previewHtml;
+                            if (typeof window.mermaid !== 'undefined') {
+                                // Re-render the newly inserted mermaid div
+                                window.mermaid.run({ nodes: previewContainer.querySelectorAll('.mermaid') }).catch(e => console.error(e));
+                            }
+                        } else if (data.previewSvg) {
                             previewContainer.innerHTML = data.previewSvg;
                         } else if (data.url) {
                             previewContainer.innerHTML = `<img src="${data.url}" style="max-width:100%; height:auto;" alt="Generated Visual">`;

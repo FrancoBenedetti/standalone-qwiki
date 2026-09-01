@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
             plugins: window.SUNEDITOR ? window.SUNEDITOR.plugins : [],
             buttonList: [
                 ['undo', 'redo'],
-                ['blockStyle', 'fontSize'],
+                ['formatBlock', 'fontSize'],
                 ['bold', 'underline', 'italic', 'strike'],
-                ['fontColor', 'backgroundColor'],
+                ['fontColor', 'hiliteColor'],
                 ['align', 'list', 'table'],
                 ['link', 'image'],
                 ['fullScreen', 'showBlocks', 'codeView'],
@@ -27,17 +27,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initCreateEditor() {
         const textarea = document.getElementById('html-content-textarea');
-        if (!textarea || createEditor || typeof window.SUNEDITOR === 'undefined') return;
+        const toggle = document.getElementById('create-use-visual-editor');
+        if (!textarea || typeof window.SUNEDITOR === 'undefined') return;
+        
+        if (toggle && !toggle.checked) {
+            if (createEditor) {
+                textarea.value = createEditor.getContents();
+                createEditor.destroy();
+                createEditor = null;
+            }
+            textarea.style.display = 'block';
+            return;
+        }
 
+        if (createEditor) return;
+        textarea.style.display = 'none';
         createEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('280px'));
     }
 
     function initEditEditor() {
         const textarea = document.getElementById('edit-html-textarea');
-        if (!textarea || editEditor || typeof window.SUNEDITOR === 'undefined') return;
+        const toggle = document.getElementById('edit-use-visual-editor');
+        if (!textarea || typeof window.SUNEDITOR === 'undefined') return;
 
+        if (toggle && !toggle.checked) {
+            if (editEditor) {
+                textarea.value = editEditor.getContents();
+                editEditor.destroy();
+                editEditor = null;
+            }
+            textarea.style.display = 'block';
+            return;
+        }
+
+        if (editEditor) return;
+        textarea.style.display = 'none';
         editEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('400px'));
     }
+
+    // Toggle Listeners
+    const createToggle = document.getElementById('create-use-visual-editor');
+    if (createToggle) createToggle.addEventListener('change', initCreateEditor);
+
+    const editToggle = document.getElementById('edit-use-visual-editor');
+    if (editToggle) editToggle.addEventListener('change', initEditEditor);
 
     // Lazy load SunEditor when Add Document modal opens
     const chapterModal = document.getElementById('chapter-modal');
@@ -78,13 +111,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const content = e.target.result;
-                    initCreateEditor();
-                    if (createEditor) {
-                        createEditor.setContents(content);
-                    } else {
-                        const textarea = document.getElementById('html-content-textarea');
-                        if (textarea) textarea.value = content;
+                    
+                    const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(content);
+                    const toggle = document.getElementById('create-use-visual-editor');
+                    if (hasScriptsOrStyles && toggle) {
+                        toggle.checked = false;
+                        alert('This HTML file contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
                     }
+                    
+                    initCreateEditor();
+                    
+                    const textarea = document.getElementById('html-content-textarea');
+                    if (textarea) textarea.value = content;
+                    
+                    if (createEditor && toggle && toggle.checked) {
+                        createEditor.setContents(content);
+                    }
+                    
                     const titleInput = form?.querySelector('input[name="title"]');
                     if (titleInput && !titleInput.value.trim()) {
                         const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
@@ -172,11 +215,21 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.content) {
-                    if (editEditor) {
+                    const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(data.content);
+                    const toggle = document.getElementById('edit-use-visual-editor');
+                    
+                    if (hasScriptsOrStyles && toggle) {
+                        toggle.checked = false;
+                        alert('This HTML document contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
+                    }
+                    
+                    initEditEditor();
+                    
+                    const textarea = document.getElementById('edit-html-textarea');
+                    if (textarea) textarea.value = data.content;
+                    
+                    if (editEditor && toggle && toggle.checked) {
                         editEditor.setContents(data.content);
-                    } else {
-                        const textarea = document.getElementById('edit-html-textarea');
-                        if (textarea) textarea.value = data.content;
                     }
                 }
             })

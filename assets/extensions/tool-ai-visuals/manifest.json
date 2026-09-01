@@ -1,7 +1,7 @@
 {
   "id": "ai_visuals",
   "type": "utility",
-  "title": "Generate Visual / Chart",
+  "title": "Visual Chart",
   "icon": "✨",
   "placement": "header_menu",
   "modal": "modal.html.php",

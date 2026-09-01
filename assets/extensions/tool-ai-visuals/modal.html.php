@@ -22,7 +22,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Directive / Title / Labels</label>
-                <input type="text" name="prompt" id="ai-visual-prompt" class="form-control" placeholder="e.g. Monthly Active Users (Jan: 1200, Feb: 1900, Mar: 2800)" required>
+                <textarea name="prompt" id="ai-visual-prompt" class="form-control" style="min-height: 60px;" placeholder="e.g. Monthly Active Users (Jan: 1200, Feb: 1900, Mar: 2800) OR paste Mermaid code here" required></textarea>
             </div>
             <div class="form-group">
                 <label class="form-label">Data Points or Specification (Optional JSON/CSV/Text)</label>

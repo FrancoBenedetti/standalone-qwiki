@@ -383,8 +383,8 @@ switch ($action) {
         }
         $fileName = basename($_FILES['document']['name']);
         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        if (!in_array($ext, ['md', 'pdf', 'html', 'htm'])) {
-            echo json_encode(['success' => false, 'error' => 'Only .md, .pdf, and .html files are supported via direct upload']);
+        if (!in_array($ext, ['md', 'pdf'])) {
+            echo json_encode(['success' => false, 'error' => 'Only .md and .pdf files are supported via direct upload']);
             exit;
         }
         $slug = Config::makeSlug($title);
@@ -396,7 +396,7 @@ switch ($action) {
         $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
         $targetAbsFile = $baseDir . '/' . $targetRelFile;
         if (move_uploaded_file($_FILES['document']['tmp_name'], $targetAbsFile)) {
-            $docType = ($ext === 'pdf') ? 'pdf' : (($ext === 'html' || $ext === 'htm') ? 'html' : 'markdown');
+            $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
             $chapterData = [
                 'title' => $title,
                 'slug' => $slug,
