@@ -140,6 +140,11 @@ function delete_chapter_from_node(&$node, $slug) {
     }
 }
 
+if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
+    $_POST['content'] = base64_decode($_POST['content_base64']);
+    $_REQUEST['content'] = $_POST['content'];
+}
+
 switch ($action) {
     case 'login':
         $username = trim($_POST['username'] ?? 'admin');

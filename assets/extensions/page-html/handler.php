@@ -17,6 +17,9 @@ $baseDir = Config::getBaseDir();
 if ($action === 'save_html' || $action === 'ext_html_save') {
     $file = trim($_POST['file'] ?? '');
     $content = $_POST['content'] ?? '';
+    if (isset($_POST['content_base64'])) {
+        $content = base64_decode($_POST['content_base64']);
+    }
 
     if (empty($file)) {
         echo json_encode(['success' => false, 'error' => 'File path is required']);
@@ -70,6 +73,9 @@ if ($action === 'get_html' || $action === 'ext_html_get') {
 $title = trim($_POST['title'] ?? '');
 $bookId = $_POST['bookId'] ?? '';
 $content = $_POST['content'] ?? '';
+if (isset($_POST['content_base64'])) {
+    $content = base64_decode($_POST['content_base64']);
+}
 
 if (empty($title)) {
     echo json_encode(['success' => false, 'error' => 'Document title is required']);
