@@ -750,7 +750,9 @@ switch ($action) {
         $zip = new ZipArchive;
         if ($zip->open($tempZip) === TRUE) {
             $rootFolder = '';
-            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json', 'assets/extensions/'];
+            // NOTE: We do not exclude assets/extensions/ here because we need built-in extensions to receive bug fixes.
+            // Custom extensions added by users will not be deleted, as ZipArchive extraction only overwrites existing files.
+            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json'];
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $filename = $zip->getNameIndex($i);
                 if ($i === 0) $rootFolder = $filename;
