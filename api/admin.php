@@ -792,7 +792,7 @@ switch ($action) {
     default:
         // Try extension action handlers
         $extResult = ExtensionManager::getInstance()->handleAction($action, $_REQUEST);
-        if ($extResult !== null) {
+        if ($extResult) {
             exit;
         }
         echo json_encode(['success' => false, 'error' => 'Invalid action']);

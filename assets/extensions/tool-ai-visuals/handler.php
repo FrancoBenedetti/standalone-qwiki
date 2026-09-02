@@ -22,7 +22,14 @@ if (empty($prompt)) {
 $baseDir = Config::getBaseDir();
 $uploadsDir = $baseDir . '/uploads';
 if (!is_dir($uploadsDir)) {
-    @mkdir($uploadsDir, 0755, true);
+    if (!@mkdir($uploadsDir, 0755, true)) {
+        echo json_encode(['success' => false, 'error' => 'Permission denied: Cannot create uploads directory. Check web server permissions.']);
+        return;
+    }
+}
+if (!is_writable($uploadsDir)) {
+    echo json_encode(['success' => false, 'error' => 'Permission denied: uploads/ directory is not writable by the web server process']);
+    return;
 }
 
 $timestamp = time();

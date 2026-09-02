@@ -35,6 +35,11 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         return;
     }
 
+    if (file_exists($absolutePath) && !is_writable($absolutePath)) {
+        echo json_encode(['success' => false, 'error' => 'Permission denied: HTML file is not writable by the web server process']);
+        return;
+    }
+
     if (file_put_contents($absolutePath, $content) === false) {
         echo json_encode(['success' => false, 'error' => 'Failed to save HTML file to disk']);
         return;
@@ -125,7 +130,15 @@ foreach ($config['books'] as $b) {
 
 $contentDir = $baseDir . '/content/' . $targetFolder;
 if (!is_dir($contentDir)) {
-    @mkdir($contentDir, 0755, true);
+    if (!@mkdir($contentDir, 0755, true)) {
+        echo json_encode(['success' => false, 'error' => 'Permission denied: Cannot create directory ' . $contentDir . '. Check web server permissions.']);
+        return;
+    }
+}
+
+if (!is_writable($contentDir)) {
+    echo json_encode(['success' => false, 'error' => 'Permission denied: Target directory ' . $contentDir . ' is not writable by the web server process']);
+    return;
 }
 
 $filePath = 'content/' . $targetFolder . '/' . $slug . '.html';

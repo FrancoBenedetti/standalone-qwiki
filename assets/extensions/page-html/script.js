@@ -7,7 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getSunEditorOptions(height) {
         return {
-            plugins: window.SUNEDITOR ? window.SUNEDITOR.plugins : [],
             buttonList: [
                 ['undo', 'redo'],
                 ['formatBlock', 'fontSize'],
@@ -28,8 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function initCreateEditor() {
         const textarea = document.getElementById('html-content-textarea');
         const toggle = document.getElementById('create-use-visual-editor');
-        if (!textarea || typeof window.SUNEDITOR === 'undefined') return;
-        
+        if (!textarea) return;
+
+        // CDN fallback: if SunEditor failed to load, show raw textarea
+        if (typeof window.SUNEDITOR === 'undefined') {
+            textarea.style.display = 'block';
+            if (toggle) { toggle.disabled = true; toggle.checked = false; }
+            return;
+        }
+
         if (toggle && !toggle.checked) {
             if (createEditor) {
                 textarea.value = createEditor.getContents();
@@ -48,7 +54,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function initEditEditor() {
         const textarea = document.getElementById('edit-html-textarea');
         const toggle = document.getElementById('edit-use-visual-editor');
-        if (!textarea || typeof window.SUNEDITOR === 'undefined') return;
+        if (!textarea) return;
+
+        // CDN fallback: if SunEditor failed to load, show raw textarea
+        if (typeof window.SUNEDITOR === 'undefined') {
+            textarea.style.display = 'block';
+            if (toggle) { toggle.disabled = true; toggle.checked = false; }
+            return;
+        }
 
         if (toggle && !toggle.checked) {
             if (editEditor) {
@@ -163,8 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    const targetUrl = `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
-                    window.location.href = targetUrl;
+                    const base = document.querySelector('base')?.href || '/';
+                    window.location.href = base + `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
                 } else {
                     alert('Error creating HTML document: ' + (data.error || 'Unknown error'));
                     if (submitBtn) {

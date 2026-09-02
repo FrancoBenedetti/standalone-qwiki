@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             modal.classList.add('open');
             // Check if toast editor or edit mode is active
-            const editSection = document.getElementById('markdown-editor-wrapper');
+            const editSection = document.getElementById('inline-editor-container');
             if (editSection && editSection.style.display !== 'none' && btnInsert) {
                 btnInsert.style.display = 'inline-block';
             } else if (btnInsert) {
@@ -58,6 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (typeof window.mermaid !== 'undefined') {
                                 // Re-render the newly inserted mermaid div
                                 window.mermaid.run({ nodes: previewContainer.querySelectorAll('.mermaid') }).catch(e => console.error(e));
+                            } else {
+                                const warn = document.createElement('p');
+                                warn.style.cssText = 'color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;';
+                                warn.textContent = '⚠️ Mermaid.js could not be loaded (network/CSP restriction). The markdown snippet is still available to copy.';
+                                previewContainer.appendChild(warn);
                             }
                         } else if (data.previewSvg) {
                             previewContainer.innerHTML = data.previewSvg;
@@ -99,8 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnInsert && snippetInput) {
         btnInsert.addEventListener('click', () => {
             const markdownToInsert = snippetInput.value + '\n';
-            if (window.toastEditorInstance) {
-                window.toastEditorInstance.insertText(markdownToInsert);
+            const editor = window.tuiEditorInstance || window.toastEditorInstance;
+            if (editor) {
+                editor.insertText(markdownToInsert);
                 if (modal) modal.classList.remove('open');
             } else {
                 const textarea = document.getElementById('md-content-textarea');

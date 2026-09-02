@@ -38,13 +38,14 @@
     color: var(--text-primary, #f8fafc) !important;
     font-family: inherit !important;
     border-radius: var(--radius-sm, 6px);
-    overflow: hidden;
+    overflow: visible !important;
 }
 
 .sun-editor .se-toolbar {
     background-color: var(--bg-secondary, #1e293b) !important;
     border-bottom: 1px solid var(--border-color, #334155) !important;
     outline: none !important;
+    overflow: visible !important;
 }
 
 .sun-editor button.se-btn {
@@ -110,4 +111,62 @@
 [data-theme="light"] .sun-editor .se-wrapper-code {
     background-color: #f8fafc !important;
     color: #0f172a !important;
+}
+
+/* Submenu & Dropdown styles for SunEditor */
+.sun-editor .se-submenu {
+    background-color: var(--bg-card, #1e293b) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+    border-radius: var(--radius-sm, 6px);
+    z-index: 100 !important;
+}
+
+.sun-editor .se-submenu button.se-btn-list,
+.sun-editor .se-submenu button.se-btn-list * {
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor .se-submenu button.se-btn-list:hover,
+.sun-editor .se-submenu button.se-btn-list.active {
+    background-color: var(--bg-card-hover, #334155) !important;
+    color: var(--primary-color, #38bdf8) !important;
+}
+
+.sun-editor .se-color-pallet {
+    background-color: var(--bg-card, #1e293b) !important;
+}
+
+.sun-editor .se-submenu .se-form-group {
+    background-color: var(--bg-card, #1e293b) !important;
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-submenu input.se-color-input {
+    background-color: var(--bg-primary, #0f172a) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    color: #0f172a !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list,
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list * {
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list:hover,
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list.active {
+    background-color: #f1f5f9 !important;
+    color: var(--primary-color, #2563eb) !important;
+}
+
+[data-theme="light"] .sun-editor .se-color-pallet {
+    background-color: #ffffff !important;
 }

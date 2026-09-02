@@ -28,6 +28,6 @@ $books = $config['books'] ?? [];
         </div>
     </div>
     <input type="file" id="html-file-upload-input" accept=".html,.htm" style="display: none;">
-    <textarea name="content" id="html-content-textarea" class="form-control" style="min-height: 400px; display: none; font-family: monospace; resize: vertical;" placeholder="Write or paste HTML content..."></textarea>
+    <textarea name="content" id="html-content-textarea" class="form-control" style="min-height: 400px; font-family: monospace; resize: vertical;" placeholder="Write or paste HTML content..."></textarea>
 </div>
 <button type="submit" class="btn btn-primary" style="width: 100%;">Create HTML Document</button>

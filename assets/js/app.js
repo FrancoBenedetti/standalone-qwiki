@@ -654,6 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
         });
+        window.tuiEditorInstance = tuiEditor;
       }
     });
   }

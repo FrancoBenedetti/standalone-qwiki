@@ -219,7 +219,7 @@ class ExtensionManager {
             $handlerFile = $util['base_dir'] . '/' . ($util['handler'] ?? 'handler.php');
             if (file_exists($handlerFile)) {
                 $supportedActions = $util['actions'] ?? [$id, 'ext_' . $id];
-                if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0 || strpos($action, 'ext_') === 0) {
+                if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
                     $utility = $util;
                     include $handlerFile;
                     return true;

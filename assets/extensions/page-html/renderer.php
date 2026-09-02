@@ -53,7 +53,7 @@ $isAdmin = Auth::isAdmin();
                         <input type="checkbox" id="edit-use-visual-editor" checked> Visual Editor
                     </label>
                 </div>
-                <textarea id="edit-html-textarea" name="content" style="width: 100%; flex: 1; min-height: 500px; display: none; font-family: monospace; resize: vertical;"></textarea>
+                <textarea id="edit-html-textarea" name="content" style="width: 100%; flex: 1; min-height: 500px; font-family: monospace; resize: vertical;"></textarea>
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                 <button type="button" class="btn btn-outline" data-close="edit-html-modal">Cancel</button>
