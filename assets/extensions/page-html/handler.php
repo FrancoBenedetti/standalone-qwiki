@@ -4,6 +4,7 @@
  */
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
+use Qwiki\Core\LockManager;
 
 if (!Auth::isAdmin()) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -43,9 +44,30 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         return;
     }
 
+    $tabId = $_POST['tab_id'] ?? '';
+    $user = Auth::getCurrentUser();
+    $username = $user['username'] ?? 'admin';
+    if (!empty($tabId)) {
+        $lockCheck = LockManager::verifyOrRejectSave($file, $tabId, $username);
+        if (!$lockCheck['allowed']) {
+            echo json_encode([
+                'success' => false,
+                'code' => 'LOCKED_BY_OTHER',
+                'lockedBy' => $lockCheck['lockedBy'] ?? 'another session',
+                'isSameUser' => !empty($lockCheck['isSameUser']),
+                'error' => 'Document save rejected: Document is currently locked by ' . ($lockCheck['lockedBy'] ?? 'another session')
+            ]);
+            return;
+        }
+    }
+
     if (file_put_contents($absolutePath, $content) === false) {
         echo json_encode(['success' => false, 'error' => 'Failed to save HTML file to disk']);
         return;
+    }
+
+    if (!empty($tabId)) {
+        LockManager::releaseLock($file, $tabId, $username);
     }
 
     echo json_encode(['success' => true, 'file' => $file]);

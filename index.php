@@ -832,6 +832,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="assets/js/soft-lock.js?v=<?= filemtime(__DIR__ . '/assets/js/soft-lock.js') ?>"></script>
     <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
 
     <!-- Extension Scripts -->

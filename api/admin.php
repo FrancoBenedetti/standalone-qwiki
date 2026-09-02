@@ -4,11 +4,13 @@ require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Auth.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
+require_once __DIR__ . '/../lib/Core/LockManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
+use Qwiki\Core\LockManager;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -353,6 +355,57 @@ switch ($action) {
         }
         break;
 
+    case 'lock_status':
+        $file = $_REQUEST['file'] ?? '';
+        $tabId = $_REQUEST['tab_id'] ?? null;
+        $status = LockManager::checkLock($file, $tabId);
+        echo json_encode(['success' => true, 'status' => $status]);
+        break;
+
+    case 'lock_acquire':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $force = !empty($_POST['force']);
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        $res = LockManager::acquireLock($file, $tabId, $username, $force);
+        echo json_encode($res);
+        break;
+
+    case 'lock_heartbeat':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        // Immediately release session lock to prevent blocking concurrent browsing requests
+        session_write_close();
+
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $res = LockManager::renewLock($file, $tabId, $username);
+        echo json_encode($res);
+        break;
+
+    case 'lock_release':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        $force = !empty($_POST['force']);
+        $res = LockManager::releaseLock($file, $tabId, $username, $force);
+        echo json_encode($res);
+        break;
+
     case 'save_markdown':
         if (!Auth::isAdmin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -368,7 +421,28 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Invalid file path']);
             exit;
         }
+
+        $tabId = $_POST['tab_id'] ?? '';
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        if (!empty($tabId)) {
+            $lockCheck = LockManager::verifyOrRejectSave($relFile, $tabId, $username);
+            if (!$lockCheck['allowed']) {
+                echo json_encode([
+                    'success' => false,
+                    'code' => 'LOCKED_BY_OTHER',
+                    'lockedBy' => $lockCheck['lockedBy'] ?? 'another session',
+                    'isSameUser' => !empty($lockCheck['isSameUser']),
+                    'error' => 'Document save rejected: Document is currently locked by ' . ($lockCheck['lockedBy'] ?? 'another session')
+                ]);
+                exit;
+            }
+        }
+
         if (file_put_contents($targetPath, $content) !== false) {
+            if (!empty($tabId)) {
+                LockManager::releaseLock($relFile, $tabId, $username);
+            }
             echo json_encode(['success' => true]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to save file']);

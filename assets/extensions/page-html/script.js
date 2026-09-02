@@ -221,51 +221,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const editModal = document.getElementById('edit-html-modal');
     const editForm = document.getElementById('edit-html-form');
 
+    function openEditModal(file, title) {
+        const titleSpan = document.getElementById('edit-html-modal-title');
+        if (titleSpan) titleSpan.textContent = title;
+
+        const fileInput = document.getElementById('edit-html-file');
+        if (fileInput) fileInput.value = file;
+
+        editModal.classList.add('open');
+        initEditEditor();
+
+        // Fetch latest content from disk
+        const formData = new FormData();
+        formData.append('action', 'get_html');
+        formData.append('file', file);
+
+        fetch('api/admin.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.content) {
+                const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(data.content);
+                const toggle = document.getElementById('edit-use-visual-editor');
+                
+                if (hasScriptsOrStyles && toggle) {
+                    toggle.checked = false;
+                    alert('This HTML document contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
+                }
+                
+                initEditEditor();
+                
+                const textarea = document.getElementById('edit-html-textarea');
+                if (textarea) textarea.value = data.content;
+                
+                if (editEditor && toggle && toggle.checked) {
+                    editEditor.setContents(data.content);
+                }
+            }
+        })
+        .catch(err => console.error('Failed to load HTML content:', err));
+    }
+
     if (editBtn && editModal) {
-        editBtn.addEventListener('click', () => {
+        editBtn.addEventListener('click', async () => {
             const file = editBtn.getAttribute('data-file');
             const title = editBtn.getAttribute('data-title');
 
-            const titleSpan = document.getElementById('edit-html-modal-title');
-            if (titleSpan) titleSpan.textContent = title;
-
-            const fileInput = document.getElementById('edit-html-file');
-            if (fileInput) fileInput.value = file;
-
-            editModal.classList.add('open');
-            initEditEditor();
-
-            // Fetch latest content from disk
-            const formData = new FormData();
-            formData.append('action', 'get_html');
-            formData.append('file', file);
-
-            fetch('api/admin.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success && data.content) {
-                    const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(data.content);
-                    const toggle = document.getElementById('edit-use-visual-editor');
-                    
-                    if (hasScriptsOrStyles && toggle) {
-                        toggle.checked = false;
-                        alert('This HTML document contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
-                    }
-                    
-                    initEditEditor();
-                    
-                    const textarea = document.getElementById('edit-html-textarea');
-                    if (textarea) textarea.value = data.content;
-                    
-                    if (editEditor && toggle && toggle.checked) {
-                        editEditor.setContents(data.content);
-                    }
+            if (window.SoftLock && file) {
+                const lockRes = await window.SoftLock.acquire(file, false);
+                if (!lockRes.success) {
+                    window.SoftLock.promptLockConflict(lockRes, async () => {
+                        await window.SoftLock.acquire(file, true);
+                        openEditModal(file, title);
+                    }, () => {});
+                    return;
                 }
-            })
-            .catch(err => console.error('Failed to load HTML content:', err));
+            }
+            openEditModal(file, title);
         });
     }
 
@@ -273,6 +287,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-close="edit-html-modal"]').forEach(btn => {
         btn.addEventListener('click', () => {
             editModal?.classList.remove('open');
+            const fileInput = document.getElementById('edit-html-file');
+            const file = fileInput ? fileInput.value : '';
+            if (window.SoftLock && file) {
+                window.SoftLock.release(file);
+            }
         });
     });
 
@@ -282,6 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(editForm);
             formData.append('action', 'save_html');
+            if (window.SoftLock) {
+                formData.append('tab_id', window.SoftLock.getTabId());
+            }
 
             let contentStr = '';
             const editToggle = document.getElementById('edit-use-visual-editor');
@@ -330,7 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         saveBtn.textContent = '💾 Save Changes';
                     }
                 } else {
-                    alert('Failed to save HTML document: ' + (data.error || 'Unknown error'));
+                    if (data.code === 'LOCKED_BY_OTHER') {
+                        alert('Save Blocked: ' + (data.error || 'The document lock belongs to another session.'));
+                    } else {
+                        alert('Failed to save HTML document: ' + (data.error || 'Unknown error'));
+                    }
                     if (saveBtn) {
                         saveBtn.disabled = false;
                         saveBtn.textContent = '💾 Save Changes';

@@ -617,7 +617,33 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   if (btnEditMarkdown && editorContainer && rawMarkdownData) {
-    btnEditMarkdown.addEventListener('click', () => {
+    const file = btnSaveInline ? btnSaveInline.getAttribute('data-file') : '';
+
+    // Check lock status on page load to warn viewers
+    if (window.SoftLock && file) {
+      window.SoftLock.checkStatus(file).then(status => {
+        if (status.locked && !status.isCurrentTab) {
+          const who = status.user || 'another user';
+          const where = status.isSameUser ? 'in another browser tab' : `by ${who}`;
+          window.SoftLock.showNotification ? window.SoftLock.showNotification(`🔒 This document is currently being edited ${where}.`, 'warning') : null;
+        }
+      });
+    }
+
+    async function openMarkdownEditor(force = false) {
+      if (window.SoftLock && file) {
+        const lockRes = await window.SoftLock.acquire(file, force);
+        if (!lockRes.success) {
+          window.SoftLock.promptLockConflict(lockRes, () => {
+            // User confirmed force takeover
+            openMarkdownEditor(true);
+          }, () => {
+            // User cancelled
+          });
+          return;
+        }
+      }
+
       readActions.style.display = 'none';
       contentBody.style.display = 'none';
       editActions.style.display = 'flex';
@@ -655,12 +681,36 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
         window.tuiEditorInstance = tuiEditor;
+
+        // Auto-save local draft on editor changes
+        tuiEditor.on('change', () => {
+          if (window.SoftLock && file) {
+            window.SoftLock.saveDraft(file, tuiEditor.getMarkdown());
+          }
+        });
       }
+    }
+
+    btnEditMarkdown.addEventListener('click', () => {
+      openMarkdownEditor(false);
     });
+
+    if (window.SoftLock) {
+      window.SoftLock.onEvicted((evictedFile) => {
+        if (evictedFile === file && tuiEditor) {
+          window.SoftLock.saveDraft(file, tuiEditor.getMarkdown());
+        }
+      });
+    }
   }
 
   if (btnCancelEdit) {
-    btnCancelEdit.addEventListener('click', () => {
+    btnCancelEdit.addEventListener('click', async () => {
+      const file = btnSaveInline ? btnSaveInline.getAttribute('data-file') : '';
+      if (window.SoftLock && file) {
+        await window.SoftLock.release(file);
+        window.SoftLock.clearDraft(file);
+      }
       editActions.style.display = 'none';
       editorContainer.style.display = 'none';
       readActions.style.display = 'flex';
@@ -679,14 +729,24 @@ document.addEventListener('DOMContentLoaded', () => {
       formData.append('action', 'save_markdown');
       formData.append('file', file);
       formData.append('content_base64', btoa(unescape(encodeURIComponent(content))));
+      if (window.SoftLock) {
+        formData.append('tab_id', window.SoftLock.getTabId());
+      }
 
       try {
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
+          if (window.SoftLock) {
+            window.SoftLock.clearDraft(file);
+          }
           window.location.reload();
         } else {
-          alert('Save failed: ' + (data.error || 'Unknown error'));
+          if (data.code === 'LOCKED_BY_OTHER') {
+            alert('Save Blocked: ' + (data.error || 'The document lock belongs to another session.'));
+          } else {
+            alert('Save failed: ' + (data.error || 'Unknown error'));
+          }
         }
       } catch (err) {
         alert('Save request failed');
