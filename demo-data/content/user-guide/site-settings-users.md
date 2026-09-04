@@ -29,7 +29,7 @@ To change site visibility:
 
 - **Default Theme**: Select the global theme from the Settings dialog.
 - **Custom Logo**: Enter a logo image URL to replace the default text logo.
-- **Live Theme Editor**: Launch the Theme Editor to create or customize CSS files directly in the browser.
+- **Live Theme Editor**: Launch the Theme Editor to create or customize CSS files directly in the browser with instant preview.
 
 ---
 
@@ -37,11 +37,12 @@ To change site visibility:
 
 - Category-level RSS and JSON feeds are automatically generated (e.g. `/api/feed.php?category=getting-started`).
 - For private portals, generate an **RSS Access Token** in Settings to securely subscribe via RSS readers (compatible with RSSHub).
+- Configure the number of syndicated items per feed directly in Settings.
 
 ---
 
 ## 🎉 1-Click Auto Updates
 
 - When a new version of Qwiki is released, an **`🎉 Update Available!`** button appears in the admin menu.
-- Click to view release notes and install core updates with one click.
+- Click to view the release notes directly from GitHub and install core updates with one click.
 - User data (`content/`, `uploads/`, `qwiki.json`, `users.json`) and custom extensions (`assets/extensions/`) are always safely preserved.

@@ -93,7 +93,7 @@
         {
             "id": "user-guide",
             "title": "Admin User Guide",
-            "folder": "content/user-guide",
+            "type": "folder",
             "items": [
                 {
                     "title": "Managing Content",
@@ -152,5 +152,7 @@
                 }
             ]
         }
-    ]
+    ],
+    "feedAccessToken": "",
+    "feedItemCount": 10
 }

@@ -22,6 +22,36 @@ Click the **`+ Document`** button in the header menu (or under Category actions)
 
 ---
 
+## 🎬 Embedding Playable Videos
+
+Standalone Qwiki automatically turns standalone video URLs into responsive, full-featured players in Markdown:
+- **YouTube**: Paste a watch URL (`https://www.youtube.com/watch?v=...`), short link (`https://youtu.be/...`), or Shorts link. You can also specify start timestamps like `?t=1m30s`. All embeds use privacy-enhanced `youtube-nocookie.com`.
+- **Vimeo**: Paste any standard Vimeo link (`https://vimeo.com/...`) for immediate playback with Do Not Track (`dnt=1`) privacy.
+- **Loom**: Paste a Loom share URL (`https://www.loom.com/share/...`) to embed responsive screencasts.
+- **Direct Video Files**: Paste any direct `.mp4`, `.webm`, `.ogg`, or `.mov` link to render a native HTML5 video player with playback controls and download fallback.
+- **Custom Captions**: Format video links as `[Caption Title](https://...)` or image syntax `![Caption Title](video.mp4)` to display an italicized subtitle below the player.
+- **Inline Text Links**: Links placed inside sentences remain standard clickable hyperlinks and are never converted into embeds.
+
+---
+
+## 🔒 Multi-Tab & Collaborative Soft Locks
+
+To prevent concurrent write conflicts and accidental overwrites when multiple tabs or users edit the same document:
+- **Advisory Lock Banner**: If another tab or user is editing a document, a warning banner alerts you immediately.
+- **Cross-Tab Synchronization**: Tabs communicate in real-time via `BroadcastChannel` (`qwiki_doc_locks`) with zero network delay.
+- **Takeover Option**: If a previous session was abandoned or an urgent edit is needed, authorized admins can force-takeover the active lease.
+- **Automatic Draft Safety Net**: While editing in Toast UI or SunEditor, your work is continuously mirrored to browser `localStorage`. If a session is evicted, your draft is preserved and can be recovered.
+
+---
+
+## 🖼️ Media & Image Gallery
+
+1. Open the header menu and click **`🖼️ Image Gallery`**.
+2. Browse, search, filter, and inspect all uploaded images and generated vector visuals in `uploads/`.
+3. Click any asset to preview dimensions and file size, copy Markdown embed tags (`![alt](url)`), or insert directly into the active editor.
+
+---
+
 ## ✨ Generating Charts & Visuals
 
 1. Open the header menu and click **`✨ Generate Visual / Chart`**.
@@ -47,3 +77,10 @@ You can organize your documentation hierarchy visually:
 - **Reorder**: Drag it up or down to change its position in the list.
 - **Nest**: Drag a document into a folder or sub-category.
 - Changes sync automatically to `qwiki.json`.
+
+---
+
+## 🖨️ Print & Social Share
+
+- **Print / PDF**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.
+- **Share**: Click **`🔗`** to share the page via the native Web Share API (on supported devices) or quickly copy the clean URL to your clipboard.

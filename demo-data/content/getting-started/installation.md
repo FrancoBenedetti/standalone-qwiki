@@ -75,6 +75,7 @@ Your wiki tree, settings, and navigation are stored in `qwiki.json`:
 Drop any extension folder into `assets/extensions/{extension-name}/`:
 - **`page-html`**: Native HTML documents with the SunEditor visual WYSIWYG editor.
 - **`tool-ai-visuals`**: Vector chart and flow diagram generator.
+- **`tool-gallery`**: Media and image assets gallery for browsing and inserting uploaded images.
 - Custom extensions are automatically discovered and safely preserved during 1-click core updates.
 
 ---
