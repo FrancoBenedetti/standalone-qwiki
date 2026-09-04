@@ -29,10 +29,11 @@ Admins can control whether documentation is publicly readable or requires authen
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor. Supports direct image uploading and importing existing local Markdown files.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor. Supports direct image uploading, importing existing local Markdown files, and auto-embedded playable videos.
   - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with built-in **SunEditor WYSIWYG visual editor** and raw code view toggle for creating and in-place editing of `.html` pages.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
+- **🎬 Playable Video Auto-Embedding**: Seamlessly embed responsive video players by pasting standalone video URLs on their own line. Natively supports YouTube (including timestamps and Shorts via `youtube-nocookie.com`), Vimeo (with Do Not Track), Loom screencasts, and direct video files (`.mp4`, `.webm`, `.ogg`, `.mov`) with custom caption formatting.
 - **✨ Agentic Visual & Chart Generator**: Integrated visual generator producing vector Bar Charts, Line Trends, Pie/Donut Charts, Process Flows, and Status Badges. Generates standalone SVG files saved directly to `uploads/` and inserts Markdown snippets with 1 click.
 - **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, etc.), respecting category visibility rules.
 - **🌓 Instant Zero-Flicker Theming**: Server-side cookie sync paired with immediate synchronous head script execution eliminates all flash-of-unstyled-theme (FOUC) when switching pages in light or dark mode.

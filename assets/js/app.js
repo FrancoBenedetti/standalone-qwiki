@@ -1270,6 +1270,261 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------
+  // Playable Video Embeds (YouTube, Vimeo, Loom, Direct Videos)
+  // ----------------------------------------------------
+  function parseYouTube(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+      let videoId = null;
+      let startSeconds = null;
+
+      if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+        if (parsed.pathname === '/watch') {
+          videoId = parsed.searchParams.get('v');
+        } else if (parsed.pathname.startsWith('/embed/')) {
+          videoId = parsed.pathname.split('/')[2];
+        } else if (parsed.pathname.startsWith('/shorts/')) {
+          videoId = parsed.pathname.split('/')[2];
+        } else if (parsed.pathname.startsWith('/v/')) {
+          videoId = parsed.pathname.split('/')[2];
+        }
+      } else if (host === 'youtu.be') {
+        videoId = parsed.pathname.replace(/^\//, '').split('/')[0];
+      }
+
+      if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return null;
+      }
+
+      const tParam = parsed.searchParams.get('t') || parsed.searchParams.get('start');
+      if (tParam) {
+        if (/^\d+$/.test(tParam)) {
+          startSeconds = parseInt(tParam, 10);
+        } else {
+          let total = 0;
+          const hMatch = tParam.match(/(\d+)h/i);
+          const mMatch = tParam.match(/(\d+)m/i);
+          const sMatch = tParam.match(/(\d+)s/i);
+          if (hMatch) total += parseInt(hMatch[1], 10) * 3600;
+          if (mMatch) total += parseInt(mMatch[1], 10) * 60;
+          if (sMatch) total += parseInt(sMatch[1], 10);
+          if (total > 0) startSeconds = total;
+        }
+      }
+
+      let embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0`;
+      if (startSeconds) {
+        embedUrl += `&start=${startSeconds}`;
+      }
+
+      return {
+        type: 'youtube',
+        embedUrl,
+        title: 'YouTube video player'
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function parseVimeo(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+      if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+        let videoId = null;
+        if (host === 'player.vimeo.com' && parsed.pathname.startsWith('/video/')) {
+          videoId = parsed.pathname.split('/')[2];
+        } else {
+          const match = parsed.pathname.match(/\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)/);
+          if (match) {
+            videoId = match[1];
+          }
+        }
+        if (videoId && /^\d+$/.test(videoId)) {
+          return {
+            type: 'vimeo',
+            embedUrl: `https://player.vimeo.com/video/${videoId}?dnt=1&title=0&byline=0&portrait=0`,
+            title: 'Vimeo video player'
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function parseLoom(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+      if (host === 'loom.com') {
+        let videoId = null;
+        if (parsed.pathname.startsWith('/share/')) {
+          videoId = parsed.pathname.split('/')[2];
+        } else if (parsed.pathname.startsWith('/embed/')) {
+          videoId = parsed.pathname.split('/')[2];
+        }
+        if (videoId && /^[a-zA-Z0-9]+$/.test(videoId)) {
+          return {
+            type: 'loom',
+            embedUrl: `https://www.loom.com/embed/${videoId}?hide_owner=true&hide_share=true&hide_title=true&hideEmbedTopBar=true`,
+            title: 'Loom video player'
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function parseDirectVideo(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      const pathname = parsed.pathname;
+      const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
+      if (match) {
+        const ext = match[1].toLowerCase();
+        const mimeMap = {
+          mp4: 'video/mp4',
+          webm: 'video/webm',
+          ogg: 'video/ogg',
+          ogv: 'video/ogg',
+          mov: 'video/mp4'
+        };
+        if (mimeMap[ext]) {
+          return {
+            type: 'direct',
+            videoUrl: url,
+            mimeType: mimeMap[ext],
+            title: 'Direct video player'
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function detectVideo(url) {
+    if (!url || typeof url !== 'string') return null;
+    const trimmed = url.trim();
+    return parseYouTube(trimmed) || parseVimeo(trimmed) || parseLoom(trimmed) || parseDirectVideo(trimmed);
+  }
+
+  function createVideoEmbed(targetEl, videoInfo, caption) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'qwiki-video-wrapper';
+    wrapper.dataset.videoProcessed = 'true';
+
+    if (videoInfo.type === 'direct') {
+      const videoEl = document.createElement('video');
+      videoEl.className = 'qwiki-video-player';
+      videoEl.controls = true;
+      videoEl.preload = 'metadata';
+      videoEl.playsInline = true;
+
+      const sourceEl = document.createElement('source');
+      sourceEl.src = videoInfo.videoUrl;
+      sourceEl.type = videoInfo.mimeType;
+      videoEl.appendChild(sourceEl);
+
+      const fallback = document.createElement('p');
+      fallback.style.padding = '0.5rem';
+      fallback.style.fontSize = '0.85rem';
+      fallback.innerHTML = `Your browser does not support the video tag. <a href="${videoInfo.videoUrl}" target="_blank" rel="noopener noreferrer">Download video</a>`;
+      videoEl.appendChild(fallback);
+
+      wrapper.appendChild(videoEl);
+    } else {
+      const container = document.createElement('div');
+      container.className = 'qwiki-video-container';
+
+      const iframe = document.createElement('iframe');
+      iframe.src = videoInfo.embedUrl;
+      iframe.title = caption || videoInfo.title;
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      iframe.allowFullscreen = true;
+      iframe.loading = 'lazy';
+
+      container.appendChild(iframe);
+      wrapper.appendChild(container);
+    }
+
+    if (caption && caption.trim().length > 0) {
+      const capDiv = document.createElement('div');
+      capDiv.className = 'qwiki-video-caption';
+      capDiv.textContent = caption.trim();
+      wrapper.appendChild(capDiv);
+    }
+
+    targetEl.replaceWith(wrapper);
+  }
+
+  function initVideoEmbeds(container) {
+    const root = container || document.getElementById('content-body');
+    if (!root) return;
+
+    // 1. Process existing native video tags to ensure consistent styling
+    const existingVideos = root.querySelectorAll('video');
+    existingVideos.forEach(v => {
+      if (!v.classList.contains('qwiki-video-player')) {
+        v.classList.add('qwiki-video-player');
+      }
+    });
+
+    // 2. Scan paragraphs for standalone video links or images
+    const paragraphs = root.querySelectorAll('p');
+    paragraphs.forEach(p => {
+      if (p.dataset.videoProcessed === 'true') return;
+
+      const links = p.querySelectorAll('a');
+      const images = p.querySelectorAll('img');
+
+      // Case A: Paragraph contains ONLY a single <a> link
+      if (links.length === 1 && images.length === 0) {
+        const a = links[0];
+        const pText = p.textContent.trim();
+        const aText = a.textContent.trim();
+
+        if (pText === aText && pText.length > 0) {
+          const href = a.getAttribute('href');
+          const videoInfo = detectVideo(href);
+          if (videoInfo) {
+            let caption = null;
+            if (aText !== href && !aText.startsWith('http://') && !aText.startsWith('https://')) {
+              caption = aText;
+            }
+            createVideoEmbed(p, videoInfo, caption);
+            return;
+          }
+        }
+      }
+
+      // Case B: Paragraph contains ONLY a single <img> tag pointing to a video file
+      if (images.length === 1 && links.length === 0) {
+        const img = images[0];
+        const pText = p.textContent.trim();
+        if (pText === '') {
+          const src = img.getAttribute('src');
+          const videoInfo = parseDirectVideo(src);
+          if (videoInfo) {
+            const caption = img.getAttribute('alt') || null;
+            createVideoEmbed(p, videoInfo, caption);
+            return;
+          }
+        }
+      }
+    });
+  }
+
+  window.initVideoEmbeds = initVideoEmbeds;
+
+  // ----------------------------------------------------
   // Generate Table of Contents
   // ----------------------------------------------------
   function generateTableOfContents() {
@@ -1395,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Run on page load
+  initVideoEmbeds();
   renderVisualDiagrams();
   generateTableOfContents();
 

@@ -30,7 +30,7 @@ Admins can control whether documentation is publicly readable or requires authen
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **🧩 Self-Contained Extension System**: Extend Qwiki with custom page types and agentic tools located in `assets/extensions/` without modifying core files.
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor and direct image upload.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor, direct image upload, and playable video auto-embedding.
   - **HTML Documents (`.html`)**: Sandboxed interactive HTML pages with built-in **SunEditor WYSIWYG visual editor** and raw source code toggle.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.

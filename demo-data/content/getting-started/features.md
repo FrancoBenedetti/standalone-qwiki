@@ -10,6 +10,12 @@
 - Server-side GitHub-Flavored Markdown parsing via `lib/Parsedown.php`.
 - Full online visual/code editor (`✏️ Edit Content`) for real-time document editing.
 - **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload `.png`, `.jpg`, `.svg`, or `.webp` files directly to `uploads/images/` and auto-insert Markdown tags at your cursor position.
+- **Auto-Embedded Playable Videos**: Paste standalone video links on their own line to automatically render responsive, theme-styled video players:
+  - **YouTube**: Standard watch URLs, short `youtu.be` links, and Shorts with timestamp support (`?t=1m30s`), served via privacy-friendly `youtube-nocookie.com`.
+  - **Vimeo**: Direct embeds with Do Not Track (`dnt=1`) privacy.
+  - **Loom**: Instant screencast video playback directly from share links.
+  - **HTML5 Direct Video**: Native player for `.mp4`, `.webm`, `.ogg`, and `.mov` files with controls and download links.
+  - **Subtitles & Captions**: Add a custom title using Markdown link syntax `[Video Title](https://...)` or image syntax `![Video Title](video.mp4)` to display an italicized caption below the player.
 
 ### B. HTML Documents (`.html`)
 - Native sandboxed HTML embedding with interactive JavaScript execution and isolated styling.
