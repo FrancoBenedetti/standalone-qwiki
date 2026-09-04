@@ -40,6 +40,7 @@ Admins can control whether documentation is publicly readable or requires authen
 - **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
 - **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
 - **🔗 Universal Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) that resolve automatically across Apache (`mod_rewrite` enabled or disabled), Nginx, and PHP CLI dev server.
+- **🌐 Navigation Hyperlinks & Smart Tab Routing**: Embed external and internal hyperlinks directly into the navigation tree at root level or nested inside categories. Features automatic tab routing (`target="_blank" rel="noopener noreferrer"` for external domains, `target="_self"` for same-domain), status indicator badges, drag-and-drop reordering, and search integration.
 - **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories. Changes sync instantly to `qwiki.json`.
 - **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`). Preferred width is saved in `localStorage`.
 - **👥 Multi-User Management & RBAC**:

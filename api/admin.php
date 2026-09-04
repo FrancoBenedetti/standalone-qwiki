@@ -47,6 +47,22 @@ function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibilit
     return false;
 }
 
+// Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+function is_safe_url($url) {
+    $trimmed = trim($url);
+    if (empty($trimmed)) return false;
+    if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
+        return false;
+    }
+    if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
+        $scheme = strtolower($matches[1]);
+        if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Helper for tree node deletions
 function delete_node_recursive(&$list, $targetId) {
     $filtered = [];
@@ -326,6 +342,10 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Document Slug and Title are required']);
             exit;
         }
+        if (!empty($url) && !is_safe_url($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe URL protocol']);
+            exit;
+        }
         if ($type === 'gdoc' && !empty($url)) {
             if (strpos($url, 'embedded=true') === false) {
                 $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
@@ -343,6 +363,14 @@ switch ($action) {
         ];
         $updated = false;
         foreach ($config['books'] as &$book) {
+            if (($book['slug'] ?? '') === $slug) {
+                if (!empty($title)) $book['title'] = $title;
+                if (!empty($type)) $book['type'] = $type;
+                if (isset($url)) $book['url'] = $url;
+                if (isset($description)) $book['description'] = $description;
+                $updated = true;
+                break;
+            }
             if (update_chapter_in_node($book, $slug, $updatedData)) {
                 $updated = true;
                 break;
@@ -527,6 +555,68 @@ switch ($action) {
         echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         break;
 
+    case 'add_link':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        if (empty($title) || empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Title and URL are required']);
+            exit;
+        }
+        if (!is_safe_url($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe URL protocol']);
+            exit;
+        }
+        $slug = Config::makeSlug($title);
+        $baseSlug = $slug;
+        $counter = 1;
+        $allSlugs = [];
+        $collectSlugs = function($nodes) use (&$collectSlugs, &$allSlugs) {
+            if (!is_array($nodes)) return;
+            foreach ($nodes as $n) {
+                if (isset($n['slug'])) $allSlugs[] = $n['slug'];
+                if (!empty($n['items']) && is_array($n['items'])) $collectSlugs($n['items']);
+            }
+        };
+        $collectSlugs($config['books'] ?? []);
+        while (in_array($slug, $allSlugs)) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+
+        $linkData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'link',
+            'url' => $url
+        ];
+        if (!empty($description)) {
+            $linkData['description'] = $description;
+        }
+
+        if (empty($bookId)) {
+            $config['books'][] = $linkData;
+        } else {
+            $added = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $bookId, $linkData)) {
+                    $added = true;
+                    break;
+                }
+            }
+            if (!$added) {
+                $config['books'][] = $linkData;
+            }
+        }
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
     case 'delete_chapter':
         if (!Auth::isAdmin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -534,13 +624,19 @@ switch ($action) {
         }
         $bookId = $_POST['bookId'] ?? '';
         $slug = $_POST['slug'] ?? '';
-        if (empty($bookId) || empty($slug)) {
-            echo json_encode(['success' => false, 'error' => 'Book ID and chapter slug required']);
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Item slug is required']);
             exit;
         }
+        $filteredBooks = [];
         foreach ($config['books'] as &$book) {
+            if (($book['slug'] ?? '') === $slug) {
+                continue;
+            }
             delete_chapter_from_node($book, $slug);
+            $filteredBooks[] = $book;
         }
+        $config['books'] = $filteredBooks;
         Config::save($config);
         echo json_encode(['success' => true]);
         break;
@@ -603,6 +699,8 @@ switch ($action) {
                         $catCopy = $node;
                         unset($catCopy['items']);
                         $existingCategories[$node['id']] = $catCopy;
+                    } elseif (isset($node['slug'])) {
+                        $existingDocuments[$node['slug']] = $node;
                     }
                     if (!empty($node['items']) && is_array($node['items'])) {
                         foreach ($node['items'] as $item) {
@@ -623,6 +721,7 @@ switch ($action) {
                 foreach ($nodes as $node) {
                     if (!is_array($node)) continue;
                     $nodeId = $node['id'] ?? null;
+                    $nodeSlug = $node['slug'] ?? null;
                     if ($nodeId !== null && isset($existingCategories[$nodeId])) {
                         $orig = $existingCategories[$nodeId];
                         $mergedNode = array_merge($orig, $node);
@@ -634,6 +733,14 @@ switch ($action) {
                         }
                         if (empty($node['folder']) && isset($orig['folder'])) {
                             $mergedNode['folder'] = $orig['folder'];
+                        }
+                    } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
+                        $origDoc = $existingDocuments[$nodeSlug];
+                        $mergedNode = array_merge($origDoc, $node);
+                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl'] as $field) {
+                            if (empty($node[$field]) && isset($origDoc[$field])) {
+                                $mergedNode[$field] = $origDoc[$field];
+                            }
                         }
                     } else {
                         $mergedNode = $node;

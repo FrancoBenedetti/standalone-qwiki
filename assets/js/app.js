@@ -91,10 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (abortController) abortController.abort();
 
       if (term === '') {
-        document.querySelectorAll('.nav-category-item').forEach(catItem => {
-          catItem.querySelectorAll('.nav-link').forEach(link => {
-            link.style.display = 'flex';
-          });
+        document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+          link.style.display = 'flex';
         });
         return;
       }
@@ -107,12 +105,23 @@ document.addEventListener('DOMContentLoaded', () => {
           if (data.success) {
             const matchedSlugs = data.results;
             
+            document.querySelectorAll('.sidebar-nav > .nav-link').forEach(topLink => {
+              const topSlug = topLink.getAttribute('data-doc-slug') || '';
+              const text = topLink.textContent.toLowerCase();
+              if (matchedSlugs.includes(topSlug) || text.includes(term)) {
+                topLink.style.display = 'flex';
+              } else {
+                topLink.style.display = 'none';
+              }
+            });
+
             document.querySelectorAll('.nav-category-item').forEach(catItem => {
               let catMatch = false;
               catItem.querySelectorAll('.nav-link').forEach(link => {
+                const linkSlug = link.getAttribute('data-doc-slug');
                 const url = new URL(link.href, window.location.origin);
                 const pathnameParts = url.pathname.split('/').filter(Boolean);
-                const chapterSlug = url.searchParams.get('chapter') || url.searchParams.get('doc') || pathnameParts[pathnameParts.length - 1];
+                const chapterSlug = linkSlug || url.searchParams.get('chapter') || url.searchParams.get('doc') || pathnameParts[pathnameParts.length - 1];
                 const text = link.textContent.toLowerCase();
                 
                 if (matchedSlugs.includes(chapterSlug) || text.includes(term)) {
@@ -554,7 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
   submitAdminForm('tab-create-md', 'create_markdown');
   submitAdminForm('tab-upload', 'upload_file');
   submitAdminForm('tab-gdoc', 'add_gdoc');
+  submitAdminForm('tab-link', 'add_link');
   submitAdminForm('edit-chapter-form', 'edit_chapter');
+  submitAdminForm('edit-link-form', 'edit_chapter');
   submitAdminForm('settings-form', 'update_settings');
 
   // Add User form handler inside Users Modal
@@ -783,6 +794,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Delete Link
+  const deleteLinkBtn = document.getElementById('btn-delete-link');
+  if (deleteLinkBtn) {
+    deleteLinkBtn.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to delete this hyperlink?')) {
+        return;
+      }
+      const slug = document.getElementById('edit-link-slug-hidden')?.value;
+      const bookId = document.getElementById('edit-link-book-hidden')?.value || '';
+
+      const formData = new FormData();
+      formData.append('action', 'delete_chapter');
+      formData.append('bookId', bookId);
+      formData.append('slug', slug);
+
+      try {
+        const res = await fetch('api/admin.php?action=delete_chapter', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Delete request failed');
+      }
+    });
+  }
+
+  // Edit Link Icons in Sidebar
+  document.querySelectorAll('.btn-edit-link-icon').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const modal = document.getElementById('edit-link-modal');
+      if (!modal) return;
+
+      const slug = btn.getAttribute('data-slug') || '';
+      const bookId = btn.getAttribute('data-book-id') || '';
+      const title = btn.getAttribute('data-title') || '';
+      const url = btn.getAttribute('data-url') || '';
+      const description = btn.getAttribute('data-description') || '';
+
+      const slugInput = document.getElementById('edit-link-slug-hidden');
+      const bookInput = document.getElementById('edit-link-book-hidden');
+      const titleInput = document.getElementById('edit-link-title');
+      const urlInput = document.getElementById('edit-link-url');
+      const descInput = document.getElementById('edit-link-description');
+
+      if (slugInput) slugInput.value = slug;
+      if (bookInput) bookInput.value = bookId;
+      if (titleInput) titleInput.value = title;
+      if (urlInput) urlInput.value = url;
+      if (descInput) descInput.value = description;
+
+      modal.classList.add('open');
+    });
+  });
+
   // ----------------------------------------------------
   // HTML5 Drag and Drop Engine for Menu Reordering
   // ----------------------------------------------------
@@ -792,6 +863,56 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.drag-over-above, .drag-over-below, .drag-over-inside').forEach(el => {
       el.classList.remove('drag-over-above', 'drag-over-below', 'drag-over-inside');
     });
+  }
+
+  function updateTopLinkVisuals(el) {
+    if (!el || el.getAttribute('data-doc-type') !== 'link') return;
+    const isTopLevel = el.parentElement && el.parentElement.classList.contains('sidebar-nav');
+    const titleContainer = el.querySelector('.nav-link-title-container');
+
+    if (isTopLevel) {
+      el.classList.add('nav-top-link');
+      if (titleContainer && !titleContainer.querySelector('.top-link-icon')) {
+        const icon = document.createElement('span');
+        icon.className = 'top-link-icon';
+        icon.textContent = '🔗';
+        const dragHandle = titleContainer.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.insertAdjacentElement('afterend', icon);
+          icon.insertAdjacentText('afterend', ' ');
+        } else {
+          titleContainer.prepend(icon);
+          icon.insertAdjacentText('afterend', ' ');
+        }
+      }
+    } else {
+      el.classList.remove('nav-top-link');
+      const icon = el.querySelector('.top-link-icon');
+      if (icon) {
+        if (icon.nextSibling && icon.nextSibling.nodeType === Node.TEXT_NODE) {
+          icon.nextSibling.textContent = icon.nextSibling.textContent.replace(/^\s+/, '');
+        }
+        icon.remove();
+      }
+    }
+  }
+
+  function extractDocumentNodeFromDOM(child) {
+    const docItem = {
+      title: child.getAttribute('data-doc-title'),
+      slug: child.getAttribute('data-doc-slug'),
+      type: child.getAttribute('data-doc-type'),
+      url: child.getAttribute('data-doc-url') || '',
+      editUrl: child.getAttribute('data-doc-editurl') || '',
+      file: child.getAttribute('data-doc-file') || ''
+    };
+    const docTheme = child.getAttribute('data-doc-theme');
+    if (docTheme) docItem.theme = docTheme;
+    const docDesc = child.getAttribute('data-doc-description');
+    if (docDesc) docItem.description = docDesc;
+    const docImg = child.getAttribute('data-doc-image');
+    if (docImg) docItem.image = docImg;
+    return docItem;
   }
 
   // Extract tree array recursively from DOM structure
@@ -809,22 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Array.from(docList.children).forEach(child => {
         const dragType = child.getAttribute('data-drag-type');
         if (dragType === 'document') {
-          const docItem = {
-            title: child.getAttribute('data-doc-title'),
-            slug: child.getAttribute('data-doc-slug'),
-            type: child.getAttribute('data-doc-type'),
-            url: child.getAttribute('data-doc-url') || '',
-            editUrl: child.getAttribute('data-doc-editurl') || '',
-            file: child.getAttribute('data-doc-file') || ''
-          };
-          const docTheme = child.getAttribute('data-doc-theme');
-          if (docTheme) docItem.theme = docTheme;
-          const docDesc = child.getAttribute('data-doc-description');
-          if (docDesc) docItem.description = docDesc;
-          const docImg = child.getAttribute('data-doc-image');
-          if (docImg) docItem.image = docImg;
-
-          items.push(docItem);
+          items.push(extractDocumentNodeFromDOM(child));
         } else if (dragType === 'category') {
           items.push(extractCategoryNodeFromDOM(child));
         }
@@ -843,8 +949,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function saveTreeStructureToBackend() {
     const tree = [];
-    document.querySelectorAll('.sidebar-nav > .nav-category-item[data-drag-type="category"]').forEach(topCatEl => {
-      tree.push(extractCategoryNodeFromDOM(topCatEl));
+    document.querySelectorAll('.sidebar-nav > [data-drag-type]').forEach(topEl => {
+      const dragType = topEl.getAttribute('data-drag-type');
+      if (dragType === 'category') {
+        tree.push(extractCategoryNodeFromDOM(topEl));
+      } else if (dragType === 'document') {
+        tree.push(extractDocumentNodeFromDOM(topEl));
+      }
     });
 
     try {
@@ -898,18 +1009,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const draggedType = draggedElement.getAttribute('data-drag-type');
       const targetType = el.getAttribute('data-drag-type');
 
-      // Drag document or category onto a Category -> Drop inside
+      // Drag document or category onto a Category -> Drop inside if hovering in middle
       if (targetType === 'category') {
         if (offsetY > height * 0.25 && offsetY < height * 0.75) {
           el.classList.add('drag-over-inside');
           return;
         }
-      }
-
-      const isTopLevelCategory = el.parentNode && el.parentNode.classList.contains('sidebar-nav');
-      if (isTopLevelCategory && draggedType === 'document') {
-        el.classList.add('drag-over-inside');
-        return;
       }
 
       if (offsetY < height / 2) {
@@ -948,6 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.parentNode.insertBefore(draggedElement, el.nextSibling);
       }
 
+      updateTopLinkVisuals(draggedElement);
       await saveTreeStructureToBackend();
     });
   });

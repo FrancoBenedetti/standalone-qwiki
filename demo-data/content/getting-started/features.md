@@ -92,3 +92,14 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
 - **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`) to admin users.
 - **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, and HTML documents.
+
+---
+
+## 🔗 9. Navigation Hyperlinks & Tab Routing
+
+- **Sidebar Hyperlinks**: Place custom links directly into the navigation tree at any level—either at the top level alongside category headers or nested inside any category folder.
+- **Smart Target Routing**:
+  - **External Links**: Automatically open in a new tab (`target="_blank" rel="noopener noreferrer"`) and display an external link badge.
+  - **Internal Links**: Same-domain and relative links open in the same tab (`target="_self"`) with an internal link badge.
+- **Drag-and-Drop Reordering**: Move links freely between top-level navigation and nested category folders with drag handles (`⣿`).
+- **Search Integration**: Hyperlinks are fully indexed and searchable by title and description.

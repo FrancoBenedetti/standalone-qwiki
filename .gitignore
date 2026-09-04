@@ -10,3 +10,5 @@ admin_test*
 output.html
 tests/lock_integration_test.php
 tests/lock_test.php
+tests/test_video_embed.js
+tests/hyperlink_test.php

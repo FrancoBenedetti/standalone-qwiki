@@ -450,6 +450,64 @@ body {
 .badge-md, .badge-markdown { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
 .badge-gdoc { background: rgba(16, 185, 129, 0.18); color: #34d399; }
 .badge-pdf { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.badge-link { background: rgba(147, 51, 234, 0.18); color: #c084fc; }
+.badge-internal-link { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+
+.btn-edit-link-icon {
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0;
+  margin: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-edit-link-icon:hover {
+  opacity: 1;
+}
+
+.nav-link-actions-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Top-level navigation link in sidebar (perfectly aligned with category headers) */
+.sidebar-nav > .nav-link,
+.nav-link.nav-top-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  margin: 0;
+  border-radius: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.sidebar-nav > .nav-link:hover,
+.nav-link.nav-top-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.sidebar-nav > .nav-link .drag-handle,
+.nav-link.nav-top-link .drag-handle {
+  font-size: 0.9rem;
+  margin-right: 0.35rem;
+}
+
+.top-link-icon {
+  margin-right: 0;
+  font-size: inherit;
+  display: inline;
+}
 
 /* Main Content Area */
 .app-content {

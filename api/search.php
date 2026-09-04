@@ -71,7 +71,17 @@ function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extMana
 
 if (!empty($config['books'])) {
     foreach ($config['books'] as $book) {
-        search_node_tree($book, $query, $isAdmin, $isViewer, $baseDir, $extManager, $results);
+        if (($book['type'] ?? 'folder') === 'link') {
+            $title = strtolower($book['title'] ?? '');
+            $desc = strtolower($book['description'] ?? '');
+            if (strpos($title, $query) !== false || strpos($desc, $query) !== false) {
+                if (!empty($book['slug'])) {
+                    $results[] = $book['slug'];
+                }
+            }
+        } else {
+            search_node_tree($book, $query, $isAdmin, $isViewer, $baseDir, $extManager, $results);
+        }
     }
 }
 

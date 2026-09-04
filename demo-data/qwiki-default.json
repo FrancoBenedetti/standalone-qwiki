@@ -91,6 +91,15 @@
             ]
         },
         {
+            "title": "GitHub Repository",
+            "slug": "github-repository",
+            "type": "link",
+            "url": "https://github.com/FrancoBenedetti/standalone-qwiki",
+            "description": "Standalone Qwiki source repository and issue tracker on GitHub",
+            "editUrl": "",
+            "file": ""
+        },
+        {
             "id": "user-guide",
             "title": "Admin User Guide",
             "type": "folder",

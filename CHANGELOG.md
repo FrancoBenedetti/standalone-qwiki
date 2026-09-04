@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.0] - OmniNav - 2026-09-04
+
+### 🌐 Added
+- **Navigation Hyperlinks**: Custom hyperlinks can now be added directly to the sidebar navigation tree at any level—either at the root alongside category headers or nested inside any category folder.
+- **Smart Target Routing**:
+  - Automatically routes external domain URLs to open in a new tab with secure `target="_blank" rel="noopener noreferrer"`.
+  - Automatically routes same-domain and relative URLs to open in the same tab (`target="_self"`).
+  - Visual status badges indicate external (`badge-link`) vs. internal (`badge-internal-link`) destinations.
+- **Top-Level Pixel-Perfect Alignment**:
+  - Root-level hyperlinks match category headers in padding (`0.65rem 1.25rem`), typography (uppercase, bold, letter-spacing), drag handles (`⣿`), and right-aligned actions.
+  - Automatically prefixes a `🔗` emoji matching category folder icons (`📂`) with identical character spacing and baseline alignment.
+- **Unified Drag & Drop Engine**:
+  - Reorder hyperlinks anywhere in the menu hierarchy with instant backend sync to `qwiki.json`.
+  - Live DOM updating dynamically toggles top-level vs. nested styling and icons without requiring a page reload.
+- **Search Integration**: Real-time filtering and server-side search seamlessly indexes hyperlink titles and descriptions.
+- **Protocol Security Validation**: Blocks potentially unsafe or malicious protocol schemes (`javascript:`, `data:`, `vbscript:`).
+- **Admin Management Modals**: Dedicated forms in the Add Item modal (`tab-link`) and Edit Hyperlink modal (`#edit-link-modal`) with full edit and delete support.
+
+### 📚 Documentation & Demo Data
+- **User Guide Updates**: Documented hyperlink creation, smart tab routing, and management in `content/user-guide/managing-content.md` and `demo-data/content/user-guide/managing-content.md`.
+- **Features Guide**: Documented Navigation Hyperlinks in `content/getting-started/features.md` and `demo-data/content/getting-started/features.md`.
+- **Default Config Alignment**: Added official GitHub repository hyperlink sample to `demo-data/qwiki-default.json`.
+
+---
+
 ## [1.8.1] - 2026-09-04
 
 ### 📚 Documentation & Demo Data

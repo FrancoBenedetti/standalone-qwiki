@@ -111,7 +111,15 @@ foreach ($allowedBooks as $book) {
     }
 }
 if (!$activeBook && !empty($allowedBooks)) {
-    $activeBook = $allowedBooks[0];
+    foreach ($allowedBooks as $b) {
+        if (($b['type'] ?? 'folder') === 'folder') {
+            $activeBook = $b;
+            break;
+        }
+    }
+    if (!$activeBook) {
+        $activeBook = $allowedBooks[0];
+    }
 }
 
 $activeChapter = null;
@@ -138,7 +146,7 @@ if ($activeBook) {
         // Fallback to first document in the active book
         if (!empty($activeBook['items'])) {
             foreach ($activeBook['items'] as $item) {
-                if (!isset($item['type']) || $item['type'] !== 'folder') {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
                     $activeChapter = $item;
                     $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
                     break;
@@ -542,11 +550,43 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         </div>
     </div>
 
+    <!-- Edit Hyperlink Modal -->
+    <div class="modal-overlay" id="edit-link-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Edit Hyperlink</h3>
+                <button class="modal-close" data-close="edit-link-modal">&times;</button>
+            </div>
+            <form id="edit-link-form">
+                <input type="hidden" name="slug" id="edit-link-slug-hidden">
+                <input type="hidden" name="bookId" id="edit-link-book-hidden">
+                <input type="hidden" name="type" value="link">
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-title">Link Title</label>
+                    <input type="text" name="title" id="edit-link-title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-url">Target URL</label>
+                    <input type="text" name="url" id="edit-link-url" class="form-control" required>
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">External URLs open in a new tab automatically; same-domain URLs open in the same tab.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-link-description">Description (Optional)</label>
+                    <input type="text" name="description" id="edit-link-description" class="form-control">
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-link">🗑️ Delete Link</button>
+                    <button type="submit" class="btn btn-primary">Save Link Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Unified Add Document Modal (Dynamic with Extensions) -->
     <div class="modal-overlay" id="chapter-modal">
         <div class="modal-card" style="max-width: 700px;">
             <div class="modal-header">
-                <h3>Add New Document</h3>
+                <h3>Add New Document / Item</h3>
                 <button class="modal-close" data-close="chapter-modal">&times;</button>
             </div>
             
@@ -554,6 +594,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <button class="tab-btn active" data-tab="tab-create-md">✏️ New Markdown</button>
                 <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
                 <button class="tab-btn" data-tab="tab-gdoc">🌐 Google Doc</button>
+                <button class="tab-btn" data-tab="tab-link">🔗 Web Link</button>
                 <?php $extManager->renderAddDocumentTabs(); ?>
             </div>
 
@@ -563,7 +604,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
+                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -585,7 +628,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
+                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -606,7 +651,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
+                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -623,6 +670,35 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="url" name="editUrl" class="form-control" placeholder="https://docs.google.com/document/d/.../edit">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Link Google Doc</button>
+            </form>
+
+            <!-- Tab 4: Web Link -->
+            <form id="tab-link" class="tab-content">
+                <div class="form-group">
+                    <label class="form-label">Target Category / Placement</label>
+                    <select name="bookId" class="form-control">
+                        <option value="">-- Top Level (Sidebar Root) --</option>
+                        <?php foreach ($config['books'] as $b): ?>
+                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
+                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Link Title</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. GitHub Repository, API Status" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target URL</label>
+                    <input type="text" name="url" class="form-control" placeholder="https://example.com or /internal/path" required>
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">External URLs open in a new tab automatically; same-domain URLs open in the same tab.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (Optional)</label>
+                    <input type="text" name="description" class="form-control" placeholder="Short description for search">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Add Web Link</button>
             </form>
 
             <!-- Dynamic Extension Tabs -->

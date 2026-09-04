@@ -11,6 +11,19 @@ Click the **`+ Document`** button in the header menu (or under Category actions)
 2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view, or upload an existing `.html` file.
 3. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree.
 4. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
+5. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
+
+---
+
+## 🔗 Sidebar Hyperlinks
+
+You can add hyperlinks to external locations or internal pages directly into the left sidebar:
+- **Any Level**: Add hyperlinks at the root of the sidebar or nested inside any category or folder.
+- **Smart Tab Routing**:
+  - **External Pages**: Links to external domains automatically open in a new tab with `target="_blank"` and `rel="noopener noreferrer"`, preserving your active reading session in Qwiki.
+  - **Same-Domain Pages**: Links pointing to your current domain or relative paths open in the same tab (`target="_self"`).
+- **Admin Management**: Authenticated Admins can click the inline gear icon (`⚙️`) directly on the link in the sidebar to update its title, target URL, or delete it.
+- **Drag & Drop**: Grab the drag handle (`⣿`) on any hyperlink to move it between folders or reorder it anywhere in the sidebar.
 
 ---
 
