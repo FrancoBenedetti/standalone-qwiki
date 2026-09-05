@@ -1,61 +1,71 @@
-# ⚡ Standalone Qwiki
+# ⚡ Standalone Qwiki - Live Interactive Demo
 
-**Standalone Qwiki** is a modern, fast, zero-database documentation portal and wiki system written in PHP, Vanilla JavaScript, and CSS. It supports local Markdown files (`.md`), rich HTML documents (`.html`), embedded PDF documents (`.pdf`), and published Google Docs (`gdoc`) within a unified, responsive interface featuring dynamic search, zero-flicker dark/light themes, drag-and-drop menu reordering, resizable sidebar, self-contained extensions, and role-based user management.
-
----
-
-## 🌐 Sub-Folder & Sub-Domain Deployment
-
-Standalone Qwiki is **100% location-agnostic**:
-- It can be deployed in **any sub-folder** of your server root (e.g. `/help`, `/documentation`, `/docs/v1`, `/wiki`) or as a root domain.
-- **Universal Clean URLs**: Beautiful URLs (`/category/document`) resolve seamlessly across all environments (Apache with/without `mod_rewrite`, Nginx, and PHP built-in CLI server).
-- **Zero Hardcoded Paths**: All web assets, navigation links, and API requests use relative paths (`index.php?`, `assets/css/`, `api/admin.php`).
-- **Zero Configuration Required**: Simply place the `standalone-qwiki` folder into your desired directory on your server; auto-setup takes care of the rest!
+<div class="alert-box alert-warning" style="background: var(--bg-secondary, #f8f9fa); border: 1px solid rgba(245, 158, 11, 0.35); border-left: 5px solid #f59e0b; padding: 1.25rem 1.5rem; border-radius: 6px; margin: 1.5rem 0 2rem 0;">
+<div style="font-size: 1.15rem; font-weight: 700; color: #d97706; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+<span>⚠️</span> <span>Interactive Demo Environment</span>
+</div>
+<p style="margin: 0 0 0.5rem 0; font-size: 0.95rem; line-height: 1.5;">Welcome to the official interactive demo of <strong>Standalone Qwiki</strong>! You are free to explore, create new pages, upload documents, test drag-and-drop reordering, and try out administrative features.</p>
+<p style="margin: 0; font-size: 0.9rem; color: var(--text-muted, #6b7280); line-height: 1.5;"><strong>🔄 Periodic Reload Warning:</strong> This demo environment is <strong>automatically reloaded periodically</strong> back to a clean state. Any documents, categories, user accounts, or media uploads added by visitors will be wiped clean during each scheduled reset.</p>
+</div>
 
 ---
 
-## 🔒 Public vs. Private Access Modes
+## 🔑 How to Access the Demo
 
-Admins can control whether documentation is publicly readable or requires authentication:
+Anyone can browse and search this demo package without signing in. To test administrative capabilities, content editing, file uploads, and page creation:
 
-1. Open **`⚙️ Settings`** in the header as Admin.
-2. Select **Access Mode**:
-   - **Public Access (Default)**: Anyone can view and search documentation without logging in. Authentication is only required for editing, uploading, reordering, and user management.
-   - **Private Portal**: Authentication (as Viewer or Admin) is strictly required to view documentation content. Unauthenticated visitors see a secure login prompt.
-
----
-
-## 🌟 Key Features
-
-- **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
-- **🧩 Self-Contained Extension System**: Extend Qwiki with custom page types and agentic tools located in `assets/extensions/` without modifying core files.
-- **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline WYSIWYG Toast UI editor, direct image upload, and playable video auto-embedding.
-  - **HTML Documents (`.html`)**: Sandboxed interactive HTML pages with built-in **SunEditor WYSIWYG visual editor** and raw source code toggle.
-  - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration.
-  - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
-- **✨ Agentic Visual & Chart Generator**: Create vector Bar Charts, Line Trends, Pie/Donut Charts, Flow Diagrams, and Status Badges. Generates standalone SVG files saved directly to `uploads/` with 1-click Markdown editor insertion.
-- **🌓 Zero-Flicker Theming**: Instant theme switching with persistent server-side cookie and synchronous head script sync.
-- **🖐️ Drag-and-Drop Menu Reordering**: Authenticated Admins can drag items using visual handles (`⣿`) to reorder documents, nest items into categories/sub-folders, or reorder top-level categories.
-- **↔️ Resizable Sidebar Menu**: Click and drag the right border of the sidebar menu to adjust width (`200px` to `550px`).
-- **👥 Multi-User Management & RBAC**: Role-based access with Admin and Viewer accounts encrypted using native PHP Bcrypt (`password_hash()`).
-- **🎨 Cascading Themes & Live CSS Editor**: Assign different CSS themes across the site, categories, or documents with a live browser-based theme editor.
-- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Hide document type badges (MD, PDF, GDOC, HTML) from public viewers.
-- **🛡️ Security Hardening**: Strict path traversal prevention, sanitized filenames, and protected `.json` stores.
+1. Click the **`Login`** button in the top right corner of the header.
+2. Use the default demo administrator credentials:
+   - **Username**: `admin`
+   - **Password**: `admin`
+3. Once logged in, the admin control bar, action buttons, and drag handles (`⣿`) become active.
 
 ---
 
-## 📋 System Requirements
+## 🎯 What to Try in This Demo Package
 
-- **PHP**: PHP 7.4 or PHP 8.x
-- **PHP Extensions**: `json`, `session`, `mbstring`, `fileinfo`, `zip` (for 1-click updates)
-- **Web Server**: Apache, Nginx, or Caddy (or built-in PHP CLI dev server for local testing).
+Here are the key features and workflows you can test right now:
+
+### 1. Create and Edit Content
+- Click **`+ Add Document`** in the top navigation bar to create a new **Markdown** article, interactive **HTML** page, embed a published **Google Doc**, or upload a **PDF**.
+- Note: This **Introduction** landing page is protected as **read-only** in the demo environment to preserve the guide for all visitors. You can test inline editing and WYSIWYG modes on any other document or any new pages you create!
+
+### 2. Drag-and-Drop Menu Reordering
+- In the sidebar menu, click and drag the **`⣿` handles** next to document titles or categories.
+- Reorder documents, nest items inside folders, or move categories up and down. All changes sync immediately.
+
+### 3. Agentic Visual & Chart Generator
+- Click **`✨ AI Visuals`** in the top navigation bar.
+- Generate standalone vector SVGs (Bar Charts, Line Trends, Pie/Donut Charts, Flow Diagrams, or Status Badges) and insert them into your Markdown documents with 1 click.
+
+### 4. Zero-Flicker Themes & Live CSS Editor
+- Click the **Dark / Light theme toggle** (`🌙` / `☀️`) in the header for instantaneous, zero-flicker theme switching.
+- Navigate to **`Admin User Guide > Themes & Styling`** to see custom category themes or open **`🎨 Theme Editor`** from the Settings menu.
+
+### 5. Multi-User Management & Access Modes
+- Open **`👥 Users`** in the header to view user accounts or create new Viewer / Admin users.
+- Open **`⚙️ Settings`** to toggle between **Public Access** and **Private Portal** modes, change site branding, or copy RSS feeds.
 
 ---
 
-## 🔑 Default Credentials & Admin Suite
+## 🔄 Demo Reload Utility
 
-When accessing for the first time, click **Login** in the top right header:
+Standalone Qwiki includes a built-in reload engine (`DemoManager`) and reload script (`demo-reload.php`) designed for automated cron jobs and server administration:
 
-- **Username**: `admin`
-- **Password**: `admin`
+1. **Scheduled Reset**: In public demo environments, configure a standard cron job to reset the demo periodically:
+```bash
+*/30 * * * * php /var/www/html/demo-reload.php --quiet
+```
+
+2. **On-Demand Reset**: Authenticated Admins can also reset the demo immediately via the **`⚙️ Settings`** modal by clicking **`Reload Demo Package`**.
+
+---
+
+## 🚀 Get Standalone Qwiki for Production
+
+Ready to deploy Standalone Qwiki on your own servers or hosting?
+
+- **Zero Database Requirement**: 100% standalone using lightweight file stores (`qwiki.json` and `users.json`).
+- **Location Agnostic**: Deploy in any subfolder (`/docs`, `/wiki`) or root domain on Apache, Nginx, Caddy, or PHP CLI.
+- **GitHub Repository**: [FrancoBenedetti/standalone-qwiki](https://github.com/FrancoBenedetti/standalone-qwiki)
+- **Installation Guide**: Follow the step-by-step [Installation Guide](getting-started/installation).

@@ -17,7 +17,9 @@ if (!defined('QWIKI_VERSION')) {
 }
 
 Auth::startSession();
-header('Content-Type: application/json');
+if (!headers_sent()) {
+    header('Content-Type: application/json');
+}
 
 $config = Config::load();
 $baseDir = Config::getBaseDir();
@@ -156,6 +158,32 @@ function delete_chapter_from_node(&$node, $slug) {
         }
         $node['items'] = $newItems;
     }
+}
+
+// Helper to check if chapter or document is read-only / protected
+function is_chapter_protected($slug_or_file, $nodes) {
+    if (empty($slug_or_file) || !is_array($nodes)) return false;
+    $normTarget = ltrim(str_replace('\\', '/', $slug_or_file), '/');
+    foreach ($nodes as $node) {
+        $isProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false);
+        if ($isProtected) {
+            if (!empty($node['slug']) && $node['slug'] === $slug_or_file) {
+                return true;
+            }
+            if (!empty($node['file'])) {
+                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                if ($normFile === $normTarget) {
+                    return true;
+                }
+            }
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            if (is_chapter_protected($slug_or_file, $node['items'])) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
@@ -330,6 +358,10 @@ switch ($action) {
             exit;
         }
         $slug = $_POST['slug'] ?? '';
+        if (is_chapter_protected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified in the demo environment.']);
+            exit;
+        }
         $title = trim($_POST['title'] ?? '');
         $type = $_POST['type'] ?? 'markdown';
         $url = trim($_POST['url'] ?? '');
@@ -440,6 +472,10 @@ switch ($action) {
             exit;
         }
         $relFile = $_POST['file'] ?? '';
+        if (is_chapter_protected($relFile, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited in the demo environment.']);
+            exit;
+        }
         $content = $_POST['content'] ?? '';
         if (isset($_POST['content_base64'])) {
             $content = base64_decode($_POST['content_base64']);
@@ -628,6 +664,10 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Item slug is required']);
             exit;
         }
+        if (is_chapter_protected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted in the demo environment.']);
+            exit;
+        }
         $filteredBooks = [];
         foreach ($config['books'] as &$book) {
             if (($book['slug'] ?? '') === $slug) {
@@ -737,7 +777,7 @@ switch ($action) {
                     } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
                         $origDoc = $existingDocuments[$nodeSlug];
                         $mergedNode = array_merge($origDoc, $node);
-                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl'] as $field) {
+                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl', 'readOnly', 'editable'] as $field) {
                             if (empty($node[$field]) && isset($origDoc[$field])) {
                                 $mergedNode[$field] = $origDoc[$field];
                             }
@@ -973,6 +1013,16 @@ switch ($action) {
             @unlink($tempZip);
             echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
         }
+        break;
+
+    case 'reload_demo':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        require_once $baseDir . '/lib/Core/DemoManager.php';
+        $reloadResult = \Qwiki\Core\DemoManager::reload();
+        echo json_encode($reloadResult);
         break;
 
     default:

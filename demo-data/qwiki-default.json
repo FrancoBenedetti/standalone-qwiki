@@ -16,12 +16,14 @@
             "type": "folder",
             "items": [
                 {
-                    "title": "Introduction",
+                    "title": "Welcome & Demo Guide",
                     "slug": "introduction",
                     "type": "markdown",
+                    "editable": false,
+                    "readOnly": true,
                     "url": "",
                     "editUrl": "",
-                    "description": "Learn how Standalone Qwiki can transform your documentation process.",
+                    "description": "Learn how Standalone Qwiki works and explore this live interactive demo.",
                     "image": "https://raw.githubusercontent.com/FrancoBenedetti/standalone-qwiki/main/assets/img/og-preview.png",
                     "file": "content/getting-started/introduction.md"
                 },

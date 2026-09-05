@@ -261,7 +261,9 @@ class Navigation {
                     $chTheme = htmlspecialchars($ch['theme'] ?? '');
                     $chDesc = htmlspecialchars($ch['description'] ?? '');
                     $chImg = htmlspecialchars($ch['image'] ?? '');
-                    $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title'] ?? '') . "' data-doc-slug='" . htmlspecialchars($ch['slug'] ?? '') . "' data-doc-type='" . htmlspecialchars($docType) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}'" : "";
+                    $isChReadOnly = !empty($ch['readOnly']) || (isset($ch['editable']) && $ch['editable'] === false);
+                    $readOnlyAttr = $isChReadOnly ? "data-doc-readonly='1'" : "";
+                    $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title'] ?? '') . "' data-doc-slug='" . htmlspecialchars($ch['slug'] ?? '') . "' data-doc-type='" . htmlspecialchars($docType) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}' {$readOnlyAttr}" : "";
 
                     echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
                     echo "<span>";
