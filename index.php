@@ -197,7 +197,11 @@ if ($activeChapter) {
     }
 }
 
-$isPageReadOnly = !empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false);
+$isPageReadOnly = false;
+if ($activeChapter) {
+    $isPageReadOnly = Config::isChapterProtected($activeChapter['slug'] ?? '', $config['books'] ?? [])
+        || Config::isChapterProtected($activeChapter['file'] ?? '', $config['books'] ?? []);
+}
 
 // Theme Resolution
 $siteTheme = $config['theme'] ?? 'theme-default.css';
@@ -354,9 +358,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             </button>
 
                             <?php if ($isPageReadOnly): ?>
-                                <span class="badge badge-secondary" title="This document is protected in demo mode" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
+                                <span class="badge badge-secondary" title="This document is protected against modifications" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
                                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                    Protected Demo Page
+                                    <?= Config::isDemoMode() ? 'Protected Demo Page' : 'Protected Document' ?>
                                 </span>
                             <?php endif; ?>
 
@@ -860,7 +864,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Save Settings</button>
             </form>
-            <?php if (DemoManager::isDemoConfigured()): ?>
+            <?php if (Config::isDemoMode() && DemoManager::isDemoConfigured()): ?>
                 <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color, #e5e7eb);">
                     <label class="form-label" style="color: var(--danger-color, #ef4444); font-weight: 600;">🔄 Reset Demo Package</label>
                     <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">Reload the demo package back to its fresh state. All visitor additions and user changes will be wiped clean.</p>

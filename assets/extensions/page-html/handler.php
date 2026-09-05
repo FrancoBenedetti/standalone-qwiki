@@ -27,6 +27,11 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         return;
     }
 
+    if (Config::isChapterProtected($file)) {
+        echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited.']);
+        return;
+    }
+
     $absolutePath = Config::safePath($baseDir, $file);
     if (!$absolutePath || !file_exists($absolutePath)) {
         echo json_encode(['success' => false, 'error' => 'Invalid or non-existent file path']);

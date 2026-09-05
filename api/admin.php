@@ -160,30 +160,9 @@ function delete_chapter_from_node(&$node, $slug) {
     }
 }
 
-// Helper to check if chapter or document is read-only / protected
-function is_chapter_protected($slug_or_file, $nodes) {
-    if (empty($slug_or_file) || !is_array($nodes)) return false;
-    $normTarget = ltrim(str_replace('\\', '/', $slug_or_file), '/');
-    foreach ($nodes as $node) {
-        $isProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false);
-        if ($isProtected) {
-            if (!empty($node['slug']) && $node['slug'] === $slug_or_file) {
-                return true;
-            }
-            if (!empty($node['file'])) {
-                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
-                if ($normFile === $normTarget) {
-                    return true;
-                }
-            }
-        }
-        if (!empty($node['items']) && is_array($node['items'])) {
-            if (is_chapter_protected($slug_or_file, $node['items'])) {
-                return true;
-            }
-        }
-    }
-    return false;
+// Backward compatibility helper
+function is_chapter_protected($slug_or_file, $nodes = null) {
+    return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
 }
 
 if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
@@ -358,8 +337,8 @@ switch ($action) {
             exit;
         }
         $slug = $_POST['slug'] ?? '';
-        if (is_chapter_protected($slug, $config['books'] ?? [])) {
-            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified in the demo environment.']);
+        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
             exit;
         }
         $title = trim($_POST['title'] ?? '');
@@ -472,8 +451,8 @@ switch ($action) {
             exit;
         }
         $relFile = $_POST['file'] ?? '';
-        if (is_chapter_protected($relFile, $config['books'] ?? [])) {
-            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited in the demo environment.']);
+        if (Config::isChapterProtected($relFile, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited.']);
             exit;
         }
         $content = $_POST['content'] ?? '';
@@ -664,8 +643,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Item slug is required']);
             exit;
         }
-        if (is_chapter_protected($slug, $config['books'] ?? [])) {
-            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted in the demo environment.']);
+        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
             exit;
         }
         $filteredBooks = [];
@@ -906,6 +885,10 @@ switch ($action) {
 
     case 'check_updates':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => true, 'has_update' => false]);
+            exit;
+        }
         $cacheFile = $baseDir . '/uploads/update_cache.json';
         $currVerClean = ltrim(preg_replace('/^v\.?/i', '', trim(QWIKI_VERSION)), 'vV');
 
@@ -958,6 +941,10 @@ switch ($action) {
 
     case 'install_update':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => false, 'error' => 'In-app updates are disabled in demo mode.']);
+            exit;
+        }
         $zipUrl = $_POST['zip_url'] ?? '';
         if (empty($zipUrl)) { echo json_encode(['success' => false, 'error' => 'Missing zip URL']); exit; }
         if (!class_exists('ZipArchive')) {
@@ -1018,6 +1005,10 @@ switch ($action) {
     case 'reload_demo':
         if (!Auth::isAdmin()) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        if (!Config::isDemoMode() && !\Qwiki\Core\DemoManager::isDemoConfigured()) {
+            echo json_encode(['success' => false, 'error' => 'Demo mode is not configured']);
             exit;
         }
         require_once $baseDir . '/lib/Core/DemoManager.php';
