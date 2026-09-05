@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.2] - DemoShield - 2026-09-05
+
+### 🛡️ Document Protection & Access Control
+- **Universal Read-Only Document Protection**:
+  - Documents configured with `"readOnly": true` or `"editable": false` in `qwiki.json` are globally locked against inline editing, metadata modifications (`edit_chapter`), deletion (`delete_chapter`), and HTML page saves (`page-html`).
+  - Added `Config::isChapterProtected($slugOrFile)` to provide centralized recursive document protection checks across all core handlers and extensions.
+  - Displays a visual status badge (`Protected Document` in standard mode, `Protected Demo Page` in demo mode) on locked articles.
+  - Automatically suppresses inline editing toolbars, Toast UI editors, and drag-and-drop eviction for protected articles.
+
+### 🔄 Native Demo Engine & Updater Safeguards
+- **First-Class Demo Mode Activation**:
+  - Added `Config::isDemoMode()` supporting three activation methods: `"demoMode": true` in `qwiki.json`, environment variable `QWIKI_DEMO_MODE=1`, or a `.demo` marker file in the installation root.
+  - **Auto-Updater Protection**: Automatically disables GitHub update checks (`has_update: false`) and blocks `install_update` when running in demo mode, protecting public sandboxes from being overwritten by visitors.
+  - **Scoped Demo Controls**: Displays the `Reload Demo Package` button in Admin Settings exclusively when demo mode is active. Standard installations remain clean.
+- **DemoManager & Reload Engine**:
+  - Integrated `Qwiki\Core\DemoManager` and `demo-reload.php` directly into core to provide clean zero-divergence branch alignment between production releases and demo sandboxes.
+  - Safely resets visitor content additions, uploads, active locks, and user stores via CLI cron (`php demo-reload.php --quiet`) or authenticated web requests.
+
+### 📚 Documentation & Guidelines
+- **System Features**: Added Document Protection & Sandbox Safeguards documentation to `getting-started/features.md`.
+- **Release Guidelines**: Formalized the downstream synchronization workflow (`main` ➔ `demo`) and release origin rules in `AGENTS.md`.
+
+---
+
 ## [1.9.1] - SecureScope - 2026-09-05
 
 ### 🔒 Security & Authentication

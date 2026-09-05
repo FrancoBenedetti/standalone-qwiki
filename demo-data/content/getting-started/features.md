@@ -103,3 +103,11 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
   - **Internal Links**: Same-domain and relative links open in the same tab (`target="_self"`) with an internal link badge.
 - **Drag-and-Drop Reordering**: Move links freely between top-level navigation and nested category folders with drag handles (`⣿`).
 - **Search Integration**: Hyperlinks are fully indexed and searchable by title and description.
+
+---
+
+## 🛡️ 10. Document Protection & Sandbox Safeguards
+
+- **Read-Only Document Protection**: Mark any document in `qwiki.json` with `"readOnly": true` or `"editable": false` to lock it against modifications, inline edits, or deletions. Protected pages display a `Protected Document` badge (or `Protected Demo Page` badge in demo mode) and disable reordering or removal.
+- **Native Demo Mode & Auto-Updater Safeguards**: Activate sandbox mode via `"demoMode": true` in `qwiki.json`, environment variable `QWIKI_DEMO_MODE=1`, or a `.demo` marker file. Automatically suppresses the in-app auto-updater to prevent sandboxes from being overwritten, and surfaces the `Reload Demo Package` reset engine.
+- **Multi-Instance Session Isolation**: Generates unique `QWIKISESSID_<hash>` session names and subfolder cookie paths derived from each installation's filesystem path, preventing session bleed across adjacent sites or nested subfolders.
