@@ -11,6 +11,8 @@ output.html
 tests/lock_integration_test.php
 tests/lock_test.php
 tests/test_video_embed.js
+tests/test_markdown_html_preservation.js
+tests/fixtures/
 tests/hyperlink_test.php
 tests/session_isolation_test.php
 tests/demo_reload_test.php
