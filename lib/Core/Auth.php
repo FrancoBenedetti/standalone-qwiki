@@ -2,8 +2,40 @@
 namespace Qwiki\Core;
 
 class Auth {
+    public static function getInstanceIdentifier() {
+        $baseDir = Config::getBaseDir();
+        return realpath($baseDir) ?: $baseDir;
+    }
+
     public static function startSession() {
         if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+            $instanceId = self::getInstanceIdentifier();
+            $instanceHash = substr(hash('sha256', $instanceId), 0, 8);
+            $sessionName = 'QWIKISESSID_' . $instanceHash;
+
+            if (session_name() !== $sessionName) {
+                @session_name($sessionName);
+            }
+
+            if (php_sapi_name() !== 'cli') {
+                $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+                $scriptDir = rtrim(dirname($scriptName === '/' || $scriptName === '\\' ? '' : $scriptName), '/\\');
+                $webPath = preg_replace('#/(api|assets|content).*$#i', '', $scriptDir);
+                $cookiePath = !empty($webPath) ? $webPath . '/' : '/';
+
+                $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+
+                @session_set_cookie_params([
+                    'lifetime' => 0,
+                    'path'     => $cookiePath,
+                    'domain'   => '',
+                    'secure'   => $isHttps,
+                    'httponly' => true,
+                    'samesite' => 'Lax'
+                ]);
+            }
+
             $defaultPath = session_save_path();
             if (empty($defaultPath) || !@is_writable($defaultPath)) {
                 @session_save_path(sys_get_temp_dir());
@@ -14,17 +46,29 @@ class Auth {
 
     public static function getCurrentUser() {
         self::startSession();
+        $expectedInstance = self::getInstanceIdentifier();
+        if (!empty($_SESSION['qwiki_instance']) && $_SESSION['qwiki_instance'] !== $expectedInstance) {
+            return null;
+        }
         return $_SESSION['qwiki_user'] ?? null;
     }
 
     public static function isAdmin() {
         self::startSession();
+        $expectedInstance = self::getInstanceIdentifier();
+        if (!empty($_SESSION['qwiki_instance']) && $_SESSION['qwiki_instance'] !== $expectedInstance) {
+            return false;
+        }
         $user = self::getCurrentUser();
         return (!empty($user) && $user['role'] === 'admin') || !empty($_SESSION['qwiki_admin']);
     }
 
     public static function isViewer() {
         self::startSession();
+        $expectedInstance = self::getInstanceIdentifier();
+        if (!empty($_SESSION['qwiki_instance']) && $_SESSION['qwiki_instance'] !== $expectedInstance) {
+            return false;
+        }
         return !empty($_SESSION['qwiki_user']);
     }
 
@@ -55,6 +99,7 @@ class Auth {
         }
 
         if ($matchedUser && password_verify($password, $matchedUser['passwordHash'])) {
+            $_SESSION['qwiki_instance'] = self::getInstanceIdentifier();
             $_SESSION['qwiki_user'] = [
                 'username' => $matchedUser['username'],
                 'role' => $matchedUser['role']
@@ -79,6 +124,7 @@ class Auth {
                     unset($u);
                     Config::saveUsers($userData);
                 }
+                $_SESSION['qwiki_instance'] = self::getInstanceIdentifier();
                 $_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
                 $_SESSION['qwiki_admin'] = true;
                 return ['success' => true, 'role' => 'admin', 'username' => 'admin'];
@@ -137,7 +183,15 @@ class Auth {
         self::startSession();
         unset($_SESSION['qwiki_user']);
         unset($_SESSION['qwiki_admin']);
+        unset($_SESSION['qwiki_instance']);
         if (session_status() === PHP_SESSION_ACTIVE) {
+            if (ini_get("session.use_cookies") && php_sapi_name() !== 'cli' && !headers_sent()) {
+                $params = session_get_cookie_params();
+                @setcookie(session_name(), '', time() - 42000,
+                    $params["path"], $params["domain"],
+                    $params["secure"], $params["httponly"]
+                );
+            }
             session_destroy();
         }
         return ['success' => true];
