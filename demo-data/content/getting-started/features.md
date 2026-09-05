@@ -16,6 +16,7 @@
   - **Loom**: Instant screencast video playback directly from share links.
   - **HTML5 Direct Video**: Native player for `.mp4`, `.webm`, `.ogg`, and `.mov` files with controls and download links.
   - **Subtitles & Captions**: Add a custom title using Markdown link syntax `[Video Title](https://...)` or image syntax `![Video Title](video.mp4)` to display an italicized caption below the player.
+- **Protected Markdown + HTML Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, and custom badges. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization and style loss.
 
 ### B. HTML Documents (`.html`)
 - Native sandboxed HTML embedding with interactive JavaScript execution and isolated styling.

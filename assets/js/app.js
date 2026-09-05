@@ -645,6 +645,40 @@ document.addEventListener('DOMContentLoaded', () => {
   const rawMarkdownData = document.getElementById('raw-markdown-data');
   let tuiEditor = null;
 
+  // Helper to detect complex HTML markup that would be stripped by Toast UI WYSIWYG mode
+  function containsHtmlMarkup(md) {
+    if (!md || typeof md !== 'string') return false;
+
+    // Strip fenced code blocks (``` ... ``` and ~~~ ... ~~~) and inline code
+    const stripped = md
+      .replace(/^```[\s\S]*?^```/gm, '')
+      .replace(/^~~~[\s\S]*?^~~~/gm, '')
+      .replace(/`[^`\n]+`/g, '');
+
+    // Check for HTML comments
+    if (/<!--[\s\S]*?-->/.test(stripped)) return true;
+
+    // Check for any HTML block tags (open or close)
+    const blockTags = 'div|section|article|aside|header|footer|nav|main|style|script|iframe|video|audio|source|details|summary|canvas|svg|button|form|input|select|textarea|figure|figcaption|table|thead|tbody|tfoot|tr|td|th';
+    const blockRegex = new RegExp(`</?(?:${blockTags})[\\s>/]`, 'i');
+    if (blockRegex.test(stripped)) return true;
+
+    // Check for any HTML tags with attributes (style, class, id, data-*, width, height, align, target, etc.)
+    if (/<[a-z][a-z0-9]*\b[^>]*\b(?:style|class|id|data-[a-z0-9_-]+|align|width|height|target)\s*=/i.test(stripped)) {
+      return true;
+    }
+
+    // Check for generic HTML tags that are not autolinks
+    const nonAutolink = stripped
+      .replace(/<https?:\/\/[^>]+>/gi, '')
+      .replace(/<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>/g, '');
+    if (/<[a-z][a-z0-9]*(?:\s+[^>]*)?>/i.test(nonAutolink)) {
+      return true;
+    }
+
+    return false;
+  }
+
   window.syncTuiEditorTheme = function(theme) {
     if (editorContainer) {
       const ui = editorContainer.querySelector('.toastui-editor-defaultUI');
@@ -691,17 +725,43 @@ document.addEventListener('DOMContentLoaded', () => {
       editActions.style.display = 'flex';
       editorContainer.style.display = 'block';
 
+      const rawContent = rawMarkdownData.value || '';
+      const hasHtml = containsHtmlMarkup(rawContent);
+
+      // Notice banner for HTML protected mode
+      let htmlNotice = document.getElementById('editor-html-notice');
+      if (hasHtml) {
+        if (!htmlNotice) {
+          htmlNotice = document.createElement('div');
+          htmlNotice.id = 'editor-html-notice';
+          htmlNotice.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.9rem; margin-bottom: 0.75rem; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-secondary);';
+          htmlNotice.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1.1rem;">⚡</span>
+              <span><strong>Markdown + HTML Mode (Live Preview):</strong> Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.</span>
+            </div>
+            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">PROTECTED HTML</span>
+          `;
+          editorContainer.parentNode.insertBefore(htmlNotice, editorContainer);
+        } else {
+          htmlNotice.style.display = 'flex';
+        }
+      } else if (htmlNotice) {
+        htmlNotice.style.display = 'none';
+      }
+
       if (!tuiEditor) {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         
         const editorConfig = {
           el: editorContainer,
-          initialValue: rawMarkdownData.value,
-          initialEditType: 'wysiwyg',
+          initialValue: rawContent,
+          initialEditType: hasHtml ? 'markdown' : 'wysiwyg',
           previewStyle: 'vertical',
           height: '600px',
           theme: isDark ? 'dark' : '',
           usageStatistics: false,
+          hideModeSwitch: hasHtml,
           hooks: {
             addImageBlobHook: async (blob, callback) => {
               const formData = new FormData();
@@ -725,14 +785,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
           tuiEditor = new toastui.Editor(editorConfig);
-        } catch (wysiwygErr) {
-          console.warn('Toast UI WYSIWYG mode failed to parse document, falling back to Markdown mode:', wysiwygErr);
+        } catch (initErr) {
+          console.warn('Toast UI editor initial mode failed, falling back to Markdown mode:', initErr);
           editorConfig.initialEditType = 'markdown';
+          editorConfig.hideModeSwitch = true;
           try {
             tuiEditor = new toastui.Editor(editorConfig);
           } catch (fatalErr) {
             console.error('Toast UI Editor fatal initialization error:', fatalErr);
             alert('Failed to initialize document editor: ' + fatalErr.message);
+            if (htmlNotice) htmlNotice.style.display = 'none';
             editActions.style.display = 'none';
             editorContainer.style.display = 'none';
             readActions.style.display = 'flex';
@@ -741,6 +803,21 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
         window.tuiEditorInstance = tuiEditor;
+
+        // Guard mode switching: if document contains HTML, block switching to WYSIWYG
+        if (tuiEditor.eventEmitter) {
+          const origEmit = tuiEditor.eventEmitter.emit.bind(tuiEditor.eventEmitter);
+          tuiEditor.eventEmitter.emit = function(type, ...args) {
+            if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
+              const currentContent = tuiEditor.getMarkdown();
+              if (containsHtmlMarkup(currentContent)) {
+                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains custom HTML tags or inline styles which would be stripped. Please continue editing in Markdown mode.');
+                return;
+              }
+            }
+            return origEmit(type, ...args);
+          };
+        }
 
         // Auto-save local draft on editor changes
         tuiEditor.on('change', () => {
@@ -771,6 +848,11 @@ document.addEventListener('DOMContentLoaded', () => {
         await window.SoftLock.release(file);
         window.SoftLock.clearDraft(file);
       }
+      const htmlNotice = document.getElementById('editor-html-notice');
+      if (htmlNotice) htmlNotice.style.display = 'none';
+      if (tuiEditor && rawMarkdownData) {
+        tuiEditor.setMarkdown(rawMarkdownData.value);
+      }
       editActions.style.display = 'none';
       editorContainer.style.display = 'none';
       readActions.style.display = 'flex';
@@ -799,6 +881,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           if (window.SoftLock) {
             window.SoftLock.clearDraft(file);
+          }
+          if (rawMarkdownData) {
+            rawMarkdownData.value = content;
           }
           window.location.reload();
         } else {
