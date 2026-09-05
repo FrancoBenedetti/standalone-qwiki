@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.1] - SecureScope - 2026-09-05
+
+### 🔒 Security & Authentication
+- **Multi-Instance Session Isolation**:
+  - Automatically derives instance-unique session names (`QWIKISESSID_<hash>`) based on a SHA-256 fingerprint of each installation's canonical base directory.
+  - Prevents session collision and privilege leakage across multiple Qwiki instances or nested subfolder installations hosted on the same domain or server.
+  - Scopes session cookie paths directly to the application's URL subfolder rather than global `/`.
+  - Enforces instance ownership validation (`$_SESSION['qwiki_instance']`) to immediately reject foreign sessions stored on shared temporary storage.
+  - Implements clean session and cookie expiration on logout.
+
+### 🛡️ Reliability & Hardening
+- **Toast UI Editor Fallback**: Implemented robust initialization fallback handling to ensure graceful editor degradation when external assets or complex raw HTML blocks are encountered.
+- **Protocol Enforcement & Content Guidelines**: Integrated markdown authoring guidelines in project specifications (`AGENTS.md`) to maintain clean parsing and ensure editor stability.
+
+---
+
 ## [1.9.0] - OmniNav - 2026-09-04
 
 ### 🌐 Added
