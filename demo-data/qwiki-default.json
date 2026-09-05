@@ -3,6 +3,7 @@
     "logoText": "QWIKI",
     "logoUrl": "",
     "theme": "theme-default.css",
+    "demoMode": true,
     "shareDescription": "Standalone Qwiki is a modern, fast, zero-database documentation portal and wiki system.",
     "shareImageUrl": "https://raw.githubusercontent.com/FrancoBenedetti/standalone-qwiki/main/assets/img/og-preview.png",
     "showDocTypesOnlyToAdmin": true,
