@@ -663,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!tuiEditor) {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         
-        tuiEditor = new toastui.Editor({
+        const editorConfig = {
           el: editorContainer,
           initialValue: rawMarkdownData.value,
           initialEditType: 'wysiwyg',
@@ -690,7 +690,25 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
           }
-        });
+        };
+
+        try {
+          tuiEditor = new toastui.Editor(editorConfig);
+        } catch (wysiwygErr) {
+          console.warn('Toast UI WYSIWYG mode failed to parse document, falling back to Markdown mode:', wysiwygErr);
+          editorConfig.initialEditType = 'markdown';
+          try {
+            tuiEditor = new toastui.Editor(editorConfig);
+          } catch (fatalErr) {
+            console.error('Toast UI Editor fatal initialization error:', fatalErr);
+            alert('Failed to initialize document editor: ' + fatalErr.message);
+            editActions.style.display = 'none';
+            editorContainer.style.display = 'none';
+            readActions.style.display = 'flex';
+            contentBody.style.display = 'block';
+            return;
+          }
+        }
         window.tuiEditorInstance = tuiEditor;
 
         // Auto-save local draft on editor changes
