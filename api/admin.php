@@ -160,6 +160,11 @@ function delete_chapter_from_node(&$node, $slug) {
     }
 }
 
+// Backward compatibility helper
+function is_chapter_protected($slug_or_file, $nodes = null) {
+    return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
+}
+
 if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
     $_POST['content'] = base64_decode($_POST['content_base64']);
     $_REQUEST['content'] = $_POST['content'];
