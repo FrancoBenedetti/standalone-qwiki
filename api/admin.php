@@ -17,7 +17,9 @@ if (!defined('QWIKI_VERSION')) {
 }
 
 Auth::startSession();
-header('Content-Type: application/json');
+if (!headers_sent()) {
+    header('Content-Type: application/json');
+}
 
 $config = Config::load();
 $baseDir = Config::getBaseDir();
@@ -330,6 +332,10 @@ switch ($action) {
             exit;
         }
         $slug = $_POST['slug'] ?? '';
+        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
+            exit;
+        }
         $title = trim($_POST['title'] ?? '');
         $type = $_POST['type'] ?? 'markdown';
         $url = trim($_POST['url'] ?? '');
@@ -440,6 +446,10 @@ switch ($action) {
             exit;
         }
         $relFile = $_POST['file'] ?? '';
+        if (Config::isChapterProtected($relFile, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited.']);
+            exit;
+        }
         $content = $_POST['content'] ?? '';
         if (isset($_POST['content_base64'])) {
             $content = base64_decode($_POST['content_base64']);
@@ -628,6 +638,10 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Item slug is required']);
             exit;
         }
+        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
+            exit;
+        }
         $filteredBooks = [];
         foreach ($config['books'] as &$book) {
             if (($book['slug'] ?? '') === $slug) {
@@ -737,7 +751,7 @@ switch ($action) {
                     } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
                         $origDoc = $existingDocuments[$nodeSlug];
                         $mergedNode = array_merge($origDoc, $node);
-                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl'] as $field) {
+                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl', 'readOnly', 'editable'] as $field) {
                             if (empty($node[$field]) && isset($origDoc[$field])) {
                                 $mergedNode[$field] = $origDoc[$field];
                             }
@@ -866,6 +880,10 @@ switch ($action) {
 
     case 'check_updates':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => true, 'has_update' => false]);
+            exit;
+        }
         $cacheFile = $baseDir . '/uploads/update_cache.json';
         $currVerClean = ltrim(preg_replace('/^v\.?/i', '', trim(QWIKI_VERSION)), 'vV');
 
@@ -918,6 +936,10 @@ switch ($action) {
 
     case 'install_update':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => false, 'error' => 'In-app updates are disabled in demo mode.']);
+            exit;
+        }
         $zipUrl = $_POST['zip_url'] ?? '';
         if (empty($zipUrl)) { echo json_encode(['success' => false, 'error' => 'Missing zip URL']); exit; }
         if (!class_exists('ZipArchive')) {
@@ -973,6 +995,20 @@ switch ($action) {
             @unlink($tempZip);
             echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
         }
+        break;
+
+    case 'reload_demo':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        if (!Config::isDemoMode() && !\Qwiki\Core\DemoManager::isDemoConfigured()) {
+            echo json_encode(['success' => false, 'error' => 'Demo mode is not configured']);
+            exit;
+        }
+        require_once $baseDir . '/lib/Core/DemoManager.php';
+        $reloadResult = \Qwiki\Core\DemoManager::reload();
+        echo json_encode($reloadResult);
         break;
 
     default:

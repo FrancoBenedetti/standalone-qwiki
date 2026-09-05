@@ -5,11 +5,13 @@ require_once __DIR__ . '/lib/Core/Config.php';
 require_once __DIR__ . '/lib/Core/Auth.php';
 require_once __DIR__ . '/lib/Core/Navigation.php';
 require_once __DIR__ . '/lib/Core/ExtensionManager.php';
+require_once __DIR__ . '/lib/Core/DemoManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
+use Qwiki\Core\DemoManager;
 
 Auth::startSession();
 if (!defined('QWIKI_VERSION')) {
@@ -195,6 +197,12 @@ if ($activeChapter) {
     }
 }
 
+$isPageReadOnly = false;
+if ($activeChapter) {
+    $isPageReadOnly = Config::isChapterProtected($activeChapter['slug'] ?? '', $config['books'] ?? [])
+        || Config::isChapterProtected($activeChapter['file'] ?? '', $config['books'] ?? []);
+}
+
 // Theme Resolution
 $siteTheme = $config['theme'] ?? 'theme-default.css';
 $categoryTheme = $activeBook['theme'] ?? null;
@@ -349,7 +357,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                             </button>
 
-                            <?php if ($isAdmin): ?>
+                            <?php if ($isPageReadOnly): ?>
+                                <span class="badge badge-secondary" title="This document is protected against modifications" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
+                                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    <?= Config::isDemoMode() ? 'Protected Demo Page' : 'Protected Document' ?>
+                                </span>
+                            <?php endif; ?>
+
+                            <?php if ($isAdmin && !$isPageReadOnly): ?>
                                 <?php if (($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                                     <button class="btn btn-primary btn-sm" id="btn-edit-markdown" title="Edit Content">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -370,7 +385,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 </button>
                             <?php endif; ?>
                         </div>
-                        <?php if ($isAdmin && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                        <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                         <div id="edit-actions" style="display: none; gap: 0.75rem;">
                             <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
                             <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
@@ -379,7 +394,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     </div>
                 </div>
 
-                <?php if ($isAdmin && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                     <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
@@ -849,6 +864,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Save Settings</button>
             </form>
+            <?php if (Config::isDemoMode() && DemoManager::isDemoConfigured()): ?>
+                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color, #e5e7eb);">
+                    <label class="form-label" style="color: var(--danger-color, #ef4444); font-weight: 600;">🔄 Reset Demo Package</label>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">Reload the demo package back to its fresh state. All visitor additions and user changes will be wiped clean.</p>
+                    <button type="button" class="btn btn-outline btn-danger-text" id="btn-reload-demo-package" style="width: 100%;">Reload Demo Package</button>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 

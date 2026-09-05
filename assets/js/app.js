@@ -568,6 +568,37 @@ document.addEventListener('DOMContentLoaded', () => {
   submitAdminForm('edit-link-form', 'edit_chapter');
   submitAdminForm('settings-form', 'update_settings');
 
+  // Reload Demo Package handler
+  const btnReloadDemo = document.getElementById('btn-reload-demo-package');
+  if (btnReloadDemo) {
+    btnReloadDemo.addEventListener('click', async () => {
+      if (!confirm('⚠️ Are you sure you want to reset the demo package to its fresh state?\n\nThis will clear all user-added pages, categories, and accounts, restoring default demo documentation.')) {
+        return;
+      }
+      btnReloadDemo.disabled = true;
+      btnReloadDemo.textContent = 'Reloading Demo...';
+      try {
+        const formData = new FormData();
+        formData.append('action', 'reload_demo');
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Demo package reloaded successfully! The page will now refresh.');
+          window.location.reload();
+        } else {
+          alert('❌ Failed to reload demo package: ' + (data.error || 'Unknown error'));
+          btnReloadDemo.disabled = false;
+          btnReloadDemo.textContent = 'Reload Demo Package';
+        }
+      } catch (err) {
+        console.error('Reload demo request failed:', err);
+        alert('❌ Network error while reloading demo package.');
+        btnReloadDemo.disabled = false;
+        btnReloadDemo.textContent = 'Reload Demo Package';
+      }
+    });
+  }
+
   // Add User form handler inside Users Modal
   const addUserForm = document.getElementById('add-user-form');
   if (addUserForm) {
@@ -930,6 +961,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (docDesc) docItem.description = docDesc;
     const docImg = child.getAttribute('data-doc-image');
     if (docImg) docItem.image = docImg;
+    if (child.getAttribute('data-doc-readonly') === '1') {
+      docItem.readOnly = true;
+      docItem.editable = false;
+    }
     return docItem;
   }
 

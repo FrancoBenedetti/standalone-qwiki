@@ -163,4 +163,46 @@ class Config {
         }
         closedir($dir);
     }
+
+    public static function isDemoMode(): bool {
+        $env = getenv('QWIKI_DEMO_MODE');
+        if ($env !== false && $env !== '') {
+            return in_array(strtolower((string)$env), ['1', 'true', 'yes', 'on'], true);
+        }
+        $baseDir = self::getBaseDir();
+        if (file_exists($baseDir . '/.demo')) {
+            return true;
+        }
+        $config = self::load();
+        return !empty($config['demoMode']);
+    }
+
+    public static function isChapterProtected(string $slugOrFile, ?array $nodes = null): bool {
+        if (empty($slugOrFile)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
+        foreach ($nodes as $node) {
+            $isProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false);
+            if ($isProtected) {
+                if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
+                    return true;
+                }
+                if (!empty($node['file'])) {
+                    $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                    if ($normFile === $normTarget) {
+                        return true;
+                    }
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isChapterProtected($slugOrFile, $node['items'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

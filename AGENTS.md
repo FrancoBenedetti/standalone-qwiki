@@ -20,6 +20,30 @@ Before bumping a version, tagging, and pushing a new release to the repository:
 
 ---
 
+## Demo Branch & Sandbox Deployment Workflow
+
+1. **Releases Always Originate on `main`**:
+   - Never tag releases on the `demo` branch. Canonical versions, release zips, and git tags (`vX.Y.Z`) must always originate from `main`.
+2. **Downstream Synchronization (`main` ➔ `demo`)**:
+   - To update the demo environment after a release, merge `main` downstream into `demo`:
+     ```bash
+     git checkout demo
+     git merge main
+     ```
+3. **Native Demo Mode Configuration**:
+   - Demo mode is activated natively via `Config::isDemoMode()`, which checks:
+     - `"demoMode": true` in `qwiki.json`
+     - Environment variable `QWIKI_DEMO_MODE=1` or `QWIKI_DEMO_MODE=true`
+     - Presence of a `.demo` marker file in the installation root directory
+4. **In-App Auto-Updater Suppression**:
+   - When `demoMode` is active, `check_updates` returns `has_update: false` and `install_update` is blocked. This protects public demo sandboxes from being overwritten by visitors.
+5. **Document Protection Across Installations**:
+   - Any document in `qwiki.json` can be protected from edits and deletions by setting `"readOnly": true` or `"editable": false`. In demo mode, protected documents display a "Protected Demo Page" badge; in standard mode, they display a "Protected Document" badge.
+6. **Preserve Demo Landing Guide in `demo` Branch**:
+   - On the `demo` branch, keep `demo-data/content/getting-started/introduction.md` configured with the demo guide (credentials `admin`/`admin` and test instructions) and `demo-data/qwiki-default.json` marked with `"demoMode": true` and `"readOnly": true` on `introduction`.
+
+---
+
 ## Markdown & HTML Content Authoring Guidelines
 
 When creating or updating Markdown documents (`.md`) across `content/` or `demo-data/content/`:
