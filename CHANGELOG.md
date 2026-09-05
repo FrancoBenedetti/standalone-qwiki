@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.3] - FormatGuard - 2026-09-05
+
+### 🛡️ Markdown & HTML Content Preservation
+- **Protected Markdown + HTML Mode**:
+  - Automatically analyzes Markdown documents (`containsHtmlMarkup`) for raw HTML blocks, inline styling (`style="..."`), CSS classes (`class="..."`), custom grids, flexboxes, and status badges before editor initialization.
+  - Locks Toast UI Editor into Markdown mode (`initialEditType: 'markdown'`) with synchronized vertical live preview (`previewStyle: 'vertical'`) and hides mode switcher tabs (`hideModeSwitch: true`).
+  - Completely eliminates silent HTML tag stripping, attribute erasure, and paragraph flattening caused by Toast UI's ProseMirror WYSIWYG schema.
+  - Reads directly from the raw CodeMirror buffer on save, ensuring 100% byte-for-byte preservation of complex HTML layouts and custom styling without modification.
+- **Visual Protection Badge**:
+  - Displays a dedicated status banner above the editor (`⚡ Markdown + HTML Mode (Live Preview) [PROTECTED HTML]`) clearly informing authors that formatting and styles are protected.
+- **Mode Switch Guarding**:
+  - Intercepts internal mode switch events (`needChangeMode`) for pure Markdown documents, preventing accidental transitions to WYSIWYG mode if raw HTML markup or inline styling has been added.
+- **Clean State Reset**:
+  - Canceling an inline edit session now properly clears notice banners and reverts editor state to the original document content.
+
+### 🧪 Test Automation
+- **HTML Preservation Test Suite**:
+  - Added comprehensive automated test coverage (`tests/test_markdown_html_preservation.js`) verifying markup detection across pure Markdown, code blocks containing HTML, inline tags, and real-world complex landing page fixtures.
+
+---
+
 ## [1.9.2] - DemoShield - 2026-09-05
 
 ### 🛡️ Document Protection & Access Control
