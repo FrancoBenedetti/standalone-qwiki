@@ -205,4 +205,15 @@ class Config {
         }
         return false;
     }
+
+    public static function getBaseUrl(): string {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+        $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $scriptDir = rtrim(dirname($scriptName === '/' || $scriptName === '\\' ? '' : $scriptName), '/\\');
+        $webPath = preg_replace('#^/?(api|assets|content|tests).*$#i', '', ltrim($scriptDir, '/\\'));
+        $webPath = trim($webPath, '/\\');
+        return $protocol . $domainName . (!empty($webPath) ? '/' . $webPath . '/' : '/');
+    }
 }
+

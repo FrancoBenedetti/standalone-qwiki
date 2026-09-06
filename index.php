@@ -60,126 +60,162 @@ $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
 $baseUrl = $protocol . $domainName . $scriptDir . '/';
 
-// Determine requested path across all server environments
-$rawPath = '';
-if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
-    $rawPath = trim($_GET['path'], '/');
-} elseif (!empty($_SERVER['PATH_INFO'])) {
-    $rawPath = trim($_SERVER['PATH_INFO'], '/');
-} elseif (!empty($_SERVER['REQUEST_URI'])) {
-    $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    if ($parsedPath) {
-        if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
-            $parsedPath = substr($parsedPath, strlen($scriptDir));
-        }
-        $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
-        $rawPath = trim($parsedPath, '/');
-    }
-}
+// Share link routing
+$shareKey = trim($_GET['share'] ?? '');
+$isShareMode = false;
+$shareError = null;
 
-if (!empty($rawPath)) {
-    $segments = explode('/', $rawPath);
-    $segCount = count($segments);
-    $requestedBookId = urldecode($segments[0] ?? '');
-    if ($segCount === 1) {
-        $requestedFolderId = '';
-        $requestedChapterSlug = '';
-    } elseif ($segCount === 2) {
-        $requestedFolderId = '';
-        $requestedChapterSlug = urldecode($segments[1] ?? '');
+if (!empty($shareKey)) {
+    $matchedParentBook = null;
+    $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParentBook);
+    if (!$matchedChapter) {
+        $shareError = 'not_found';
     } else {
-        $requestedFolderId = urldecode($segments[1] ?? '');
-        $requestedChapterSlug = urldecode($segments[$segCount - 1] ?? '');
-    }
-} else {
-    $requestedBookId = $_GET['book'] ?? '';
-    $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
-    $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
-}
-
-if (empty($requestedBookId)) {
-    $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
-}
-
-// Filter books based on visibility
-$allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
-
-// Active tree resolution state
-$activeBook = null;
-foreach ($allowedBooks as $book) {
-    if ($book['id'] === $requestedBookId) {
-        $activeBook = $book;
-        break;
+        $isPublic = !isset($matchedChapter['publicShareable']) || !empty($matchedChapter['publicShareable']);
+        if (!$isPublic && !$isAdmin && !$isViewer) {
+            $shareError = 'restricted';
+        } else {
+            $isShareMode = true;
+            $activeBook = $matchedParentBook;
+            $activeChapter = $matchedChapter;
+            $canViewContent = true;
+            $breadcrumbsTrail = [];
+            $activePathIds = $activeBook ? [$activeBook['id']] : [];
+            $allowedBooks = $activeBook ? [$activeBook] : [];
+        }
     }
 }
-if (!$activeBook && !empty($allowedBooks)) {
-    foreach ($allowedBooks as $b) {
-        if (($b['type'] ?? 'folder') === 'folder') {
-            $activeBook = $b;
+
+$activeChapter = $activeChapter ?? null;
+$breadcrumbsTrail = $breadcrumbsTrail ?? [];
+$activePathIds = $activePathIds ?? ($activeBook ? [$activeBook['id']] : []);
+
+if (!$isShareMode && !$shareError) {
+    // Determine requested path across all server environments
+    $rawPath = '';
+    if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
+        $rawPath = trim($_GET['path'], '/');
+    } elseif (!empty($_SERVER['PATH_INFO'])) {
+        $rawPath = trim($_SERVER['PATH_INFO'], '/');
+    } elseif (!empty($_SERVER['REQUEST_URI'])) {
+        $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        if ($parsedPath) {
+            if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
+                $parsedPath = substr($parsedPath, strlen($scriptDir));
+            }
+            $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
+            $rawPath = trim($parsedPath, '/');
+        }
+    }
+
+    if (!empty($rawPath)) {
+        $segments = explode('/', $rawPath);
+        $segCount = count($segments);
+        $requestedBookId = urldecode($segments[0] ?? '');
+        if ($segCount === 1) {
+            $requestedFolderId = '';
+            $requestedChapterSlug = '';
+        } elseif ($segCount === 2) {
+            $requestedFolderId = '';
+            $requestedChapterSlug = urldecode($segments[1] ?? '');
+        } else {
+            $requestedFolderId = urldecode($segments[1] ?? '');
+            $requestedChapterSlug = urldecode($segments[$segCount - 1] ?? '');
+        }
+    } else {
+        $requestedBookId = $_GET['book'] ?? '';
+        $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
+        $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
+    }
+
+    if (empty($requestedBookId)) {
+        $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
+    }
+
+    // Filter books based on visibility
+    $allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
+
+    // Active tree resolution state
+    $activeBook = null;
+    foreach ($allowedBooks as $book) {
+        if ($book['id'] === $requestedBookId) {
+            $activeBook = $book;
             break;
         }
     }
-    if (!$activeBook) {
-        $activeBook = $allowedBooks[0];
+    if (!$activeBook && !empty($allowedBooks)) {
+        foreach ($allowedBooks as $b) {
+            if (($b['type'] ?? 'folder') === 'folder') {
+                $activeBook = $b;
+                break;
+            }
+        }
+        if (!$activeBook) {
+            $activeBook = $allowedBooks[0];
+        }
     }
-}
 
-$activeChapter = null;
-$breadcrumbsTrail = [];
-$activePathIds = $activeBook ? [$activeBook['id']] : [];
+    $activeChapter = null;
+    $breadcrumbsTrail = [];
+    $activePathIds = $activeBook ? [$activeBook['id']] : [];
 
-if ($activeBook) {
-    $dummyTrail = [];
-    $dummyIds = [];
-    $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-
-    // Fallback: 2-segment URL might be a subfolder instead of a chapter (e.g. /book/subfolder)
-    if (!$activeChapter && !empty($requestedChapterSlug) && empty($requestedFolderId)) {
+    if ($activeBook) {
         $dummyTrail = [];
         $dummyIds = [];
-        $fallbackFolderId = $requestedChapterSlug;
-        $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-    }
+        $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
-    if ($activeChapter) {
-        $breadcrumbsTrail = $dummyTrail;
-        $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
-    } else {
-        // Fallback to first document in the active book
-        if (!empty($activeBook['items'])) {
-            foreach ($activeBook['items'] as $item) {
-                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
-                    $activeChapter = $item;
-                    $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
-                    break;
+        // Fallback: 2-segment URL might be a subfolder instead of a chapter (e.g. /book/subfolder)
+        if (!$activeChapter && !empty($requestedChapterSlug) && empty($requestedFolderId)) {
+            $dummyTrail = [];
+            $dummyIds = [];
+            $fallbackFolderId = $requestedChapterSlug;
+            $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
+        }
+
+        if ($activeChapter) {
+            $breadcrumbsTrail = $dummyTrail;
+            $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
+        } else {
+            // Fallback to first document in the active book
+            if (!empty($activeBook['items'])) {
+                foreach ($activeBook['items'] as $item) {
+                    if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                        $activeChapter = $item;
+                        $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+                        break;
+                    }
                 }
             }
         }
     }
 }
 
+
 // Calculate Previous and Next Document Navigation
 $flatNavList = [];
-foreach ($allowedBooks as $book) {
-    Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
-}
-
 $prevDoc = null;
 $nextDoc = null;
-if ($activeChapter) {
-    $currentIndex = -1;
-    foreach ($flatNavList as $index => $item) {
-        if ($item['bookId'] === ($activeBook['id'] ?? '') && $item['slug'] === ($activeChapter['slug'] ?? '')) {
-            $currentIndex = $index;
-            break;
-        }
+
+if (!$isShareMode && !$shareError) {
+    foreach ($allowedBooks as $book) {
+        Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
     }
-    if ($currentIndex !== -1) {
-        if ($currentIndex > 0) {
-            $prevDoc = $flatNavList[$currentIndex - 1];
+
+    if ($activeChapter) {
+        $currentIndex = -1;
+        foreach ($flatNavList as $index => $item) {
+            if ($item['bookId'] === ($activeBook['id'] ?? '') && $item['slug'] === ($activeChapter['slug'] ?? '')) {
+                $currentIndex = $index;
+                break;
+            }
         }
-        if ($currentIndex < count($flatNavList) - 1) {
-            $nextDoc = $flatNavList[$currentIndex + 1];
+        if ($currentIndex !== -1) {
+            if ($currentIndex > 0) {
+                $prevDoc = $flatNavList[$currentIndex - 1];
+            }
+            if ($currentIndex < count($flatNavList) - 1) {
+                $nextDoc = $flatNavList[$currentIndex + 1];
+            }
         }
     }
 }
@@ -187,7 +223,7 @@ if ($activeChapter) {
 // Content rendering via ExtensionManager
 $renderedContent = '';
 $rawMarkdownContent = '';
-if ($activeChapter) {
+if ($activeChapter && !$shareError) {
     $renderedContent = $extManager->renderPage($activeChapter, $activeBook, $config);
     if (($activeChapter['type'] ?? 'markdown') === 'markdown') {
         $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
@@ -270,8 +306,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/theme/toastui-editor-dark.min.css" />
 </head>
-<body>
+<body class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 
+    <?php if (!$isShareMode): ?>
     <!-- App Header -->
     <header class="app-header">
         <div class="brand-container">
@@ -309,8 +346,31 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </div>
     </header>
+    <?php else: ?>
+    <!-- Floating Minimal Share Bar -->
+    <div class="share-floating-bar">
+        <div class="share-bar-brand">
+            <?php if (!empty($config['logoUrl'])): ?>
+                <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
+            <?php else: ?>
+                ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+            <?php endif; ?>
+        </div>
+        <div class="share-bar-title"><?= htmlspecialchars($activeChapter['title'] ?? ($shareError ? 'Document Share' : 'Document')) ?></div>
+        <div class="share-bar-actions">
+            <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
+            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            </button>
+            <?php if ($isViewer && $activeBook && $activeChapter): ?>
+                <a href="<?= htmlspecialchars(urlencode($activeBook['id']) . '/' . urlencode($activeChapter['slug'])) ?>" class="btn btn-outline btn-sm" title="Open in Full Wiki">↗ Open in Wiki</a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="app-container">
+        <?php if (!$isShareMode): ?>
         <!-- Sidebar Navigation -->
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
@@ -323,10 +383,26 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <?php endforeach; ?>
             </nav>
         </aside>
+        <?php endif; ?>
 
         <!-- Main Content Area -->
         <main class="app-content">
-            <?php if ($activeChapter): ?>
+            <?php if ($shareError === 'not_found'): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
+                    <h2>Document Not Found</h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The shared document could not be found or the link has expired.</p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                </div>
+            <?php elseif ($shareError === 'restricted'): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
+                    <h2>Public Sharing Disabled</h2>
+                    <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem;">The administrator has disabled public sharing for this document. If you have an authorized account, please log in to access this documentation.</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In</button>
+                </div>
+            <?php elseif ($activeChapter): ?>
+                <?php if (!$isShareMode): ?>
                 <div class="content-header">
                     <div class="breadcrumbs">
                         <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
@@ -353,7 +429,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             </button>
-                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share">
+                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share"
+                                    data-slug="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>"
+                                    data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>"
+                                    data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                    data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                             </button>
 
@@ -377,7 +457,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
                                         data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                         data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
-                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>">
+                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                        data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
+                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                                 </button>
                                 <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
@@ -393,8 +475,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <?php endif; ?>
                     </div>
                 </div>
+                <?php endif; ?>
 
-                <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                <?php if ($isAdmin && !$isShareMode && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                     <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
@@ -418,6 +501,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </main>
 
+        <?php if (!$isShareMode && !$shareError): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
             <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
@@ -439,6 +523,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="toc-header">Table of Contents</div>
             <div class="toc-content" id="toc-content"></div>
         </aside>
+        <?php endif; ?>
     </div>
 
     <!-- Login Modal -->
@@ -772,8 +857,58 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label" for="edit-chapter-image">Social Share Image URL</label>
                     <input type="url" name="image" id="edit-chapter-image" class="form-control" value="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>" placeholder="https://example.com/image.jpg">
                 </div>
+                <div class="form-group">
+                    <input type="hidden" name="publicShareable" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="publicShareable" id="edit-chapter-public-shareable" value="1" <?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? 'checked' : '' ?>>
+                        <span>Allow Public Sharing (open in full screen)</span>
+                    </label>
+                </div>
+                <div class="form-group" id="group-edit-share-key" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                        <label class="form-label" style="margin: 0;">Unique Share Key</label>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-edit-modal-reset-key" style="font-size: 0.75rem; padding: 0.15rem 0.4rem;">Reset Key</button>
+                    </div>
+                    <input type="text" id="edit-chapter-share-key" class="form-control" value="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>" readonly style="font-family: monospace; font-size: 0.85rem;" placeholder="Generated automatically upon first share">
+                    <input type="hidden" name="regenerateShareKey" id="edit-chapter-regenerate-key" value="0">
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Share Document Modal -->
+    <div class="modal-overlay" id="share-modal">
+        <div class="modal-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>🔗 Share Document</h3>
+                <button class="modal-close" data-close="share-modal">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 0;">
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Anyone with this link can view this document directly in full-screen reader mode. The link is protected by an unguessable unique key.
+                </p>
+                <div id="share-status-container" style="margin-bottom: 1rem;"></div>
+                <div class="form-group">
+                    <label class="form-label" for="share-link-input">Full-Screen Share Link</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="share-link-input" class="form-control" readonly style="font-family: monospace; font-size: 0.85rem;" onclick="this.select()">
+                        <button type="button" class="btn btn-primary" id="btn-copy-share-link" style="white-space: nowrap;">📋 Copy</button>
+                    </div>
+                </div>
+                <?php if ($isAdmin): ?>
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-color);">Admin Access Controls</h4>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="share-admin-toggle-public" value="1">
+                            <span>Allow Public Sharing</span>
+                        </label>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-modal-regenerate-share-key" title="Invalidates previously distributed links">🔄 Reset Key</button>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <?php endif; ?>

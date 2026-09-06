@@ -130,6 +130,12 @@ function update_chapter_in_node(&$node, $slug, $updatedData) {
                     } elseif (isset($ch['image'])) {
                         unset($ch['image']);
                     }
+                    if (isset($updatedData['publicShareable'])) {
+                        $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
+                    }
+                    if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
+                        $ch['shareKey'] = $updatedData['shareKey'];
+                    }
                     return true;
                 }
             } else {
@@ -362,6 +368,7 @@ switch ($action) {
                 $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
             }
         }
+        $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
         $updatedData = [
             'title' => $title,
             'type' => $type,
@@ -370,8 +377,12 @@ switch ($action) {
             'file' => $file,
             'theme' => $theme,
             'description' => $description,
-            'image' => $image
+            'image' => $image,
+            'publicShareable' => $publicShareable
         ];
+        if (!empty($_POST['regenerateShareKey'])) {
+            $updatedData['shareKey'] = Navigation::generateShareKey();
+        }
         $updated = false;
         foreach ($config['books'] as &$book) {
             if (($book['slug'] ?? '') === $slug) {
@@ -379,6 +390,10 @@ switch ($action) {
                 if (!empty($type)) $book['type'] = $type;
                 if (isset($url)) $book['url'] = $url;
                 if (isset($description)) $book['description'] = $description;
+                $book['publicShareable'] = $publicShareable;
+                if (!empty($updatedData['shareKey'])) {
+                    $book['shareKey'] = $updatedData['shareKey'];
+                }
                 $updated = true;
                 break;
             }
@@ -393,6 +408,93 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Document entry not found or save failed']);
         }
         break;
+
+    case 'get_or_create_share_key':
+        if (!Auth::isViewer() && !Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
+            exit;
+        }
+        $slug = trim($_REQUEST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $shareKey = $chapter['shareKey'] ?? '';
+        $isPublic = !isset($chapter['publicShareable']) || !empty($chapter['publicShareable']);
+        if (empty($shareKey)) {
+            $shareKey = Navigation::generateShareKey();
+            $updatedData = ['shareKey' => $shareKey];
+            foreach ($config['books'] as &$book) {
+                if (update_chapter_in_node($book, $slug, $updatedData)) {
+                    Config::save($config);
+                    break;
+                }
+            }
+        }
+        $baseUrl = Config::getBaseUrl();
+        $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'title' => $chapter['title'] ?? '',
+            'shareKey' => $shareKey,
+            'publicShareable' => $isPublic,
+            'shareUrl' => $shareUrl,
+            'isAdmin' => Auth::isAdmin()
+        ]);
+        break;
+
+    case 'update_share_settings':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
+        $regenerate = !empty($_POST['regenerate']);
+        $shareKey = $chapter['shareKey'] ?? '';
+        if ($regenerate || empty($shareKey)) {
+            $shareKey = Navigation::generateShareKey();
+        }
+        $updatedData = [
+            'publicShareable' => $publicShareable,
+            'shareKey' => $shareKey
+        ];
+        $saved = false;
+        foreach ($config['books'] as &$book) {
+            if (update_chapter_in_node($book, $slug, $updatedData)) {
+                $saved = Config::save($config);
+                break;
+            }
+        }
+        if ($saved) {
+            $baseUrl = Config::getBaseUrl();
+            echo json_encode([
+                'success' => true,
+                'slug' => $slug,
+                'shareKey' => $shareKey,
+                'publicShareable' => $publicShareable,
+                'shareUrl' => $baseUrl . '?share=' . urlencode($shareKey)
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save share settings']);
+        }
+        break;
+
 
     case 'lock_status':
         $file = $_REQUEST['file'] ?? '';

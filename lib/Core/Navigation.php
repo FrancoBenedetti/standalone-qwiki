@@ -299,4 +299,74 @@ class Navigation {
         echo "</div>";
         echo "</div>";
     }
+
+    public static function generateShareKey(): string {
+        return bin2hex(random_bytes(8));
+    }
+
+    public static function findChapterBySlug(array $books, string $slug, &$parentBook = null) {
+        if (empty($slug)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterBySlugInNode($book, $slug);
+            if ($found) {
+                $parentBook = $book;
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterBySlugInNode(array $node, string $slug) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (($item['slug'] ?? '') === $slug) {
+                        return $item;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterBySlugInNode($item, $slug);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static function findChapterByShareKey(array $books, string $shareKey, &$parentBook = null) {
+        if (empty($shareKey)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterByShareKeyInNode($book, $shareKey);
+            if ($found) {
+                $parentBook = $book;
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterByShareKeyInNode(array $node, string $shareKey) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (isset($item['shareKey']) && $item['shareKey'] === $shareKey) {
+                        return $item;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterByShareKeyInNode($item, $shareKey);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
 }
+
+

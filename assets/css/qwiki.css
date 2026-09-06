@@ -1113,3 +1113,107 @@ textarea.form-control {
         border: 1px solid #ccc;
     }
 }
+
+/* ==========================================================================
+   Full-Screen / Share Reader Mode
+   ========================================================================== */
+body.mode-fullscreen {
+    overflow-x: hidden;
+}
+
+body.mode-fullscreen .app-header,
+body.mode-fullscreen .app-sidebar,
+body.mode-fullscreen .sidebar-resizer,
+body.mode-fullscreen .app-toc {
+    display: none !important;
+}
+
+body.mode-fullscreen .app-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-top: 4.5rem;
+}
+
+body.mode-fullscreen .app-content {
+    max-width: 880px !important;
+    margin: 0 auto !important;
+    padding: 2rem 1.5rem 5rem 1.5rem !important;
+    width: 100% !important;
+}
+
+.share-floating-bar {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: calc(100% - 2rem);
+    max-width: 880px;
+    padding: 0.5rem 1rem;
+    background: var(--bg-surface, rgba(24, 24, 27, 0.85));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 9999px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.share-bar-brand {
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.share-bar-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    flex: 1;
+}
+
+.share-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .share-bar-title {
+        display: none;
+    }
+}
+
+.share-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+.share-status-public {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.share-status-restricted {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+

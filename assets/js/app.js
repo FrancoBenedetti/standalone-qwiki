@@ -198,7 +198,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (modalId === 'edit-chapter-modal') {
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
-          if (btnMeta) populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+          if (btnMeta) {
+            populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+            const shareableCheckbox = document.getElementById('edit-chapter-public-shareable');
+            if (shareableCheckbox) {
+              shareableCheckbox.checked = btnMeta.getAttribute('data-public-shareable') !== '0';
+            }
+            const shareKeyInput = document.getElementById('edit-chapter-share-key');
+            if (shareKeyInput) {
+              shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
+            }
+            const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
+            if (regenKeyHidden) {
+              regenKeyHidden.value = '0';
+            }
+          }
+          
+          const btnEditResetKey = document.getElementById('btn-edit-modal-reset-key');
+          if (btnEditResetKey) {
+            btnEditResetKey.onclick = () => {
+              const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
+              const shareKeyInput = document.getElementById('edit-chapter-share-key');
+              if (regenKeyHidden) regenKeyHidden.value = '1';
+              if (shareKeyInput) shareKeyInput.value = '(A new key will be generated upon save)';
+            };
+          }
           
           const typeSelect = document.getElementById('edit-chapter-type');
           const toggleFields = () => {
@@ -1906,26 +1930,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Social Share
+  // Document Sharing & Share Modal
   const btnShareChapter = document.getElementById('btn-share-chapter');
+  const shareModal = document.getElementById('share-modal');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const shareStatusContainer = document.getElementById('share-status-container');
+  const btnCopyShareLink = document.getElementById('btn-copy-share-link');
+  const shareAdminTogglePublic = document.getElementById('share-admin-toggle-public');
+  const btnModalRegenerateShareKey = document.getElementById('btn-modal-regenerate-share-key');
+
+  const updateShareStatusUI = (isPublic) => {
+    if (!shareStatusContainer) return;
+    if (isPublic) {
+      shareStatusContainer.innerHTML = '<span class="share-status-badge share-status-public">🟢 Publicly Shareable (Full Screen)</span>';
+    } else {
+      shareStatusContainer.innerHTML = '<span class="share-status-badge share-status-restricted">🔴 Public Sharing Disabled by Administrator</span>';
+    }
+    if (shareAdminTogglePublic) {
+      shareAdminTogglePublic.checked = !!isPublic;
+    }
+  };
+
   if (btnShareChapter) {
     btnShareChapter.addEventListener('click', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (shareModal && slug) {
+        shareModal.classList.add('open');
+        if (shareLinkInput) shareLinkInput.value = 'Generating secure share link...';
+        try {
+          const res = await fetch(`api/admin.php?action=get_or_create_share_key&slug=${encodeURIComponent(slug)}`);
+          const data = await res.json();
+          if (data.success) {
+            if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+            updateShareStatusUI(data.publicShareable);
+            btnShareChapter.setAttribute('data-share-key', data.shareKey);
+            btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
+          } else {
+            if (shareLinkInput) shareLinkInput.value = 'Failed: ' + (data.error || 'Unknown error');
+          }
+        } catch (err) {
+          console.error('Failed to get share link:', err);
+          if (shareLinkInput) shareLinkInput.value = window.location.href;
+        }
+        return;
+      }
+
+      // Fallback for unauthenticated visitors browsing public docs: native share or copy standard URL
       const shareData = {
         title: document.title,
         url: window.location.href
       };
-      
-      // Try using the native Web Share API
       if (navigator.share) {
         try {
           await navigator.share(shareData);
         } catch (err) {
-          if (err.name !== 'AbortError') {
-             console.error('Error sharing:', err);
-          }
+          if (err.name !== 'AbortError') console.error('Error sharing:', err);
         }
       } else {
-        // Fallback: Copy to clipboard
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(shareData.url);
@@ -1937,7 +1998,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('copy');
             document.body.removeChild(input);
           }
-          
           const origContent = btnShareChapter.innerHTML;
           const origTitle = btnShareChapter.getAttribute('title');
           btnShareChapter.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
@@ -1949,6 +2009,89 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
           console.error('Failed to copy fallback link: ', err);
         }
+      }
+    });
+  }
+
+  // Copy button inside Share Modal
+  if (btnCopyShareLink && shareLinkInput) {
+    btnCopyShareLink.addEventListener('click', async () => {
+      const urlToCopy = shareLinkInput.value;
+      if (!urlToCopy || urlToCopy.startsWith('Generating') || urlToCopy.startsWith('Failed')) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(urlToCopy);
+        } else {
+          shareLinkInput.select();
+          document.execCommand('copy');
+        }
+        const origText = btnCopyShareLink.textContent;
+        btnCopyShareLink.textContent = '✅ Copied!';
+        setTimeout(() => {
+          btnCopyShareLink.textContent = origText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
+    });
+  }
+
+  // Admin toggle for public sharing inside Share Modal
+  if (shareAdminTogglePublic && btnShareChapter) {
+    shareAdminTogglePublic.addEventListener('change', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (!slug) return;
+      const isPublic = shareAdminTogglePublic.checked;
+      const formData = new FormData();
+      formData.append('action', 'update_share_settings');
+      formData.append('slug', slug);
+      formData.append('publicShareable', isPublic ? '1' : '0');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          updateShareStatusUI(data.publicShareable);
+          btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
+        } else {
+          alert('Failed to update sharing: ' + (data.error || 'Unknown error'));
+          shareAdminTogglePublic.checked = !isPublic;
+        }
+      } catch (err) {
+        console.error('Failed to update share settings:', err);
+        alert('Network error updating sharing status.');
+        shareAdminTogglePublic.checked = !isPublic;
+      }
+    });
+  }
+
+  // Admin button to regenerate share key inside Share Modal
+  if (btnModalRegenerateShareKey && btnShareChapter) {
+    btnModalRegenerateShareKey.addEventListener('click', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (!slug) return;
+      if (!confirm('Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.')) {
+        return;
+      }
+      const isPublic = shareAdminTogglePublic ? (shareAdminTogglePublic.checked ? 1 : 0) : 1;
+      const formData = new FormData();
+      formData.append('action', 'update_share_settings');
+      formData.append('slug', slug);
+      formData.append('publicShareable', isPublic);
+      formData.append('regenerate', '1');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+          btnShareChapter.setAttribute('data-share-key', data.shareKey);
+          updateShareStatusUI(data.publicShareable);
+          alert('✅ Share key reset successfully! The new link is ready to copy.');
+        } else {
+          alert('Failed to reset key: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error('Failed to reset share key:', err);
+        alert('Network error while resetting share key.');
       }
     });
   }
