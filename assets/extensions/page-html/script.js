@@ -2,6 +2,10 @@
  * HTML Page Extension Client Script with SunEditor Integration
  */
 document.addEventListener('DOMContentLoaded', () => {
+    // Hide the outer generic print icon — the HTML toolbar already has its own Print/Save button
+    const outerPrintBtn = document.getElementById('btn-print-chapter');
+    if (outerPrintBtn) outerPrintBtn.style.display = 'none';
+
     let createEditor = null;
     let editEditor = null;
 
@@ -372,5 +376,114 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+    }
+
+    // Toolbar Print / Save as PDF Button
+    const btnPrintHtml = document.getElementById('btn-print-html-frame');
+    if (btnPrintHtml) {
+        btnPrintHtml.addEventListener('click', () => {
+            const frame = document.getElementById('current-html-frame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            }
+        });
+    }
+
+    // Setup print delegation, universal print CSS injection, and missing PDF download link handling
+    function setupHtmlFramePrint(frame) {
+        if (!frame) return;
+
+        const handleFrameLoad = () => {
+            try {
+                const frameDoc = frame.contentDocument || frame.contentWindow.document;
+                if (!frameDoc || !frameDoc.body) return;
+
+                // 1. Inspect if the document has author-defined @media print or @page rules
+                let hasPrintMedia = false;
+                try {
+                    for (const sheet of frameDoc.styleSheets) {
+                        try {
+                            for (const rule of sheet.cssRules || []) {
+                                if ((rule.media && rule.media.mediaText && rule.media.mediaText.includes('print')) || rule.type === 6 /* CSSRule.PAGE_RULE */) {
+                                    hasPrintMedia = true;
+                                    break;
+                                }
+                            }
+                        } catch(e) {}
+                        if (hasPrintMedia) break;
+                    }
+                } catch(e) {}
+
+                // If document does NOT contain dedicated print styles, inject universal clean print CSS
+                if (!hasPrintMedia && !frameDoc.getElementById('qwiki-injected-print-css')) {
+                    const style = frameDoc.createElement('style');
+                    style.id = 'qwiki-injected-print-css';
+                    style.textContent = `
+                        @media print {
+                            @page { size: auto; margin: 15mm; }
+                            body {
+                                background: #fff !important;
+                                color: #000 !important;
+                                width: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                font-size: 11pt !important;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            h1, h2, h3, h4 {
+                                page-break-after: avoid !important;
+                                break-after: avoid !important;
+                            }
+                            img, table, pre, blockquote {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                                max-width: 100% !important;
+                            }
+                        }
+                    `;
+                    frameDoc.head.appendChild(style);
+                }
+
+                // 2. Intercept download links targeting relative .pdf files (e.g. Technical_Dossier_Durbanville_Vineyards.pdf)
+                frameDoc.querySelectorAll('a[download], a[href$=".pdf"]').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('.pdf') && !/^https?:\/\//i.test(href)) {
+                        // Pre-verify whether the physical file exists on the server
+                        fetch(href, { method: 'HEAD' })
+                            .then(res => {
+                                if (!res.ok) {
+                                    // Missing companion PDF: gracefully trigger browser print to PDF
+                                    link.addEventListener('click', (e) => {
+                                        e.preventDefault();
+                                        frame.contentWindow.focus();
+                                        frame.contentWindow.print();
+                                    });
+                                }
+                            })
+                            .catch(() => {
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    frame.contentWindow.focus();
+                                    frame.contentWindow.print();
+                                });
+                            });
+                    }
+                });
+            } catch(e) {
+                // Cross-origin safety catch
+            }
+        };
+
+        frame.addEventListener('load', handleFrameLoad);
+        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') {
+            handleFrameLoad();
+        }
+    }
+
+    const currentFrame = document.getElementById('current-html-frame');
+    if (currentFrame) {
+        setupHtmlFramePrint(currentFrame);
     }
 });

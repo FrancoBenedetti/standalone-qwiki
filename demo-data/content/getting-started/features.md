@@ -24,6 +24,8 @@
 - **1-Click Raw Code View**: Seamlessly toggle between visual WYSIWYG editing and raw HTML code editing without tag sanitization or script corruption.
 - **In-Place Editing**: Admins can click **`✏️ Edit HTML`** directly from the viewer toolbar to edit and update `.html` files in real-time.
 - **File Loader**: Upload existing `.html` files directly into the editor.
+- **Smart Print / Save as PDF**: All print buttons (toolbar, header icon, and any in-document button) delegate to the sandboxed iframe and trigger the browser print dialog. When viewed embedded in Qwiki, redundant print controls are automatically hidden — the HTML viewer toolbar button is the single entry point. In the full-tab expanded view or share mode, only the in-document button is shown.
+
 
 ### C. Published Google Docs (`gdoc`)
 - Embed published Google Doc URLs directly into your wiki tree.

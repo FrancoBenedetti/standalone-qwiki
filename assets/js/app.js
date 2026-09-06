@@ -1922,13 +1922,20 @@ document.addEventListener('DOMContentLoaded', () => {
   renderVisualDiagrams();
   generateTableOfContents();
 
-  // Print / Download as PDF
-  const btnPrintChapter = document.getElementById('btn-print-chapter');
-  if (btnPrintChapter) {
-    btnPrintChapter.addEventListener('click', () => {
+  // Print / Download as PDF (Delegates to HTML iframe if active to enable full pagination)
+  document.querySelectorAll('#btn-print-chapter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const htmlFrame = document.getElementById('current-html-frame');
+      if (htmlFrame && htmlFrame.contentWindow) {
+        try {
+          htmlFrame.contentWindow.focus();
+          htmlFrame.contentWindow.print();
+          return;
+        } catch(e) {}
+      }
       window.print();
     });
-  }
+  });
 
   // Document Sharing & Share Modal
   const btnShareChapter = document.getElementById('btn-share-chapter');

@@ -7,7 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.4] - PrintFix - 2026-09-06
+
+### 🖨️ HTML Document Print & PDF
+
+- **Sandbox Print Permission Restored**: Added `allow-modals` to the `<iframe>` sandbox attribute in the HTML page extension renderer. Without this token, browsers silently block `window.print()` regardless of whether it is called from inside the iframe (`onclick="window.print()"`) or from the parent via `contentWindow.print()`, causing all three print buttons to fail in embedded view with no error feedback.
+- **Smart Print Button Deduplication**: When an HTML document is active in embedded view, the redundant outer header/share-bar printer icon (`#btn-print-chapter`) is now automatically hidden by the HTML extension script. Only the HTML viewer toolbar's **`🖨️ Print / Save as PDF`** button remains visible — the appropriate entry point for iframe-scoped printing.
+- **Context-Aware In-Document Action Bar**: HTML documents that embed their own `Document Options` / `Print / Save as PDF` action bar now detect whether they are running inside a Qwiki iframe (`window.self !== window.top`) and hide the bar automatically when embedded. The bar continues to display normally when the document is opened in a full browser tab or via a share link.
+
+### 📚 Documentation
+
+- **Features & System Capabilities** (`getting-started/features.md`): Added **Smart Print / Save as PDF** bullet under HTML Documents describing the unified, context-aware print behavior across all three access modes.
+- **Managing Content** (`user-guide/managing-content.md`): Expanded the **Print & Social Share** section to distinguish Markdown / standard document printing from HTML document printing and updated the Share description to reflect the modal-based share workflow.
+- Both `content/` and `demo-data/content/` documentation copies synchronized.
+
+---
+
 ## [1.9.3] - FormatGuard - 2026-09-05
+
 
 ### 🛡️ Markdown & HTML Content Preservation
 - **Protected Markdown + HTML Mode**:

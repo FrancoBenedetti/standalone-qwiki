@@ -55,10 +55,10 @@ $requestedFolderId = '';
 $requestedChapterSlug = '';
 
 // Base URL calculation for clean URLs
+$baseUrl = Config::getBaseUrl();
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
-$baseUrl = $protocol . $domainName . $scriptDir . '/';
 
 // Share link routing
 $shareKey = trim($_GET['share'] ?? '');
@@ -80,15 +80,15 @@ if (!empty($shareKey)) {
             $activeChapter = $matchedChapter;
             $canViewContent = true;
             $breadcrumbsTrail = [];
-            $activePathIds = $activeBook ? [$activeBook['id']] : [];
-            $allowedBooks = $activeBook ? [$activeBook] : [];
+            $activePathIds = !empty($activeBook['id']) ? [$activeBook['id']] : [];
+            $allowedBooks = !empty($activeBook) ? [$activeBook] : [];
         }
     }
 }
 
 $activeChapter = $activeChapter ?? null;
 $breadcrumbsTrail = $breadcrumbsTrail ?? [];
-$activePathIds = $activePathIds ?? ($activeBook ? [$activeBook['id']] : []);
+$activePathIds = $activePathIds ?? (!empty($activeBook['id']) ? [$activeBook['id']] : []);
 
 if (!$isShareMode && !$shareError) {
     // Determine requested path across all server environments
@@ -251,7 +251,7 @@ $extensionAssets = $extManager->getFrontendAssets();
 $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'], ['light', 'dark']) ? $_COOKIE['qwiki_theme'] : 'dark';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?= $userTheme ?>">
+<html lang="en" data-theme="<?= $userTheme ?>" class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 <head>
     <meta charset="UTF-8">
     <script>

@@ -1064,27 +1064,46 @@ textarea.form-control {
     .content-actions,
     .breadcrumbs,
     .mobile-toggle,
-    .toc-nav-buttons {
+    .toc-nav-buttons,
+    .share-floating-bar,
+    .share-floating-bar *,
+    .share-status-badge,
+    .modal-overlay {
         display: none !important;
     }
 
     /* Reset layout for printing */
     html, body, .app-container {
-        display: block;
+        display: block !important;
         height: auto !important;
         overflow: visible !important;
         position: static !important;
     }
 
     .app-content {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        max-width: none;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
         overflow: visible !important;
         background-color: transparent !important;
         color: #000 !important;
         height: auto !important;
+    }
+
+    /* Full-Screen Mode Print Overrides */
+    body.mode-fullscreen,
+    body.mode-fullscreen .app-container,
+    body.mode-fullscreen .app-content {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: none !important;
     }
 
     /* Reset background and colors to save ink */
@@ -1117,8 +1136,19 @@ textarea.form-control {
 /* ==========================================================================
    Full-Screen / Share Reader Mode
    ========================================================================== */
+html.mode-fullscreen {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
 body.mode-fullscreen {
-    overflow-x: hidden;
+    display: block !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    position: static !important;
 }
 
 body.mode-fullscreen .app-header,
@@ -1132,14 +1162,37 @@ body.mode-fullscreen .app-container {
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
-    padding-top: 4.5rem;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    padding-top: 5rem !important;
+    position: static !important;
 }
 
 body.mode-fullscreen .app-content {
+    display: block !important;
     max-width: 880px !important;
     margin: 0 auto !important;
-    padding: 2rem 1.5rem 5rem 1.5rem !important;
+    padding: 1rem 1.5rem 6rem 1.5rem !important;
     width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Document Type Specific Enhancements in Full-Screen Mode */
+body.mode-fullscreen .pdf-viewer-container {
+    height: calc(100vh - 160px);
+    min-height: 600px;
+}
+
+body.mode-fullscreen .html-viewer-frame {
+    height: calc(100vh - 160px);
+    min-height: 600px;
+}
+
+body.mode-fullscreen .gdoc-container iframe {
+    height: calc(100vh - 160px) !important;
+    min-height: 600px;
 }
 
 .share-floating-bar {
