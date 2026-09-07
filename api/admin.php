@@ -5,12 +5,14 @@ require_once __DIR__ . '/../lib/Core/Auth.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 require_once __DIR__ . '/../lib/Core/LockManager.php';
+require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 use Qwiki\Core\LockManager;
+use Qwiki\Core\SubwikiManager;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -218,6 +220,11 @@ switch ($action) {
         $bookId = Config::makeSlug($_POST['id'] ?? $title);
         if (empty($title) || empty($bookId)) {
             echo json_encode(['success' => false, 'error' => 'Category title is required']);
+            exit;
+        }
+        $val = SubwikiManager::validateSlug($bookId, null, false);
+        if (!$val['valid']) {
+            echo json_encode(['success' => false, 'error' => $val['error']]);
             exit;
         }
         $bookFolder = $baseDir . '/content/' . $bookId;
@@ -993,6 +1000,15 @@ switch ($action) {
             echo json_encode(['success' => true, 'has_update' => false]);
             exit;
         }
+        if (Config::isSubwiki()) {
+            echo json_encode([
+                'success' => true,
+                'has_update' => false,
+                'managed_by_parent' => true,
+                'message' => 'Updates are managed automatically by the parent Qwiki.'
+            ]);
+            exit;
+        }
         $cacheFile = $baseDir . '/uploads/update_cache.json';
         $currVerClean = ltrim(preg_replace('/^v\.?/i', '', trim(QWIKI_VERSION)), 'vV');
 
@@ -1049,6 +1065,10 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'In-app updates are disabled in demo mode.']);
             exit;
         }
+        if (Config::isSubwiki()) {
+            echo json_encode(['success' => false, 'error' => 'Subwikis are updated automatically from the parent Qwiki.']);
+            exit;
+        }
         $zipUrl = $_POST['zip_url'] ?? '';
         if (empty($zipUrl)) { echo json_encode(['success' => false, 'error' => 'Missing zip URL']); exit; }
         if (!class_exists('ZipArchive')) {
@@ -1069,7 +1089,13 @@ switch ($action) {
             $rootFolder = '';
             // NOTE: We do not exclude assets/extensions/ here because we need built-in extensions to receive bug fixes.
             // Custom extensions added by users will not be deleted, as ZipArchive extraction only overwrites existing files.
-            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json'];
+            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/'];
+            $existingSubwikis = SubwikiManager::listSubwikis();
+            foreach ($existingSubwikis as $sub) {
+                if (!empty($sub['slug'])) {
+                    $excludes[] = $sub['slug'] . '/';
+                }
+            }
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $filename = $zip->getNameIndex($i);
                 if ($i === 0) $rootFolder = $filename;
@@ -1099,11 +1125,68 @@ switch ($action) {
             if (file_exists($baseDir . '/uploads/update_cache.json')) {
                 @unlink($baseDir . '/uploads/update_cache.json');
             }
-            echo json_encode(['success' => true]);
+
+            // 1. Cascade updates to all child subwikis
+            $cascadeResult = SubwikiManager::cascadeUpdates($baseDir);
+
+            // 2. Run migration routine for legacy subwikis or deep folders
+            $migrationResult = SubwikiManager::runMigration();
+
+            echo json_encode([
+                'success' => true,
+                'subwikisUpdated' => $cascadeResult['updatedCount'] ?? 0,
+                'migration' => $migrationResult['migrated'] ?? []
+            ]);
         } else {
             @unlink($tempZip);
             echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
         }
+        break;
+
+    case 'check_subwiki_slug':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_GET['slug'] ?? $_POST['slug'] ?? '');
+        $isForSubwiki = !empty($_REQUEST['for_subwiki']);
+        $val = SubwikiManager::validateSlug($slug, null, $isForSubwiki);
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'valid' => $val['valid'],
+            'error' => $val['error']
+        ]);
+        break;
+
+    case 'list_subwikis':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $subwikis = SubwikiManager::listSubwikis();
+        echo json_encode([
+            'success' => true,
+            'subwikis' => $subwikis,
+            'isSubwiki' => Config::isSubwiki()
+        ]);
+        break;
+
+    case 'deploy_subwiki':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isSubwiki()) {
+            echo json_encode(['success' => false, 'error' => 'Subwikis cannot deploy further subwikis. Maximum depth reached.']);
+            exit;
+        }
+        $title = trim($_POST['title'] ?? '');
+        $slug = trim($_POST['slug'] ?? '');
+        $adminUser = trim($_POST['adminUser'] ?? 'admin');
+        $adminPass = trim($_POST['adminPass'] ?? '');
+        $includeDemo = !empty($_POST['includeDemo']);
+        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo);
+        echo json_encode($res);
+        break;
+
+    case 'delete_subwiki':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = trim($_POST['slug'] ?? '');
+        $deleteFiles = !empty($_POST['deleteFiles']);
+        $res = SubwikiManager::deleteSubwiki($slug, $deleteFiles);
+        echo json_encode($res);
         break;
 
     case 'reload_demo':

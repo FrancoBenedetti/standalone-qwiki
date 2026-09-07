@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.5] - SubwikiShield - 2026-09-07
+
+### 🌐 Subwiki Management & Collision Protection
+
+- **Bi-Directional Slug Collision Prevention**:
+  - Implemented comprehensive bi-directional namespace validation in `SubwikiManager::validateSlug()`.
+  * Prevents creating or renaming categories in parent wikis that match physical directories, deployed subwiki folders, or reserved system paths (`api`, `assets`, `content`, `uploads`, `lib`, `tests`, `demo-data`, `wikis`).
+  * Prevents deploying subwikis whose slug matches an existing parent category, physical directory, or reserved route.
+  * Real-time slug validation endpoint (`api/admin.php?action=check_subwiki_slug`) provides instant live feedback in the admin deployment UI.
+- **Single-Level Subwiki Depth Enforcement**:
+  - Subwikis are marked with `"isSubwiki": true` in `qwiki.json` and a filesystem `.subwiki` marker.
+  - Subwikis cannot deploy nested child wikis (`deploySubwiki` strictly enforces a 1-level limit).
+  - Multi-team hierarchies are structured using dashed naming at the parent level (e.g., `engineering-electrical`, `engineering-mechanical`).
+  - Child subwikis automatically render a prominent **`← Back to [Parent Title]`** navigation banner in the sidebar.
+  - In-app update prompts and deployment controls are cleanly suppressed in subwikis (`managed_by_parent: true`).
+- **Parent Subwiki Deployment UI**:
+  - Added dedicated **`🌐 Subwikis`** management modal in the admin interface with real-time slug verification, active subwiki listing, direct link shortcuts, and safe de-registration/deletion controls.
+- **Automated Cascading Updates**:
+  - The parent in-app updater (`install_update`) dynamically excludes all registered subwiki folders during zip extraction to protect child documentation and media uploads.
+  - Cascades core engine updates (`index.php`, `lib/`, `assets/`, `api/`) to all child subwikis automatically upon parent update, eliminating the need for individual subwiki update button clicks.
+- **Upgrade Migration Engine**:
+  - Automated migration during upgrades detects un-registered legacy subwikis, registers them in `qwiki.json`, flattens any deeper nested folders ($\ge 2$ levels) into 1-level dashed subwikis, and normalizes article image paths to clean relative paths (`uploads/images/...`).
+
+### 🧪 Test Automation
+
+- **Subwiki Test Suite** (`tests/subwiki_collision_test.php`):
+  - Comprehensive automated tests covering reserved word rejection, path traversal prevention, bi-directional category-vs-subwiki collision checks, dashed slug acceptance, subwiki deployment, single-depth restriction, cascading updates without data loss, and migration image path normalization.
+
+### 📚 Documentation
+
+- Synchronized `features.md` and `site-settings-users.md` across both `content/` and `demo-data/content/`.
+
+---
+
 ## [1.9.4] - PrintFix - 2026-09-06
 
 ### 🖨️ HTML Document Print & PDF

@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.9.4';
+    const VERSION = '1.9.5';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -148,7 +148,7 @@ class Config {
         return $realTarget;
     }
 
-    private static function copyDir($src, $dst) {
+    public static function copyDir($src, $dst) {
         if (!is_dir($src)) return;
         @mkdir($dst, 0755, true);
         $dir = opendir($src);
@@ -162,6 +162,19 @@ class Config {
             }
         }
         closedir($dir);
+    }
+
+    public static function getReservedNames(): array {
+        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis'];
+    }
+
+    public static function isSubwiki(): bool {
+        $baseDir = self::getBaseDir();
+        if (file_exists($baseDir . '/.subwiki')) {
+            return true;
+        }
+        $config = self::load();
+        return !empty($config['isSubwiki']) || !empty($config['parentUrl']);
     }
 
     public static function isDemoMode(): bool {

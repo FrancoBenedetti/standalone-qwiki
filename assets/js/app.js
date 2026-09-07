@@ -180,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
+    { btnId: 'btn-subwikis', modalId: 'subwikis-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
   ];
 
@@ -191,6 +192,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.add('open');
         if (modalId === 'users-modal') {
           loadUsersList();
+        }
+        if (modalId === 'subwikis-modal') {
+          loadSubwikisList();
         }
         if (modalId === 'settings-modal') {
           const btnSettings = document.getElementById('btn-settings');
@@ -401,6 +405,137 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Load and render subwikis in Subwikis Modal
+  async function loadSubwikisList() {
+    const tbody = document.getElementById('subwiki-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading subwikis...</td></tr>';
+
+    try {
+      const res = await fetch('api/admin.php?action=list_subwikis');
+      const data = await res.json();
+      if (!data.success) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding: 1rem; color: var(--danger-color, #ef4444); text-align: center;">Failed to load: ${escapeHtml(data.error || 'Unknown error')}</td></tr>`;
+        return;
+      }
+
+      const subwikis = data.subwikis || [];
+      if (subwikis.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">No subwikis deployed yet. Use the form below to deploy one.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = subwikis.map(sub => `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+          <td style="padding: 0.6rem 0.75rem;">
+            <strong>${escapeHtml(sub.title || sub.slug)}</strong><br>
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
+          </td>
+          <td style="padding: 0.6rem 0.75rem;">
+            <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--primary-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
+          </td>
+          <td style="padding: 0.6rem 0.75rem; text-align: right;">
+            <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-delete-subwiki').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const slug = btn.getAttribute('data-slug');
+          if (!confirm(`Are you sure you want to remove subwiki "${slug}"?\n\nThis will unregister the subwiki from this parent wiki.`)) {
+            return;
+          }
+          const deleteFiles = confirm(`Do you also want to permanently delete the physical directory "/${slug}" from the server?\n\nClick OK to delete files from disk, or Cancel to only unregister.`);
+          try {
+            const formData = new FormData();
+            formData.append('action', 'delete_subwiki');
+            formData.append('slug', slug);
+            if (deleteFiles) formData.append('deleteFiles', '1');
+
+            const delRes = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const delData = await delRes.json();
+            if (delData.success) {
+              loadSubwikisList();
+            } else {
+              alert('Failed to delete subwiki: ' + (delData.error || 'Unknown error'));
+            }
+          } catch (err) {
+            alert('Request failed while deleting subwiki.');
+          }
+        });
+      });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="3" style="padding: 1rem; color: var(--danger-color, #ef4444); text-align: center;">Network error while fetching subwikis.</td></tr>';
+    }
+  }
+
+  // Real-time Slug Checking for Subwiki Deploy Form
+  const newSubwikiSlugInput = document.getElementById('new-subwiki-slug');
+  const subwikiSlugFeedback = document.getElementById('subwiki-slug-feedback');
+  let slugCheckTimeout = null;
+
+  if (newSubwikiSlugInput && subwikiSlugFeedback) {
+    newSubwikiSlugInput.addEventListener('input', () => {
+      clearTimeout(slugCheckTimeout);
+      const rawVal = newSubwikiSlugInput.value.trim().toLowerCase();
+      if (!rawVal) {
+        subwikiSlugFeedback.textContent = '';
+        return;
+      }
+
+      slugCheckTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`api/admin.php?action=check_subwiki_slug&slug=${encodeURIComponent(rawVal)}&for_subwiki=1`);
+          const data = await res.json();
+          if (data.valid) {
+            subwikiSlugFeedback.style.color = 'var(--success-color, #10b981)';
+            subwikiSlugFeedback.textContent = `✓ Slug "${data.slug}" is available. Grouping: dash notation supported.`;
+          } else {
+            subwikiSlugFeedback.style.color = 'var(--danger-color, #ef4444)';
+            subwikiSlugFeedback.textContent = `✗ ${data.error || 'Slug unavailable'}`;
+          }
+        } catch (e) {
+          // ignore network glitch in real-time check
+        }
+      }, 250);
+    });
+  }
+
+  // Deploy Subwiki Form Handler
+  const deploySubwikiForm = document.getElementById('deploy-subwiki-form');
+  if (deploySubwikiForm) {
+    deploySubwikiForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-submit-deploy-subwiki');
+      const loadingEl = document.getElementById('deploy-subwiki-loading');
+
+      submitBtn.disabled = true;
+      if (loadingEl) loadingEl.style.display = 'block';
+
+      const formData = new FormData(deploySubwikiForm);
+      formData.append('action', 'deploy_subwiki');
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Subwiki "${data.title}" deployed successfully!\n\nAccess it at: /${data.slug}/`);
+          deploySubwikiForm.reset();
+          if (subwikiSlugFeedback) subwikiSlugFeedback.textContent = '';
+          loadSubwikisList();
+        } else {
+          alert('Failed to deploy subwiki: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Request failed while deploying subwiki.');
+      } finally {
+        submitBtn.disabled = false;
+        if (loadingEl) loadingEl.style.display = 'none';
+      }
+    });
   }
 
   // Category Edit Pencil Icons in Sidebar

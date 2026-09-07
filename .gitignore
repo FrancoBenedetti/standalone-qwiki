@@ -17,4 +17,5 @@ tests/hyperlink_test.php
 tests/session_isolation_test.php
 tests/demo_reload_test.php
 tests/share_link_test.php
+tests/subwiki_collision_test.php
 .htaccess

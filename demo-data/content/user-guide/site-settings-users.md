@@ -46,3 +46,16 @@ To change site visibility:
 - When a new version of Qwiki is released, an **`🎉 Update Available!`** button appears in the admin menu.
 - Click to view the release notes directly from GitHub and install core updates with one click.
 - User data (`content/`, `uploads/`, `qwiki.json`, `users.json`) and custom extensions (`assets/extensions/`) are always safely preserved.
+
+---
+
+## 🌐 Subwikis Management
+
+Standalone Qwiki supports single-level nested wikis (subwikis) deployed and managed directly from the parent wiki:
+1. Click **`🌐 Subwikis`** in the user menu.
+2. **Deploy Subwiki**: Enter the title, slug, and initial admin credentials.
+   - **Dashed Grouping**: Use hyphens to group departments or topics cleanly (e.g. `engineering-electrical`, `engineering-mechanical`).
+   - **Bi-Directional Collision Protection**: Subwiki slugs and parent category names are protected against clashing.
+   - **Single-Level Depth**: Subwikis cannot deploy further child wikis.
+3. **Automated Cascading Updates**: When updating the parent wiki, all deployed subwikis receive code updates automatically without requiring separate updater clicks.
+

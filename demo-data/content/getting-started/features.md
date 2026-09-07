@@ -123,3 +123,14 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Distraction-Free Zen Reader**: Shared documents open in full-screen reader mode with the sidebar, brand header, search bar, and previous/next buttons hidden. Features a centered reading canvas and a floating glassmorphic bar with theme toggle, print/PDF button, and an "Open in Wiki" exit link for authenticated users.
 - **Admin Access Controls & Instant Revocation**: Documents are publicly shareable by default. Administrators can disable public sharing for any document (`publicShareable: false`) or click **Reset Key** to immediately invalidate all previously distributed links.
 
+---
+
+## 🌐 12. Subwiki Management & Collision Protection
+
+- **Single-Level Subwiki Deployments**: Administrators in parent wikis can provision independent, single-level subwikis with dedicated admin accounts directly from the UI (`🌐 Subwikis`).
+- **Bi-Directional Slug Collision Prevention**: Real-time validation ensures that new subwikis cannot shadow parent categories, and parent categories cannot share names with subwiki folders or reserved system directories.
+- **Logical Dashed Grouping**: Subwikis cannot deploy nested child wikis; hierarchical multi-team structures are grouped using dashed slugs (e.g. `engineering-electrical`, `engineering-mechanical`).
+- **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
+- **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
+
+
