@@ -245,6 +245,7 @@ $categoryTheme = $activeBook['theme'] ?? null;
 $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
 $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
+$showPoweredBy = isset($config['showPoweredBy']) ? !empty($config['showPoweredBy']) : true;
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
@@ -382,6 +383,15 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <?php Navigation::renderSidebarNode($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
             </nav>
+            <?php if ($showPoweredBy): ?>
+            <div class="sidebar-footer">
+                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="Powered by Qwiki — Click to open qwiki.wiki in a new tab">
+                    <span class="badge-icon">⚡</span>
+                    <span class="badge-text">Powered by <strong>Qwiki</strong></span>
+                    <svg class="badge-external-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+            </div>
+            <?php endif; ?>
         </aside>
         <?php endif; ?>
 
@@ -949,6 +959,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">
                         <input type="checkbox" name="showDocTypesOnlyToAdmin" value="1" <?= $showDocTypesOnlyToAdmin ? 'checked' : '' ?>>
                         Show Document Type Badges Only to Admin Users
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="showPoweredBy" value="1" <?= $showPoweredBy ? 'checked' : '' ?>>
+                        Show "Powered by Qwiki" Badge in Sidebar
                     </label>
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">

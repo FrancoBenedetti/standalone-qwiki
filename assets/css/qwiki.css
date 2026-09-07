@@ -295,6 +295,63 @@ body {
   overflow-y: auto;
 }
 
+.sidebar-footer {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.qwiki-powered-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  opacity: 0.8;
+  user-select: none;
+}
+
+.qwiki-powered-badge strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.qwiki-powered-badge .badge-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.qwiki-powered-badge .badge-external-icon {
+  opacity: 0.5;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.qwiki-powered-badge:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.qwiki-powered-badge:hover strong {
+  color: var(--accent-color);
+}
+
+.qwiki-powered-badge:hover .badge-external-icon {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
 /* Accordion Navigation & Indentation */
 .nav-category-item {
   display: flex;

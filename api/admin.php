@@ -774,6 +774,7 @@ switch ($action) {
         $defaultBook = trim($_POST['defaultBook'] ?? '');
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
         $showDocTypesOnlyToAdmin = isset($_POST['showDocTypesOnlyToAdmin']) && $_POST['showDocTypesOnlyToAdmin'] === '1';
+        $showPoweredBy = isset($_POST['showPoweredBy']) && $_POST['showPoweredBy'] === '1';
         $shareDescription = trim($_POST['shareDescription'] ?? '');
         $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
         $feedItemCount = isset($_POST['feedItemCount']) ? (int)$_POST['feedItemCount'] : 10;
@@ -784,6 +785,7 @@ switch ($action) {
         if (isset($_POST['logoUrl'])) $config['logoUrl'] = $logoUrl;
         if (isset($_POST['theme'])) $config['theme'] = $theme;
         $config['showDocTypesOnlyToAdmin'] = $showDocTypesOnlyToAdmin;
+        $config['showPoweredBy'] = $showPoweredBy;
         if (isset($config['hideDocTypesFromPublic'])) {
             unset($config['hideDocTypesFromPublic']);
         }
