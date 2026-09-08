@@ -5,6 +5,8 @@
   --bg-card-hover: #334155;
   --accent-color: #6366f1;
   --accent-hover: #4f46e5;
+  --primary-color: var(--accent-color);
+  --bg-hover: var(--bg-card-hover);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -28,6 +30,8 @@
   --bg-card-hover: #f1f5f9;
   --accent-color: #4f46e5;
   --accent-hover: #4338ca;
+  --primary-color: var(--accent-color);
+  --bg-hover: var(--bg-card-hover);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
@@ -67,6 +71,7 @@
 
 html, body {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -233,6 +238,7 @@ body {
   display: flex;
   flex: 1;
   height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
   overflow: hidden;
 }
 
@@ -569,7 +575,7 @@ body {
 /* Main Content Area */
 .app-content {
   flex: 1;
-  padding: 2rem 3rem;
+  padding: 2rem 3rem 4rem 3rem;
   overflow-y: auto;
   max-width: 1000px;
 }
@@ -1106,7 +1112,11 @@ textarea.form-control {
     display: block;
   }
   .app-content {
-    padding: 1.5rem 1rem;
+    padding: 1.5rem 1rem 6rem 1rem;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .content-body {
+    padding-bottom: 2rem;
   }
 }
 
@@ -1231,6 +1241,7 @@ body.mode-fullscreen .app-content {
     max-width: 880px !important;
     margin: 0 auto !important;
     padding: 1rem 1.5rem 6rem 1.5rem !important;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
     width: 100% !important;
     height: auto !important;
     overflow: visible !important;
@@ -1325,5 +1336,60 @@ body.mode-fullscreen .gdoc-container iframe {
     background: rgba(239, 68, 68, 0.15);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Subwiki Management and Navigation */
+.subwiki-parent-banner {
+  margin: 0.5rem 0.75rem 0.25rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+[data-theme="light"] .subwiki-parent-banner {
+  background: var(--bg-card-hover);
+}
+
+.subwiki-parent-banner:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-color);
+}
+
+[data-theme="light"] .subwiki-parent-banner:hover {
+  background: #e2e8f0;
+}
+
+.subwiki-parent-banner a {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.subwiki-parent-banner a:hover {
+  color: var(--accent-hover);
+}
+
+.subwiki-table thead tr {
+  background: var(--bg-primary);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .subwiki-table thead tr {
+  background: var(--bg-card-hover);
+}
+
+.subwiki-table th {
+  padding: 0.6rem 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.82rem;
 }
 

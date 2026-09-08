@@ -9,6 +9,32 @@ document.addEventListener('DOMContentLoaded', () => {
     let createEditor = null;
     let editEditor = null;
 
+    /**
+     * Safely retrieves editor content whether SunEditor is in WYSIWYG mode
+     * or raw Code View mode (which SunEditor does not automatically sync into getContents()).
+     */
+    function getEditorContent(editor) {
+        if (!editor) return '';
+        const isCodeView = !!(editor.core && editor.core._variable && editor.core._variable.isCodeView);
+        if (isCodeView) {
+            let codeVal = '';
+            if (typeof editor.core._getCodeView === 'function') {
+                codeVal = editor.core._getCodeView();
+            } else {
+                const ctx = typeof editor.getContext === 'function' ? editor.getContext() : (editor.core ? editor.core.context : null);
+                if (ctx && ctx.element && ctx.element.code) {
+                    codeVal = ctx.element.code.value;
+                }
+            }
+            // Synchronize code view content back into the WYSIWYG editor DOM
+            if (typeof editor.core._setCodeDataToEditor === 'function') {
+                editor.core._setCodeDataToEditor();
+            }
+            return (codeVal !== undefined && codeVal !== null) ? codeVal : editor.getContents();
+        }
+        return editor.getContents();
+    }
+
     function getSunEditorOptions(height) {
         return {
             buttonList: [
@@ -24,7 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
             width: '100%',
             height: height || '320px',
             placeholder: 'Write or design HTML content here...',
-            attributesWhitelist: { all: '*' }
+            attributesWhitelist: { all: '*' },
+            callBackSave: function() {
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
         };
     }
 
@@ -42,9 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (toggle && !toggle.checked) {
             if (createEditor) {
-                textarea.value = createEditor.getContents();
+                textarea.value = getEditorContent(createEditor);
                 createEditor.destroy();
                 createEditor = null;
+                window.createEditor = null;
             }
             textarea.style.display = 'block';
             return;
@@ -53,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (createEditor) return;
         textarea.style.display = 'none';
         createEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('280px'));
+        window.createEditor = createEditor;
     }
 
     function initEditEditor() {
@@ -69,9 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (toggle && !toggle.checked) {
             if (editEditor) {
-                textarea.value = editEditor.getContents();
+                textarea.value = getEditorContent(editEditor);
                 editEditor.destroy();
                 editEditor = null;
+                window.editEditor = null;
             }
             textarea.style.display = 'block';
             return;
@@ -80,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editEditor) return;
         textarea.style.display = 'none';
         editEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('400px'));
+        window.editEditor = editEditor;
     }
 
     // Toggle Listeners
@@ -166,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentStr = '';
             const createToggle = document.getElementById('create-use-visual-editor');
             if (createEditor && createToggle && createToggle.checked) {
-                contentStr = createEditor.getContents();
+                contentStr = getEditorContent(createEditor);
             } else {
                 const textarea = document.getElementById('html-content-textarea');
                 contentStr = textarea ? textarea.value : (formData.get('content') || '');
@@ -174,7 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Encode content fields as base64 to bypass Apache ModSecurity / WAF
             formData.delete('content');
-            formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
 
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) {
@@ -312,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentStr = '';
             const editToggle = document.getElementById('edit-use-visual-editor');
             if (editEditor && editToggle && editToggle.checked) {
-                contentStr = editEditor.getContents();
+                contentStr = getEditorContent(editEditor);
             } else {
                 const textarea = document.getElementById('edit-html-textarea');
                 contentStr = textarea ? textarea.value : (formData.get('content') || '');
@@ -320,7 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Encode content fields as base64 to bypass Apache ModSecurity / WAF
             formData.delete('content');
-            formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
 
             const saveBtn = document.getElementById('btn-save-html-doc');
             if (saveBtn) {
@@ -398,6 +442,20 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const frameDoc = frame.contentDocument || frame.contentWindow.document;
                 if (!frameDoc || !frameDoc.body) return;
+
+                // 0. Ensure relative wiki assets (e.g. uploads/images/...) resolve against application base URL
+                const baseHref = document.querySelector('base')?.href || (window.location.origin + '/');
+                frameDoc.querySelectorAll('img, video, audio, source').forEach(el => {
+                    const rawSrc = el.getAttribute('src');
+                    if (rawSrc && !/^https?:\/\//i.test(rawSrc) && !rawSrc.startsWith('/') && !rawSrc.startsWith('data:')) {
+                        if (rawSrc.startsWith('uploads/') || rawSrc.startsWith('assets/')) {
+                            const resolved = new URL(rawSrc, baseHref).href;
+                            if (el.src !== resolved) {
+                                el.src = resolved;
+                            }
+                        }
+                    }
+                });
 
                 // 1. Inspect if the document has author-defined @media print or @page rules
                 let hasPrintMedia = false;
@@ -486,4 +544,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (currentFrame) {
         setupHtmlFramePrint(currentFrame);
     }
+
+    // Ctrl+S / Cmd+S shortcut inside HTML edit modal
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+            const editModal = document.getElementById('edit-html-modal');
+            if (editModal && editModal.classList.contains('open')) {
+                e.preventDefault();
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
+        }
+    });
 });

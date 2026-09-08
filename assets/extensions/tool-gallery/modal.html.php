@@ -6,7 +6,7 @@
  */
 ?>
 <!-- 1. Main Gallery Modal -->
-<div class="modal-overlay" id="modal-gallery">
+<div class="modal-overlay" id="modal-gallery" style="z-index: 1060;">
     <div class="modal-card gallery-modal-card">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -14,6 +14,15 @@
                 <span class="doc-badge badge-md" id="gallery-count-badge">0 images</span>
             </div>
             <button class="modal-close" data-close="modal-gallery" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- Article Editor Active Banner -->
+        <div id="gallery-editor-banner" class="gallery-editor-banner" style="display: none;">
+            <div class="gallery-editor-banner-text">
+                <span class="gallery-editor-banner-icon">📝</span>
+                <span><strong>Article Editor Active:</strong> Browse images and click <strong>✓ Select</strong> to insert directly into your document.</span>
+            </div>
+            <span class="doc-badge badge-md gallery-mode-badge">SELECT MODE</span>
         </div>
 
         <!-- Gallery Toolbar -->
@@ -66,7 +75,7 @@
 </div>
 
 <!-- 2. Deletion Confirmation & Document Usage Warning Modal -->
-<div class="modal-overlay" id="modal-gallery-delete" style="z-index: 1100;">
+<div class="modal-overlay" id="modal-gallery-delete" style="z-index: 1160;">
     <div class="modal-card gallery-delete-card">
         <div class="modal-header">
             <h3 id="gallery-delete-title">🗑️ Delete Image</h3>
@@ -122,7 +131,7 @@
 </div>
 
 <!-- 3. Image Full Preview & Link Inspector Modal -->
-<div class="modal-overlay" id="modal-gallery-preview" style="z-index: 1050;">
+<div class="modal-overlay" id="modal-gallery-preview" style="z-index: 1120;">
     <div class="modal-card gallery-preview-card">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
@@ -177,7 +186,7 @@
                     </button>
                     <div style="display: flex; gap: 0.5rem;">
                         <button type="button" class="btn btn-primary btn-sm" id="btn-preview-insert-editor" style="display: none;">
-                            Insert into Document
+                            ✓ Select &amp; Insert
                         </button>
                         <button type="button" class="btn btn-outline btn-sm" id="btn-preview-open-newtab">
                             Open in New Tab ↗

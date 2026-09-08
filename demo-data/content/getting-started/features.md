@@ -9,19 +9,21 @@
 ### A. Local Markdown Files (`.md`)
 - Server-side GitHub-Flavored Markdown parsing via `lib/Parsedown.php`.
 - Full online visual/code editor (`✏️ Edit Content`) for real-time document editing.
-- **In-Editor Image Uploader**: Click **`📷 Insert Image`** to upload `.png`, `.jpg`, `.svg`, or `.webp` files directly to `uploads/images/` and auto-insert Markdown tags at your cursor position.
+- **In-Editor Image Uploader & Gallery Browser**: Click **`📷 Insert Image`** to upload `.png`, `.jpg`, `.svg`, or `.webp` files directly to `uploads/images/`, or click the dedicated **`🖼️`** toolbar icon to browse the full media gallery. When an editor is active, the gallery displays an "Article Editor Active" banner and **`✓ Select`** buttons to instantly insert image Markdown tags (`![alt](url)`) or HTML tags directly at your cursor position and automatically close the modal.
 - **Auto-Embedded Playable Videos**: Paste standalone video links on their own line to automatically render responsive, theme-styled video players:
   - **YouTube**: Standard watch URLs, short `youtu.be` links, and Shorts with timestamp support (`?t=1m30s`), served via privacy-friendly `youtube-nocookie.com`.
   - **Vimeo**: Direct embeds with Do Not Track (`dnt=1`) privacy.
   - **Loom**: Instant screencast video playback directly from share links.
   - **HTML5 Direct Video**: Native player for `.mp4`, `.webm`, `.ogg`, and `.mov` files with controls and download links.
   - **Subtitles & Captions**: Add a custom title using Markdown link syntax `[Video Title](https://...)` or image syntax `![Video Title](video.mp4)` to display an italicized caption below the player.
-- **Protected Markdown + HTML Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, and custom badges. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization and style loss.
+- **Protected Markdown + HTML Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, and custom badges. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization and style loss (with refined detection allowing benign line breaks like `<br>`).
 
 ### B. HTML Documents (`.html`)
 - Native sandboxed HTML embedding with interactive JavaScript execution and isolated styling.
 - **SunEditor WYSIWYG Editor**: Create and visually format HTML documents with headings, font sizes, tables, lists, colors, links, and media.
-- **1-Click Raw Code View**: Seamlessly toggle between visual WYSIWYG editing and raw HTML code editing without tag sanitization or script corruption.
+- **1-Click Raw Code View & Auto-Sync**: Seamlessly toggle between visual WYSIWYG editing and raw HTML code editing. Edits made in raw Code View mode are automatically synchronized back to the WYSIWYG editor DOM and preserved byte-for-byte upon saving.
+- **Hotkeys & WAF Protection**: Press **`Ctrl+S`** / **`Cmd+S`** inside the HTML editor to save instantly. Content submissions are safely Base64-encoded to bypass restrictive Apache ModSecurity and Web Application Firewall (WAF) filters.
+- **Asset URL Normalization**: Media tags (`<img>`, `<video>`, `<audio>`) with relative paths (such as `uploads/images/...`) automatically resolve against the wiki base URL inside sandboxed iframes.
 - **In-Place Editing**: Admins can click **`✏️ Edit HTML`** directly from the viewer toolbar to edit and update `.html` files in real-time.
 - **File Loader**: Upload existing `.html` files directly into the editor.
 - **Smart Print / Save as PDF**: All print buttons (toolbar, header icon, and any in-document button) delegate to the sandboxed iframe and trigger the browser print dialog. When viewed embedded in Qwiki, redundant print controls are automatically hidden — the HTML viewer toolbar button is the single entry point. In the full-tab expanded view or share mode, only the in-document button is shown.
@@ -57,13 +59,14 @@
 
 ---
 
-## 🖐️ 4. Drag & Drop Navigation Reordering
+## 🖐️ 4. Drag & Drop Navigation & Category Relocation
 
 When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu item in the sidebar:
 - **Reorder Documents**: Drag pages up or down within a section.
-- **Nest Items into Categories**: Drag a document into a category or sub-folder.
+- **Nest Items into Categories**: Drag a document into a category or sub-folder. Physical files on disk are automatically moved to the new category folder without broken links.
 - **Reorder Categories**: Drag category headers to re-arrange main sections.
-- **Instant Backend Sync**: Menu changes automatically save to `qwiki.json`.
+- **Document Relocation via Modal**: In **`⚙️ Edit Details`**, administrators can change a document's parent category/folder via a hierarchical category selector (`↳`), or edit its slug. Qwiki automatically moves the physical file on disk to the destination folder, renames it, resolves any filename clashes with numeric suffixes, and updates `qwiki.json`.
+- **Instant Backend Sync**: Menu changes and physical file moves automatically save to `qwiki.json`.
 
 ---
 
@@ -130,6 +133,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Single-Level Subwiki Deployments**: Administrators in parent wikis can provision independent, single-level subwikis with dedicated admin accounts directly from the UI (`🌐 Subwikis`).
 - **Bi-Directional Slug Collision Prevention**: Real-time validation ensures that new subwikis cannot shadow parent categories, and parent categories cannot share names with subwiki folders or reserved system directories.
 - **Logical Dashed Grouping**: Subwikis cannot deploy nested child wikis; hierarchical multi-team structures are grouped using dashed slugs (e.g. `engineering-electrical`, `engineering-mechanical`).
+- **Live Dynamic Parent Wiki Title**: Subwikis dynamically inspect the parent wiki's `qwiki.json` to reflect live parent wiki title renames on the sidebar "← Back to..." banner, eliminating stale names. Subwiki administrators can also configure custom parent titles and target URLs in Settings.
 - **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
 - **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
 

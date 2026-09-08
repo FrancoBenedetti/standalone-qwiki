@@ -18,4 +18,6 @@ tests/session_isolation_test.php
 tests/demo_reload_test.php
 tests/share_link_test.php
 tests/subwiki_collision_test.php
+tests/category_hierarchy_test.php
+tests/document_management_test.php
 .htaccess

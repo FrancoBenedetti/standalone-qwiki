@@ -11,6 +11,35 @@ class SubwikiManager {
     }
 
     /**
+     * Resolve the parent wiki's title dynamically if available, or from child config.
+     * Checks if parent directory contains a qwiki.json to reflect live parent wiki title renames.
+     *
+     * @param array|null $subConfig Child wiki configuration array.
+     * @return string
+     */
+    public static function getParentTitle(?array $subConfig = null): string {
+        if ($subConfig === null) {
+            $subConfig = Config::load();
+        }
+
+        // If subwiki explicitly customized its parentTitle
+        if (!empty($subConfig['parentTitleCustom']) && !empty($subConfig['parentTitle'])) {
+            return (string)$subConfig['parentTitle'];
+        }
+
+        $baseDir = Config::getBaseDir();
+        $parentConfigFile = dirname($baseDir) . '/qwiki.json';
+        if (file_exists($parentConfigFile)) {
+            $parentData = @json_decode(file_get_contents($parentConfigFile), true);
+            if (is_array($parentData) && !empty($parentData['title'])) {
+                return (string)$parentData['title'];
+            }
+        }
+
+        return !empty($subConfig['parentTitle']) ? (string)$subConfig['parentTitle'] : 'Main Wiki';
+    }
+
+    /**
      * Validate a slug bi-directionally for category or subwiki usage.
      *
      * @param string $slug The proposed slug.
@@ -44,17 +73,28 @@ class SubwikiManager {
         $baseDir = Config::getBaseDir();
         $config = Config::load();
 
-        if ($isForSubwiki) {
-            // 1. Subwiki cannot clash with any parent category
-            if (!empty($config['books'])) {
-                foreach ($config['books'] as $book) {
-                    if (($book['id'] ?? '') === $slug) {
-                        return [
-                            'valid' => false,
-                            'error' => "A category named '{$slug}' already exists in the parent wiki. Choose a different name or use a dash prefix (e.g. 'sub-{$slug}')."
-                        ];
+        $categoryExists = function($nodes, $targetSlug, $ignoreId = null) use (&$categoryExists) {
+            if (!is_array($nodes)) return false;
+            foreach ($nodes as $node) {
+                if (($node['id'] ?? '') === $targetSlug && $targetSlug !== $ignoreId) {
+                    return true;
+                }
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    if ($categoryExists($node['items'], $targetSlug, $ignoreId)) {
+                        return true;
                     }
                 }
+            }
+            return false;
+        };
+
+        if ($isForSubwiki) {
+            // 1. Subwiki cannot clash with any parent category
+            if (!empty($config['books']) && $categoryExists($config['books'], $slug)) {
+                return [
+                    'valid' => false,
+                    'error' => "A category named '{$slug}' already exists in the parent wiki. Choose a different name or use a dash prefix (e.g. 'sub-{$slug}')."
+                ];
             }
 
             // 2. Subwiki cannot clash with an existing physical directory on disk
@@ -101,15 +141,11 @@ class SubwikiManager {
             }
 
             // 3. Cannot clash with another existing category (unless editing self)
-            if (!empty($config['books'])) {
-                foreach ($config['books'] as $book) {
-                    if (($book['id'] ?? '') === $slug && $slug !== $currentBookId) {
-                        return [
-                            'valid' => false,
-                            'error' => "Another category with ID '{$slug}' already exists."
-                        ];
-                    }
-                }
+            if (!empty($config['books']) && $categoryExists($config['books'], $slug, $currentBookId)) {
+                return [
+                    'valid' => false,
+                    'error' => "Another category with ID '{$slug}' already exists."
+                ];
             }
         }
 

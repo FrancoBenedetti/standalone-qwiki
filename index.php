@@ -51,6 +51,7 @@ $isAdmin = Auth::isAdmin();
 $isViewer = Auth::isViewer();
 $canViewContent = Auth::canView($config);
 $isSubwiki = Config::isSubwiki();
+$parentTitle = $isSubwiki ? SubwikiManager::getParentTitle($config) : '';
 
 // Routing parameters
 $requestedBookId = '';
@@ -193,6 +194,7 @@ if (!$isShareMode && !$shareError) {
     }
 }
 
+$categoryHierarchy = Navigation::getCategoriesHierarchy($config['books'] ?? []);
 
 // Calculate Previous and Next Document Navigation
 $flatNavList = [];
@@ -273,7 +275,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         })();
     </script>
     <base href="<?= htmlspecialchars($baseUrl) ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
     
     <!-- Open Graph & Social Share Tags -->
@@ -387,10 +389,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <input type="text" id="search-input" class="search-input" placeholder="Search documentation...">
             </div>
             <?php if ($isSubwiki): ?>
-            <div class="subwiki-parent-banner" style="margin: 0.5rem 0.75rem 0.25rem; padding: 0.5rem 0.75rem; background: var(--bg-hover, #f3f4f6); border-radius: 6px; font-size: 0.85rem; border: 1px solid var(--border-color);">
-                <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>" style="display: flex; align-items: center; gap: 0.4rem; color: var(--primary-color); text-decoration: none; font-weight: 600;">
+            <div class="subwiki-parent-banner">
+                <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>">
                     <span>←</span>
-                    <span>Back to <?= htmlspecialchars($config['parentTitle'] ?? 'Main Wiki') ?></span>
+                    <span>Back to <?= htmlspecialchars($parentTitle) ?></span>
                 </a>
             </div>
             <?php endif; ?>
@@ -485,7 +487,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
                                         data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
                                         data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
-                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>">
+                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                        data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                                 </button>
                                 <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
@@ -494,7 +497,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <?php endif; ?>
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
-                        <div id="edit-actions" style="display: none; gap: 0.75rem;">
+                        <div id="edit-actions" style="display: none; gap: 0.75rem; align-items: center;">
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-editor-gallery" title="Browse and select images from gallery">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: text-bottom;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                Image Gallery
+                            </button>
                             <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
                             <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
                         </div>
@@ -627,6 +634,17 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label" for="book-id-input">Category Folder / Slug (Optional)</label>
                     <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-guides">
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="book-parent-select">Parent Category</label>
+                    <select name="parentId" id="book-parent-select" class="form-control">
+                        <option value="">-- Root (Top Level) --</option>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>">
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Create Category</button>
             </form>
         </div>
@@ -729,10 +747,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -741,7 +759,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Initial Markdown Content <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(Or <a href="#" id="upload-md-link" style="color: var(--primary-color);">upload a .md file</a>)</span></label>
+                    <label class="form-label">Initial Markdown Content <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(Or <a href="#" id="upload-md-link" style="color: var(--accent-color);">upload a .md file</a>)</span></label>
                     <input type="file" id="md-file-upload-input" accept=".md" style="display: none;">
                     <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
                 </div>
@@ -753,10 +771,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -776,10 +794,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -804,10 +822,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Placement</label>
                     <select name="bookId" class="form-control">
                         <option value="">-- Top Level (Sidebar Root) --</option>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -847,6 +865,21 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" id="edit-chapter-title" class="form-control" value="<?= htmlspecialchars($activeChapter['title']) ?>" required>
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="edit-chapter-slug">Document Slug (URL Identifier)</label>
+                    <input type="text" name="newSlug" id="edit-chapter-slug" class="form-control" value="<?= htmlspecialchars($activeChapter['slug']) ?>" required pattern="[a-zA-Z0-9\-_]+">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Unique identifier used in URLs. Changing this renames the file on disk.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-category">Category / Folder</label>
+                    <select name="targetBookId" id="edit-chapter-category" class="form-control">
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="edit-chapter-type">Type</label>
                     <select name="type" id="edit-chapter-type" class="form-control">
                         <option value="markdown" <?= (($activeChapter['type'] ?? 'markdown') === 'markdown') ? 'selected' : '' ?>>Markdown (.md)</option>
@@ -867,7 +900,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <div class="form-group" id="group-edit-file">
                     <label class="form-label" for="edit-chapter-file">File Path</label>
-                    <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">
+                    <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>" readonly style="background-color: var(--bg-tertiary); cursor: not-allowed;">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Managed automatically by Qwiki based on category and slug.</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-chapter-theme">Document Theme (Optional)</label>
@@ -996,8 +1030,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label" for="setting-default-book">Default Category</label>
                     <select name="defaultBook" id="setting-default-book" class="form-control">
-                        <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= (($config['defaultBook'] ?? '') === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= (($config['defaultBook'] ?? '') === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -1029,6 +1065,23 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                     </div>
                 </div>
+                <?php if ($isSubwiki): ?>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div class="form-group">
+                    <label class="form-label" for="setting-parent-title">Parent Wiki Title</label>
+                    <input type="text" name="parentTitle" id="setting-parent-title" class="form-control" value="<?= htmlspecialchars($config['parentTitle'] ?? $parentTitle) ?>" placeholder="Parent Wiki Title">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Title displayed on the "← Back to..." sidebar navigation banner.
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-parent-url">Parent Wiki URL</label>
+                    <input type="text" name="parentUrl" id="setting-parent-url" class="form-control" value="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>" placeholder="../">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Target URL of the parent wiki.
+                    </small>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Save Settings</button>
             </form>
             <?php if (Config::isDemoMode() && DemoManager::isDemoConfigured()): ?>
@@ -1057,7 +1110,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="subwiki-list-container" style="margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
                 <table class="subwiki-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
                     <thead>
-                        <tr style="background: var(--bg-hover, #f9fafb); text-align: left; border-bottom: 1px solid var(--border-color);">
+                        <tr>
                             <th style="padding: 0.6rem 0.75rem;">Title / Slug</th>
                             <th style="padding: 0.6rem 0.75rem;">URL</th>
                             <th style="padding: 0.6rem 0.75rem; text-align: right;">Action</th>
@@ -1102,7 +1155,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </label>
                     </div>
                     <button type="submit" class="btn btn-primary" id="btn-submit-deploy-subwiki" style="width: 100%;">🚀 Deploy Subwiki</button>
-                    <p id="deploy-subwiki-loading" style="display: none; text-align: center; color: var(--primary-color); margin-top: 0.5rem; font-size: 0.85rem;">Deploying subwiki... Please wait.</p>
+                    <p id="deploy-subwiki-loading" style="display: none; text-align: center; color: var(--accent-color); margin-top: 0.5rem; font-size: 0.85rem;">Deploying subwiki... Please wait.</p>
                 </form>
             </div>
         </div>
@@ -1153,7 +1206,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <form id="update-form">
                 <input type="hidden" name="zip_url" id="update-zip-url">
                 <button type="submit" class="btn btn-primary" id="btn-install-update" style="width: 100%;">Download & Install Update</button>
-                <p id="update-loading-text" style="display: none; text-align: center; color: var(--primary-color); margin-top: 0.5rem;">Installing update... Please wait and do not close this page.</p>
+                <p id="update-loading-text" style="display: none; text-align: center; color: var(--accent-color); margin-top: 0.5rem;">Installing update... Please wait and do not close this page.</p>
             </form>
         </div>
     </div>

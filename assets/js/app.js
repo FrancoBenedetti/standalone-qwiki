@@ -203,6 +203,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'edit-chapter-modal') {
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
           if (btnMeta) {
+            const curSlug = btnMeta.getAttribute('data-slug') || '';
+            const curTitle = btnMeta.getAttribute('data-title') || '';
+            const curType = btnMeta.getAttribute('data-type') || 'markdown';
+            const curUrl = btnMeta.getAttribute('data-url') || '';
+            const curEditUrl = btnMeta.getAttribute('data-edit-url') || '';
+            const curFile = btnMeta.getAttribute('data-file') || '';
+            const curBookId = btnMeta.getAttribute('data-book-id') || '';
+
+            const slugHidden = document.getElementById('edit-chapter-slug-hidden');
+            if (slugHidden) slugHidden.value = curSlug;
+
+            const slugInput = document.getElementById('edit-chapter-slug');
+            if (slugInput) slugInput.value = curSlug;
+
+            const titleInput = document.getElementById('edit-chapter-title');
+            if (titleInput) titleInput.value = curTitle;
+
+            const typeSelect = document.getElementById('edit-chapter-type');
+            if (typeSelect) typeSelect.value = curType;
+
+            const urlInput = document.getElementById('edit-chapter-url');
+            if (urlInput) urlInput.value = curUrl;
+
+            const editUrlInput = document.getElementById('edit-chapter-editurl');
+            if (editUrlInput) editUrlInput.value = curEditUrl;
+
+            const fileInput = document.getElementById('edit-chapter-file');
+            if (fileInput) fileInput.value = curFile;
+
+            const catSelect = document.getElementById('edit-chapter-category');
+            if (catSelect && curBookId) catSelect.value = curBookId;
+
             populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
             const shareableCheckbox = document.getElementById('edit-chapter-public-shareable');
             if (shareableCheckbox) {
@@ -434,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
           </td>
           <td style="padding: 0.6rem 0.75rem;">
-            <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--primary-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
+            <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--accent-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
           </td>
           <td style="padding: 0.6rem 0.75rem; text-align: right;">
             <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
@@ -797,6 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnEditMarkdown = document.getElementById('btn-edit-markdown');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const btnSaveInline = document.getElementById('btn-save-inline-markdown');
+  const btnEditorGallery = document.getElementById('btn-editor-gallery');
   const readActions = document.getElementById('read-actions');
   const editActions = document.getElementById('edit-actions');
   const contentBody = document.getElementById('content-body');
@@ -827,10 +860,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     }
 
-    // Check for generic HTML tags that are not autolinks
+    // Check for generic HTML tags that are not autolinks or benign line breaks (<br>, <br/>, <br />)
     const nonAutolink = stripped
       .replace(/<https?:\/\/[^>]+>/gi, '')
-      .replace(/<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>/g, '');
+      .replace(/<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>/g, '')
+      .replace(/<\/?br\s*\/?>/gi, '');
     if (/<[a-z][a-z0-9]*(?:\s+[^>]*)?>/i.test(nonAutolink)) {
       return true;
     }
@@ -912,6 +946,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!tuiEditor) {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         
+        const createGalleryToolbarButton = () => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'toastui-editor-toolbar-icons gallery-editor-toolbar-btn';
+          btn.style.backgroundImage = 'none';
+          btn.style.fontSize = '15px';
+          btn.style.lineHeight = '1';
+          btn.style.padding = '0';
+          btn.style.margin = '0';
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.cursor = 'pointer';
+          btn.setAttribute('aria-label', 'Browse Image Gallery');
+          btn.title = 'Browse and select images from gallery';
+          btn.innerHTML = '🖼️';
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openGalleryModal === 'function') {
+              window.openGalleryModal();
+            } else {
+              const utilBtn = document.getElementById('btn-util-gallery');
+              if (utilBtn) utilBtn.click();
+            }
+          });
+          return btn;
+        };
+
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
@@ -921,6 +984,20 @@ document.addEventListener('DOMContentLoaded', () => {
           theme: isDark ? 'dark' : '',
           usageStatistics: false,
           hideModeSwitch: hasHtml,
+          toolbarItems: [
+            ['heading', 'bold', 'italic', 'strike'],
+            ['hr', 'quote'],
+            ['ul', 'ol', 'task', 'indent', 'outdent'],
+            ['table', 'image', 'link'],
+            ['code', 'codeblock'],
+            [
+              {
+                name: 'gallery',
+                tooltip: 'Browse Image Gallery',
+                el: createGalleryToolbarButton()
+              }
+            ]
+          ],
           hooks: {
             addImageBlobHook: async (blob, callback) => {
               const formData = new FormData();
@@ -990,6 +1067,18 @@ document.addEventListener('DOMContentLoaded', () => {
     btnEditMarkdown.addEventListener('click', () => {
       openMarkdownEditor(false);
     });
+
+    if (btnEditorGallery) {
+      btnEditorGallery.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof window.openGalleryModal === 'function') {
+          window.openGalleryModal();
+        } else {
+          const utilBtn = document.getElementById('btn-util-gallery');
+          if (utilBtn) utilBtn.click();
+        }
+      });
+    }
 
     if (window.SoftLock) {
       window.SoftLock.onEvicted((evictedFile) => {
@@ -1267,6 +1356,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Save failed:', data);
         alert('Failed to save reordered menu structure: ' + (data.error || 'Unknown error'));
       } else {
+        if (data.updatedFiles) {
+          for (const [slug, newFile] of Object.entries(data.updatedFiles)) {
+            const el = document.querySelector(`[data-doc-slug="${slug}"]`);
+            if (el) {
+              el.setAttribute('data-doc-file', newFile);
+            }
+          }
+        }
         console.log('Tree saved successfully:', tree);
       }
     } catch (err) {

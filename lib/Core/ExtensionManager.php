@@ -221,7 +221,12 @@ class ExtensionManager {
                 $supportedActions = $util['actions'] ?? [$id, 'ext_' . $id];
                 if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
                     $utility = $util;
-                    include $handlerFile;
+                    try {
+                        include $handlerFile;
+                    } catch (\Throwable $e) {
+                        error_log("Extension [{$id}] action error: " . $e->getMessage());
+                        echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
+                    }
                     return true;
                 }
             }
@@ -234,7 +239,12 @@ class ExtensionManager {
                 $supportedActions = $pt['actions'] ?? ['add_' . $id, 'create_' . $id, 'edit_' . $id, 'ext_' . $id];
                 if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
                     $pageType = $pt;
-                    include $handlerFile;
+                    try {
+                        include $handlerFile;
+                    } catch (\Throwable $e) {
+                        error_log("Extension [{$id}] action error: " . $e->getMessage());
+                        echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
+                    }
                     return true;
                 }
             }

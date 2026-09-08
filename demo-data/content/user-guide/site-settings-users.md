@@ -57,5 +57,6 @@ Standalone Qwiki supports single-level nested wikis (subwikis) deployed and mana
    - **Dashed Grouping**: Use hyphens to group departments or topics cleanly (e.g. `engineering-electrical`, `engineering-mechanical`).
    - **Bi-Directional Collision Protection**: Subwiki slugs and parent category names are protected against clashing.
    - **Single-Level Depth**: Subwikis cannot deploy further child wikis.
-3. **Automated Cascading Updates**: When updating the parent wiki, all deployed subwikis receive code updates automatically without requiring separate updater clicks.
+3. **Dynamic Parent Title & Navigation**: Subwikis display a prominent **`← Back to [Parent Title]`** banner in the sidebar. This title dynamically tracks renames made to the parent wiki in real-time, or can be customized along with the parent URL in the subwiki's Site Settings.
+4. **Automated Cascading Updates**: When updating the parent wiki, all deployed subwikis receive code updates automatically without requiring separate updater clicks.
 

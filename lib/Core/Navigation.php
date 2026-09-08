@@ -367,6 +367,42 @@ class Navigation {
         }
         return null;
     }
+
+    /**
+     * Recursively collect all categories with hierarchical path, depth, and folder info.
+     *
+     * @param array $nodes Array of tree nodes (e.g. $config['books'])
+     * @param string $prefix Path prefix for display (e.g. "Parent / ")
+     * @param int $depth Current nesting depth
+     * @param string|null $parentFolder Parent folder path for resolving relative folders
+     * @return array List of categories with ['id', 'title', 'path', 'depth', 'folder']
+     */
+    public static function getCategoriesHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null): array {
+        $result = [];
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+            if (($node['type'] ?? 'folder') === 'folder' && isset($node['id'])) {
+                $nodeId = $node['id'];
+                $nodeTitle = $node['title'] ?? $nodeId;
+                $currentPath = $prefix !== '' ? ($prefix . ' / ' . $nodeTitle) : $nodeTitle;
+                $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+
+                $result[] = [
+                    'id' => $nodeId,
+                    'title' => $nodeTitle,
+                    'path' => $currentPath,
+                    'depth' => $depth,
+                    'folder' => $curFolder
+                ];
+
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $subCats = self::getCategoriesHierarchy($node['items'], $currentPath, $depth + 1, $curFolder);
+                    $result = array_merge($result, $subCats);
+                }
+            }
+        }
+        return $result;
+    }
 }
 
 

@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.6] - DocFlow - 2026-09-08
+
+### 🗂️ Document Relocation & Hierarchy Organization
+
+- **Hierarchical Category Selector**:
+  - Added `Navigation::getCategoriesHierarchy()` to display parent-child category tree paths with visual nesting (`↳`) in the Edit Details modal and Settings default category selector.
+- **Dynamic Category Relocation**:
+  - Administrators can now move documents between categories/folders directly in **`⚙️ Edit Details`**.
+  - Qwiki automatically relocates the physical file on disk (`relocate_document_file`), cleans up empty directories, resolves filename collisions with incremental numeric suffixes (`-1`, `-2`), and updates tree paths in `qwiki.json`.
+- **Drag-and-Drop Disk Relocation**:
+  - Dropping documents into different categories in the sidebar navigation automatically relocates physical files on disk to match the destination category directory, returning updated file mappings to sync DOM attributes.
+- **Slug Renaming & Collision Safeguards**:
+  - Changing a document's slug in the Edit Details modal automatically renames the underlying file on disk while preventing collisions against existing documents, categories, and physical folders.
+
+### 🖼️ Active Editor Media Gallery Integration
+
+- **Toast UI Toolbar Integration**:
+  - Added a dedicated **`🖼️`** gallery button to the Markdown editor toolbar and edit actions bar (`#btn-editor-gallery`).
+- **Context-Aware Editor Detection**:
+  - When the gallery modal is opened while editing an article, an "Article Editor Active" status banner and mode badge (`Markdown` or `HTML`) are displayed.
+- **1-Click Direct Insertion**:
+  - Added prominent **`✓ Select`** buttons on cards and card thumbnail hover overlays. Clicking Select immediately generates the corresponding Markdown (`![alt](url)`) or HTML (`<img ...>`) tag, inserts it at the cursor position in the active editor, and automatically closes the gallery modal.
+- **Preview Modal Insertion**:
+  - The full preview modal supports direct insertion into active editors with customizable alt text.
+
+### ⚡ HTML Editor & Asset Enhancements
+
+- **SunEditor Code View Synchronization**:
+  - Two-way synchronization automatically synchronizes changes made in raw HTML Code View mode back into the WYSIWYG editor DOM and form submission buffer, eliminating lost edits on save.
+- **Quick Save Shortcut**:
+  - Added **`Ctrl+S`** / **`Cmd+S`** keyboard shortcut to save HTML documents directly from the modal.
+- **WAF / ModSecurity Protection**:
+  - HTML content submissions are Base64-encoded to prevent false positives from strict web server firewalls.
+- **Relative Asset Normalization**:
+  - Sandboxed iframes automatically resolve relative asset URLs (e.g. `uploads/images/...`) against the application base URL.
+- **Refined Protected HTML Mode**:
+  - Markdown editor recognizes benign line break tags (`<br>`, `<br/>`) without inappropriately triggering strict protected HTML mode.
+
+### 🌐 Dynamic Subwiki Navigation
+
+- **Live Parent Title Resolution**:
+  - `SubwikiManager::getParentTitle()` dynamically reads the parent wiki's `qwiki.json` so renames to the parent wiki title immediately reflect on child subwiki sidebar banners without hardcoded stale values.
+- **Subwiki Site Settings**:
+  - Subwiki administrators can customize the parent title and parent URL directly in Site Settings.
+
+### 🧪 Test Automation
+
+- Added comprehensive test suites:
+  - `tests/document_management_test.php`: 43 assertions covering slug renaming, category relocation, numeric clash resolution, node mutation, and drag-and-drop file movement.
+  - `tests/category_hierarchy_test.php`: 33 assertions covering nested tree traversal, indentation paths, multi-level folder creation, and hierarchy resolution.
+  - `tests/test_gallery_workflow.php`: 17 assertions covering image upload, direct Markdown/HTML insertion, and multi-format usage tracking.
+  - `tests/test_html_page_extension.php`: 16 assertions covering base href injection, HTML creation, saving, and error handling.
+
+### 📚 Documentation
+
+- Updated `features.md`, `managing-content.md`, and `site-settings-users.md` across both `demo-data/content/` and `content/`.
+
+---
+
 ## [1.9.5] - SubwikiShield - 2026-09-07
 
 ### 🌐 Subwiki Management & Collision Protection

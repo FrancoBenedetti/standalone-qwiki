@@ -168,6 +168,133 @@ function delete_chapter_from_node(&$node, $slug) {
     }
 }
 
+// Safely moves/renames a document file within content/ directory
+function relocate_document_file($baseDir, $origRelFile, $destRelDir, $destFileName = null) {
+    if (empty($origRelFile) || strpos($origRelFile, 'content/') !== 0) {
+        return $origRelFile;
+    }
+    $destRelDir = trim($destRelDir, '/\\');
+    $destAbsDir = $baseDir . '/' . $destRelDir;
+    if (!is_dir($destAbsDir)) {
+        if (!@mkdir($destAbsDir, 0755, true) && !is_dir($destAbsDir)) {
+            return $origRelFile;
+        }
+    }
+
+    $origFileName = basename($origRelFile);
+    $targetName = $destFileName ?: $origFileName;
+    $ext = pathinfo($targetName, PATHINFO_EXTENSION);
+    $nameWithoutExt = pathinfo($targetName, PATHINFO_FILENAME);
+
+    $origAbsFile = $baseDir . '/' . $origRelFile;
+    $destAbsFile = $destAbsDir . '/' . $targetName;
+
+    // Check if target already exists and is a different file
+    if (file_exists($destAbsFile) && realpath($destAbsFile) !== realpath($origAbsFile)) {
+        $counter = 1;
+        while (file_exists($destAbsDir . '/' . $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : ''))) {
+            $counter++;
+        }
+        $targetName = $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : '');
+        $destAbsFile = $destAbsDir . '/' . $targetName;
+    }
+
+    $newRelFile = $destRelDir . '/' . $targetName;
+
+    if (file_exists($origAbsFile) && $destAbsFile !== $origAbsFile) {
+        if (@rename($origAbsFile, $destAbsFile)) {
+            return $newRelFile;
+        }
+    } elseif (!file_exists($origAbsFile)) {
+        return $newRelFile;
+    }
+
+    return $newRelFile;
+}
+
+// Checks if a slug is already taken across all books and documents
+function is_slug_taken($slug, $nodes, $currentSlug = null) {
+    if (empty($slug) || !is_array($nodes)) return false;
+    foreach ($nodes as $node) {
+        if (isset($node['id']) && $node['id'] === $slug) {
+            return true;
+        }
+        if (isset($node['slug']) && $node['slug'] === $slug) {
+            if ($currentSlug === null || $currentSlug !== $slug) {
+                return true;
+            }
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            if (is_slug_taken($slug, $node['items'], $currentSlug)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Finds a chapter and its parent node by slug (read-only)
+function find_chapter_and_parent($nodes, $slug, &$foundChapter, &$foundParentNode, &$topBookId, $parentNode = null, $currentTopBookId = null) {
+    if (!is_array($nodes)) return false;
+    foreach ($nodes as $node) {
+        $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+        if (!isset($node['type']) || $node['type'] !== 'folder') {
+            if (($node['slug'] ?? '') === $slug) {
+                $foundChapter = $node;
+                $foundParentNode = $parentNode;
+                $topBookId = $effectiveTopBook ?: $slug;
+                return true;
+            }
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            if (find_chapter_and_parent($node['items'], $slug, $foundChapter, $foundParentNode, $topBookId, $node, $effectiveTopBook)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Finds a chapter and executes a mutating callback in-place
+function find_chapter_and_update(&$nodes, $slug, $callback, &$parentNode = null, $currentTopBookId = null) {
+    if (!is_array($nodes)) return false;
+    foreach ($nodes as &$node) {
+        $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+        if (!isset($node['type']) || $node['type'] !== 'folder') {
+            if (($node['slug'] ?? '') === $slug) {
+                return $callback($node, $parentNode, $effectiveTopBook);
+            }
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            $res = find_chapter_and_update($node['items'], $slug, $callback, $node, $effectiveTopBook);
+            if ($res !== false) {
+                return $res;
+            }
+        }
+    }
+    return false;
+}
+
+// Resolves category folder path based on hierarchy
+function get_category_folder($nodes, $targetId, $parentFolder = null) {
+    if (!is_array($nodes)) return null;
+    foreach ($nodes as $node) {
+        $nodeId = $node['id'] ?? null;
+        if ($nodeId === null) continue;
+        $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+        if ($nodeId === $targetId) {
+            return $curFolder;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            $found = get_category_folder($node['items'], $targetId, $curFolder);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+    }
+    return null;
+}
+
 // Backward compatibility helper
 function is_chapter_protected($slug_or_file, $nodes = null) {
     return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
@@ -218,6 +345,7 @@ switch ($action) {
         }
         $title = trim($_POST['title'] ?? '');
         $bookId = Config::makeSlug($_POST['id'] ?? $title);
+        $parentId = trim($_POST['parentId'] ?? '');
         if (empty($title) || empty($bookId)) {
             echo json_encode(['success' => false, 'error' => 'Category title is required']);
             exit;
@@ -227,18 +355,57 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => $val['error']]);
             exit;
         }
-        $bookFolder = $baseDir . '/content/' . $bookId;
-        if (!is_dir($bookFolder)) {
-            @mkdir($bookFolder, 0755, true);
+        if (is_slug_taken($bookId, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
+            exit;
         }
-        $config['books'][] = [
-            'id' => $bookId,
-            'title' => $title,
-            'folder' => 'content/' . $bookId,
-            'items' => []
-        ];
+
+        if (!empty($parentId)) {
+            $parentFolder = get_category_folder($config['books'] ?? [], $parentId);
+            if ($parentFolder === null) {
+                echo json_encode(['success' => false, 'error' => 'Selected parent category does not exist']);
+                exit;
+            }
+            $targetRelFolder = $parentFolder . '/' . $bookId;
+            $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+            if (!is_dir($targetAbsFolder)) {
+                @mkdir($targetAbsFolder, 0755, true);
+            }
+            $newNode = [
+                'id' => $bookId,
+                'title' => $title,
+                'type' => 'folder',
+                'folder' => $targetRelFolder,
+                'items' => []
+            ];
+            $inserted = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $parentId, $newNode)) {
+                    $inserted = true;
+                    break;
+                }
+            }
+            if (!$inserted) {
+                echo json_encode(['success' => false, 'error' => 'Failed to nest category in parent']);
+                exit;
+            }
+        } else {
+            $targetRelFolder = 'content/' . $bookId;
+            $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+            if (!is_dir($targetAbsFolder)) {
+                @mkdir($targetAbsFolder, 0755, true);
+            }
+            $config['books'][] = [
+                'id' => $bookId,
+                'title' => $title,
+                'type' => 'folder',
+                'folder' => $targetRelFolder,
+                'items' => []
+            ];
+        }
+
         if (Config::save($config)) {
-            echo json_encode(['success' => true, 'bookId' => $bookId]);
+            echo json_encode(['success' => true, 'bookId' => $bookId, 'parentId' => $parentId]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
         }
@@ -313,7 +480,7 @@ switch ($action) {
             exit;
         }
         $slug = Config::makeSlug($title);
-        $targetRelDir = 'content/' . $bookId;
+        $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($targetAbsDir)) {
             @mkdir($targetAbsDir, 0755, true);
@@ -349,21 +516,43 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
-        $slug = $_POST['slug'] ?? '';
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document Slug is required']);
+            exit;
+        }
         if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
             echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
             exit;
         }
+
         $title = trim($_POST['title'] ?? '');
         $type = $_POST['type'] ?? 'markdown';
         $url = trim($_POST['url'] ?? '');
         $editUrl = trim($_POST['editUrl'] ?? '');
-        $file = trim($_POST['file'] ?? '');
         $theme = trim($_POST['theme'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $image = trim($_POST['image'] ?? '');
-        if (empty($slug) || empty($title)) {
-            echo json_encode(['success' => false, 'error' => 'Document Slug and Title are required']);
+        $targetBookId = trim($_POST['targetBookId'] ?? '');
+
+        // Slug change validation
+        $rawNewSlug = trim($_POST['newSlug'] ?? $slug);
+        $newSlug = Config::makeSlug($rawNewSlug);
+        if (empty($newSlug)) {
+            echo json_encode(['success' => false, 'error' => 'Document Slug cannot be empty']);
+            exit;
+        }
+        if (in_array($newSlug, Config::getReservedNames(), true)) {
+            echo json_encode(['success' => false, 'error' => "The slug '{$newSlug}' is a reserved system name"]);
+            exit;
+        }
+        if ($newSlug !== $slug && is_slug_taken($newSlug, $config['books'], $slug)) {
+            echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$newSlug}' already exists"]);
+            exit;
+        }
+
+        if (empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Document Title is required']);
             exit;
         }
         if (!empty($url) && !is_safe_url($url)) {
@@ -376,43 +565,98 @@ switch ($action) {
             }
         }
         $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
-        $updatedData = [
-            'title' => $title,
-            'type' => $type,
-            'url' => $url,
-            'editUrl' => $editUrl,
-            'file' => $file,
-            'theme' => $theme,
-            'description' => $description,
-            'image' => $image,
-            'publicShareable' => $publicShareable
-        ];
-        if (!empty($_POST['regenerateShareKey'])) {
-            $updatedData['shareKey'] = Navigation::generateShareKey();
-        }
-        $updated = false;
-        foreach ($config['books'] as &$book) {
-            if (($book['slug'] ?? '') === $slug) {
-                if (!empty($title)) $book['title'] = $title;
-                if (!empty($type)) $book['type'] = $type;
-                if (isset($url)) $book['url'] = $url;
-                if (isset($description)) $book['description'] = $description;
-                $book['publicShareable'] = $publicShareable;
-                if (!empty($updatedData['shareKey'])) {
-                    $book['shareKey'] = $updatedData['shareKey'];
+
+        $updateResult = find_chapter_and_update($config['books'], $slug, function(&$foundChapter, &$foundParentNode, $topBookId) use (
+            $title, $type, $url, $editUrl, $publicShareable, $theme, $description, $image, $newSlug, $slug,
+            $targetBookId, $baseDir, &$config
+        ) {
+            $currentParentId = $foundParentNode['id'] ?? $topBookId;
+            $destBookId = (!empty($targetBookId)) ? $targetBookId : $currentParentId;
+            $destCategoryFolder = get_category_folder($config['books'], $destBookId) ?: ('content/' . $destBookId);
+
+            $foundChapter['title'] = $title;
+            $foundChapter['type'] = $type;
+            $foundChapter['url'] = $url;
+            $foundChapter['editUrl'] = $editUrl;
+            $foundChapter['publicShareable'] = $publicShareable;
+
+            if ($theme !== '') {
+                $foundChapter['theme'] = $theme;
+            } else {
+                unset($foundChapter['theme']);
+            }
+            if ($description !== '') {
+                $foundChapter['description'] = $description;
+            } else {
+                unset($foundChapter['description']);
+            }
+            if ($image !== '') {
+                $foundChapter['image'] = $image;
+            } else {
+                unset($foundChapter['image']);
+            }
+            if (!empty($_POST['regenerateShareKey'])) {
+                $foundChapter['shareKey'] = Navigation::generateShareKey();
+            }
+
+            // Handle physical file relocation & slug renaming on disk
+            $origRelFile = $foundChapter['file'] ?? '';
+            if (!empty($origRelFile) && strpos($origRelFile, 'content/') === 0) {
+                $ext = pathinfo($origRelFile, PATHINFO_EXTENSION);
+                $newFileName = ($newSlug !== $slug) ? ($newSlug . ($ext ? '.' . $ext : '')) : basename($origRelFile);
+                $newRelFile = relocate_document_file($baseDir, $origRelFile, $destCategoryFolder, $newFileName);
+                $foundChapter['file'] = $newRelFile;
+            }
+            $foundChapter['slug'] = $newSlug;
+
+            $finalBookId = $topBookId;
+
+            // Move to target category in tree if category changed
+            if (!empty($targetBookId) && $foundParentNode && ($foundParentNode['id'] ?? '') !== $targetBookId) {
+                $chapterCopy = $foundChapter;
+                // Remove from current parent
+                $filteredItems = [];
+                foreach ($foundParentNode['items'] as $item) {
+                    if (($item['slug'] ?? '') !== $slug && ($item['slug'] ?? '') !== $newSlug) {
+                        $filteredItems[] = $item;
+                    }
                 }
-                $updated = true;
-                break;
+                $foundParentNode['items'] = $filteredItems;
+
+                // Insert into target category
+                $inserted = false;
+                foreach ($config['books'] as &$book) {
+                    if (insert_chapter_into_node($book, $targetBookId, $chapterCopy)) {
+                        $inserted = true;
+                        break;
+                    }
+                }
+                if ($inserted) {
+                    $finalBookId = $targetBookId;
+                }
             }
-            if (update_chapter_in_node($book, $slug, $updatedData)) {
-                $updated = true;
-                break;
-            }
+
+            return [
+                'bookId' => $finalBookId ?: $destBookId,
+                'slug' => $newSlug,
+                'file' => $foundChapter['file'] ?? ''
+            ];
+        });
+
+        if (!$updateResult) {
+            echo json_encode(['success' => false, 'error' => 'Document entry not found']);
+            exit;
         }
-        if ($updated && Config::save($config)) {
-            echo json_encode(['success' => true, 'slug' => $slug]);
+
+        if (Config::save($config)) {
+            echo json_encode([
+                'success' => true,
+                'bookId' => $updateResult['bookId'],
+                'slug' => $updateResult['slug'],
+                'file' => $updateResult['file']
+            ]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Document entry not found or save failed']);
+            echo json_encode(['success' => false, 'error' => 'Failed to save qwiki.json']);
         }
         break;
 
@@ -619,7 +863,7 @@ switch ($action) {
             exit;
         }
         $slug = Config::makeSlug($title);
-        $targetRelDir = 'content/' . $bookId;
+        $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($targetAbsDir)) {
             @mkdir($targetAbsDir, 0755, true);
@@ -803,6 +1047,16 @@ switch ($action) {
         $config['feedItemCount'] = $feedItemCount;
         $config['feedAccessToken'] = $feedAccessToken;
 
+        if (Config::isSubwiki()) {
+            if (isset($_POST['parentTitle'])) {
+                $config['parentTitle'] = trim($_POST['parentTitle']);
+                $config['parentTitleCustom'] = true;
+            }
+            if (isset($_POST['parentUrl'])) {
+                $config['parentUrl'] = trim($_POST['parentUrl']);
+            }
+        }
+
         Config::save($config);
         echo json_encode(['success' => true]);
         break;
@@ -845,13 +1099,18 @@ switch ($action) {
             };
             $indexExistingNodes($config['books'] ?? []);
 
-            $mergeTree = function ($nodes) use (&$mergeTree, &$existingCategories, &$existingDocuments) {
+            $updatedFiles = [];
+
+            $mergeTree = function ($nodes, $parentFolder = null) use (&$mergeTree, &$existingCategories, &$existingDocuments, &$updatedFiles, $baseDir) {
                 if (!is_array($nodes)) return [];
                 $merged = [];
                 foreach ($nodes as $node) {
                     if (!is_array($node)) continue;
                     $nodeId = $node['id'] ?? null;
                     $nodeSlug = $node['slug'] ?? null;
+
+                    $currentFolder = $parentFolder;
+
                     if ($nodeId !== null && isset($existingCategories[$nodeId])) {
                         $orig = $existingCategories[$nodeId];
                         $mergedNode = array_merge($orig, $node);
@@ -864,6 +1123,14 @@ switch ($action) {
                         if (empty($node['folder']) && isset($orig['folder'])) {
                             $mergedNode['folder'] = $orig['folder'];
                         }
+                        $categoryFolder = $mergedNode['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $mergedNode['folder'] = $categoryFolder;
+                        $currentFolder = $categoryFolder;
+                    } elseif ($nodeId !== null) {
+                        $mergedNode = $node;
+                        $categoryFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $mergedNode['folder'] = $categoryFolder;
+                        $currentFolder = $categoryFolder;
                     } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
                         $origDoc = $existingDocuments[$nodeSlug];
                         $mergedNode = array_merge($origDoc, $node);
@@ -881,7 +1148,7 @@ switch ($action) {
                         foreach ($node['items'] as $item) {
                             if (!is_array($item)) continue;
                             if (isset($item['type']) && $item['type'] === 'folder') {
-                                $mergedSub = $mergeTree([$item]);
+                                $mergedSub = $mergeTree([$item], $currentFolder);
                                 if (!empty($mergedSub)) {
                                     $mergedItems[] = $mergedSub[0];
                                 }
@@ -890,11 +1157,25 @@ switch ($action) {
                                 if (isset($existingDocuments[$slug])) {
                                     $origDoc = $existingDocuments[$slug];
                                     $mergedDoc = array_merge($origDoc, $item);
-                                    foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl'] as $field) {
+                                    foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl', 'readOnly', 'editable'] as $field) {
                                         if (empty($item[$field]) && isset($origDoc[$field])) {
                                             $mergedDoc[$field] = $origDoc[$field];
                                         }
                                     }
+
+                                    // Relocate file if moved to a different category folder
+                                    if (!empty($currentFolder) && !empty($mergedDoc['file']) && strpos($mergedDoc['file'], 'content/') === 0) {
+                                        $origRelFile = $mergedDoc['file'];
+                                        $origRelDir = dirname($origRelFile);
+                                        if ($origRelDir !== $currentFolder) {
+                                            $newRelFile = relocate_document_file($baseDir, $origRelFile, $currentFolder);
+                                            if ($newRelFile && $newRelFile !== $origRelFile) {
+                                                $mergedDoc['file'] = $newRelFile;
+                                                $updatedFiles[$slug] = $newRelFile;
+                                            }
+                                        }
+                                    }
+
                                     $mergedItems[] = $mergedDoc;
                                 } else {
                                     $mergedItems[] = $item;
@@ -912,7 +1193,7 @@ switch ($action) {
 
             $config['books'] = $mergeTree($tree);
             if (Config::save($config)) {
-                echo json_encode(['success' => true]);
+                echo json_encode(['success' => true, 'updatedFiles' => $updatedFiles]);
                 exit;
             }
         }
