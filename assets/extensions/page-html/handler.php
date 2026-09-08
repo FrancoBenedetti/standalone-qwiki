@@ -11,6 +11,65 @@ if (!Auth::isAdmin()) {
     return;
 }
 
+if (!function_exists('ensure_html_base_href')) {
+    function ensure_html_base_href($content, $filePath) {
+        if (empty($content) || preg_match('/<base\s+[^>]*href=/i', $content)) {
+            return $content;
+        }
+
+        $dir = dirname(str_replace('\\', '/', $filePath));
+        $segments = array_filter(explode('/', $dir), function($s) { return $s !== '' && $s !== '.'; });
+        $depth = count($segments);
+        $relativeBase = $depth > 0 ? str_repeat('../', $depth) : './';
+
+        if (preg_match('/<head[^>]*>/i', $content)) {
+            return preg_replace('/(<head[^>]*>)/i', "$1\n    <base href=\"{$relativeBase}\">", $content, 1);
+        }
+
+        return "<base href=\"{$relativeBase}\">\n" . $content;
+    }
+}
+
+if (!function_exists('find_target_folder')) {
+    function find_target_folder(&$node, $targetId) {
+        if (($node['id'] ?? '') === $targetId) {
+            return $node['folder'] ?? $node['id'];
+        }
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    $found = find_target_folder($child, $targetId);
+                    if ($found !== null) {
+                        $parentFolder = $node['folder'] ?? $node['id'];
+                        return $parentFolder . '/' . $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('insert_html_chapter')) {
+    function insert_html_chapter(&$node, $targetId, $chapterData) {
+        if (($node['id'] ?? '') === $targetId) {
+            if (!isset($node['items'])) $node['items'] = [];
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    if (insert_html_chapter($child, $targetId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+}
+
 $action = $_POST['action'] ?? 'create_html';
 $baseDir = Config::getBaseDir();
 
@@ -66,6 +125,8 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         }
     }
 
+    $content = ensure_html_base_href($content, $file);
+
     if (file_put_contents($absolutePath, $content) === false) {
         echo json_encode(['success' => false, 'error' => 'Failed to save HTML file to disk']);
         return;
@@ -116,42 +177,6 @@ if (empty($slug)) {
 
 $config = Config::load();
 
-function find_target_folder(&$node, $targetId) {
-    if (($node['id'] ?? '') === $targetId) {
-        return $node['folder'] ?? $node['id'];
-    }
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$child) {
-            if (isset($child['type']) && $child['type'] === 'folder') {
-                $found = find_target_folder($child, $targetId);
-                if ($found !== null) {
-                    $parentFolder = $node['folder'] ?? $node['id'];
-                    return $parentFolder . '/' . $found;
-                }
-            }
-        }
-    }
-    return null;
-}
-
-function insert_html_chapter(&$node, $targetId, $chapterData) {
-    if (($node['id'] ?? '') === $targetId) {
-        if (!isset($node['items'])) $node['items'] = [];
-        $node['items'][] = $chapterData;
-        return true;
-    }
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$child) {
-            if (isset($child['type']) && $child['type'] === 'folder') {
-                if (insert_html_chapter($child, $targetId, $chapterData)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
 $targetFolder = $bookId;
 foreach ($config['books'] as $b) {
     $resolved = find_target_folder($b, $bookId);
@@ -180,6 +205,8 @@ $absolutePath = $baseDir . '/' . $filePath;
 if (empty($content)) {
     $content = "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>" . htmlspecialchars($title) . "</title>\n    <style>body { font-family: system-ui, sans-serif; padding: 2rem; }</style>\n</head>\n<body>\n    <h1>" . htmlspecialchars($title) . "</h1>\n    <p>Welcome to this HTML document.</p>\n</body>\n</html>";
 }
+
+$content = ensure_html_base_href($content, $filePath);
 
 if (file_put_contents($absolutePath, $content) === false) {
     echo json_encode(['success' => false, 'error' => 'Failed to write HTML file']);

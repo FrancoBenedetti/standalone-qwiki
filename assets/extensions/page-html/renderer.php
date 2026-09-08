@@ -24,6 +24,9 @@ $isAdmin = Auth::isAdmin();
             <span class="text-muted" style="font-size: 0.85rem;"><?= htmlspecialchars($chapter['title'] ?? 'HTML Document') ?></span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <button type="button" class="btn btn-outline btn-sm" id="btn-print-html-frame" title="Print document or save as PDF">
+                🖨️ Print / Save as PDF
+            </button>
             <?php if ($isAdmin): ?>
                 <button type="button" class="btn btn-primary btn-sm" id="btn-edit-html-doc" 
                         data-file="<?= htmlspecialchars($chapter['file'] ?? '') ?>" 
@@ -34,7 +37,7 @@ $isAdmin = Auth::isAdmin();
             <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-outline btn-sm">Open in Full Tab ↗</a>
         </div>
     </div>
-    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= $fileUrl ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" title="HTML Document View"></iframe>
+    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= $fileUrl ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" title="HTML Document View"></iframe>
 </div>
 
 <?php if ($isAdmin): ?>
@@ -43,7 +46,10 @@ $isAdmin = Auth::isAdmin();
     <div class="modal-card" style="max-width: 960px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column;">
         <div class="modal-header">
             <h3>🌐 Edit HTML Document &mdash; <span id="edit-html-modal-title" style="font-weight: normal; font-size: 0.9em;"><?= htmlspecialchars($chapter['title'] ?? '') ?></span></h3>
-            <button class="modal-close" data-close="edit-html-modal">&times;</button>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline btn-sm btn-open-gallery" id="btn-edit-html-gallery" title="Browse and select images from gallery">🖼️ Gallery</button>
+                <button class="modal-close" data-close="edit-html-modal">&times;</button>
+            </div>
         </div>
         <form id="edit-html-form" style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
             <input type="hidden" name="file" id="edit-html-file" value="<?= htmlspecialchars($chapter['file'] ?? '') ?>">

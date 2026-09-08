@@ -180,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
+    { btnId: 'btn-subwikis', modalId: 'subwikis-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
   ];
 
@@ -192,13 +193,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'users-modal') {
           loadUsersList();
         }
+        if (modalId === 'subwikis-modal') {
+          loadSubwikisList();
+        }
         if (modalId === 'settings-modal') {
           const btnSettings = document.getElementById('btn-settings');
           if (btnSettings) populateThemes(document.getElementById('setting-site-theme'), btnSettings.getAttribute('data-theme'));
         }
         if (modalId === 'edit-chapter-modal') {
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
-          if (btnMeta) populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+          if (btnMeta) {
+            const curSlug = btnMeta.getAttribute('data-slug') || '';
+            const curTitle = btnMeta.getAttribute('data-title') || '';
+            const curType = btnMeta.getAttribute('data-type') || 'markdown';
+            const curUrl = btnMeta.getAttribute('data-url') || '';
+            const curEditUrl = btnMeta.getAttribute('data-edit-url') || '';
+            const curFile = btnMeta.getAttribute('data-file') || '';
+            const curBookId = btnMeta.getAttribute('data-book-id') || '';
+
+            const slugHidden = document.getElementById('edit-chapter-slug-hidden');
+            if (slugHidden) slugHidden.value = curSlug;
+
+            const slugInput = document.getElementById('edit-chapter-slug');
+            if (slugInput) slugInput.value = curSlug;
+
+            const titleInput = document.getElementById('edit-chapter-title');
+            if (titleInput) titleInput.value = curTitle;
+
+            const typeSelect = document.getElementById('edit-chapter-type');
+            if (typeSelect) typeSelect.value = curType;
+
+            const urlInput = document.getElementById('edit-chapter-url');
+            if (urlInput) urlInput.value = curUrl;
+
+            const editUrlInput = document.getElementById('edit-chapter-editurl');
+            if (editUrlInput) editUrlInput.value = curEditUrl;
+
+            const fileInput = document.getElementById('edit-chapter-file');
+            if (fileInput) fileInput.value = curFile;
+
+            const catSelect = document.getElementById('edit-chapter-category');
+            if (catSelect && curBookId) catSelect.value = curBookId;
+
+            populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+            const shareableCheckbox = document.getElementById('edit-chapter-public-shareable');
+            if (shareableCheckbox) {
+              shareableCheckbox.checked = btnMeta.getAttribute('data-public-shareable') !== '0';
+            }
+            const shareKeyInput = document.getElementById('edit-chapter-share-key');
+            if (shareKeyInput) {
+              shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
+            }
+            const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
+            if (regenKeyHidden) {
+              regenKeyHidden.value = '0';
+            }
+          }
+          
+          const btnEditResetKey = document.getElementById('btn-edit-modal-reset-key');
+          if (btnEditResetKey) {
+            btnEditResetKey.onclick = () => {
+              const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
+              const shareKeyInput = document.getElementById('edit-chapter-share-key');
+              if (regenKeyHidden) regenKeyHidden.value = '1';
+              if (shareKeyInput) shareKeyInput.value = '(A new key will be generated upon save)';
+            };
+          }
           
           const typeSelect = document.getElementById('edit-chapter-type');
           const toggleFields = () => {
@@ -377,6 +437,137 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Load and render subwikis in Subwikis Modal
+  async function loadSubwikisList() {
+    const tbody = document.getElementById('subwiki-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading subwikis...</td></tr>';
+
+    try {
+      const res = await fetch('api/admin.php?action=list_subwikis');
+      const data = await res.json();
+      if (!data.success) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding: 1rem; color: var(--danger-color, #ef4444); text-align: center;">Failed to load: ${escapeHtml(data.error || 'Unknown error')}</td></tr>`;
+        return;
+      }
+
+      const subwikis = data.subwikis || [];
+      if (subwikis.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">No subwikis deployed yet. Use the form below to deploy one.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = subwikis.map(sub => `
+        <tr style="border-bottom: 1px solid var(--border-color);">
+          <td style="padding: 0.6rem 0.75rem;">
+            <strong>${escapeHtml(sub.title || sub.slug)}</strong><br>
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
+          </td>
+          <td style="padding: 0.6rem 0.75rem;">
+            <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--accent-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
+          </td>
+          <td style="padding: 0.6rem 0.75rem; text-align: right;">
+            <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      tbody.querySelectorAll('.btn-delete-subwiki').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const slug = btn.getAttribute('data-slug');
+          if (!confirm(`Are you sure you want to remove subwiki "${slug}"?\n\nThis will unregister the subwiki from this parent wiki.`)) {
+            return;
+          }
+          const deleteFiles = confirm(`Do you also want to permanently delete the physical directory "/${slug}" from the server?\n\nClick OK to delete files from disk, or Cancel to only unregister.`);
+          try {
+            const formData = new FormData();
+            formData.append('action', 'delete_subwiki');
+            formData.append('slug', slug);
+            if (deleteFiles) formData.append('deleteFiles', '1');
+
+            const delRes = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const delData = await delRes.json();
+            if (delData.success) {
+              loadSubwikisList();
+            } else {
+              alert('Failed to delete subwiki: ' + (delData.error || 'Unknown error'));
+            }
+          } catch (err) {
+            alert('Request failed while deleting subwiki.');
+          }
+        });
+      });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="3" style="padding: 1rem; color: var(--danger-color, #ef4444); text-align: center;">Network error while fetching subwikis.</td></tr>';
+    }
+  }
+
+  // Real-time Slug Checking for Subwiki Deploy Form
+  const newSubwikiSlugInput = document.getElementById('new-subwiki-slug');
+  const subwikiSlugFeedback = document.getElementById('subwiki-slug-feedback');
+  let slugCheckTimeout = null;
+
+  if (newSubwikiSlugInput && subwikiSlugFeedback) {
+    newSubwikiSlugInput.addEventListener('input', () => {
+      clearTimeout(slugCheckTimeout);
+      const rawVal = newSubwikiSlugInput.value.trim().toLowerCase();
+      if (!rawVal) {
+        subwikiSlugFeedback.textContent = '';
+        return;
+      }
+
+      slugCheckTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`api/admin.php?action=check_subwiki_slug&slug=${encodeURIComponent(rawVal)}&for_subwiki=1`);
+          const data = await res.json();
+          if (data.valid) {
+            subwikiSlugFeedback.style.color = 'var(--success-color, #10b981)';
+            subwikiSlugFeedback.textContent = `✓ Slug "${data.slug}" is available. Grouping: dash notation supported.`;
+          } else {
+            subwikiSlugFeedback.style.color = 'var(--danger-color, #ef4444)';
+            subwikiSlugFeedback.textContent = `✗ ${data.error || 'Slug unavailable'}`;
+          }
+        } catch (e) {
+          // ignore network glitch in real-time check
+        }
+      }, 250);
+    });
+  }
+
+  // Deploy Subwiki Form Handler
+  const deploySubwikiForm = document.getElementById('deploy-subwiki-form');
+  if (deploySubwikiForm) {
+    deploySubwikiForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-submit-deploy-subwiki');
+      const loadingEl = document.getElementById('deploy-subwiki-loading');
+
+      submitBtn.disabled = true;
+      if (loadingEl) loadingEl.style.display = 'block';
+
+      const formData = new FormData(deploySubwikiForm);
+      formData.append('action', 'deploy_subwiki');
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert(`Subwiki "${data.title}" deployed successfully!\n\nAccess it at: /${data.slug}/`);
+          deploySubwikiForm.reset();
+          if (subwikiSlugFeedback) subwikiSlugFeedback.textContent = '';
+          loadSubwikisList();
+        } else {
+          alert('Failed to deploy subwiki: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Request failed while deploying subwiki.');
+      } finally {
+        submitBtn.disabled = false;
+        if (loadingEl) loadingEl.style.display = 'none';
+      }
+    });
   }
 
   // Category Edit Pencil Icons in Sidebar
@@ -638,6 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnEditMarkdown = document.getElementById('btn-edit-markdown');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const btnSaveInline = document.getElementById('btn-save-inline-markdown');
+  const btnEditorGallery = document.getElementById('btn-editor-gallery');
   const readActions = document.getElementById('read-actions');
   const editActions = document.getElementById('edit-actions');
   const contentBody = document.getElementById('content-body');
@@ -668,10 +860,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return true;
     }
 
-    // Check for generic HTML tags that are not autolinks
+    // Check for generic HTML tags that are not autolinks or benign line breaks (<br>, <br/>, <br />)
     const nonAutolink = stripped
       .replace(/<https?:\/\/[^>]+>/gi, '')
-      .replace(/<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>/g, '');
+      .replace(/<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>/g, '')
+      .replace(/<\/?br\s*\/?>/gi, '');
     if (/<[a-z][a-z0-9]*(?:\s+[^>]*)?>/i.test(nonAutolink)) {
       return true;
     }
@@ -753,6 +946,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!tuiEditor) {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         
+        const createGalleryToolbarButton = () => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'toastui-editor-toolbar-icons gallery-editor-toolbar-btn';
+          btn.style.backgroundImage = 'none';
+          btn.style.fontSize = '15px';
+          btn.style.lineHeight = '1';
+          btn.style.padding = '0';
+          btn.style.margin = '0';
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.cursor = 'pointer';
+          btn.setAttribute('aria-label', 'Browse Image Gallery');
+          btn.title = 'Browse and select images from gallery';
+          btn.innerHTML = '🖼️';
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openGalleryModal === 'function') {
+              window.openGalleryModal();
+            } else {
+              const utilBtn = document.getElementById('btn-util-gallery');
+              if (utilBtn) utilBtn.click();
+            }
+          });
+          return btn;
+        };
+
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
@@ -762,6 +984,20 @@ document.addEventListener('DOMContentLoaded', () => {
           theme: isDark ? 'dark' : '',
           usageStatistics: false,
           hideModeSwitch: hasHtml,
+          toolbarItems: [
+            ['heading', 'bold', 'italic', 'strike'],
+            ['hr', 'quote'],
+            ['ul', 'ol', 'task', 'indent', 'outdent'],
+            ['table', 'image', 'link'],
+            ['code', 'codeblock'],
+            [
+              {
+                name: 'gallery',
+                tooltip: 'Browse Image Gallery',
+                el: createGalleryToolbarButton()
+              }
+            ]
+          ],
           hooks: {
             addImageBlobHook: async (blob, callback) => {
               const formData = new FormData();
@@ -831,6 +1067,18 @@ document.addEventListener('DOMContentLoaded', () => {
     btnEditMarkdown.addEventListener('click', () => {
       openMarkdownEditor(false);
     });
+
+    if (btnEditorGallery) {
+      btnEditorGallery.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof window.openGalleryModal === 'function') {
+          window.openGalleryModal();
+        } else {
+          const utilBtn = document.getElementById('btn-util-gallery');
+          if (utilBtn) utilBtn.click();
+        }
+      });
+    }
 
     if (window.SoftLock) {
       window.SoftLock.onEvicted((evictedFile) => {
@@ -1108,6 +1356,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Save failed:', data);
         alert('Failed to save reordered menu structure: ' + (data.error || 'Unknown error'));
       } else {
+        if (data.updatedFiles) {
+          for (const [slug, newFile] of Object.entries(data.updatedFiles)) {
+            const el = document.querySelector(`[data-doc-slug="${slug}"]`);
+            if (el) {
+              el.setAttribute('data-doc-file', newFile);
+            }
+          }
+        }
         console.log('Tree saved successfully:', tree);
       }
     } catch (err) {
@@ -1898,34 +2154,78 @@ document.addEventListener('DOMContentLoaded', () => {
   renderVisualDiagrams();
   generateTableOfContents();
 
-  // Print / Download as PDF
-  const btnPrintChapter = document.getElementById('btn-print-chapter');
-  if (btnPrintChapter) {
-    btnPrintChapter.addEventListener('click', () => {
+  // Print / Download as PDF (Delegates to HTML iframe if active to enable full pagination)
+  document.querySelectorAll('#btn-print-chapter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const htmlFrame = document.getElementById('current-html-frame');
+      if (htmlFrame && htmlFrame.contentWindow) {
+        try {
+          htmlFrame.contentWindow.focus();
+          htmlFrame.contentWindow.print();
+          return;
+        } catch(e) {}
+      }
       window.print();
     });
-  }
+  });
 
-  // Social Share
+  // Document Sharing & Share Modal
   const btnShareChapter = document.getElementById('btn-share-chapter');
+  const shareModal = document.getElementById('share-modal');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const shareStatusContainer = document.getElementById('share-status-container');
+  const btnCopyShareLink = document.getElementById('btn-copy-share-link');
+  const shareAdminTogglePublic = document.getElementById('share-admin-toggle-public');
+  const btnModalRegenerateShareKey = document.getElementById('btn-modal-regenerate-share-key');
+
+  const updateShareStatusUI = (isPublic) => {
+    if (!shareStatusContainer) return;
+    if (isPublic) {
+      shareStatusContainer.innerHTML = '<span class="share-status-badge share-status-public">🟢 Publicly Shareable (Full Screen)</span>';
+    } else {
+      shareStatusContainer.innerHTML = '<span class="share-status-badge share-status-restricted">🔴 Public Sharing Disabled by Administrator</span>';
+    }
+    if (shareAdminTogglePublic) {
+      shareAdminTogglePublic.checked = !!isPublic;
+    }
+  };
+
   if (btnShareChapter) {
     btnShareChapter.addEventListener('click', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (shareModal && slug) {
+        shareModal.classList.add('open');
+        if (shareLinkInput) shareLinkInput.value = 'Generating secure share link...';
+        try {
+          const res = await fetch(`api/admin.php?action=get_or_create_share_key&slug=${encodeURIComponent(slug)}`);
+          const data = await res.json();
+          if (data.success) {
+            if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+            updateShareStatusUI(data.publicShareable);
+            btnShareChapter.setAttribute('data-share-key', data.shareKey);
+            btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
+          } else {
+            if (shareLinkInput) shareLinkInput.value = 'Failed: ' + (data.error || 'Unknown error');
+          }
+        } catch (err) {
+          console.error('Failed to get share link:', err);
+          if (shareLinkInput) shareLinkInput.value = window.location.href;
+        }
+        return;
+      }
+
+      // Fallback for unauthenticated visitors browsing public docs: native share or copy standard URL
       const shareData = {
         title: document.title,
         url: window.location.href
       };
-      
-      // Try using the native Web Share API
       if (navigator.share) {
         try {
           await navigator.share(shareData);
         } catch (err) {
-          if (err.name !== 'AbortError') {
-             console.error('Error sharing:', err);
-          }
+          if (err.name !== 'AbortError') console.error('Error sharing:', err);
         }
       } else {
-        // Fallback: Copy to clipboard
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(shareData.url);
@@ -1937,7 +2237,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('copy');
             document.body.removeChild(input);
           }
-          
           const origContent = btnShareChapter.innerHTML;
           const origTitle = btnShareChapter.getAttribute('title');
           btnShareChapter.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
@@ -1949,6 +2248,89 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
           console.error('Failed to copy fallback link: ', err);
         }
+      }
+    });
+  }
+
+  // Copy button inside Share Modal
+  if (btnCopyShareLink && shareLinkInput) {
+    btnCopyShareLink.addEventListener('click', async () => {
+      const urlToCopy = shareLinkInput.value;
+      if (!urlToCopy || urlToCopy.startsWith('Generating') || urlToCopy.startsWith('Failed')) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(urlToCopy);
+        } else {
+          shareLinkInput.select();
+          document.execCommand('copy');
+        }
+        const origText = btnCopyShareLink.textContent;
+        btnCopyShareLink.textContent = '✅ Copied!';
+        setTimeout(() => {
+          btnCopyShareLink.textContent = origText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
+    });
+  }
+
+  // Admin toggle for public sharing inside Share Modal
+  if (shareAdminTogglePublic && btnShareChapter) {
+    shareAdminTogglePublic.addEventListener('change', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (!slug) return;
+      const isPublic = shareAdminTogglePublic.checked;
+      const formData = new FormData();
+      formData.append('action', 'update_share_settings');
+      formData.append('slug', slug);
+      formData.append('publicShareable', isPublic ? '1' : '0');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          updateShareStatusUI(data.publicShareable);
+          btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
+        } else {
+          alert('Failed to update sharing: ' + (data.error || 'Unknown error'));
+          shareAdminTogglePublic.checked = !isPublic;
+        }
+      } catch (err) {
+        console.error('Failed to update share settings:', err);
+        alert('Network error updating sharing status.');
+        shareAdminTogglePublic.checked = !isPublic;
+      }
+    });
+  }
+
+  // Admin button to regenerate share key inside Share Modal
+  if (btnModalRegenerateShareKey && btnShareChapter) {
+    btnModalRegenerateShareKey.addEventListener('click', async () => {
+      const slug = btnShareChapter.getAttribute('data-slug');
+      if (!slug) return;
+      if (!confirm('Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.')) {
+        return;
+      }
+      const isPublic = shareAdminTogglePublic ? (shareAdminTogglePublic.checked ? 1 : 0) : 1;
+      const formData = new FormData();
+      formData.append('action', 'update_share_settings');
+      formData.append('slug', slug);
+      formData.append('publicShareable', isPublic);
+      formData.append('regenerate', '1');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+          btnShareChapter.setAttribute('data-share-key', data.shareKey);
+          updateShareStatusUI(data.publicShareable);
+          alert('✅ Share key reset successfully! The new link is ready to copy.');
+        } else {
+          alert('Failed to reset key: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error('Failed to reset share key:', err);
+        alert('Network error while resetting share key.');
       }
     });
   }

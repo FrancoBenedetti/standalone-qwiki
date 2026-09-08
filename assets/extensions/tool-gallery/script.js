@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const galleryLoading = document.getElementById('gallery-loading');
     const galleryEmpty = document.getElementById('gallery-empty');
     const countBadge = document.getElementById('gallery-count-badge');
+    const galleryEditorBanner = document.getElementById('gallery-editor-banner');
 
     // Delete Modal elements
     const deleteClose = document.getElementById('btn-gallery-delete-close');
@@ -112,22 +113,83 @@ document.addEventListener('DOMContentLoaded', () => {
         if (inlineEditor && inlineEditor.style.display !== 'none') {
             return true;
         }
+        const editHtmlModal = document.getElementById('edit-html-modal');
+        if (editHtmlModal && (editHtmlModal.classList.contains('open') || editHtmlModal.style.display === 'flex' || editHtmlModal.style.display === 'block')) {
+            return true;
+        }
         const htmlEditorArea = document.getElementById('edit-html-textarea');
         if (htmlEditorArea && htmlEditorArea.offsetParent !== null) {
+            return true;
+        }
+        const rawMdTextarea = document.getElementById('md-content-textarea');
+        if (rawMdTextarea && rawMdTextarea.offsetParent !== null) {
             return true;
         }
         return false;
     }
 
-    // Helper: Insert text into active document editor
-    function insertIntoActiveEditor(text) {
+    // Helper: Update active editor banner visibility
+    function updateEditorBanner() {
+        if (!galleryEditorBanner) return;
+        if (isEditorOpen()) {
+            galleryEditorBanner.style.display = 'flex';
+        } else {
+            galleryEditorBanner.style.display = 'none';
+        }
+    }
+
+    // Helper: Select and insert image into active document editor
+    function selectImage(img, customAlt) {
+        if (!img) return false;
+        const altText = (customAlt !== undefined && customAlt !== null && customAlt.trim() !== '') 
+            ? customAlt.trim() 
+            : cleanAltFromFilename(img.filename);
+
+        const mdSnippet = `![${altText}](${img.url})`;
+        const htmlSnippet = `<img src="${img.url}" alt="${altText}">`;
+
+        // Check if HTML document editor is open
+        const editHtmlModal = document.getElementById('edit-html-modal');
+        const createHtmlTab = document.getElementById('tab-ext-html');
+        const isHtmlMode = (editHtmlModal && (editHtmlModal.classList.contains('open') || editHtmlModal.style.display === 'flex' || editHtmlModal.style.display === 'block')) ||
+            (createHtmlTab && (createHtmlTab.classList.contains('active') || createHtmlTab.style.display === 'block'));
+
+        const snippetToInsert = isHtmlMode ? htmlSnippet : mdSnippet;
+        const success = insertIntoActiveEditor(snippetToInsert, img, altText);
+
+        if (success) {
+            modalPreview?.classList.remove('open');
+            modalGallery?.classList.remove('open');
+            if (window.SoftLock && typeof window.SoftLock.showNotification === 'function') {
+                window.SoftLock.showNotification('Image inserted into article ✓', 'info');
+            }
+        }
+        return success;
+    }
+
+    // Helper: Insert text/image into active document editor
+    function insertIntoActiveEditor(text, img = null, altText = '') {
         // 1. Toast UI Markdown editor
         const tuiEditor = window.tuiEditorInstance || window.toastEditorInstance;
         const inlineEditor = document.getElementById('inline-editor-container');
         if (tuiEditor && inlineEditor && inlineEditor.style.display !== 'none') {
-            tuiEditor.insertText(text + '\n');
+            let inserted = false;
+            if (img && typeof tuiEditor.exec === 'function') {
+                try {
+                    tuiEditor.exec('addImage', { imageUrl: img.url, altText: altText || cleanAltFromFilename(img.filename) });
+                    inserted = true;
+                } catch (err) {
+                    console.warn('Toast UI addImage exec failed, falling back to insertText:', err);
+                }
+            }
+            if (!inserted) {
+                tuiEditor.insertText(text + '\n');
+            }
             modalGallery?.classList.remove('open');
             modalPreview?.classList.remove('open');
+            if (typeof tuiEditor.focus === 'function') {
+                tuiEditor.focus();
+            }
             return true;
         }
 
@@ -137,29 +199,82 @@ document.addEventListener('DOMContentLoaded', () => {
             rawMdTextarea.value += '\n' + text;
             modalGallery?.classList.remove('open');
             modalPreview?.classList.remove('open');
+            rawMdTextarea.focus();
             return true;
         }
 
         // 3. SunEditor (HTML Page Extension)
         const sunEditor = window.editEditor || window.createEditor;
-        if (sunEditor && typeof sunEditor.insertHTML === 'function') {
-            sunEditor.insertHTML(text);
+        if (sunEditor) {
+            const isCodeView = !!(sunEditor.core && sunEditor.core._variable && sunEditor.core._variable.isCodeView);
+            if (isCodeView) {
+                const codeEl = (sunEditor.core && sunEditor.core.context && sunEditor.core.context.element && sunEditor.core.context.element.code)
+                    || (typeof sunEditor.getContext === 'function' ? sunEditor.getContext()?.element?.code : null);
+                if (codeEl) {
+                    const start = (typeof codeEl.selectionStart === 'number') ? codeEl.selectionStart : codeEl.value.length;
+                    const end = (typeof codeEl.selectionEnd === 'number') ? codeEl.selectionEnd : codeEl.value.length;
+                    codeEl.value = codeEl.value.substring(0, start) + text + codeEl.value.substring(end);
+                    codeEl.selectionStart = codeEl.selectionEnd = start + text.length;
+                    if (typeof sunEditor.core?._setCodeDataToEditor === 'function') {
+                        sunEditor.core._setCodeDataToEditor();
+                    }
+                    modalGallery?.classList.remove('open');
+                    modalPreview?.classList.remove('open');
+                    if (typeof codeEl.focus === 'function') {
+                        codeEl.focus();
+                    }
+                    return true;
+                }
+            }
+            if (typeof sunEditor.insertHTML === 'function') {
+                sunEditor.insertHTML(text);
+                modalGallery?.classList.remove('open');
+                modalPreview?.classList.remove('open');
+                return true;
+            }
+        }
+
+        // 4. Raw HTML Textarea
+        const htmlEditorArea = document.getElementById('edit-html-textarea');
+        const editHtmlModal = document.getElementById('edit-html-modal');
+        const isHtmlModalOpen = editHtmlModal && (editHtmlModal.classList.contains('open') || editHtmlModal.style.display === 'flex' || editHtmlModal.style.display === 'block');
+        if (htmlEditorArea && (isHtmlModalOpen || htmlEditorArea.offsetParent !== null)) {
+            htmlEditorArea.value += '\n' + text;
             modalGallery?.classList.remove('open');
             modalPreview?.classList.remove('open');
+            if (typeof htmlEditorArea.focus === 'function') {
+                htmlEditorArea.focus();
+            }
             return true;
         }
 
         return false;
     }
 
-    // Open Gallery Modal
-    if (btnOpen && modalGallery) {
+    // Global gallery modal opener
+    window.openGalleryModal = function() {
+        if (!modalGallery) return;
+        modalGallery.classList.add('open');
+        updateEditorBanner();
+        loadGallery();
+    };
+
+    // Open Gallery Modal listeners
+    if (btnOpen) {
         btnOpen.addEventListener('click', (e) => {
             e.preventDefault();
-            modalGallery.classList.add('open');
-            loadGallery();
+            window.openGalleryModal();
         });
     }
+
+    // Delegate clicks for any gallery open triggers
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('#btn-editor-gallery, .btn-open-gallery, [data-open="modal-gallery"]');
+        if (trigger) {
+            e.preventDefault();
+            window.openGalleryModal();
+        }
+    });
 
     // Fetch Images from Backend
     async function loadGallery() {
@@ -222,6 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!galleryGrid) return;
         galleryGrid.innerHTML = '';
 
+        const editorActive = isEditorOpen();
+        updateEditorBanner();
+
         if (!images || images.length === 0) {
             if (galleryEmpty) galleryEmpty.style.display = 'flex';
             galleryGrid.style.display = 'none';
@@ -240,10 +358,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const mdSnippet = `![${altText}](${img.url})`;
             const htmlSnippet = `<img src="${img.url}" alt="${altText}">`;
 
+            const selectBtnHtml = editorActive ? `
+                <button type="button" class="btn btn-primary btn-sm gallery-btn-select" title="Insert ${escapeHtml(img.filename)} into article">
+                    ✓ Select
+                </button>
+            ` : '';
+
+            const overlaySelectBtnHtml = editorActive ? `
+                <button type="button" class="btn btn-primary btn-sm gallery-overlay-btn btn-overlay-select" title="Insert ${escapeHtml(img.filename)} into article">
+                    ✓ Select Image
+                </button>
+            ` : '';
+
             card.innerHTML = `
                 <div class="gallery-card-thumb-wrap" title="Click to view full preview">
                     <img class="gallery-card-thumb" src="${escapeHtml(img.url)}" alt="${escapeHtml(altText)}" loading="lazy">
                     <div class="gallery-card-overlay">
+                        ${overlaySelectBtnHtml}
                         <button type="button" class="btn btn-outline btn-sm gallery-overlay-btn btn-copy-md" data-copy-md="${escapeHtml(mdSnippet)}">
                             📋 Copy MD
                         </button>
@@ -259,6 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>${escapeHtml(img.dimensions)}</span>
                     </div>
                     <div class="gallery-card-actions">
+                        ${selectBtnHtml}
                         <button type="button" class="btn btn-outline btn-sm btn-action-copy-md" title="Copy Markdown Link: ${escapeHtml(mdSnippet)}">
                             Copy MD
                         </button>
@@ -275,12 +407,30 @@ document.addEventListener('DOMContentLoaded', () => {
             // Card click handlers
             const thumbWrap = card.querySelector('.gallery-card-thumb-wrap');
             thumbWrap.addEventListener('click', (e) => {
-                // If user clicked one of the overlay copy buttons, don't open preview
-                if (e.target.closest('.btn-copy-md') || e.target.closest('.btn-copy-html')) {
+                // If user clicked one of the overlay buttons, don't open preview
+                if (e.target.closest('.gallery-overlay-btn')) {
                     return;
                 }
                 openPreviewModal(img);
             });
+
+            // Direct Select Button (Action Bar)
+            const btnSelect = card.querySelector('.gallery-btn-select');
+            if (btnSelect) {
+                btnSelect.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectImage(img);
+                });
+            }
+
+            // Overlay Select Button
+            const btnOverlaySelect = card.querySelector('.btn-overlay-select');
+            if (btnOverlaySelect) {
+                btnOverlaySelect.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectImage(img);
+                });
+            }
 
             // Quick Copy MD (Overlay)
             const btnOverlayMd = card.querySelector('.btn-copy-md');
@@ -535,12 +685,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Preview Insert into Document Editor
-    if (btnPreviewInsertEditor && previewMdInput && previewHtmlInput) {
-        btnPreviewInsertEditor.addEventListener('click', () => {
-            // Prefer markdown snippet if markdown editor is open, otherwise HTML
-            const textToInsert = isEditorOpen() ? previewMdInput.value : previewHtmlInput.value;
-            const success = insertIntoActiveEditor(textToInsert);
+    if (btnPreviewInsertEditor) {
+        btnPreviewInsertEditor.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const targetImg = selectedImageForPreview;
+            if (!targetImg) return;
+            const customAlt = previewAltInput ? previewAltInput.value : '';
+            const success = selectImage(targetImg, customAlt);
             if (!success) {
+                const textToInsert = isEditorOpen() ? (previewMdInput ? previewMdInput.value : '') : (previewHtmlInput ? previewHtmlInput.value : '');
                 copyText(textToInsert, btnPreviewInsertEditor, 'Copied! ✓');
                 alert('Copied link to clipboard! Open the editor and paste where desired.');
             }

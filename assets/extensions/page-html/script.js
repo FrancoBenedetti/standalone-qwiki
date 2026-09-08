@@ -2,8 +2,38 @@
  * HTML Page Extension Client Script with SunEditor Integration
  */
 document.addEventListener('DOMContentLoaded', () => {
+    // Hide the outer generic print icon — the HTML toolbar already has its own Print/Save button
+    const outerPrintBtn = document.getElementById('btn-print-chapter');
+    if (outerPrintBtn) outerPrintBtn.style.display = 'none';
+
     let createEditor = null;
     let editEditor = null;
+
+    /**
+     * Safely retrieves editor content whether SunEditor is in WYSIWYG mode
+     * or raw Code View mode (which SunEditor does not automatically sync into getContents()).
+     */
+    function getEditorContent(editor) {
+        if (!editor) return '';
+        const isCodeView = !!(editor.core && editor.core._variable && editor.core._variable.isCodeView);
+        if (isCodeView) {
+            let codeVal = '';
+            if (typeof editor.core._getCodeView === 'function') {
+                codeVal = editor.core._getCodeView();
+            } else {
+                const ctx = typeof editor.getContext === 'function' ? editor.getContext() : (editor.core ? editor.core.context : null);
+                if (ctx && ctx.element && ctx.element.code) {
+                    codeVal = ctx.element.code.value;
+                }
+            }
+            // Synchronize code view content back into the WYSIWYG editor DOM
+            if (typeof editor.core._setCodeDataToEditor === 'function') {
+                editor.core._setCodeDataToEditor();
+            }
+            return (codeVal !== undefined && codeVal !== null) ? codeVal : editor.getContents();
+        }
+        return editor.getContents();
+    }
 
     function getSunEditorOptions(height) {
         return {
@@ -20,7 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
             width: '100%',
             height: height || '320px',
             placeholder: 'Write or design HTML content here...',
-            attributesWhitelist: { all: '*' }
+            attributesWhitelist: { all: '*' },
+            callBackSave: function() {
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
         };
     }
 
@@ -38,9 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (toggle && !toggle.checked) {
             if (createEditor) {
-                textarea.value = createEditor.getContents();
+                textarea.value = getEditorContent(createEditor);
                 createEditor.destroy();
                 createEditor = null;
+                window.createEditor = null;
             }
             textarea.style.display = 'block';
             return;
@@ -49,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (createEditor) return;
         textarea.style.display = 'none';
         createEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('280px'));
+        window.createEditor = createEditor;
     }
 
     function initEditEditor() {
@@ -65,9 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (toggle && !toggle.checked) {
             if (editEditor) {
-                textarea.value = editEditor.getContents();
+                textarea.value = getEditorContent(editEditor);
                 editEditor.destroy();
                 editEditor = null;
+                window.editEditor = null;
             }
             textarea.style.display = 'block';
             return;
@@ -76,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editEditor) return;
         textarea.style.display = 'none';
         editEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('400px'));
+        window.editEditor = editEditor;
     }
 
     // Toggle Listeners
@@ -162,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentStr = '';
             const createToggle = document.getElementById('create-use-visual-editor');
             if (createEditor && createToggle && createToggle.checked) {
-                contentStr = createEditor.getContents();
+                contentStr = getEditorContent(createEditor);
             } else {
                 const textarea = document.getElementById('html-content-textarea');
                 contentStr = textarea ? textarea.value : (formData.get('content') || '');
@@ -170,7 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Encode content fields as base64 to bypass Apache ModSecurity / WAF
             formData.delete('content');
-            formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
 
             const submitBtn = form.querySelector('button[type="submit"]');
             if (submitBtn) {
@@ -308,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let contentStr = '';
             const editToggle = document.getElementById('edit-use-visual-editor');
             if (editEditor && editToggle && editToggle.checked) {
-                contentStr = editEditor.getContents();
+                contentStr = getEditorContent(editEditor);
             } else {
                 const textarea = document.getElementById('edit-html-textarea');
                 contentStr = textarea ? textarea.value : (formData.get('content') || '');
@@ -316,7 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Encode content fields as base64 to bypass Apache ModSecurity / WAF
             formData.delete('content');
-            formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
 
             const saveBtn = document.getElementById('btn-save-html-doc');
             if (saveBtn) {
@@ -373,4 +421,141 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // Toolbar Print / Save as PDF Button
+    const btnPrintHtml = document.getElementById('btn-print-html-frame');
+    if (btnPrintHtml) {
+        btnPrintHtml.addEventListener('click', () => {
+            const frame = document.getElementById('current-html-frame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            }
+        });
+    }
+
+    // Setup print delegation, universal print CSS injection, and missing PDF download link handling
+    function setupHtmlFramePrint(frame) {
+        if (!frame) return;
+
+        const handleFrameLoad = () => {
+            try {
+                const frameDoc = frame.contentDocument || frame.contentWindow.document;
+                if (!frameDoc || !frameDoc.body) return;
+
+                // 0. Ensure relative wiki assets (e.g. uploads/images/...) resolve against application base URL
+                const baseHref = document.querySelector('base')?.href || (window.location.origin + '/');
+                frameDoc.querySelectorAll('img, video, audio, source').forEach(el => {
+                    const rawSrc = el.getAttribute('src');
+                    if (rawSrc && !/^https?:\/\//i.test(rawSrc) && !rawSrc.startsWith('/') && !rawSrc.startsWith('data:')) {
+                        if (rawSrc.startsWith('uploads/') || rawSrc.startsWith('assets/')) {
+                            const resolved = new URL(rawSrc, baseHref).href;
+                            if (el.src !== resolved) {
+                                el.src = resolved;
+                            }
+                        }
+                    }
+                });
+
+                // 1. Inspect if the document has author-defined @media print or @page rules
+                let hasPrintMedia = false;
+                try {
+                    for (const sheet of frameDoc.styleSheets) {
+                        try {
+                            for (const rule of sheet.cssRules || []) {
+                                if ((rule.media && rule.media.mediaText && rule.media.mediaText.includes('print')) || rule.type === 6 /* CSSRule.PAGE_RULE */) {
+                                    hasPrintMedia = true;
+                                    break;
+                                }
+                            }
+                        } catch(e) {}
+                        if (hasPrintMedia) break;
+                    }
+                } catch(e) {}
+
+                // If document does NOT contain dedicated print styles, inject universal clean print CSS
+                if (!hasPrintMedia && !frameDoc.getElementById('qwiki-injected-print-css')) {
+                    const style = frameDoc.createElement('style');
+                    style.id = 'qwiki-injected-print-css';
+                    style.textContent = `
+                        @media print {
+                            @page { size: auto; margin: 15mm; }
+                            body {
+                                background: #fff !important;
+                                color: #000 !important;
+                                width: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                font-size: 11pt !important;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            h1, h2, h3, h4 {
+                                page-break-after: avoid !important;
+                                break-after: avoid !important;
+                            }
+                            img, table, pre, blockquote {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                                max-width: 100% !important;
+                            }
+                        }
+                    `;
+                    frameDoc.head.appendChild(style);
+                }
+
+                // 2. Intercept download links targeting relative .pdf files (e.g. Technical_Dossier_Durbanville_Vineyards.pdf)
+                frameDoc.querySelectorAll('a[download], a[href$=".pdf"]').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('.pdf') && !/^https?:\/\//i.test(href)) {
+                        // Pre-verify whether the physical file exists on the server
+                        fetch(href, { method: 'HEAD' })
+                            .then(res => {
+                                if (!res.ok) {
+                                    // Missing companion PDF: gracefully trigger browser print to PDF
+                                    link.addEventListener('click', (e) => {
+                                        e.preventDefault();
+                                        frame.contentWindow.focus();
+                                        frame.contentWindow.print();
+                                    });
+                                }
+                            })
+                            .catch(() => {
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    frame.contentWindow.focus();
+                                    frame.contentWindow.print();
+                                });
+                            });
+                    }
+                });
+            } catch(e) {
+                // Cross-origin safety catch
+            }
+        };
+
+        frame.addEventListener('load', handleFrameLoad);
+        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') {
+            handleFrameLoad();
+        }
+    }
+
+    const currentFrame = document.getElementById('current-html-frame');
+    if (currentFrame) {
+        setupHtmlFramePrint(currentFrame);
+    }
+
+    // Ctrl+S / Cmd+S shortcut inside HTML edit modal
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+            const editModal = document.getElementById('edit-html-modal');
+            if (editModal && editModal.classList.contains('open')) {
+                e.preventDefault();
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
+        }
+    });
 });

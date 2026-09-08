@@ -6,12 +6,14 @@ require_once __DIR__ . '/lib/Core/Auth.php';
 require_once __DIR__ . '/lib/Core/Navigation.php';
 require_once __DIR__ . '/lib/Core/ExtensionManager.php';
 require_once __DIR__ . '/lib/Core/DemoManager.php';
+require_once __DIR__ . '/lib/Core/SubwikiManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 use Qwiki\Core\DemoManager;
+use Qwiki\Core\SubwikiManager;
 
 Auth::startSession();
 if (!defined('QWIKI_VERSION')) {
@@ -48,6 +50,8 @@ $currentUser = Auth::getCurrentUser();
 $isAdmin = Auth::isAdmin();
 $isViewer = Auth::isViewer();
 $canViewContent = Auth::canView($config);
+$isSubwiki = Config::isSubwiki();
+$parentTitle = $isSubwiki ? SubwikiManager::getParentTitle($config) : '';
 
 // Routing parameters
 $requestedBookId = '';
@@ -55,131 +59,168 @@ $requestedFolderId = '';
 $requestedChapterSlug = '';
 
 // Base URL calculation for clean URLs
+$baseUrl = Config::getBaseUrl();
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
-$baseUrl = $protocol . $domainName . $scriptDir . '/';
 
-// Determine requested path across all server environments
-$rawPath = '';
-if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
-    $rawPath = trim($_GET['path'], '/');
-} elseif (!empty($_SERVER['PATH_INFO'])) {
-    $rawPath = trim($_SERVER['PATH_INFO'], '/');
-} elseif (!empty($_SERVER['REQUEST_URI'])) {
-    $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    if ($parsedPath) {
-        if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
-            $parsedPath = substr($parsedPath, strlen($scriptDir));
-        }
-        $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
-        $rawPath = trim($parsedPath, '/');
-    }
-}
+// Share link routing
+$shareKey = trim($_GET['share'] ?? '');
+$isShareMode = false;
+$shareError = null;
 
-if (!empty($rawPath)) {
-    $segments = explode('/', $rawPath);
-    $segCount = count($segments);
-    $requestedBookId = urldecode($segments[0] ?? '');
-    if ($segCount === 1) {
-        $requestedFolderId = '';
-        $requestedChapterSlug = '';
-    } elseif ($segCount === 2) {
-        $requestedFolderId = '';
-        $requestedChapterSlug = urldecode($segments[1] ?? '');
+if (!empty($shareKey)) {
+    $matchedParentBook = null;
+    $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParentBook);
+    if (!$matchedChapter) {
+        $shareError = 'not_found';
     } else {
-        $requestedFolderId = urldecode($segments[1] ?? '');
-        $requestedChapterSlug = urldecode($segments[$segCount - 1] ?? '');
-    }
-} else {
-    $requestedBookId = $_GET['book'] ?? '';
-    $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
-    $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
-}
-
-if (empty($requestedBookId)) {
-    $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
-}
-
-// Filter books based on visibility
-$allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
-
-// Active tree resolution state
-$activeBook = null;
-foreach ($allowedBooks as $book) {
-    if ($book['id'] === $requestedBookId) {
-        $activeBook = $book;
-        break;
+        $isPublic = !isset($matchedChapter['publicShareable']) || !empty($matchedChapter['publicShareable']);
+        if (!$isPublic && !$isAdmin && !$isViewer) {
+            $shareError = 'restricted';
+        } else {
+            $isShareMode = true;
+            $activeBook = $matchedParentBook;
+            $activeChapter = $matchedChapter;
+            $canViewContent = true;
+            $breadcrumbsTrail = [];
+            $activePathIds = !empty($activeBook['id']) ? [$activeBook['id']] : [];
+            $allowedBooks = !empty($activeBook) ? [$activeBook] : [];
+        }
     }
 }
-if (!$activeBook && !empty($allowedBooks)) {
-    foreach ($allowedBooks as $b) {
-        if (($b['type'] ?? 'folder') === 'folder') {
-            $activeBook = $b;
+
+$activeChapter = $activeChapter ?? null;
+$breadcrumbsTrail = $breadcrumbsTrail ?? [];
+$activePathIds = $activePathIds ?? (!empty($activeBook['id']) ? [$activeBook['id']] : []);
+
+if (!$isShareMode && !$shareError) {
+    // Determine requested path across all server environments
+    $rawPath = '';
+    if (isset($_GET['path']) && !empty(trim($_GET['path'], '/'))) {
+        $rawPath = trim($_GET['path'], '/');
+    } elseif (!empty($_SERVER['PATH_INFO'])) {
+        $rawPath = trim($_SERVER['PATH_INFO'], '/');
+    } elseif (!empty($_SERVER['REQUEST_URI'])) {
+        $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        if ($parsedPath) {
+            if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
+                $parsedPath = substr($parsedPath, strlen($scriptDir));
+            }
+            $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
+            $rawPath = trim($parsedPath, '/');
+        }
+    }
+
+    if (!empty($rawPath)) {
+        $segments = explode('/', $rawPath);
+        $segCount = count($segments);
+        $requestedBookId = urldecode($segments[0] ?? '');
+        if ($segCount === 1) {
+            $requestedFolderId = '';
+            $requestedChapterSlug = '';
+        } elseif ($segCount === 2) {
+            $requestedFolderId = '';
+            $requestedChapterSlug = urldecode($segments[1] ?? '');
+        } else {
+            $requestedFolderId = urldecode($segments[1] ?? '');
+            $requestedChapterSlug = urldecode($segments[$segCount - 1] ?? '');
+        }
+    } else {
+        $requestedBookId = $_GET['book'] ?? '';
+        $requestedFolderId = $_GET['folder'] ?? $_GET['dir'] ?? '';
+        $requestedChapterSlug = $_GET['chapter'] ?? $_GET['doc'] ?? '';
+    }
+
+    if (empty($requestedBookId)) {
+        $requestedBookId = $config['defaultBook'] ?? ($config['books'][0]['id'] ?? '');
+    }
+
+    // Filter books based on visibility
+    $allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
+
+    // Active tree resolution state
+    $activeBook = null;
+    foreach ($allowedBooks as $book) {
+        if ($book['id'] === $requestedBookId) {
+            $activeBook = $book;
             break;
         }
     }
-    if (!$activeBook) {
-        $activeBook = $allowedBooks[0];
+    if (!$activeBook && !empty($allowedBooks)) {
+        foreach ($allowedBooks as $b) {
+            if (($b['type'] ?? 'folder') === 'folder') {
+                $activeBook = $b;
+                break;
+            }
+        }
+        if (!$activeBook) {
+            $activeBook = $allowedBooks[0];
+        }
     }
-}
 
-$activeChapter = null;
-$breadcrumbsTrail = [];
-$activePathIds = $activeBook ? [$activeBook['id']] : [];
+    $activeChapter = null;
+    $breadcrumbsTrail = [];
+    $activePathIds = $activeBook ? [$activeBook['id']] : [];
 
-if ($activeBook) {
-    $dummyTrail = [];
-    $dummyIds = [];
-    $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-
-    // Fallback: 2-segment URL might be a subfolder instead of a chapter (e.g. /book/subfolder)
-    if (!$activeChapter && !empty($requestedChapterSlug) && empty($requestedFolderId)) {
+    if ($activeBook) {
         $dummyTrail = [];
         $dummyIds = [];
-        $fallbackFolderId = $requestedChapterSlug;
-        $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
-    }
+        $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
 
-    if ($activeChapter) {
-        $breadcrumbsTrail = $dummyTrail;
-        $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
-    } else {
-        // Fallback to first document in the active book
-        if (!empty($activeBook['items'])) {
-            foreach ($activeBook['items'] as $item) {
-                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
-                    $activeChapter = $item;
-                    $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
-                    break;
+        // Fallback: 2-segment URL might be a subfolder instead of a chapter (e.g. /book/subfolder)
+        if (!$activeChapter && !empty($requestedChapterSlug) && empty($requestedFolderId)) {
+            $dummyTrail = [];
+            $dummyIds = [];
+            $fallbackFolderId = $requestedChapterSlug;
+            $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
+        }
+
+        if ($activeChapter) {
+            $breadcrumbsTrail = $dummyTrail;
+            $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
+        } else {
+            // Fallback to first document in the active book
+            if (!empty($activeBook['items'])) {
+                foreach ($activeBook['items'] as $item) {
+                    if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                        $activeChapter = $item;
+                        $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+                        break;
+                    }
                 }
             }
         }
     }
 }
 
+$categoryHierarchy = Navigation::getCategoriesHierarchy($config['books'] ?? []);
+
 // Calculate Previous and Next Document Navigation
 $flatNavList = [];
-foreach ($allowedBooks as $book) {
-    Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
-}
-
 $prevDoc = null;
 $nextDoc = null;
-if ($activeChapter) {
-    $currentIndex = -1;
-    foreach ($flatNavList as $index => $item) {
-        if ($item['bookId'] === ($activeBook['id'] ?? '') && $item['slug'] === ($activeChapter['slug'] ?? '')) {
-            $currentIndex = $index;
-            break;
-        }
+
+if (!$isShareMode && !$shareError) {
+    foreach ($allowedBooks as $book) {
+        Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
     }
-    if ($currentIndex !== -1) {
-        if ($currentIndex > 0) {
-            $prevDoc = $flatNavList[$currentIndex - 1];
+
+    if ($activeChapter) {
+        $currentIndex = -1;
+        foreach ($flatNavList as $index => $item) {
+            if ($item['bookId'] === ($activeBook['id'] ?? '') && $item['slug'] === ($activeChapter['slug'] ?? '')) {
+                $currentIndex = $index;
+                break;
+            }
         }
-        if ($currentIndex < count($flatNavList) - 1) {
-            $nextDoc = $flatNavList[$currentIndex + 1];
+        if ($currentIndex !== -1) {
+            if ($currentIndex > 0) {
+                $prevDoc = $flatNavList[$currentIndex - 1];
+            }
+            if ($currentIndex < count($flatNavList) - 1) {
+                $nextDoc = $flatNavList[$currentIndex + 1];
+            }
         }
     }
 }
@@ -187,7 +228,7 @@ if ($activeChapter) {
 // Content rendering via ExtensionManager
 $renderedContent = '';
 $rawMarkdownContent = '';
-if ($activeChapter) {
+if ($activeChapter && !$shareError) {
     $renderedContent = $extManager->renderPage($activeChapter, $activeBook, $config);
     if (($activeChapter['type'] ?? 'markdown') === 'markdown') {
         $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
@@ -209,13 +250,14 @@ $categoryTheme = $activeBook['theme'] ?? null;
 $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
 $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
+$showPoweredBy = isset($config['showPoweredBy']) ? !empty($config['showPoweredBy']) : true;
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
 $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'], ['light', 'dark']) ? $_COOKIE['qwiki_theme'] : 'dark';
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?= $userTheme ?>">
+<html lang="en" data-theme="<?= $userTheme ?>" class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 <head>
     <meta charset="UTF-8">
     <script>
@@ -233,7 +275,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         })();
     </script>
     <base href="<?= htmlspecialchars($baseUrl) ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
     
     <!-- Open Graph & Social Share Tags -->
@@ -270,8 +312,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/theme/toastui-editor-dark.min.css" />
 </head>
-<body>
+<body class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 
+    <?php if (!$isShareMode): ?>
     <!-- App Header -->
     <header class="app-header">
         <div class="brand-container">
@@ -297,8 +340,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <button class="dropdown-item" id="btn-add-chapter">+ Document</button>
                             <?php $extManager->renderHeaderUtilityButtons(); ?>
                             <button class="dropdown-item" id="btn-users">👥 Users</button>
+                            <?php if (!$isSubwiki): ?>
+                                <button class="dropdown-item" id="btn-subwikis">🌐 Subwikis</button>
+                            <?php endif; ?>
                             <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
-                            <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">🎉 Update Available!</button>
+                            <?php if (!$isSubwiki): ?>
+                                <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">🎉 Update Available!</button>
+                            <?php endif; ?>
                             <div class="dropdown-divider"></div>
                         <?php endif; ?>
                         <button class="dropdown-item text-danger" id="btn-logout">Logout</button>
@@ -309,24 +357,80 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </div>
     </header>
+    <?php else: ?>
+    <!-- Floating Minimal Share Bar -->
+    <div class="share-floating-bar">
+        <div class="share-bar-brand">
+            <?php if (!empty($config['logoUrl'])): ?>
+                <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
+            <?php else: ?>
+                ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+            <?php endif; ?>
+        </div>
+        <div class="share-bar-title"><?= htmlspecialchars($activeChapter['title'] ?? ($shareError ? 'Document Share' : 'Document')) ?></div>
+        <div class="share-bar-actions">
+            <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
+            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            </button>
+            <?php if ($isViewer && $activeBook && $activeChapter): ?>
+                <a href="<?= htmlspecialchars(urlencode($activeBook['id']) . '/' . urlencode($activeChapter['slug'])) ?>" class="btn btn-outline btn-sm" title="Open in Full Wiki">↗ Open in Wiki</a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="app-container">
+        <?php if (!$isShareMode): ?>
         <!-- Sidebar Navigation -->
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
             <div class="sidebar-search">
                 <input type="text" id="search-input" class="search-input" placeholder="Search documentation...">
             </div>
+            <?php if ($isSubwiki): ?>
+            <div class="subwiki-parent-banner">
+                <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>">
+                    <span>←</span>
+                    <span>Back to <?= htmlspecialchars($parentTitle) ?></span>
+                </a>
+            </div>
+            <?php endif; ?>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
                     <?php Navigation::renderSidebarNode($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
             </nav>
+            <?php if ($showPoweredBy): ?>
+            <div class="sidebar-footer">
+                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="Powered by Qwiki — Click to open qwiki.wiki in a new tab">
+                    <span class="badge-icon">⚡</span>
+                    <span class="badge-text">Powered by <strong>Qwiki</strong></span>
+                    <svg class="badge-external-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                </a>
+            </div>
+            <?php endif; ?>
         </aside>
+        <?php endif; ?>
 
         <!-- Main Content Area -->
         <main class="app-content">
-            <?php if ($activeChapter): ?>
+            <?php if ($shareError === 'not_found'): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
+                    <h2>Document Not Found</h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The shared document could not be found or the link has expired.</p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                </div>
+            <?php elseif ($shareError === 'restricted'): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
+                    <h2>Public Sharing Disabled</h2>
+                    <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem;">The administrator has disabled public sharing for this document. If you have an authorized account, please log in to access this documentation.</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In</button>
+                </div>
+            <?php elseif ($activeChapter): ?>
+                <?php if (!$isShareMode): ?>
                 <div class="content-header">
                     <div class="breadcrumbs">
                         <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
@@ -353,7 +457,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             </button>
-                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share">
+                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share"
+                                    data-slug="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>"
+                                    data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>"
+                                    data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                    data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                             </button>
 
@@ -377,7 +485,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
                                         data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                         data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
-                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>">
+                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                        data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
+                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                        data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                                 </button>
                                 <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
@@ -386,15 +497,20 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <?php endif; ?>
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
-                        <div id="edit-actions" style="display: none; gap: 0.75rem;">
+                        <div id="edit-actions" style="display: none; gap: 0.75rem; align-items: center;">
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-editor-gallery" title="Browse and select images from gallery">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: text-bottom;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                Image Gallery
+                            </button>
                             <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
                             <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
                         </div>
                         <?php endif; ?>
                     </div>
                 </div>
+                <?php endif; ?>
 
-                <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                <?php if ($isAdmin && !$isShareMode && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                     <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
@@ -418,6 +534,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </main>
 
+        <?php if (!$isShareMode && !$shareError): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
             <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
@@ -439,6 +556,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="toc-header">Table of Contents</div>
             <div class="toc-content" id="toc-content"></div>
         </aside>
+        <?php endif; ?>
     </div>
 
     <!-- Login Modal -->
@@ -515,6 +633,17 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label" for="book-id-input">Category Folder / Slug (Optional)</label>
                     <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-guides">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="book-parent-select">Parent Category</label>
+                    <select name="parentId" id="book-parent-select" class="form-control">
+                        <option value="">-- Root (Top Level) --</option>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>">
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Create Category</button>
             </form>
@@ -618,10 +747,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -630,7 +759,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" class="form-control" placeholder="e.g. Architecture Overview">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Initial Markdown Content <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(Or <a href="#" id="upload-md-link" style="color: var(--primary-color);">upload a .md file</a>)</span></label>
+                    <label class="form-label">Initial Markdown Content <span style="font-size: 0.85em; color: var(--text-muted); font-weight: normal;">(Or <a href="#" id="upload-md-link" style="color: var(--accent-color);">upload a .md file</a>)</span></label>
                     <input type="file" id="md-file-upload-input" accept=".md" style="display: none;">
                     <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
                 </div>
@@ -642,10 +771,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -665,10 +794,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -693,10 +822,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Placement</label>
                     <select name="bookId" class="form-control">
                         <option value="">-- Top Level (Sidebar Root) --</option>
-                        <?php foreach ($config['books'] as $b): ?>
-                            <?php if (($b['type'] ?? 'folder') === 'folder'): ?>
-                                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
-                            <?php endif; ?>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -736,6 +865,21 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" id="edit-chapter-title" class="form-control" value="<?= htmlspecialchars($activeChapter['title']) ?>" required>
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="edit-chapter-slug">Document Slug (URL Identifier)</label>
+                    <input type="text" name="newSlug" id="edit-chapter-slug" class="form-control" value="<?= htmlspecialchars($activeChapter['slug']) ?>" required pattern="[a-zA-Z0-9\-_]+">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Unique identifier used in URLs. Changing this renames the file on disk.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-chapter-category">Category / Folder</label>
+                    <select name="targetBookId" id="edit-chapter-category" class="form-control">
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="edit-chapter-type">Type</label>
                     <select name="type" id="edit-chapter-type" class="form-control">
                         <option value="markdown" <?= (($activeChapter['type'] ?? 'markdown') === 'markdown') ? 'selected' : '' ?>>Markdown (.md)</option>
@@ -756,7 +900,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <div class="form-group" id="group-edit-file">
                     <label class="form-label" for="edit-chapter-file">File Path</label>
-                    <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">
+                    <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>" readonly style="background-color: var(--bg-tertiary); cursor: not-allowed;">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Managed automatically by Qwiki based on category and slug.</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-chapter-theme">Document Theme (Optional)</label>
@@ -772,8 +917,58 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label" for="edit-chapter-image">Social Share Image URL</label>
                     <input type="url" name="image" id="edit-chapter-image" class="form-control" value="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>" placeholder="https://example.com/image.jpg">
                 </div>
+                <div class="form-group">
+                    <input type="hidden" name="publicShareable" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="publicShareable" id="edit-chapter-public-shareable" value="1" <?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? 'checked' : '' ?>>
+                        <span>Allow Public Sharing (open in full screen)</span>
+                    </label>
+                </div>
+                <div class="form-group" id="group-edit-share-key" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                        <label class="form-label" style="margin: 0;">Unique Share Key</label>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-edit-modal-reset-key" style="font-size: 0.75rem; padding: 0.15rem 0.4rem;">Reset Key</button>
+                    </div>
+                    <input type="text" id="edit-chapter-share-key" class="form-control" value="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>" readonly style="font-family: monospace; font-size: 0.85rem;" placeholder="Generated automatically upon first share">
+                    <input type="hidden" name="regenerateShareKey" id="edit-chapter-regenerate-key" value="0">
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Share Document Modal -->
+    <div class="modal-overlay" id="share-modal">
+        <div class="modal-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>🔗 Share Document</h3>
+                <button class="modal-close" data-close="share-modal">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 0;">
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Anyone with this link can view this document directly in full-screen reader mode. The link is protected by an unguessable unique key.
+                </p>
+                <div id="share-status-container" style="margin-bottom: 1rem;"></div>
+                <div class="form-group">
+                    <label class="form-label" for="share-link-input">Full-Screen Share Link</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="share-link-input" class="form-control" readonly style="font-family: monospace; font-size: 0.85rem;" onclick="this.select()">
+                        <button type="button" class="btn btn-primary" id="btn-copy-share-link" style="white-space: nowrap;">📋 Copy</button>
+                    </div>
+                </div>
+                <?php if ($isAdmin): ?>
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-color);">Admin Access Controls</h4>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="share-admin-toggle-public" value="1">
+                            <span>Allow Public Sharing</span>
+                        </label>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-modal-regenerate-share-key" title="Invalidates previously distributed links">🔄 Reset Key</button>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     <?php endif; ?>
@@ -816,6 +1011,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         Show Document Type Badges Only to Admin Users
                     </label>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="showPoweredBy" value="1" <?= $showPoweredBy ? 'checked' : '' ?>>
+                        Show "Powered by Qwiki" Badge in Sidebar
+                    </label>
+                </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">
                     <label class="form-label" for="setting-share-desc">Global Social Share Description</label>
@@ -829,8 +1030,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label" for="setting-default-book">Default Category</label>
                     <select name="defaultBook" id="setting-default-book" class="form-control">
-                        <?php foreach ($config['books'] as $b): ?>
-                            <option value="<?= htmlspecialchars($b['id']) ?>" <?= (($config['defaultBook'] ?? '') === $b['id']) ? 'selected' : '' ?>><?= htmlspecialchars($b['title']) ?></option>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= (($config['defaultBook'] ?? '') === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -862,6 +1065,23 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                     </div>
                 </div>
+                <?php if ($isSubwiki): ?>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div class="form-group">
+                    <label class="form-label" for="setting-parent-title">Parent Wiki Title</label>
+                    <input type="text" name="parentTitle" id="setting-parent-title" class="form-control" value="<?= htmlspecialchars($config['parentTitle'] ?? $parentTitle) ?>" placeholder="Parent Wiki Title">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Title displayed on the "← Back to..." sidebar navigation banner.
+                    </small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-parent-url">Parent Wiki URL</label>
+                    <input type="text" name="parentUrl" id="setting-parent-url" class="form-control" value="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>" placeholder="../">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Target URL of the parent wiki.
+                    </small>
+                </div>
+                <?php endif; ?>
                 <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">Save Settings</button>
             </form>
             <?php if (Config::isDemoMode() && DemoManager::isDemoConfigured()): ?>
@@ -873,6 +1093,74 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if (!$isSubwiki): ?>
+    <!-- Subwikis Management Modal -->
+    <div class="modal-overlay" id="subwikis-modal">
+        <div class="modal-card" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>🌐 Deployed Subwikis</h3>
+                <button class="modal-close" data-close="subwikis-modal">&times;</button>
+            </div>
+            
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Deploy and manage single-level subwikis from this parent Qwiki. Subwikis run with isolated content and users, but receive automated code updates from this parent wiki.
+            </p>
+
+            <div class="subwiki-list-container" style="margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                <table class="subwiki-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 0.6rem 0.75rem;">Title / Slug</th>
+                            <th style="padding: 0.6rem 0.75rem;">URL</th>
+                            <th style="padding: 0.6rem 0.75rem; text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subwiki-table-body">
+                        <tr>
+                            <td colspan="3" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading subwikis...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                <h4 style="margin-bottom: 0.75rem; font-size: 1rem;">Deploy New Subwiki</h4>
+                <form id="deploy-subwiki-form" autocomplete="off">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="new-subwiki-title">Subwiki Title</label>
+                            <input type="text" name="title" id="new-subwiki-title" class="form-control" placeholder="e.g. Electrical Engineering" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="new-subwiki-slug">Folder Slug (Group with dash)</label>
+                            <input type="text" name="slug" id="new-subwiki-slug" class="form-control" placeholder="e.g. engineering-electrical" required>
+                            <small id="subwiki-slug-feedback" style="display: block; margin-top: 0.25rem; font-size: 0.78rem;"></small>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="new-subwiki-user">Initial Admin Username</label>
+                            <input type="text" name="adminUser" id="new-subwiki-user" class="form-control" value="admin" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" for="new-subwiki-pass">Initial Admin Password</label>
+                            <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
+                            <input type="checkbox" name="includeDemo" value="1">
+                            Include sample documentation pages
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-submit-deploy-subwiki" style="width: 100%;">🚀 Deploy Subwiki</button>
+                    <p id="deploy-subwiki-loading" style="display: none; text-align: center; color: var(--accent-color); margin-top: 0.5rem; font-size: 0.85rem;">Deploying subwiki... Please wait.</p>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Theme Editor Modal -->
     <div class="modal-overlay" id="theme-editor-modal">
@@ -918,7 +1206,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <form id="update-form">
                 <input type="hidden" name="zip_url" id="update-zip-url">
                 <button type="submit" class="btn btn-primary" id="btn-install-update" style="width: 100%;">Download & Install Update</button>
-                <p id="update-loading-text" style="display: none; text-align: center; color: var(--primary-color); margin-top: 0.5rem;">Installing update... Please wait and do not close this page.</p>
+                <p id="update-loading-text" style="display: none; text-align: center; color: var(--accent-color); margin-top: 0.5rem;">Installing update... Please wait and do not close this page.</p>
             </form>
         </div>
     </div>

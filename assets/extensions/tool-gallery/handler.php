@@ -124,7 +124,7 @@ if (!function_exists('galleryGetDocumentMetadataMap')) {
     }
 }
 
-$action = $_REQUEST['action'] ?? '';
+$action = $_REQUEST['action'] ?? ($action ?? '');
 
 switch ($action) {
     // -------------------------------------------------------------
@@ -419,7 +419,7 @@ switch ($action) {
         $destPath = $targetDir . '/' . $newFileName;
         $relPath = 'uploads/images/' . $newFileName;
 
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $destPath)) {
+        if (move_uploaded_file($_FILES['image']['tmp_name'], $destPath) || (php_sapi_name() === 'cli' && @copy($_FILES['image']['tmp_name'], $destPath))) {
             $width = null;
             $height = null;
             if ($ext !== 'svg') {

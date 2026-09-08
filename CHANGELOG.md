@@ -7,7 +7,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.6] - DocFlow - 2026-09-08
+
+### 🗂️ Document Relocation & Hierarchy Organization
+
+- **Hierarchical Category Selector**:
+  - Added `Navigation::getCategoriesHierarchy()` to display parent-child category tree paths with visual nesting (`↳`) in the Edit Details modal and Settings default category selector.
+- **Dynamic Category Relocation**:
+  - Administrators can now move documents between categories/folders directly in **`⚙️ Edit Details`**.
+  - Qwiki automatically relocates the physical file on disk (`relocate_document_file`), cleans up empty directories, resolves filename collisions with incremental numeric suffixes (`-1`, `-2`), and updates tree paths in `qwiki.json`.
+- **Drag-and-Drop Disk Relocation**:
+  - Dropping documents into different categories in the sidebar navigation automatically relocates physical files on disk to match the destination category directory, returning updated file mappings to sync DOM attributes.
+- **Slug Renaming & Collision Safeguards**:
+  - Changing a document's slug in the Edit Details modal automatically renames the underlying file on disk while preventing collisions against existing documents, categories, and physical folders.
+
+### 🖼️ Active Editor Media Gallery Integration
+
+- **Toast UI Toolbar Integration**:
+  - Added a dedicated **`🖼️`** gallery button to the Markdown editor toolbar and edit actions bar (`#btn-editor-gallery`).
+- **Context-Aware Editor Detection**:
+  - When the gallery modal is opened while editing an article, an "Article Editor Active" status banner and mode badge (`Markdown` or `HTML`) are displayed.
+- **1-Click Direct Insertion**:
+  - Added prominent **`✓ Select`** buttons on cards and card thumbnail hover overlays. Clicking Select immediately generates the corresponding Markdown (`![alt](url)`) or HTML (`<img ...>`) tag, inserts it at the cursor position in the active editor, and automatically closes the gallery modal.
+- **Preview Modal Insertion**:
+  - The full preview modal supports direct insertion into active editors with customizable alt text.
+
+### ⚡ HTML Editor & Asset Enhancements
+
+- **SunEditor Code View Synchronization**:
+  - Two-way synchronization automatically synchronizes changes made in raw HTML Code View mode back into the WYSIWYG editor DOM and form submission buffer, eliminating lost edits on save.
+- **Quick Save Shortcut**:
+  - Added **`Ctrl+S`** / **`Cmd+S`** keyboard shortcut to save HTML documents directly from the modal.
+- **WAF / ModSecurity Protection**:
+  - HTML content submissions are Base64-encoded to prevent false positives from strict web server firewalls.
+- **Relative Asset Normalization**:
+  - Sandboxed iframes automatically resolve relative asset URLs (e.g. `uploads/images/...`) against the application base URL.
+- **Refined Protected HTML Mode**:
+  - Markdown editor recognizes benign line break tags (`<br>`, `<br/>`) without inappropriately triggering strict protected HTML mode.
+
+### 🌐 Dynamic Subwiki Navigation
+
+- **Live Parent Title Resolution**:
+  - `SubwikiManager::getParentTitle()` dynamically reads the parent wiki's `qwiki.json` so renames to the parent wiki title immediately reflect on child subwiki sidebar banners without hardcoded stale values.
+- **Subwiki Site Settings**:
+  - Subwiki administrators can customize the parent title and parent URL directly in Site Settings.
+
+### 🧪 Test Automation
+
+- Added comprehensive test suites:
+  - `tests/document_management_test.php`: 43 assertions covering slug renaming, category relocation, numeric clash resolution, node mutation, and drag-and-drop file movement.
+  - `tests/category_hierarchy_test.php`: 33 assertions covering nested tree traversal, indentation paths, multi-level folder creation, and hierarchy resolution.
+  - `tests/test_gallery_workflow.php`: 17 assertions covering image upload, direct Markdown/HTML insertion, and multi-format usage tracking.
+  - `tests/test_html_page_extension.php`: 16 assertions covering base href injection, HTML creation, saving, and error handling.
+
+### 📚 Documentation
+
+- Updated `features.md`, `managing-content.md`, and `site-settings-users.md` across both `demo-data/content/` and `content/`.
+
+---
+
+## [1.9.5] - SubwikiShield - 2026-09-07
+
+### 🌐 Subwiki Management & Collision Protection
+
+- **Bi-Directional Slug Collision Prevention**:
+  - Implemented comprehensive bi-directional namespace validation in `SubwikiManager::validateSlug()`.
+  * Prevents creating or renaming categories in parent wikis that match physical directories, deployed subwiki folders, or reserved system paths (`api`, `assets`, `content`, `uploads`, `lib`, `tests`, `demo-data`, `wikis`).
+  * Prevents deploying subwikis whose slug matches an existing parent category, physical directory, or reserved route.
+  * Real-time slug validation endpoint (`api/admin.php?action=check_subwiki_slug`) provides instant live feedback in the admin deployment UI.
+- **Single-Level Subwiki Depth Enforcement**:
+  - Subwikis are marked with `"isSubwiki": true` in `qwiki.json` and a filesystem `.subwiki` marker.
+  - Subwikis cannot deploy nested child wikis (`deploySubwiki` strictly enforces a 1-level limit).
+  - Multi-team hierarchies are structured using dashed naming at the parent level (e.g., `engineering-electrical`, `engineering-mechanical`).
+  - Child subwikis automatically render a prominent **`← Back to [Parent Title]`** navigation banner in the sidebar.
+  - In-app update prompts and deployment controls are cleanly suppressed in subwikis (`managed_by_parent: true`).
+- **Parent Subwiki Deployment UI**:
+  - Added dedicated **`🌐 Subwikis`** management modal in the admin interface with real-time slug verification, active subwiki listing, direct link shortcuts, and safe de-registration/deletion controls.
+- **Automated Cascading Updates**:
+  - The parent in-app updater (`install_update`) dynamically excludes all registered subwiki folders during zip extraction to protect child documentation and media uploads.
+  - Cascades core engine updates (`index.php`, `lib/`, `assets/`, `api/`) to all child subwikis automatically upon parent update, eliminating the need for individual subwiki update button clicks.
+- **Upgrade Migration Engine**:
+  - Automated migration during upgrades detects un-registered legacy subwikis, registers them in `qwiki.json`, flattens any deeper nested folders ($\ge 2$ levels) into 1-level dashed subwikis, and normalizes article image paths to clean relative paths (`uploads/images/...`).
+
+### 🧪 Test Automation
+
+- **Subwiki Test Suite** (`tests/subwiki_collision_test.php`):
+  - Comprehensive automated tests covering reserved word rejection, path traversal prevention, bi-directional category-vs-subwiki collision checks, dashed slug acceptance, subwiki deployment, single-depth restriction, cascading updates without data loss, and migration image path normalization.
+
+### 📚 Documentation
+
+- Synchronized `features.md` and `site-settings-users.md` across both `content/` and `demo-data/content/`.
+
+---
+
+## [1.9.4] - PrintFix - 2026-09-06
+
+### 🖨️ HTML Document Print & PDF
+
+- **Sandbox Print Permission Restored**: Added `allow-modals` to the `<iframe>` sandbox attribute in the HTML page extension renderer. Without this token, browsers silently block `window.print()` regardless of whether it is called from inside the iframe (`onclick="window.print()"`) or from the parent via `contentWindow.print()`, causing all three print buttons to fail in embedded view with no error feedback.
+- **Smart Print Button Deduplication**: When an HTML document is active in embedded view, the redundant outer header/share-bar printer icon (`#btn-print-chapter`) is now automatically hidden by the HTML extension script. Only the HTML viewer toolbar's **`🖨️ Print / Save as PDF`** button remains visible — the appropriate entry point for iframe-scoped printing.
+- **Context-Aware In-Document Action Bar**: HTML documents that embed their own `Document Options` / `Print / Save as PDF` action bar now detect whether they are running inside a Qwiki iframe (`window.self !== window.top`) and hide the bar automatically when embedded. The bar continues to display normally when the document is opened in a full browser tab or via a share link.
+
+### 📚 Documentation
+
+- **Features & System Capabilities** (`getting-started/features.md`): Added **Smart Print / Save as PDF** bullet under HTML Documents describing the unified, context-aware print behavior across all three access modes.
+- **Managing Content** (`user-guide/managing-content.md`): Expanded the **Print & Social Share** section to distinguish Markdown / standard document printing from HTML document printing and updated the Share description to reflect the modal-based share workflow.
+- Both `content/` and `demo-data/content/` documentation copies synchronized.
+
+---
+
 ## [1.9.3] - FormatGuard - 2026-09-05
+
 
 ### 🛡️ Markdown & HTML Content Preservation
 - **Protected Markdown + HTML Mode**:

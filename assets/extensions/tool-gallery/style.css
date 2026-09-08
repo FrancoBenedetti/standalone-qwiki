@@ -432,3 +432,69 @@
     color: #ffffff !important;
     border-color: #10b981 !important;
 }
+
+/* Article Editor Active Banner */
+.gallery-editor-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.gallery-editor-banner-text {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.gallery-editor-banner-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+.gallery-mode-badge {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* Card Select Buttons */
+.gallery-btn-select {
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+}
+
+.gallery-overlay-btn.btn-overlay-select {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    border: 1px solid var(--accent) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.gallery-overlay-btn.btn-overlay-select:hover {
+    background: var(--accent-hover, #2563eb) !important;
+}
+
+/* Toast UI Toolbar custom gallery button */
+.toastui-editor-toolbar-icons.gallery-editor-toolbar-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 3px;
+    font-size: 15px;
+}
+
+.toastui-editor-toolbar-icons.gallery-editor-toolbar-btn:hover {
+    background-color: var(--bg-hover, rgba(0, 0, 0, 0.05));
+}

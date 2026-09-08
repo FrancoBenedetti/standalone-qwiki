@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.9.3';
+    const VERSION = '1.9.6';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -148,7 +148,7 @@ class Config {
         return $realTarget;
     }
 
-    private static function copyDir($src, $dst) {
+    public static function copyDir($src, $dst) {
         if (!is_dir($src)) return;
         @mkdir($dst, 0755, true);
         $dir = opendir($src);
@@ -162,6 +162,19 @@ class Config {
             }
         }
         closedir($dir);
+    }
+
+    public static function getReservedNames(): array {
+        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis'];
+    }
+
+    public static function isSubwiki(): bool {
+        $baseDir = self::getBaseDir();
+        if (file_exists($baseDir . '/.subwiki')) {
+            return true;
+        }
+        $config = self::load();
+        return !empty($config['isSubwiki']) || !empty($config['parentUrl']);
     }
 
     public static function isDemoMode(): bool {
@@ -205,4 +218,16 @@ class Config {
         }
         return false;
     }
+
+    public static function getBaseUrl(): string {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+        $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $scriptDir = rtrim(dirname($scriptName === '/' || $scriptName === '\\' ? '' : $scriptName), '/\\');
+        $normalizedDir = '/' . ltrim($scriptDir, '/\\');
+        $webPath = preg_replace('#/(api|assets|content|tests).*$#i', '', $normalizedDir);
+        $webPath = trim($webPath, '/\\');
+        return $protocol . $domainName . (!empty($webPath) ? '/' . $webPath . '/' : '/');
+    }
 }
+

@@ -8,7 +8,7 @@ As an Admin, you have full control over the documentation tree and content direc
 
 Click the **`+ Document`** button in the header menu (or under Category actions):
 1. **Markdown (`.md`)**: Write new Markdown using the Toast UI WYSIWYG editor or import an existing `.md` file.
-2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view, or upload an existing `.html` file.
+2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view with automatic two-way synchronization, use **`Ctrl+S`** / **`Cmd+S`** to save quickly, or upload an existing `.html` file.
 3. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree.
 4. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
 5. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
@@ -30,8 +30,8 @@ You can add hyperlinks to external locations or internal pages directly into the
 ## 📝 Editing Existing Pages
 
 - **Markdown Documents**: Click **`✏️ Edit Content`** in the top right toolbar to open the inline visual editor with live markdown preview.
-- **HTML Documents**: Click **`✏️ Edit HTML`** in the document viewer toolbar to open SunEditor, format text, modify tables, or tweak raw HTML code.
-- **Document Metadata**: Click **`⚙️ Edit Details`** to change the document title, custom slug, individual CSS theme, short description, or social preview image.
+- **HTML Documents**: Click **`✏️ Edit HTML`** in the document viewer toolbar to open SunEditor, format text, modify tables, or tweak raw HTML code. Edits in Code View mode sync automatically on save.
+- **Document Metadata & Category Relocation**: Click **`⚙️ Edit Details`** to change the document title, custom slug, category/folder, individual CSS theme, short description, or social preview image. Moving a document to another category via the hierarchical dropdown automatically relocates the physical file on disk (e.g. into `content/<target-folder>/`), renames it if the slug changed, resolves any naming clashes with numeric suffixes, and updates `qwiki.json`.
 
 ---
 
@@ -59,9 +59,10 @@ To prevent concurrent write conflicts and accidental overwrites when multiple ta
 
 ## 🖼️ Media & Image Gallery
 
-1. Open the header menu and click **`🖼️ Image Gallery`**.
+1. Open the header menu and click **`🖼️ Image Gallery`**, or click the **`🖼️`** toolbar icon directly inside the Markdown or HTML editor.
 2. Browse, search, filter, and inspect all uploaded images and generated vector visuals in `uploads/`.
-3. Click any asset to preview dimensions and file size, copy Markdown embed tags (`![alt](url)`), or insert directly into the active editor.
+3. **Direct Editor Selection**: When an editor is active, the gallery displays an "Article Editor Active" banner and surfaces **`✓ Select`** / **`✓ Select Image`** buttons on every card. Clicking select immediately formats and inserts the image Markdown tag (`![alt](url)`) or HTML `<img>` tag at your cursor position, and automatically closes the modal.
+4. Click any asset to preview dimensions and file size, customize alt text, copy embed snippets, or insert directly into the active editor.
 
 ---
 
@@ -88,12 +89,14 @@ To prevent concurrent write conflicts and accidental overwrites when multiple ta
 You can organize your documentation hierarchy visually:
 - Grab the drag handle (`⣿`) next to any menu item in the left sidebar.
 - **Reorder**: Drag it up or down to change its position in the list.
-- **Nest**: Drag a document into a folder or sub-category.
+- **Nest**: Drag a document into a folder or sub-category. When dropped into a new category, Qwiki automatically moves the physical file on disk to match the destination folder structure.
 - Changes sync automatically to `qwiki.json`.
 
 ---
 
 ## 🖨️ Print & Social Share
 
-- **Print / PDF**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.
-- **Share**: Click **`🔗`** to share the page via the native Web Share API (on supported devices) or quickly copy the clean URL to your clipboard.
+- **Print / PDF — Markdown & Standard Documents**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.
+- **Print / PDF — HTML Documents**: The **`🖨️ Print / Save as PDF`** button in the HTML viewer toolbar triggers the browser print dialog scoped to the embedded document. Redundant print icons are hidden automatically when the HTML viewer is active; in the full-tab expanded view or share mode, the in-document button remains the entry point.
+- **Share**: Click **`🔗`** in the document action bar to open the Share modal, generate or copy a secure share link, and manage public access for the document.
+

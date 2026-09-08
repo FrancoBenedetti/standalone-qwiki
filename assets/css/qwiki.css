@@ -5,6 +5,8 @@
   --bg-card-hover: #334155;
   --accent-color: #6366f1;
   --accent-hover: #4f46e5;
+  --primary-color: var(--accent-color);
+  --bg-hover: var(--bg-card-hover);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
@@ -28,6 +30,8 @@
   --bg-card-hover: #f1f5f9;
   --accent-color: #4f46e5;
   --accent-hover: #4338ca;
+  --primary-color: var(--accent-color);
+  --bg-hover: var(--bg-card-hover);
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
@@ -67,6 +71,7 @@
 
 html, body {
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -233,6 +238,7 @@ body {
   display: flex;
   flex: 1;
   height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
   overflow: hidden;
 }
 
@@ -293,6 +299,63 @@ body {
   gap: 0.5rem;
   flex: 1;
   overflow-y: auto;
+}
+
+.sidebar-footer {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.qwiki-powered-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  opacity: 0.8;
+  user-select: none;
+}
+
+.qwiki-powered-badge strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.qwiki-powered-badge .badge-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.qwiki-powered-badge .badge-external-icon {
+  opacity: 0.5;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.qwiki-powered-badge:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.qwiki-powered-badge:hover strong {
+  color: var(--accent-color);
+}
+
+.qwiki-powered-badge:hover .badge-external-icon {
+  opacity: 1;
+  transform: translate(1px, -1px);
 }
 
 /* Accordion Navigation & Indentation */
@@ -512,7 +575,7 @@ body {
 /* Main Content Area */
 .app-content {
   flex: 1;
-  padding: 2rem 3rem;
+  padding: 2rem 3rem 4rem 3rem;
   overflow-y: auto;
   max-width: 1000px;
 }
@@ -1049,7 +1112,11 @@ textarea.form-control {
     display: block;
   }
   .app-content {
-    padding: 1.5rem 1rem;
+    padding: 1.5rem 1rem 6rem 1rem;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .content-body {
+    padding-bottom: 2rem;
   }
 }
 
@@ -1064,27 +1131,46 @@ textarea.form-control {
     .content-actions,
     .breadcrumbs,
     .mobile-toggle,
-    .toc-nav-buttons {
+    .toc-nav-buttons,
+    .share-floating-bar,
+    .share-floating-bar *,
+    .share-status-badge,
+    .modal-overlay {
         display: none !important;
     }
 
     /* Reset layout for printing */
     html, body, .app-container {
-        display: block;
+        display: block !important;
         height: auto !important;
         overflow: visible !important;
         position: static !important;
     }
 
     .app-content {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        max-width: none;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
         overflow: visible !important;
         background-color: transparent !important;
         color: #000 !important;
         height: auto !important;
+    }
+
+    /* Full-Screen Mode Print Overrides */
+    body.mode-fullscreen,
+    body.mode-fullscreen .app-container,
+    body.mode-fullscreen .app-content {
+        display: block !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: none !important;
     }
 
     /* Reset background and colors to save ink */
@@ -1113,3 +1199,197 @@ textarea.form-control {
         border: 1px solid #ccc;
     }
 }
+
+/* ==========================================================================
+   Full-Screen / Share Reader Mode
+   ========================================================================== */
+html.mode-fullscreen {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+body.mode-fullscreen {
+    display: block !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    position: static !important;
+}
+
+body.mode-fullscreen .app-header,
+body.mode-fullscreen .app-sidebar,
+body.mode-fullscreen .sidebar-resizer,
+body.mode-fullscreen .app-toc {
+    display: none !important;
+}
+
+body.mode-fullscreen .app-container {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+    padding-top: 5rem !important;
+    position: static !important;
+}
+
+body.mode-fullscreen .app-content {
+    display: block !important;
+    max-width: 880px !important;
+    margin: 0 auto !important;
+    padding: 1rem 1.5rem 6rem 1.5rem !important;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Document Type Specific Enhancements in Full-Screen Mode */
+body.mode-fullscreen .pdf-viewer-container {
+    height: calc(100vh - 160px);
+    min-height: 600px;
+}
+
+body.mode-fullscreen .html-viewer-frame {
+    height: calc(100vh - 160px);
+    min-height: 600px;
+}
+
+body.mode-fullscreen .gdoc-container iframe {
+    height: calc(100vh - 160px) !important;
+    min-height: 600px;
+}
+
+.share-floating-bar {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: calc(100% - 2rem);
+    max-width: 880px;
+    padding: 0.5rem 1rem;
+    background: var(--bg-surface, rgba(24, 24, 27, 0.85));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 9999px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.share-bar-brand {
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+.share-bar-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    flex: 1;
+}
+
+.share-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .share-bar-title {
+        display: none;
+    }
+}
+
+.share-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+.share-status-public {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.share-status-restricted {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Subwiki Management and Navigation */
+.subwiki-parent-banner {
+  margin: 0.5rem 0.75rem 0.25rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  border: 1px solid var(--border-color);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+[data-theme="light"] .subwiki-parent-banner {
+  background: var(--bg-card-hover);
+}
+
+.subwiki-parent-banner:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-color);
+}
+
+[data-theme="light"] .subwiki-parent-banner:hover {
+  background: #e2e8f0;
+}
+
+.subwiki-parent-banner a {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.subwiki-parent-banner a:hover {
+  color: var(--accent-hover);
+}
+
+.subwiki-table thead tr {
+  background: var(--bg-primary);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .subwiki-table thead tr {
+  background: var(--bg-card-hover);
+}
+
+.subwiki-table th {
+  padding: 0.6rem 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
