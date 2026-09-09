@@ -37,7 +37,7 @@ $isAdmin = Auth::isAdmin();
             <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-outline btn-sm">Open in Full Tab ↗</a>
         </div>
     </div>
-    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= $fileUrl ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-downloads allow-modals" title="HTML Document View"></iframe>
+    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= $fileUrl ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-downloads allow-modals" title="HTML Document View"></iframe>
 </div>
 
 <?php if ($isAdmin): ?>
