@@ -2190,6 +2190,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const updateModalSocialShareLinks = (url, title) => {
+    if (!url || url.startsWith('Generating') || url.startsWith('Failed')) return;
+    const encUrl = encodeURIComponent(url);
+    const encTitle = encodeURIComponent(title || document.title);
+    const btnX = document.getElementById('modal-share-x');
+    const btnIn = document.getElementById('modal-share-linkedin');
+    const btnFb = document.getElementById('modal-share-facebook');
+    const btnWa = document.getElementById('modal-share-whatsapp');
+    if (btnX) btnX.href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${encTitle}`;
+    if (btnIn) btnIn.href = `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}`;
+    if (btnFb) btnFb.href = `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`;
+    if (btnWa) btnWa.href = `https://api.whatsapp.com/send?text=${encTitle}%20${encUrl}`;
+  };
+
   if (btnShareChapter) {
     btnShareChapter.addEventListener('click', async () => {
       const slug = btnShareChapter.getAttribute('data-slug');
@@ -2201,6 +2215,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           if (data.success) {
             if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+            updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
             updateShareStatusUI(data.publicShareable);
             btnShareChapter.setAttribute('data-share-key', data.shareKey);
             btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
@@ -2209,7 +2224,10 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } catch (err) {
           console.error('Failed to get share link:', err);
-          if (shareLinkInput) shareLinkInput.value = window.location.href;
+          if (shareLinkInput) {
+            shareLinkInput.value = window.location.href;
+            updateModalSocialShareLinks(window.location.href, btnShareChapter.getAttribute('data-title'));
+          }
         }
         return;
       }
@@ -2322,6 +2340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.success) {
           if (shareLinkInput) shareLinkInput.value = data.shareUrl;
+          updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
           btnShareChapter.setAttribute('data-share-key', data.shareKey);
           updateShareStatusUI(data.publicShareable);
           alert('✅ Share key reset successfully! The new link is ready to copy.');
@@ -2331,6 +2350,49 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('Failed to reset share key:', err);
         alert('Network error while resetting share key.');
+      }
+    });
+  }
+
+  // Social Share Dropdown in Floating Bar (Share Mode)
+  const btnShareSocial = document.getElementById('btn-share-social');
+  const shareSocialMenu = document.getElementById('share-social-menu');
+  if (btnShareSocial && shareSocialMenu) {
+    btnShareSocial.addEventListener('click', (e) => {
+      e.stopPropagation();
+      shareSocialMenu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!btnShareSocial.contains(e.target) && !shareSocialMenu.contains(e.target)) {
+        shareSocialMenu.classList.remove('show');
+      }
+    });
+  }
+
+  // Copy share link button in floating share bar
+  const btnCopyBarShare = document.getElementById('btn-copy-bar-share');
+  if (btnCopyBarShare) {
+    btnCopyBarShare.addEventListener('click', async () => {
+      const urlToCopy = btnCopyBarShare.getAttribute('data-url') || window.location.href;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(urlToCopy);
+        } else {
+          const input = document.createElement('input');
+          input.value = urlToCopy;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand('copy');
+          document.body.removeChild(input);
+        }
+        const origText = btnCopyBarShare.innerHTML;
+        btnCopyBarShare.innerHTML = '✅ Link Copied!';
+        setTimeout(() => {
+          btnCopyBarShare.innerHTML = origText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy share link:', err);
       }
     });
   }
