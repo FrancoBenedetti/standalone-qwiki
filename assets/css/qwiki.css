@@ -217,6 +217,10 @@ body {
   font-size: 0.875rem;
   font-family: inherit;
   transition: background var(--transition-fast);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .dropdown-item:hover {

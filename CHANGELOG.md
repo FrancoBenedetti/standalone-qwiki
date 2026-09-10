@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.7] - OmniShare - 2026-09-10
+
+### 🔗 Full-Screen Secure Sharing & Reader Rights
+
+- **Universal Reader Share Modal Access**:
+  - Moved `#share-modal` out of admin-only enclosing blocks in `index.php`, granting all authenticated readers (including users with the `viewer` role) direct access to the secure full-screen sharing modal.
+  - Viewers on private portals requiring sign-in can now generate and distribute unguessable reader links (`?share=...`), allowing external recipients without portal accounts to view the document without hitting the sign-in barrier.
+- **Admin Access Controls Isolation**:
+  - Preserved strict role-based access for administrative share toggles (**Allow Public Sharing** and **Reset Key**), cleanly hiding them from read-only viewers while rendering the copy input and social sharing shortcuts.
+- **Preloaded Share URL & Fallback Integrity**:
+  - Embedded `data-share-url` directly on the document share button (`#btn-share-chapter`) to immediately populate the share input upon opening the modal without waiting for background API calls.
+  - Native clipboard fallback now prefers the secure public share URL (`?share=...`) over standard internal URLs (`window.location.href`).
+- **Public Share Key Retrieval**:
+  - Updated `api/admin.php?action=get_or_create_share_key` to permit public/guest retrieval of existing share keys when public sharing is enabled (`publicShareable: true`), while requiring authentication to generate new keys or view restricted documents.
+
+### 🌐 Social Share Menus & Open Graph Metadata
+
+- **Open Graph & Twitter Card Integration**:
+  - Added dynamic Open Graph (`og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:site_name`) and Twitter Card (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`) meta tags to `<head>`.
+  - Social networks and messaging platforms (𝕏, LinkedIn, Facebook, WhatsApp, Slack, Discord) now generate rich visual card previews when sharing documentation links.
+- **Floating Bar Social Dropdown**:
+  - Added a dedicated social share dropdown menu (`#share-social-dropdown`) to the Zen reader's floating action bar, providing instant 1-click sharing to 𝕏 (Twitter), LinkedIn, Facebook, WhatsApp, and a direct "Copy Share Link" action.
+- **Document-Level & Global Social Metadata**:
+  - Added custom **Short Description** and **Social Share Image URL** fields to the document **Edit Details** modal (`edit-chapter-modal`).
+  - Added global fallback **Global Social Share Description** and **Global Social Share Image URL** configuration in Site Settings (`settings-modal`), cascading smoothly down to article introductions when custom fields are blank.
+
+### 🛡️ HTML Extension & Environment Fixes
+
+- **HTML Page Sandbox Popup Permission**:
+  - Added `allow-popups` and `allow-popups-to-escape-sandbox` to the page-html extension iframe sandbox, permitting external links and references inside custom HTML pages to open reliably in new tabs without console security warnings.
+- **Base URL CLI Normalization**:
+  - Normalized empty script path handling in `Config::getBaseUrl()` to prevent `/./` artifacts when executing in CLI or automated testing environments.
+
+### 🧪 Test Automation
+
+- Added `tests/share_rights_test.php` covering:
+  - Viewer role session authentication (`viewer != admin`).
+  - Modal rendering for viewers without exposing admin-only controls.
+  - Presence of `data-share-url` attributes on the chapter share button.
+  - API share key retrieval and generation across both authenticated viewers and unauthenticated visitors.
+
+---
+
 ## [1.9.6] - DocFlow - 2026-09-08
 
 ### 🗂️ Document Relocation & Hierarchy Organization

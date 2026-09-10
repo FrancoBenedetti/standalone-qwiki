@@ -29,6 +29,7 @@ To change site visibility:
 
 - **Default Theme**: Select the global theme from the Settings dialog.
 - **Custom Logo**: Enter a logo image URL to replace the default text logo.
+- **Global Social Share Metadata**: Configure a fallback **Global Social Share Description** and **Global Social Share Image URL** in Site Settings to represent your portal with rich cards across social platforms and messaging apps.
 - **Live Theme Editor**: Launch the Theme Editor to create or customize CSS files directly in the browser with instant preview.
 
 ---

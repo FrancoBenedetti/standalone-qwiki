@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.9.6';
+    const VERSION = '1.9.7';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -227,6 +227,9 @@ class Config {
         $normalizedDir = '/' . ltrim($scriptDir, '/\\');
         $webPath = preg_replace('#/(api|assets|content|tests).*$#i', '', $normalizedDir);
         $webPath = trim($webPath, '/\\');
+        if ($webPath === '.') {
+            $webPath = '';
+        }
         return $protocol . $domainName . (!empty($webPath) ? '/' . $webPath . '/' : '/');
     }
 }
