@@ -28,86 +28,95 @@ $baseDir = Config::getBaseDir();
 $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Helper for tree category updates
-function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility) {
-    if (($node['id'] ?? '') === $targetId) {
-        $node['title'] = $newTitle;
-        if ($newTheme !== '') {
-            $node['theme'] = $newTheme;
-        } else {
-            unset($node['theme']);
+if (!function_exists('update_node_meta')) {
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility) {
+        if (($node['id'] ?? '') === $targetId) {
+            $node['title'] = $newTitle;
+            if ($newTheme !== '') {
+                $node['theme'] = $newTheme;
+            } else {
+                unset($node['theme']);
+            }
+            $node['visibility'] = $newVisibility;
+            return true;
         }
-        $node['visibility'] = $newVisibility;
-        return true;
-    }
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$sub) {
-            if (isset($sub['type']) && $sub['type'] === 'folder') {
-                if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility)) {
-                    return true;
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility)) {
+                        return true;
+                    }
                 }
             }
         }
+        return false;
     }
-    return false;
 }
 
 // Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
-function is_safe_url($url) {
-    $trimmed = trim($url);
-    if (empty($trimmed)) return false;
-    if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
-        return false;
-    }
-    if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
-        $scheme = strtolower($matches[1]);
-        if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+if (!function_exists('is_safe_url')) {
+    function is_safe_url($url) {
+        $trimmed = trim($url);
+        if (empty($trimmed)) return false;
+        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
             return false;
         }
+        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+                return false;
+            }
+        }
+        return true;
     }
-    return true;
 }
 
 // Helper for tree node deletions
-function delete_node_recursive(&$list, $targetId) {
-    $filtered = [];
-    $deleted = false;
-    foreach ($list as &$b) {
-        if (($b['id'] ?? '') === $targetId) {
-            $deleted = true;
-            continue;
-        }
-        if (!empty($b['items'])) {
-            if (delete_node_recursive($b['items'], $targetId)) {
+if (!function_exists('delete_node_recursive')) {
+    function delete_node_recursive(&$list, $targetId) {
+        $filtered = [];
+        $deleted = false;
+        foreach ($list as &$b) {
+            if (($b['id'] ?? '') === $targetId) {
                 $deleted = true;
+                continue;
             }
+            if (!empty($b['items'])) {
+                if (delete_node_recursive($b['items'], $targetId)) {
+                    $deleted = true;
+                }
+            }
+            $filtered[] = $b;
         }
-        $filtered[] = $b;
+        $list = $filtered;
+        return $deleted;
     }
-    $list = $filtered;
-    return $deleted;
 }
 
 // Helper for chapter insertion into tree
-function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-    if (($node['id'] ?? '') === $targetFolderId) {
-        if (!isset($node['items'])) $node['items'] = [];
-        $node['items'][] = $chapterData;
-        return true;
-    }
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$sub) {
-            if (isset($sub['type']) && $sub['type'] === 'folder') {
-                if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                    return true;
+if (!function_exists('insert_chapter_into_node')) {
+    function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
+        if (($node['id'] ?? '') === $targetFolderId) {
+            if (!isset($node['items'])) $node['items'] = [];
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
                 }
             }
         }
+        return false;
     }
-    return false;
 }
 
 // Helper for chapter update in tree
-function update_chapter_in_node(&$node, $slug, $updatedData) {
+if (!function_exists('update_chapter_in_node')) {
+    function update_chapter_in_node(&$node, $slug, $updatedData) {
     if (!empty($node['items'])) {
         foreach ($node['items'] as &$ch) {
             if (!isset($ch['type']) || $ch['type'] !== 'folder') {
@@ -148,6 +157,7 @@ function update_chapter_in_node(&$node, $slug, $updatedData) {
         }
     }
     return false;
+}
 }
 
 // Helper for chapter deletion from tree
@@ -661,10 +671,6 @@ switch ($action) {
         break;
 
     case 'get_or_create_share_key':
-        if (!Auth::isViewer() && !Auth::isAdmin()) {
-            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
-            exit;
-        }
         $slug = trim($_REQUEST['slug'] ?? '');
         if (empty($slug)) {
             echo json_encode(['success' => false, 'error' => 'Document slug is required']);
@@ -678,6 +684,10 @@ switch ($action) {
         $shareKey = $chapter['shareKey'] ?? '';
         $isPublic = !isset($chapter['publicShareable']) || !empty($chapter['publicShareable']);
         if (empty($shareKey)) {
+            if (!Auth::isViewer() && !Auth::isAdmin()) {
+                echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
+                exit;
+            }
             $shareKey = Navigation::generateShareKey();
             $updatedData = ['shareKey' => $shareKey];
             foreach ($config['books'] as &$book) {
@@ -686,6 +696,9 @@ switch ($action) {
                     break;
                 }
             }
+        } elseif (!$isPublic && !Auth::isViewer() && !Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Public sharing is disabled for this document.']);
+            exit;
         }
         $baseUrl = Config::getBaseUrl();
         $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);

@@ -2209,7 +2209,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const slug = btnShareChapter.getAttribute('data-slug');
       if (shareModal && slug) {
         shareModal.classList.add('open');
-        if (shareLinkInput) shareLinkInput.value = 'Generating secure share link...';
+        const initialShareUrl = btnShareChapter.getAttribute('data-share-url');
+        const isInitiallyPublic = btnShareChapter.getAttribute('data-public-shareable') !== '0';
+        if (initialShareUrl && shareLinkInput) {
+          shareLinkInput.value = initialShareUrl;
+          updateModalSocialShareLinks(initialShareUrl, btnShareChapter.getAttribute('data-title'));
+          updateShareStatusUI(isInitiallyPublic);
+        } else if (shareLinkInput) {
+          shareLinkInput.value = 'Generating secure share link...';
+        }
         try {
           const res = await fetch(`api/admin.php?action=get_or_create_share_key&slug=${encodeURIComponent(slug)}`);
           const data = await res.json();
@@ -2218,13 +2226,14 @@ document.addEventListener('DOMContentLoaded', () => {
             updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
             updateShareStatusUI(data.publicShareable);
             btnShareChapter.setAttribute('data-share-key', data.shareKey);
+            btnShareChapter.setAttribute('data-share-url', data.shareUrl);
             btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
-          } else {
+          } else if (!initialShareUrl) {
             if (shareLinkInput) shareLinkInput.value = 'Failed: ' + (data.error || 'Unknown error');
           }
         } catch (err) {
           console.error('Failed to get share link:', err);
-          if (shareLinkInput) {
+          if (shareLinkInput && !initialShareUrl) {
             shareLinkInput.value = window.location.href;
             updateModalSocialShareLinks(window.location.href, btnShareChapter.getAttribute('data-title'));
           }
@@ -2233,9 +2242,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Fallback for unauthenticated visitors browsing public docs: native share or copy standard URL
+      const shareUrl = btnShareChapter.getAttribute('data-share-url') || window.location.href;
       const shareData = {
         title: document.title,
-        url: window.location.href
+        url: shareUrl
       };
       if (navigator.share) {
         try {
@@ -2342,6 +2352,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (shareLinkInput) shareLinkInput.value = data.shareUrl;
           updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
           btnShareChapter.setAttribute('data-share-key', data.shareKey);
+          btnShareChapter.setAttribute('data-share-url', data.shareUrl);
           updateShareStatusUI(data.publicShareable);
           alert('✅ Share key reset successfully! The new link is ready to copy.');
         } else {

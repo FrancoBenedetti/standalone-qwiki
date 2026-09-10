@@ -203,7 +203,7 @@ $nextDoc = null;
 
 if (!$isShareMode && !$shareError) {
     foreach ($allowedBooks as $book) {
-        Navigation::flattenNavTree($book, $book['id'], $flatNavList, $isAdmin, $isViewer);
+        Navigation::flattenNavTree($book, $book['id'] ?? '', $flatNavList, $isAdmin, $isViewer);
     }
 
     if ($activeChapter) {
@@ -498,7 +498,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
             <nav class="sidebar-nav">
                 <?php foreach ($config['books'] as $book): ?>
-                    <?php Navigation::renderSidebarNode($book, $book['id'], $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
+                    <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
             </nav>
             <?php if ($showPoweredBy): ?>
@@ -557,10 +557,15 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             </button>
+                            <?php
+                            $chapterShareKey = $activeChapter['shareKey'] ?? '';
+                            $chapterShareUrl = !empty($chapterShareKey) ? ($baseUrl . '?share=' . urlencode($chapterShareKey)) : '';
+                            ?>
                             <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share"
                                     data-slug="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>"
                                     data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>"
-                                    data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                    data-share-key="<?= htmlspecialchars($chapterShareKey) ?>"
+                                    data-share-url="<?= htmlspecialchars($chapterShareUrl) ?>"
                                     data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                             </button>
@@ -677,6 +682,47 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Share Document Modal -->
+    <div class="modal-overlay" id="share-modal">
+        <div class="modal-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>🔗 Share Document</h3>
+                <button class="modal-close" data-close="share-modal">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1rem 0;">
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Anyone with this link can view this document directly in full-screen reader mode. The link is protected by an unguessable unique key.
+                </p>
+                <div id="share-status-container" style="margin-bottom: 1rem;"></div>
+                <div class="form-group">
+                    <label class="form-label" for="share-link-input">Full-Screen Share Link</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="share-link-input" class="form-control" readonly style="font-family: monospace; font-size: 0.85rem;" onclick="this.select()">
+                        <button type="button" class="btn btn-primary" id="btn-copy-share-link" style="white-space: nowrap;">📋 Copy</button>
+                    </div>
+                    <div class="share-social-buttons" id="modal-social-links" style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                        <a href="#" id="modal-share-x" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on X">𝕏 Share</a>
+                        <a href="#" id="modal-share-linkedin" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on LinkedIn">💼 LinkedIn</a>
+                        <a href="#" id="modal-share-facebook" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on Facebook">📘 Facebook</a>
+                        <a href="#" id="modal-share-whatsapp" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on WhatsApp">💬 WhatsApp</a>
+                    </div>
+                </div>
+                <?php if ($isAdmin): ?>
+                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-color);">Admin Access Controls</h4>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                            <input type="checkbox" id="share-admin-toggle-public" value="1">
+                            <span>Allow Public Sharing</span>
+                        </label>
+                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-modal-regenerate-share-key" title="Invalidates previously distributed links">🔄 Reset Key</button>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 
@@ -1034,47 +1080,6 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
-        </div>
-    </div>
-
-    <!-- Share Document Modal -->
-    <div class="modal-overlay" id="share-modal">
-        <div class="modal-card" style="max-width: 520px;">
-            <div class="modal-header">
-                <h3>🔗 Share Document</h3>
-                <button class="modal-close" data-close="share-modal">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1rem 0;">
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">
-                    Anyone with this link can view this document directly in full-screen reader mode. The link is protected by an unguessable unique key.
-                </p>
-                <div id="share-status-container" style="margin-bottom: 1rem;"></div>
-                <div class="form-group">
-                    <label class="form-label" for="share-link-input">Full-Screen Share Link</label>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" id="share-link-input" class="form-control" readonly style="font-family: monospace; font-size: 0.85rem;" onclick="this.select()">
-                        <button type="button" class="btn btn-primary" id="btn-copy-share-link" style="white-space: nowrap;">📋 Copy</button>
-                    </div>
-                    <div class="share-social-buttons" id="modal-social-links" style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
-                        <a href="#" id="modal-share-x" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on X">𝕏 Share</a>
-                        <a href="#" id="modal-share-linkedin" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on LinkedIn">💼 LinkedIn</a>
-                        <a href="#" id="modal-share-facebook" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on Facebook">📘 Facebook</a>
-                        <a href="#" id="modal-share-whatsapp" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on WhatsApp">💬 WhatsApp</a>
-                    </div>
-                </div>
-                <?php if ($isAdmin): ?>
-                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                    <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-color);">Admin Access Controls</h4>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                        <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                            <input type="checkbox" id="share-admin-toggle-public" value="1">
-                            <span>Allow Public Sharing</span>
-                        </label>
-                        <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-modal-regenerate-share-key" title="Invalidates previously distributed links">🔄 Reset Key</button>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
         </div>
     </div>
     <?php endif; ?>

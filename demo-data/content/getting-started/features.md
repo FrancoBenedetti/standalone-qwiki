@@ -120,10 +120,13 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## 🔗 11. Secure Full-Screen Document Sharing
+## 🔗 11. Secure Full-Screen Document Sharing & Social Metadata
 
-- **Unguessable Unique Share Keys**: Signed-in users can generate a secure share link for any document. Links use a cryptographically random 16-hexadecimal key (`?share=...`), completely masking internal category structures, folder paths, and slugs from recipients.
-- **Distraction-Free Zen Reader**: Shared documents open in full-screen reader mode with the sidebar, brand header, search bar, and previous/next buttons hidden. Features a centered reading canvas and a floating glassmorphic bar with theme toggle, print/PDF button, and an "Open in Wiki" exit link for authenticated users.
+- **Unguessable Unique Share Keys**: Signed-in users with view rights (both Viewers and Administrators) can generate a secure share link for any document. Links use a cryptographically random 16-hexadecimal key (`?share=...`), completely masking internal category structures, folder paths, and slugs from recipients.
+- **Role-Agnostic Sharing from Private Portals**: Viewers on private portals requiring sign-in can generate and distribute public full-screen share links, allowing recipients without accounts to view shared documents without encountering the portal login gate.
+- **Distraction-Free Zen Reader**: Shared documents open in full-screen reader mode with the sidebar, brand header, search bar, and previous/next buttons hidden. Features a centered reading canvas and a floating glassmorphic bar with theme toggle, print/PDF button, social sharing dropdown, and an "Open in Wiki" exit link for authenticated users.
+- **Dynamic Social Sharing & Rich Previews**: Built-in 1-click sharing to 𝕏 (Twitter), LinkedIn, Facebook, and WhatsApp from both the share modal and the floating Zen reader dropdown. Complete Open Graph (`og:title`, `og:description`, `og:image`, `og:url`) and Twitter Card meta tag integration ensures rich link previews across social networks and messaging platforms.
+- **Custom Social Metadata & Fallback Chain**: Authors can set document-specific social descriptions and image URLs in **Edit Details**, with automatic fallback to site-wide social settings in Settings (`Global Social Share Description`, `Global Social Share Image URL`), portal defaults, or article intros.
 - **Admin Access Controls & Instant Revocation**: Documents are publicly shareable by default. Administrators can disable public sharing for any document (`publicShareable: false`) or click **Reset Key** to immediately invalidate all previously distributed links.
 
 ---
