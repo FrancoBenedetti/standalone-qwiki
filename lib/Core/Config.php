@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.9.7';
+    const VERSION = '1.9.8';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -190,7 +190,7 @@ class Config {
         return !empty($config['demoMode']);
     }
 
-    public static function isChapterProtected(string $slugOrFile, ?array $nodes = null): bool {
+    public static function isChapterProtected(string $slugOrFile, ?array $nodes = null, bool $inheritedProtection = false): bool {
         if (empty($slugOrFile)) return false;
         if ($nodes === null) {
             $config = self::load();
@@ -198,7 +198,8 @@ class Config {
         }
         $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
         foreach ($nodes as $node) {
-            $isProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false);
+            $isNodeDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isNodeDirectlyProtected;
             if ($isProtected) {
                 if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
                     return true;
@@ -211,7 +212,71 @@ class Config {
                 }
             }
             if (!empty($node['items']) && is_array($node['items'])) {
-                if (self::isChapterProtected($slugOrFile, $node['items'])) {
+                if (self::isChapterProtected($slugOrFile, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isCategoryProtected(string $categoryId, ?array $nodes = null, bool $inheritedProtection = false): bool {
+        if (empty($categoryId)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        foreach ($nodes as $node) {
+            $isDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isDirectlyProtected;
+
+            if (($node['id'] ?? '') === $categoryId) {
+                if ($isProtected) {
+                    return true;
+                }
+                return self::nodeContainsProtectedItems($node);
+            }
+
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isCategoryProtected($categoryId, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isCategoryDirectlyProtected(string $categoryId, ?array $nodes = null): bool {
+        if (empty($categoryId)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        foreach ($nodes as $node) {
+            if (($node['id'] ?? '') === $categoryId) {
+                return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isCategoryDirectlyProtected($categoryId, $node['items'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function nodeContainsProtectedItems(array $node): bool {
+        if (empty($node['items']) || !is_array($node['items'])) {
+            return false;
+        }
+        foreach ($node['items'] as $item) {
+            if (!is_array($item)) continue;
+            $isItemProtected = !empty($item['readOnly']) || (isset($item['editable']) && $item['editable'] === false) || !empty($item['locked']);
+            if ($isItemProtected) {
+                return true;
+            }
+            if (!empty($item['items']) && is_array($item['items'])) {
+                if (self::nodeContainsProtectedItems($item)) {
                     return true;
                 }
             }

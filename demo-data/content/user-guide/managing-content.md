@@ -94,6 +94,16 @@ You can organize your documentation hierarchy visually:
 
 ---
 
+## 🛡️ Category & Document Protection
+
+Standalone Qwiki provides robust protection mechanisms to safeguard critical articles and structures against accidental edits or deletions:
+- **Protected Documents**: Mark any document with `"readOnly": true` or `"editable": false` to lock it against editing, renaming, or deletion.
+- **Direct Category Lock**: Click the category edit icon (`⚙️`) and toggle **Lock Category (Prevent Deletion)**. Directly locked categories cannot be deleted, and all nested documents inside them automatically inherit read-only protection.
+- **Cascading Deletion Safety Net**: Any category or folder containing protected documents automatically inherits deletion protection across all hierarchy levels. Even when a protected document is deeply nested within subfolders, parent folders cannot be deleted.
+- **Visual Lock Indicators**: Protected categories display a lock icon (`🔒`) in the navigation sidebar. In the Edit Category modal, the deletion button is replaced with a **Protected Category** badge.
+
+---
+
 ## 🖨️ Print & Social Sharing
 
 - **Print / PDF — Markdown & Standard Documents**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.

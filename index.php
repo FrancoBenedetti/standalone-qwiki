@@ -20,24 +20,26 @@ if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
 }
 
-class QwikiParsedown extends Parsedown {
-    protected function inlineLink($Excerpt) {
-        $Inline = parent::inlineLink($Excerpt);
-        if (!isset($Inline)) {
-            return;
-        }
+if (!class_exists('QwikiParsedown')) {
+    class QwikiParsedown extends Parsedown {
+        protected function inlineLink($Excerpt) {
+            $Inline = parent::inlineLink($Excerpt);
+            if (!isset($Inline)) {
+                return;
+            }
 
-        $href = $Inline['element']['attributes']['href'] ?? '';
-        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
-        $parsedUrl = parse_url($href);
-        $linkHost = $parsedUrl['host'] ?? '';
-        
-        if ($linkHost && $linkHost !== $currentHost) {
-            $Inline['element']['attributes']['target'] = '_blank';
-            $Inline['element']['attributes']['rel'] = 'noopener noreferrer';
+            $href = $Inline['element']['attributes']['href'] ?? '';
+            $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+            $parsedUrl = parse_url($href);
+            $linkHost = $parsedUrl['host'] ?? '';
+            
+            if ($linkHost && $linkHost !== $currentHost) {
+                $Inline['element']['attributes']['target'] = '_blank';
+                $Inline['element']['attributes']['rel'] = 'noopener noreferrer';
+            }
+            
+            return $Inline;
         }
-        
-        return $Inline;
     }
 }
 
@@ -251,6 +253,8 @@ $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
 $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
 $showPoweredBy = isset($config['showPoweredBy']) ? !empty($config['showPoweredBy']) : true;
+$showSubwikisInSidebar = !empty($config['showSubwikisInSidebar']);
+$sidebarSubwikis = $showSubwikisInSidebar ? SubwikiManager::getSidebarSubwikis($config) : [];
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
@@ -500,6 +504,27 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <?php foreach ($config['books'] as $book): ?>
                     <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
+                <?php if ($showSubwikisInSidebar && !empty($sidebarSubwikis)): ?>
+                <div class="nav-category-item depth-0 nav-subwikis-group collapsed">
+                    <div class="nav-category-header">
+                        <span>🌐 Subwikis</span>
+                        <span class="header-actions-inline">
+                            <span class="chevron-icon">▾</span>
+                        </span>
+                    </div>
+                    <div class="nav-document-list">
+                        <?php foreach ($sidebarSubwikis as $sub): ?>
+                            <a href="<?= htmlspecialchars($sub['url']) ?>" class="nav-link nav-subwiki-link" title="<?= htmlspecialchars($sub['title']) ?>">
+                                <span class="nav-link-title-container">
+                                    <span class="subwiki-item-icon">🌐</span>
+                                    <span><?= htmlspecialchars($sub['title']) ?></span>
+                                </span>
+                                <span class="badge-subwiki-count" title="<?= (int)$sub['docCount'] ?> Documents"><?= (int)$sub['docCount'] ?> docs</span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </nav>
             <?php if ($showPoweredBy): ?>
             <div class="sidebar-footer">
@@ -832,9 +857,23 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                     </div>
                 </div>
+                <div class="form-group" id="group-edit-book-readonly">
+                    <input type="hidden" name="readOnly" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="readOnly" id="edit-book-readonly-input" value="1">
+                        <span>🔒 Lock Category (Prevent Deletion)</span>
+                    </label>
+                    <small id="edit-book-readonly-help" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Protected categories and categories containing protected documents cannot be deleted.</small>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
-                    <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
-                    <button type="submit" class="btn btn-primary">Save Category Title</button>
+                    <div>
+                        <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
+                        <span id="edit-book-protected-notice" class="badge badge-secondary" title="This category is protected against deletion" style="display: none; align-items: center; gap: 0.35rem; padding: 0.4rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span id="edit-book-protected-label"><?= Config::isDemoMode() ? 'Protected Demo Category' : 'Protected Category' ?></span>
+                        </span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Category Details</button>
                 </div>
             </form>
         </div>
@@ -1126,6 +1165,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">
                         <input type="checkbox" name="showPoweredBy" value="1" <?= $showPoweredBy ? 'checked' : '' ?>>
                         Show "Powered by Qwiki" Badge in Sidebar
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="showSubwikisInSidebar" value="1" <?= $showSubwikisInSidebar ? 'checked' : '' ?>>
+                        Show Subwikis in Left Sidebar Navigation
                     </label>
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">

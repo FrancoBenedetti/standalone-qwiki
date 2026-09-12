@@ -53,6 +53,8 @@ Admins can control whether documentation is publicly readable or requires authen
 - **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
 - **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data or installed extensions.
 - **🔒 Multi-Tab & Collaborative Document Soft Locks**: Protects documents against simultaneous editing and overwrite collisions across different users and multiple browser tabs. Powered by an advisory lease engine, background heartbeats, immediate `BroadcastChannel` tab synchronization, automatic local draft preservation, and takeover controls.
+- **🛡️ Category Lock & Cascading Deletion Protection**: Lock categories directly (`readOnly: true`, `locked: true`) or inherit deletion protection whenever a category holds protected documents. Visual lock indicators (`🔒`) and smart suppression of deletion actions prevent accidental data loss across deep folder hierarchies.
+- **🌐 Sidebar Subwiki Navigation & Discovery**: Seamlessly navigate deployed subwikis with an optional collapsible accordion in the navigation sidebar, real-time document count badges, and bi-directional cross-wiki linking.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).

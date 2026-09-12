@@ -29,7 +29,7 @@ $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Helper for tree category updates
 if (!function_exists('update_node_meta')) {
-    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility) {
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null) {
         if (($node['id'] ?? '') === $targetId) {
             $node['title'] = $newTitle;
             if ($newTheme !== '') {
@@ -38,12 +38,22 @@ if (!function_exists('update_node_meta')) {
                 unset($node['theme']);
             }
             $node['visibility'] = $newVisibility;
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $node['readOnly'] = true;
+                    $node['editable'] = false;
+                } else {
+                    unset($node['readOnly']);
+                    unset($node['editable']);
+                    unset($node['locked']);
+                }
+            }
             return true;
         }
         if (!empty($node['items'])) {
             foreach ($node['items'] as &$sub) {
                 if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility)) {
+                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly)) {
                         return true;
                     }
                 }
@@ -78,6 +88,10 @@ if (!function_exists('delete_node_recursive')) {
         $deleted = false;
         foreach ($list as &$b) {
             if (($b['id'] ?? '') === $targetId) {
+                if (\Qwiki\Core\Config::isCategoryProtected($targetId, [$b])) {
+                    $filtered[] = $b;
+                    continue;
+                }
                 $deleted = true;
                 continue;
             }
@@ -161,153 +175,172 @@ if (!function_exists('update_chapter_in_node')) {
 }
 
 // Helper for chapter deletion from tree
-function delete_chapter_from_node(&$node, $slug) {
-    if (!empty($node['items'])) {
-        $newItems = [];
-        foreach ($node['items'] as &$item) {
-            if (!isset($item['type']) || $item['type'] !== 'folder') {
-                if (($item['slug'] ?? '') !== $slug) {
+if (!function_exists('delete_chapter_from_node')) {
+    function delete_chapter_from_node(&$node, $slug) {
+        if (!empty($node['items'])) {
+            $newItems = [];
+            foreach ($node['items'] as &$item) {
+                if (!isset($item['type']) || $item['type'] !== 'folder') {
+                    if (($item['slug'] ?? '') !== $slug) {
+                        $newItems[] = $item;
+                    }
+                } else {
+                    delete_chapter_from_node($item, $slug);
                     $newItems[] = $item;
                 }
-            } else {
-                delete_chapter_from_node($item, $slug);
-                $newItems[] = $item;
             }
+            $node['items'] = $newItems;
         }
-        $node['items'] = $newItems;
     }
 }
 
 // Safely moves/renames a document file within content/ directory
-function relocate_document_file($baseDir, $origRelFile, $destRelDir, $destFileName = null) {
-    if (empty($origRelFile) || strpos($origRelFile, 'content/') !== 0) {
-        return $origRelFile;
-    }
-    $destRelDir = trim($destRelDir, '/\\');
-    $destAbsDir = $baseDir . '/' . $destRelDir;
-    if (!is_dir($destAbsDir)) {
-        if (!@mkdir($destAbsDir, 0755, true) && !is_dir($destAbsDir)) {
+if (!function_exists('relocate_document_file')) {
+    function relocate_document_file($baseDir, $origRelFile, $destRelDir, $destFileName = null) {
+        if (empty($origRelFile) || strpos($origRelFile, 'content/') !== 0) {
             return $origRelFile;
         }
-    }
-
-    $origFileName = basename($origRelFile);
-    $targetName = $destFileName ?: $origFileName;
-    $ext = pathinfo($targetName, PATHINFO_EXTENSION);
-    $nameWithoutExt = pathinfo($targetName, PATHINFO_FILENAME);
-
-    $origAbsFile = $baseDir . '/' . $origRelFile;
-    $destAbsFile = $destAbsDir . '/' . $targetName;
-
-    // Check if target already exists and is a different file
-    if (file_exists($destAbsFile) && realpath($destAbsFile) !== realpath($origAbsFile)) {
-        $counter = 1;
-        while (file_exists($destAbsDir . '/' . $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : ''))) {
-            $counter++;
+        $destRelDir = trim($destRelDir, '/\\');
+        $destAbsDir = $baseDir . '/' . $destRelDir;
+        if (!is_dir($destAbsDir)) {
+            if (!@mkdir($destAbsDir, 0755, true) && !is_dir($destAbsDir)) {
+                return $origRelFile;
+            }
         }
-        $targetName = $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : '');
+
+        $origFileName = basename($origRelFile);
+        $targetName = $destFileName ?: $origFileName;
+        $ext = pathinfo($targetName, PATHINFO_EXTENSION);
+        $nameWithoutExt = pathinfo($targetName, PATHINFO_FILENAME);
+
+        $origAbsFile = $baseDir . '/' . $origRelFile;
         $destAbsFile = $destAbsDir . '/' . $targetName;
-    }
 
-    $newRelFile = $destRelDir . '/' . $targetName;
+        // Check if target already exists and is a different file
+        if (file_exists($destAbsFile) && realpath($destAbsFile) !== realpath($origAbsFile)) {
+            $counter = 1;
+            while (file_exists($destAbsDir . '/' . $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : ''))) {
+                $counter++;
+            }
+            $targetName = $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : '');
+            $destAbsFile = $destAbsDir . '/' . $targetName;
+        }
 
-    if (file_exists($origAbsFile) && $destAbsFile !== $origAbsFile) {
-        if (@rename($origAbsFile, $destAbsFile)) {
+        $newRelFile = $destRelDir . '/' . $targetName;
+
+        if (file_exists($origAbsFile) && $destAbsFile !== $origAbsFile) {
+            if (@rename($origAbsFile, $destAbsFile)) {
+                return $newRelFile;
+            }
+        } elseif (!file_exists($origAbsFile)) {
             return $newRelFile;
         }
-    } elseif (!file_exists($origAbsFile)) {
+
         return $newRelFile;
     }
-
-    return $newRelFile;
 }
 
 // Checks if a slug is already taken across all books and documents
-function is_slug_taken($slug, $nodes, $currentSlug = null) {
-    if (empty($slug) || !is_array($nodes)) return false;
-    foreach ($nodes as $node) {
-        if (isset($node['id']) && $node['id'] === $slug) {
-            return true;
-        }
-        if (isset($node['slug']) && $node['slug'] === $slug) {
-            if ($currentSlug === null || $currentSlug !== $slug) {
+if (!function_exists('is_slug_taken')) {
+    function is_slug_taken($slug, $nodes, $currentSlug = null) {
+        if (empty($slug) || !is_array($nodes)) return false;
+        foreach ($nodes as $node) {
+            if (isset($node['id']) && $node['id'] === $slug) {
                 return true;
             }
-        }
-        if (!empty($node['items']) && is_array($node['items'])) {
-            if (is_slug_taken($slug, $node['items'], $currentSlug)) {
-                return true;
+            if (isset($node['slug']) && $node['slug'] === $slug) {
+                if ($currentSlug === null || $currentSlug !== $slug) {
+                    return true;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (is_slug_taken($slug, $node['items'], $currentSlug)) {
+                    return true;
+                }
             }
         }
+        return false;
     }
-    return false;
 }
 
 // Finds a chapter and its parent node by slug (read-only)
-function find_chapter_and_parent($nodes, $slug, &$foundChapter, &$foundParentNode, &$topBookId, $parentNode = null, $currentTopBookId = null) {
-    if (!is_array($nodes)) return false;
-    foreach ($nodes as $node) {
-        $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
-        if (!isset($node['type']) || $node['type'] !== 'folder') {
-            if (($node['slug'] ?? '') === $slug) {
-                $foundChapter = $node;
-                $foundParentNode = $parentNode;
-                $topBookId = $effectiveTopBook ?: $slug;
-                return true;
+if (!function_exists('find_chapter_and_parent')) {
+    function find_chapter_and_parent($nodes, $slug, &$foundChapter, &$foundParentNode, &$topBookId, $parentNode = null, $currentTopBookId = null) {
+        if (!is_array($nodes)) return false;
+        foreach ($nodes as $node) {
+            $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+            if (!isset($node['type']) || $node['type'] !== 'folder') {
+                if (($node['slug'] ?? '') === $slug) {
+                    $foundChapter = $node;
+                    $foundParentNode = $parentNode;
+                    $topBookId = $effectiveTopBook ?: $slug;
+                    return true;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (find_chapter_and_parent($node['items'], $slug, $foundChapter, $foundParentNode, $topBookId, $node, $effectiveTopBook)) {
+                    return true;
+                }
             }
         }
-        if (!empty($node['items']) && is_array($node['items'])) {
-            if (find_chapter_and_parent($node['items'], $slug, $foundChapter, $foundParentNode, $topBookId, $node, $effectiveTopBook)) {
-                return true;
-            }
-        }
+        return false;
     }
-    return false;
 }
 
 // Finds a chapter and executes a mutating callback in-place
-function find_chapter_and_update(&$nodes, $slug, $callback, &$parentNode = null, $currentTopBookId = null) {
-    if (!is_array($nodes)) return false;
-    foreach ($nodes as &$node) {
-        $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
-        if (!isset($node['type']) || $node['type'] !== 'folder') {
-            if (($node['slug'] ?? '') === $slug) {
-                return $callback($node, $parentNode, $effectiveTopBook);
+if (!function_exists('find_chapter_and_update')) {
+    function find_chapter_and_update(&$nodes, $slug, $callback, &$parentNode = null, $currentTopBookId = null) {
+        if (!is_array($nodes)) return false;
+        foreach ($nodes as &$node) {
+            $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+            if (!isset($node['type']) || $node['type'] !== 'folder') {
+                if (($node['slug'] ?? '') === $slug) {
+                    return $callback($node, $parentNode, $effectiveTopBook);
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $res = find_chapter_and_update($node['items'], $slug, $callback, $node, $effectiveTopBook);
+                if ($res !== false) {
+                    return $res;
+                }
             }
         }
-        if (!empty($node['items']) && is_array($node['items'])) {
-            $res = find_chapter_and_update($node['items'], $slug, $callback, $node, $effectiveTopBook);
-            if ($res !== false) {
-                return $res;
-            }
-        }
+        return false;
     }
-    return false;
 }
 
 // Resolves category folder path based on hierarchy
-function get_category_folder($nodes, $targetId, $parentFolder = null) {
-    if (!is_array($nodes)) return null;
-    foreach ($nodes as $node) {
-        $nodeId = $node['id'] ?? null;
-        if ($nodeId === null) continue;
-        $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
-        if ($nodeId === $targetId) {
-            return $curFolder;
-        }
-        if (!empty($node['items']) && is_array($node['items'])) {
-            $found = get_category_folder($node['items'], $targetId, $curFolder);
-            if ($found !== null) {
-                return $found;
+if (!function_exists('get_category_folder')) {
+    function get_category_folder($nodes, $targetId, $parentFolder = null) {
+        if (!is_array($nodes)) return null;
+        foreach ($nodes as $node) {
+            $nodeId = $node['id'] ?? null;
+            if ($nodeId === null) continue;
+            $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+            if ($nodeId === $targetId) {
+                return $curFolder;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $found = get_category_folder($node['items'], $targetId, $curFolder);
+                if ($found !== null) {
+                    return $found;
+                }
             }
         }
+        return null;
     }
-    return null;
 }
 
 // Backward compatibility helper
-function is_chapter_protected($slug_or_file, $nodes = null) {
-    return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
+if (!function_exists('is_chapter_protected')) {
+    function is_chapter_protected($slug_or_file, $nodes = null) {
+        return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
+    }
+}
+if (!function_exists('is_category_protected')) {
+    function is_category_protected($category_id, $nodes = null) {
+        return \Qwiki\Core\Config::isCategoryProtected($category_id, $nodes);
+    }
 }
 
 if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
@@ -434,9 +467,18 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
             exit;
         }
+
+        $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
+
+        // In demo mode, prevent unlocking directly protected demo categories
+        if (Config::isDemoMode() && Config::isCategoryDirectlyProtected($bookId, $config['books'] ?? []) && $readOnly === false) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo categories cannot be unlocked in demo mode.']);
+            exit;
+        }
+
         $updated = false;
         foreach ($config['books'] as &$book) {
-            if (update_node_meta($book, $bookId, $title, $theme, $visibility)) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly)) {
                 $updated = true;
                 break;
             }
@@ -456,6 +498,10 @@ switch ($action) {
         $bookId = $_POST['bookId'] ?? '';
         if (empty($bookId)) {
             echo json_encode(['success' => false, 'error' => 'Category ID is required']);
+            exit;
+        }
+        if (Config::isCategoryProtected($bookId, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This category is protected or contains protected documents and cannot be deleted.']);
             exit;
         }
         if (delete_node_recursive($config['books'], $bookId)) {
@@ -1039,6 +1085,7 @@ switch ($action) {
         $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
         $showDocTypesOnlyToAdmin = isset($_POST['showDocTypesOnlyToAdmin']) && $_POST['showDocTypesOnlyToAdmin'] === '1';
         $showPoweredBy = isset($_POST['showPoweredBy']) && $_POST['showPoweredBy'] === '1';
+        $showSubwikisInSidebar = isset($_POST['showSubwikisInSidebar']) && $_POST['showSubwikisInSidebar'] === '1';
         $shareDescription = trim($_POST['shareDescription'] ?? '');
         $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
         $feedItemCount = isset($_POST['feedItemCount']) ? (int)$_POST['feedItemCount'] : 10;
@@ -1050,6 +1097,7 @@ switch ($action) {
         if (isset($_POST['theme'])) $config['theme'] = $theme;
         $config['showDocTypesOnlyToAdmin'] = $showDocTypesOnlyToAdmin;
         $config['showPoweredBy'] = $showPoweredBy;
+        $config['showSubwikisInSidebar'] = $showSubwikisInSidebar;
         if (isset($config['hideDocTypesFromPublic'])) {
             unset($config['hideDocTypesFromPublic']);
         }
@@ -1136,6 +1184,11 @@ switch ($action) {
                         if (empty($node['folder']) && isset($orig['folder'])) {
                             $mergedNode['folder'] = $orig['folder'];
                         }
+                        foreach (['readOnly', 'editable', 'locked'] as $field) {
+                            if (!isset($node[$field]) && isset($orig[$field])) {
+                                $mergedNode[$field] = $orig[$field];
+                            }
+                        }
                         $categoryFolder = $mergedNode['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
                         $mergedNode['folder'] = $categoryFolder;
                         $currentFolder = $categoryFolder;
@@ -1204,7 +1257,27 @@ switch ($action) {
                 return $merged;
             };
 
-            $config['books'] = $mergeTree($tree);
+            $newBooks = $mergeTree($tree);
+
+            // Safety guard: ensure no protected documents or protected categories are lost during reorder
+            foreach ($existingDocuments as $slug => $origDoc) {
+                if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+                    if (!Config::isChapterProtected($slug, $newBooks)) {
+                        echo json_encode(['success' => false, 'error' => 'Cannot save tree: protected document "' . $slug . '" would be lost.']);
+                        exit;
+                    }
+                }
+            }
+            foreach ($existingCategories as $catId => $origCat) {
+                if (Config::isCategoryProtected($catId, $config['books'] ?? [])) {
+                    if (!Config::isCategoryProtected($catId, $newBooks)) {
+                        echo json_encode(['success' => false, 'error' => 'Cannot save tree: protected category "' . $catId . '" would be lost.']);
+                        exit;
+                    }
+                }
+            }
+
+            $config['books'] = $newBooks;
             if (Config::save($config)) {
                 echo json_encode(['success' => true, 'updatedFiles' => $updatedFiles]);
                 exit;

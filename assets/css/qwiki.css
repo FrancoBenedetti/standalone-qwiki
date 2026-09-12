@@ -3,6 +3,7 @@
   --bg-secondary: #1e293b;
   --bg-card: #1e293b;
   --bg-card-hover: #334155;
+  --bg-surface: rgba(30, 41, 59, 0.85);
   --accent-color: #6366f1;
   --accent-hover: #4f46e5;
   --primary-color: var(--accent-color);
@@ -28,6 +29,7 @@
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
   --bg-card-hover: #f1f5f9;
+  --bg-surface: rgba(255, 255, 255, 0.88);
   --accent-color: #4f46e5;
   --accent-hover: #4338ca;
   --primary-color: var(--accent-color);
@@ -1280,12 +1282,19 @@ body.mode-fullscreen .gdoc-container iframe {
     width: calc(100% - 2rem);
     max-width: 880px;
     padding: 0.5rem 1rem;
-    background: var(--bg-surface, rgba(24, 24, 27, 0.85));
+    background: var(--bg-surface, rgba(30, 41, 59, 0.85));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
     border-radius: 9999px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+[data-theme="light"] .share-floating-bar {
+    background: var(--bg-surface, rgba(255, 255, 255, 0.88));
+    border-color: var(--border-color, #e2e8f0);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .share-bar-brand {
@@ -1294,14 +1303,19 @@ body.mode-fullscreen .gdoc-container iframe {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    color: var(--text-color);
+    color: var(--text-primary);
     white-space: nowrap;
+}
+
+.share-bar-brand a {
+    color: inherit;
+    text-decoration: none;
 }
 
 .share-bar-title {
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1314,6 +1328,33 @@ body.mode-fullscreen .gdoc-container iframe {
     align-items: center;
     gap: 0.5rem;
     white-space: nowrap;
+}
+
+.share-bar-actions .btn {
+    border-radius: 9999px;
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.share-bar-actions .btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.share-bar-actions .btn svg {
+    stroke: currentColor;
+}
+
+.share-bar-actions .dropdown-menu {
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .share-bar-actions .dropdown-menu {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
 }
 
 @media (max-width: 640px) {
@@ -1396,4 +1437,40 @@ body.mode-fullscreen .gdoc-container iframe {
   font-weight: 600;
   font-size: 0.82rem;
 }
+
+/* Subwikis Accordion Group in Sidebar */
+.nav-subwikis-group {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+}
+
+.nav-subwiki-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-decoration: none;
+}
+
+.nav-subwiki-link .subwiki-item-icon {
+  margin-right: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.badge-subwiki-count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.18rem 0.45rem;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-color);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .badge-subwiki-count {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
 

@@ -578,13 +578,63 @@ document.addEventListener('DOMContentLoaded', () => {
       const bookTitle = btn.getAttribute('data-book-title');
       const bookTheme = btn.getAttribute('data-book-theme');
       const bookVisibility = btn.getAttribute('data-book-visibility');
+      const isDirectlyReadOnly = btn.getAttribute('data-book-readonly') === '1';
+      const isProtected = btn.getAttribute('data-book-protected') === '1';
 
       const editBookIdInput = document.getElementById('edit-book-id-hidden');
       const editBookTitleInput = document.getElementById('edit-book-title-input');
       const editBookThemeInput = document.getElementById('edit-book-theme-input');
       const editBookVisInput = document.getElementById('edit-book-visibility-input');
       const editBookRssUrlInput = document.getElementById('edit-book-rss-url');
+      const editBookReadOnlyInput = document.getElementById('edit-book-readonly-input');
+      const editBookReadOnlyHelp = document.getElementById('edit-book-readonly-help');
+      const editBookProtectedNotice = document.getElementById('edit-book-protected-notice');
+      const deleteBookBtn = document.getElementById('btn-delete-book');
       const editBookModal = document.getElementById('edit-book-modal');
+      const isDemoMode = document.getElementById('btn-reload-demo-package') !== null;
+
+      if (deleteBookBtn) {
+        if (isProtected) {
+          deleteBookBtn.style.display = 'none';
+          deleteBookBtn.setAttribute('data-protected', '1');
+        } else {
+          deleteBookBtn.style.display = 'inline-block';
+          deleteBookBtn.removeAttribute('data-protected');
+        }
+      }
+
+      if (editBookProtectedNotice) {
+        editBookProtectedNotice.style.display = isProtected ? 'inline-flex' : 'none';
+      }
+
+      if (editBookReadOnlyInput) {
+        editBookReadOnlyInput.checked = isDirectlyReadOnly || isProtected;
+
+        if (!isDirectlyReadOnly && isProtected) {
+          // Protected because it contains protected documents
+          editBookReadOnlyInput.disabled = true;
+          if (editBookReadOnlyHelp) {
+            editBookReadOnlyHelp.textContent = 'This category contains protected documents and is automatically locked against deletion.';
+          }
+        } else if (isDirectlyReadOnly) {
+          if (isDemoMode) {
+            editBookReadOnlyInput.disabled = true;
+            if (editBookReadOnlyHelp) {
+              editBookReadOnlyHelp.textContent = 'Protected demo categories cannot be unlocked in demo mode.';
+            }
+          } else {
+            editBookReadOnlyInput.disabled = false;
+            if (editBookReadOnlyHelp) {
+              editBookReadOnlyHelp.textContent = 'Uncheck to unlock this category and allow deletion.';
+            }
+          }
+        } else {
+          editBookReadOnlyInput.disabled = false;
+          if (editBookReadOnlyHelp) {
+            editBookReadOnlyHelp.textContent = 'Protected categories and categories containing protected documents cannot be deleted.';
+          }
+        }
+      }
 
       if (editBookIdInput && editBookTitleInput && editBookModal) {
         editBookIdInput.value = bookId;
@@ -670,6 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const bookTitle = bookTitleInput ? bookTitleInput.value : 'this category';
 
       if (!bookId) return;
+
+      if (deleteBookBtn.getAttribute('data-protected') === '1') {
+        alert('This category is protected or contains protected documents and cannot be deleted.');
+        return;
+      }
 
       if (!confirm(`Are you sure you want to delete the category "${bookTitle}" and all its sub-folders from the wiki structure?`)) {
         return;
@@ -1328,6 +1383,10 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (nodeVis === 'public') result.visibility = 'public';
     if (nodeTheme) result.theme = nodeTheme;
     if (nodeFolder) result.folder = nodeFolder;
+    if (catEl.getAttribute('data-category-readonly') === '1') {
+      result.readOnly = true;
+      result.editable = false;
+    }
 
     if (items.length > 0) result.items = items;
     return result;

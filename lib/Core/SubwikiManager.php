@@ -227,6 +227,100 @@ class SubwikiManager {
     }
 
     /**
+     * Get the list of subwikis to display in the sidebar navigation.
+     * In the parent wiki: returns list of all deployed subwikis.
+     * In a child subwiki: discovers sibling subwikis from the parent directory, adjusting URLs to ../slug/ and excluding self.
+     *
+     * @param array|null $config Configuration array
+     * @return array
+     */
+    public static function getSidebarSubwikis(?array $config = null): array {
+        if (!self::isSubwiki()) {
+            return self::listSubwikis();
+        }
+
+        // Inside a child subwiki: query parent directory for sibling subwikis
+        $baseDir = Config::getBaseDir();
+        $parentDir = dirname($baseDir);
+        $currentSlug = basename($baseDir);
+        $parentConfigFile = $parentDir . '/qwiki.json';
+
+        if (!file_exists($parentConfigFile)) {
+            return [];
+        }
+
+        $parentConfig = @json_decode(file_get_contents($parentConfigFile), true);
+        if (!is_array($parentConfig)) {
+            return [];
+        }
+
+        $registered = $parentConfig['subwikis'] ?? [];
+        $result = [];
+        $reserved = array_merge(Config::getReservedNames(), ['demo-data', 'assets', 'lib', 'content', 'uploads', 'api', 'tests']);
+
+        foreach ($registered as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (empty($slug) || $slug === $currentSlug) continue;
+            $dir = $parentDir . '/' . $slug;
+            $subConfigFile = $dir . '/qwiki.json';
+            $title = $sub['title'] ?? $slug;
+            $docCount = 0;
+
+            if (file_exists($subConfigFile)) {
+                $subData = @json_decode(file_get_contents($subConfigFile), true);
+                if (is_array($subData)) {
+                    $title = $subData['title'] ?? $title;
+                    if (!empty($subData['books'])) {
+                        foreach ($subData['books'] as $b) {
+                            $docCount += count($b['items'] ?? []);
+                        }
+                    }
+                }
+            }
+
+            $result[$slug] = [
+                'slug' => $slug,
+                'title' => $title,
+                'url' => '../' . $slug . '/',
+                'docCount' => $docCount,
+                'createdAt' => $sub['createdAt'] ?? date('Y-m-d H:i:s'),
+                'exists' => is_dir($dir)
+            ];
+        }
+
+        // Also check discovered directories in parent dir
+        $dirs = @glob($parentDir . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($dirs as $dir) {
+            $slug = basename($dir);
+            if (in_array($slug, $reserved, true) || $slug === $currentSlug) continue;
+            if (isset($result[$slug])) continue;
+
+            if (file_exists($dir . '/qwiki.json') && file_exists($dir . '/index.php')) {
+                $subData = @json_decode(file_get_contents($dir . '/qwiki.json'), true);
+                $title = is_array($subData) && !empty($subData['title']) ? $subData['title'] : $slug;
+                $docCount = 0;
+                if (is_array($subData) && !empty($subData['books'])) {
+                    foreach ($subData['books'] as $b) {
+                        $docCount += count($b['items'] ?? []);
+                    }
+                }
+
+                $result[$slug] = [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'url' => '../' . $slug . '/',
+                    'docCount' => $docCount,
+                    'createdAt' => date('Y-m-d H:i:s', filectime($dir)),
+                    'exists' => true,
+                    'unregistered' => true
+                ];
+            }
+        }
+
+        return array_values($result);
+    }
+
+    /**
      * Deploy a new single-level subwiki from the parent wiki.
      */
     public static function deploySubwiki(string $slug, string $title, string $adminUser, string $adminPass, bool $includeDemoContent = false): array {

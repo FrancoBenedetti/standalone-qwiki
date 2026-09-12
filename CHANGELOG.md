@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.8] - TreeGuard - 2026-09-12
+
+### 🛡️ Category Lock & Deletion Protection
+- **Cascading Category Deletion Protection**:
+  - Categories containing protected documents (`"readOnly": true` or `"editable": false`) now automatically inherit deletion protection, preventing documents from being accidentally deleted through the deletion of parent folders.
+  - Multi-level nested folder hierarchies are fully protected: ancestor folders cannot be removed if any nested subfolder contains a protected document.
+- **Direct Category Lock**:
+  - Categories can now be directly configured with `"readOnly": true`, `"editable": false`, or `"locked": true` in `qwiki.json` to prevent category deletion.
+  - Child documents within directly locked categories inherit read-only protection against modification and deletion.
+  - Added `Config::isCategoryProtected($categoryId)` and `Config::isCategoryDirectlyProtected($categoryId)`.
+  - Added `is_category_protected($categoryId)` backward-compatibility helper in `api/admin.php`.
+- **UI & Administrative Controls**:
+  - Added visual lock indicators (`🔒`) in the sidebar for protected categories.
+  - In the Edit Category modal, the "Delete Category" button is automatically hidden and replaced with a `Protected Category` status badge when a category or its contents are protected.
+  - Added a "Lock Category (Prevent Deletion)" toggle to the Edit Category modal (`#edit-book-modal`).
+  - Hardened `save_tree` / `reorder_tree` to preserve category lock attributes and prevent accidental omission of protected categories or documents during menu reordering.
+
+### 🌐 Sidebar Subwiki Navigation & Discovery
+- **Configurable Subwiki Sidebar Section**:
+  - Added a new administrative toggle in Site Settings (`#settings-modal`): **"Show Subwikis in Left Sidebar Navigation"** (`showSubwikisInSidebar`).
+  - Renders a clean, collapsible accordion group in the sidebar navigation displaying all deployed subwikis with their custom titles and document counts (`<N> docs`).
+- **Bi-Directional Cross-Wiki Discovery**:
+  - Implemented `SubwikiManager::getSidebarSubwikis()` supporting both parent and child wiki contexts.
+  - In the parent wiki, lists all deployed child subwikis.
+  - In a child subwiki, automatically inspects the parent directory to discover sibling subwikis, generates relative `../slug/` navigation paths, and excludes the active wiki.
+- **Visual Integration**:
+  - Styled subwiki navigation items with responsive count badges (`.badge-subwiki-count`) and distinct globe icons (`🌐`).
+
+### 🧪 Test Automation
+- Added `tests/category_lock_test.php` verifying direct category locks, transitive protection from child documents, multi-level folder cascades, and deletion prevention via `delete_node_recursive`.
+- Added `tests/sidebar_subwikis_test.php` verifying subwiki discovery in parent and child contexts, settings persistence, and sidebar accordion rendering.
+
 ## [1.9.7] - OmniShare - 2026-09-10
 
 ### 🔗 Full-Screen Secure Sharing & Reader Rights
