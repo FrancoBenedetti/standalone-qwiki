@@ -1698,9 +1698,50 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!svgbobInitPromise) {
       svgbobInitPromise = (async () => {
         try {
-          const mod = await import('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm.js');
-          await mod.default('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm_bg.wasm');
-          svgbobRenderFn = mod.render;
+          const wasmUrl = 'https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm_bg.wasm';
+          const res = await fetch(wasmUrl);
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+          const bytes = await res.arrayBuffer();
+          const { instance } = await WebAssembly.instantiate(bytes, {});
+          const wasm = instance.exports;
+
+          const encoder = new TextEncoder();
+          const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+          let wasmVectorLen = 0;
+
+          function getUint8Memory() {
+            return new Uint8Array(wasm.memory.buffer);
+          }
+          function getInt32Memory() {
+            return new Int32Array(wasm.memory.buffer);
+          }
+
+          function passStringToWasm(arg) {
+            const buf = encoder.encode(arg);
+            const ptr = wasm.__wbindgen_malloc(buf.length);
+            getUint8Memory().subarray(ptr, ptr + buf.length).set(buf);
+            wasmVectorLen = buf.length;
+            return ptr;
+          }
+
+          svgbobRenderFn = function(ascii) {
+            let r0, r1;
+            try {
+              const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+              const ptr0 = passStringToWasm(ascii);
+              const len0 = wasmVectorLen;
+              wasm.render(retptr, ptr0, len0);
+              r0 = getInt32Memory()[retptr / 4 + 0];
+              r1 = getInt32Memory()[retptr / 4 + 1];
+              return decoder.decode(getUint8Memory().subarray(r0, r0 + r1));
+            } finally {
+              wasm.__wbindgen_add_to_stack_pointer(16);
+              if (r0 !== undefined && r1 !== undefined) {
+                wasm.__wbindgen_free(r0, r1);
+              }
+            }
+          };
+
           return svgbobRenderFn;
         } catch (err) {
           console.warn('Could not initialize Svgbob WASM:', err);
@@ -1782,21 +1823,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const codeBlocks = document.querySelectorAll('.content-body pre code');
     if (codeBlocks.length === 0) return;
 
-    const renderFn = await loadSvgbob();
-
     for (const block of codeBlocks) {
       const pre = block.parentElement;
       if (!pre || pre.dataset.rendered === 'true') continue;
 
-      const isSvgbobClass = block.classList.contains('language-bob') ||
-                            block.classList.contains('language-svgbob') ||
-                            block.classList.contains('language-ascii') ||
-                            block.classList.contains('language-diagram');
-
       const hasBoxChars = /[\u2500-\u257F]/.test(block.textContent);
-      const isCandidate = isSvgbobClass || (hasBoxChars && block.textContent.trim().split('\n').length >= 2);
+      const isExplicitSvgbob = block.classList.contains('language-bob') ||
+                               block.classList.contains('language-svgbob');
+      const isGenericDiagram = (block.classList.contains('language-diagram') ||
+                                block.classList.contains('language-ascii')) && !hasBoxChars;
 
-      if (isCandidate) {
+      // Unicode box-drawing diagrams & tables are rendered as crisp monospace pre blocks
+      if (hasBoxChars && !isExplicitSvgbob) {
+        pre.style.lineHeight = '1.0';
+        pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
+        pre.style.letterSpacing = '0px';
+        pre.style.fontSize = '0.84rem';
+        block.style.fontFamily = 'inherit';
+        block.style.letterSpacing = 'inherit';
+        pre.style.padding = '1rem';
+        pre.dataset.rendered = 'true';
+        continue;
+      }
+
+      // ASCII art diagrams are converted to SVG vector diagrams using Svgbob WASM
+      if (isExplicitSvgbob || isGenericDiagram) {
+        const renderFn = await loadSvgbob();
         if (renderFn) {
           try {
             const svgOutput = renderFn(block.textContent);
@@ -1813,11 +1865,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Fallback styling for box characters
-        pre.style.lineHeight = '1.15';
-        pre.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        // Fallback styling if Svgbob could not render
+        pre.style.lineHeight = '1.0';
+        pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         block.style.fontFamily = 'inherit';
         pre.style.padding = '1rem';
+        pre.dataset.rendered = 'true';
       }
     }
   }
