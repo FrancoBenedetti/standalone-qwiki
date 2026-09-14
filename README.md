@@ -2,6 +2,12 @@
 
 **Standalone Qwiki** is a modern, fast, zero-database documentation portal and wiki system written in PHP, Vanilla JavaScript, and CSS. It supports local Markdown files (`.md`), embedded PDF documents (`.pdf`), and published Google Docs (`gdoc`) within a unified, responsive interface featuring dynamic search, dark/light themes, drag-and-drop menu reordering, resizable sidebar, and role-based user management.
 
+
+
+
+
+
+
 ---
 
 ## 🌐 Sub-Folder & Sub-Domain Deployment
@@ -10,6 +16,12 @@ Standalone Qwiki is **100% location-agnostic**:
 - It can be deployed in **any sub-folder** of your server root (e.g. `/help`, `/documentation`, `/docs/v1`, `/wiki`) or as a root domain.
 - **Zero Hardcoded Paths**: All web assets, navigation links, and API requests use relative paths (`index.php?`, `assets/css/`, `api/admin.php`).
 - **Zero Configuration Required**: Simply place the `standalone-qwiki` folder into your desired directory on your server; no rewrite rules or configuration changes are needed!
+
+
+
+https://github.com/user-attachments/assets/22c6bf1b-c2e9-41f4-bc37-7317d839771a
+
+
 
 ---
 
