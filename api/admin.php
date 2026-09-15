@@ -577,7 +577,21 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Document Slug is required']);
             exit;
         }
-        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+        $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
+        $isProtected = Config::isChapterProtected($slug, $config['books'] ?? []);
+        $isAncestorProtected = Config::isChapterAncestorProtected($slug, $config['books'] ?? []);
+
+        if ($isAncestorProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is inside a protected category and cannot be modified.']);
+            exit;
+        }
+
+        if (Config::isDemoMode() && $isProtected) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo documents cannot be modified or unlocked in demo mode.']);
+            exit;
+        }
+
+        if ($isProtected && $readOnly !== false) {
             echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
             exit;
         }
@@ -624,7 +638,7 @@ switch ($action) {
 
         $updateResult = find_chapter_and_update($config['books'], $slug, function(&$foundChapter, &$foundParentNode, $topBookId) use (
             $title, $type, $url, $editUrl, $publicShareable, $theme, $description, $image, $newSlug, $slug,
-            $targetBookId, $baseDir, &$config
+            $targetBookId, $baseDir, &$config, $readOnly
         ) {
             $currentParentId = $foundParentNode['id'] ?? $topBookId;
             $destBookId = (!empty($targetBookId)) ? $targetBookId : $currentParentId;
@@ -635,6 +649,17 @@ switch ($action) {
             $foundChapter['url'] = $url;
             $foundChapter['editUrl'] = $editUrl;
             $foundChapter['publicShareable'] = $publicShareable;
+
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $foundChapter['readOnly'] = true;
+                    $foundChapter['editable'] = false;
+                } else {
+                    unset($foundChapter['readOnly']);
+                    unset($foundChapter['editable']);
+                    unset($foundChapter['locked']);
+                }
+            }
 
             if ($theme !== '') {
                 $foundChapter['theme'] = $theme;

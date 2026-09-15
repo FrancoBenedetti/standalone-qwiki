@@ -602,28 +602,35 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 </span>
                             <?php endif; ?>
 
-                            <?php if ($isAdmin && !$isPageReadOnly): ?>
-                                <?php if (($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                            <?php if ($isAdmin): ?>
+                                <?php if (!$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                                     <button class="btn btn-primary btn-sm" id="btn-edit-markdown" title="Edit Content">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                     </button>
                                 <?php endif; ?>
-                                <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="Edit Details"
-                                        data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
-                                        data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
-                                        data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
-                                        data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
-                                        data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
-                                        data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
-                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
-                                        data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
-                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
-                                        data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                                </button>
-                                <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                </button>
+                                <?php if (!Config::isDemoMode() || !$isPageReadOnly): ?>
+                                    <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="Edit Details"
+                                            data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
+                                            data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
+                                            data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
+                                            data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
+                                            data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
+                                            data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
+                                            data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                            data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
+                                            data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                            data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>"
+                                            data-doc-readonly="<?= (!empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false) || !empty($activeChapter['locked'])) ? '1' : '0' ?>"
+                                            data-doc-protected="<?= $isPageReadOnly ? '1' : '0' ?>"
+                                            data-parent-locked="<?= (!empty($activeChapter['slug']) && Config::isChapterAncestorProtected($activeChapter['slug'], $config['books'] ?? [])) ? '1' : '0' ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    </button>
+                                <?php endif; ?>
+                                <?php if (!$isPageReadOnly): ?>
+                                    <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    </button>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
@@ -1116,6 +1123,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     </div>
                     <input type="text" id="edit-chapter-share-key" class="form-control" value="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>" readonly style="font-family: monospace; font-size: 0.85rem;" placeholder="Generated automatically upon first share">
                     <input type="hidden" name="regenerateShareKey" id="edit-chapter-regenerate-key" value="0">
+                </div>
+                <div class="form-group" id="group-edit-chapter-readonly" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                    <input type="hidden" name="readOnly" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="readOnly" id="edit-chapter-readonly-input" value="1">
+                        <span>🔒 Lock Document (Prevent Deletion &amp; Edits)</span>
+                    </label>
+                    <small id="edit-chapter-readonly-help" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Protected documents cannot be edited or deleted.</small>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>

@@ -220,6 +220,60 @@ class Config {
         return false;
     }
 
+    public static function isChapterDirectlyProtected(string $slugOrFile, ?array $nodes = null): bool {
+        if (empty($slugOrFile)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
+        foreach ($nodes as $node) {
+            if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
+                return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            }
+            if (!empty($node['file'])) {
+                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                if ($normFile === $normTarget) {
+                    return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isChapterDirectlyProtected($slugOrFile, $node['items'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isChapterAncestorProtected(string $slugOrFile, ?array $nodes = null, bool $inheritedProtection = false): bool {
+        if (empty($slugOrFile)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
+        foreach ($nodes as $node) {
+            if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
+                return $inheritedProtection;
+            }
+            if (!empty($node['file'])) {
+                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                if ($normFile === $normTarget) {
+                    return $inheritedProtection;
+                }
+            }
+            $isNodeDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isNodeDirectlyProtected;
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isChapterAncestorProtected($slugOrFile, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static function isCategoryProtected(string $categoryId, ?array $nodes = null, bool $inheritedProtection = false): bool {
         if (empty($categoryId)) return false;
         if ($nodes === null) {

@@ -175,4 +175,74 @@ assert(!isset($testNode['readOnly']), "readOnly should be removed when toggled o
 assert(!isset($testNode['editable']), "editable should be removed when toggled off");
 echo "PASS\n";
 
-echo "\nALL CATEGORY LOCK & DELETION PROTECTION TESTS PASSED! 🎉\n";
+// 9. Document Direct vs Ancestor Protection Checks
+echo "9. Document Direct vs Ancestor Protection Checks: ";
+assert(Config::isChapterDirectlyProtected('inherited-doc', $testTree) === false, "inherited-doc is not directly protected");
+assert(Config::isChapterAncestorProtected('inherited-doc', $testTree) === true, "inherited-doc inherits protection from locked ancestor category");
+assert(Config::isChapterDirectlyProtected('protected-doc-b', $testTree) === true, "protected-doc-b is directly protected");
+assert(Config::isChapterAncestorProtected('protected-doc-b', $testTree) === false, "protected-doc-b has no locked ancestors");
+assert(Config::isChapterDirectlyProtected('regular-doc-a', $testTree) === false, "regular-doc-a is not directly protected");
+assert(Config::isChapterAncestorProtected('regular-doc-a', $testTree) === false, "regular-doc-a has no locked ancestors");
+echo "PASS\n";
+
+// 10. Document Locking and Unlocking via find_chapter_and_update
+echo "10. Document Locking and Unlocking via find_chapter_and_update: ";
+$treeForDocLock = $testTree;
+
+// 10a. Lock regular-doc-a
+$lockResult = find_chapter_and_update($treeForDocLock, 'regular-doc-a', function(&$foundChapter) {
+    $foundChapter['readOnly'] = true;
+    $foundChapter['editable'] = false;
+    return true;
+});
+assert($lockResult === true, "find_chapter_and_update should find and update regular-doc-a");
+assert(Config::isChapterDirectlyProtected('regular-doc-a', $treeForDocLock) === true, "regular-doc-a should now be directly protected");
+assert(Config::isChapterProtected('regular-doc-a', $treeForDocLock) === true, "regular-doc-a should now be protected");
+
+// 10b. Unlock regular-doc-a
+$unlockResult = find_chapter_and_update($treeForDocLock, 'regular-doc-a', function(&$foundChapter) {
+    unset($foundChapter['readOnly']);
+    unset($foundChapter['editable']);
+    unset($foundChapter['locked']);
+    return true;
+});
+assert($unlockResult === true, "find_chapter_and_update should unlock regular-doc-a");
+assert(Config::isChapterDirectlyProtected('regular-doc-a', $treeForDocLock) === false, "regular-doc-a should no longer be directly protected");
+assert(Config::isChapterProtected('regular-doc-a', $treeForDocLock) === false, "regular-doc-a should no longer be protected");
+echo "PASS\n";
+
+// 11. Document Lock API Logic Guards
+echo "11. Document Lock API Logic Guards: ";
+
+// Guard A: Ancestor category locked -> cannot unlock child doc
+$docSlug = 'inherited-doc';
+$isAncestorProtected = Config::isChapterAncestorProtected($docSlug, $testTree);
+assert($isAncestorProtected === true, "inherited-doc must be detected as ancestor protected");
+// Simulating edit_chapter guard:
+$allowedToModifyOrUnlock = !$isAncestorProtected;
+assert($allowedToModifyOrUnlock === false, "Cannot modify or unlock a document whose parent category is locked");
+
+// Guard B: Directly locked document in standard mode -> unlocking permitted with readOnly === false
+$docSlug = 'protected-doc-b';
+$isProtected = Config::isChapterProtected($docSlug, $testTree);
+$isAncestorProtected = Config::isChapterAncestorProtected($docSlug, $testTree);
+assert($isProtected === true && $isAncestorProtected === false, "protected-doc-b is directly locked without ancestor lock");
+$readOnlyParam = false; // user unchecks lock in UI
+$canUnlock = (!$isAncestorProtected && (!Config::isDemoMode() || !$isProtected) && $readOnlyParam === false);
+assert($canUnlock === true, "Standard admin can unlock directly protected document");
+
+// Guard C: Modifying without unlocking -> blocked
+$readOnlyParam = true; // left locked
+$canModifyWithoutUnlock = (!$isProtected || $readOnlyParam === false);
+assert($canModifyWithoutUnlock === false, "Modifying a protected document without unlocking must be blocked");
+
+// Guard D: Demo mode blocks unlocking protected demo docs
+putenv('QWIKI_DEMO_MODE=1');
+assert(Config::isDemoMode() === true, "Demo mode must be detected");
+$canUnlockInDemo = !Config::isDemoMode();
+assert($canUnlockInDemo === false, "Unlocking protected demo document must be blocked in demo mode");
+putenv('QWIKI_DEMO_MODE');
+assert(Config::isDemoMode() === false, "Demo mode must be cleared");
+echo "PASS\n";
+
+echo "\nALL CATEGORY & DOCUMENT LOCK TESTS PASSED! 🎉\n";

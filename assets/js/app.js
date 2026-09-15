@@ -248,6 +248,45 @@ document.addEventListener('DOMContentLoaded', () => {
             if (regenKeyHidden) {
               regenKeyHidden.value = '0';
             }
+
+            const isDocReadOnly = btnMeta.getAttribute('data-doc-readonly') === '1';
+            const isDocProtected = btnMeta.getAttribute('data-doc-protected') === '1';
+            const isParentLocked = btnMeta.getAttribute('data-parent-locked') === '1';
+            const isDemoMode = document.getElementById('btn-reload-demo-package') !== null;
+
+            const docReadOnlyInput = document.getElementById('edit-chapter-readonly-input');
+            const docReadOnlyHelp = document.getElementById('edit-chapter-readonly-help');
+
+            if (docReadOnlyInput) {
+              docReadOnlyInput.checked = isDocReadOnly || isDocProtected;
+
+              if (isParentLocked) {
+                docReadOnlyInput.disabled = true;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'This document is inside a locked category and inherits its lock.';
+                }
+              } else if (isDemoMode && isDocProtected) {
+                docReadOnlyInput.disabled = true;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Protected demo documents cannot be unlocked in demo mode.';
+                }
+              } else if (isDocReadOnly) {
+                docReadOnlyInput.disabled = false;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Uncheck to unlock this document and allow edits/deletion.';
+                }
+              } else {
+                docReadOnlyInput.disabled = false;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Protected documents cannot be edited or deleted.';
+                }
+              }
+            }
+
+            const saveBtn = document.querySelector('#edit-chapter-form button[type="submit"]');
+            if (saveBtn) {
+              saveBtn.disabled = isParentLocked || (isDemoMode && isDocProtected);
+            }
           }
           
           const btnEditResetKey = document.getElementById('btn-edit-modal-reset-key');

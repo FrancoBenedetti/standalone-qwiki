@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added a "Lock Category (Prevent Deletion)" toggle to the Edit Category modal (`#edit-book-modal`).
   - Hardened `save_tree` / `reorder_tree` to preserve category lock attributes and prevent accidental omission of protected categories or documents during menu reordering.
 
+### 🔒 Interactive Document Lock & Unlock in UI
+- **Administrative Lock/Unlock Toggle**:
+  - Administrators can now lock or unlock documents directly from the user interface via the Edit Details modal (`#edit-chapter-modal`).
+  - Added a "Lock Document (Prevent Deletion & Edits)" toggle with contextual status helper text.
+  - Locking a document immediately hides content editing (`#btn-edit-markdown`) and document deletion (`#btn-delete-chapter`), displaying the Protected Document badge.
+  - Unchecking the toggle cleanly unlocks the document and restores editing and deletion capabilities.
+- **Hierarchy & Inheritance Enforcement**:
+  - Documents located within a directly locked category inherit the category lock; the document lock toggle is disabled with a notice indicating the lock is inherited from the parent category.
+  - Added `Config::isChapterDirectlyProtected()` and `Config::isChapterAncestorProtected()` to differentiate direct document locks from ancestor category inheritance.
+- **Demo Mode Safeguards**:
+  - In native demo mode (`Config::isDemoMode()`), protected demo documents cannot be unlocked by visitors; the Edit Details button remains hidden or protected against unlocking.
+
 ### 🌐 Sidebar Subwiki Navigation & Discovery
 - **Configurable Subwiki Sidebar Section**:
   - Added a new administrative toggle in Site Settings (`#settings-modal`): **"Show Subwikis in Left Sidebar Navigation"** (`showSubwikisInSidebar`).
@@ -36,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Styled subwiki navigation items with responsive count badges (`.badge-subwiki-count`) and distinct globe icons (`🌐`).
 
 ### 🧪 Test Automation
-- Added `tests/category_lock_test.php` verifying direct category locks, transitive protection from child documents, multi-level folder cascades, and deletion prevention via `delete_node_recursive`.
+- Added `tests/category_lock_test.php` verifying direct category locks, transitive protection from child documents, multi-level folder cascades, deletion prevention via `delete_node_recursive`, document direct/ancestor protection detection, document locking/unlocking via `find_chapter_and_update`, and API security guards against unlocking protected demo docs or documents in locked categories.
 - Added `tests/sidebar_subwikis_test.php` verifying subwiki discovery in parent and child contexts, settings persistence, and sidebar accordion rendering.
 
 ## [1.9.7] - OmniShare - 2026-09-10
