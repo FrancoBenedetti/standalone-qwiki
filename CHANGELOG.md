@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Escape Key Shortcut**: Pressing `Escape` while the search input is focused and non-empty triggers the same clear action as the `×` button.
 - **Pre-Search State Restoration**: The sidebar remembers which categories were collapsed before the search began and reinstates that exact state when the search is cleared.
 
+### 📦 Backup & Export Extension
+- **1-Click Full Backup**: Administrators can export a complete snapshot of the wiki into a standalone portable ZIP archive containing all document content (`content/`), uploaded media (`uploads/`), master navigation config (`qwiki.json`), and optional user credentials (`users.json`) or child subwiki bundles.
+- **Interactive Selective Export**: Granular directory tree explorer with collapsible folder nodes, file type icons, live selection counters, and calculated byte totals.
+- **Export Presets & Tree Filtering**: Quick presets for "Select All", "Content Only (No Media)", "Media Only", and "Clear All", alongside a real-time text filter to quickly isolate specific files or folders.
+- **Security & Path Validation**: Strict directory traversal safeguards (`backupIsSafePath`) blocking sensitive files (`.env`, `.git`) and unauthorized path breakouts.
+- **Asset Cache Busting**: `ExtensionManager::getFrontendAssets()` automatically appends `?v=<filemtime>` version hashes to all local extension stylesheets and scripts, ensuring browsers never serve stale client code.
+- **Automated Test Suite**: Added `tests/backup_test.php` with 27 unit and integration tests covering extension registration, authentication enforcement, traversal defenses, and ZIP archive integrity.
+
 ### ⚙️ SVGbob WASM Refactor
 - Replaced automatic WASM loading with manual `WebAssembly.instantiateStreaming` instantiation for the svgbob diagram renderer, improving cross-environment reliability and eliminating edge-case initialization failures.
 
