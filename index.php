@@ -20,6 +20,20 @@ if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
 }
 
+// Check for API delegation via front-controller (e.g. multi-tenant hosted routing)
+$apiRequestedPath = $_GET['path'] ?? '';
+if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'api/') === 0 || $apiRequestedPath === 'api')) {
+    $endpoint = basename($apiRequestedPath);
+    if ($endpoint === 'api' || empty($endpoint)) {
+        $endpoint = 'admin.php';
+    }
+    $targetApiFile = __DIR__ . '/api/' . $endpoint;
+    if (file_exists($targetApiFile)) {
+        require $targetApiFile;
+        exit;
+    }
+}
+
 if (!class_exists('QwikiParsedown')) {
     class QwikiParsedown extends Parsedown {
         protected function inlineLink($Excerpt) {
@@ -65,6 +79,7 @@ $baseUrl = Config::getBaseUrl();
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
+$assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
 
 // Share link routing
 $shareKey = trim($_GET['share'] ?? '');
@@ -373,9 +388,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <meta name="twitter:title" content="<?= $ogTitle ?>">
     <meta name="twitter:description" content="<?= $ogDesc ?>">
 
-    <link rel="stylesheet" href="assets/css/qwiki.css?v=<?= filemtime(__DIR__ . '/assets/css/qwiki.css') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
-        <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
     <?php endif; ?>
 
     <!-- Extension Styles -->
@@ -490,7 +505,15 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
             <div class="sidebar-search">
-                <input type="text" id="search-input" class="search-input" placeholder="Search documentation...">
+                <div class="sidebar-search-wrapper">
+                    <input type="text" id="search-input" class="search-input" placeholder="Search documentation..." autocomplete="off">
+                    <button type="button" id="sidebar-search-clear" class="sidebar-search-clear" aria-label="Clear search" title="Clear search" style="display: none;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
             <?php if ($isSubwiki): ?>
             <div class="subwiki-parent-banner">
@@ -1389,8 +1412,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="assets/js/soft-lock.js?v=<?= filemtime(__DIR__ . '/assets/js/soft-lock.js') ?>"></script>
-    <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/app.js?v=<?= @filemtime(__DIR__ . '/assets/js/app.js') ?: time() ?>"></script>
 
     <!-- Extension Scripts -->
     <?php foreach ($extensionAssets['scripts'] as $scriptFile): ?>

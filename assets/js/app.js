@@ -81,20 +81,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sidebar Filter Search (with Auto-Expand)
   const searchInput = document.getElementById('search-input');
+  const sidebarSearchClear = document.getElementById('sidebar-search-clear');
   if (searchInput) {
     let searchTimeout = null;
     let abortController = null;
-    
+    let preSearchCollapsedState = null;
+
+    if (sidebarSearchClear && searchInput.value.length > 0) {
+      sidebarSearchClear.style.display = 'flex';
+    }
+
+    function clearSearch() {
+      searchInput.value = '';
+      if (sidebarSearchClear) sidebarSearchClear.style.display = 'none';
+      clearTimeout(searchTimeout);
+      if (abortController) abortController.abort();
+
+      document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+        link.style.display = '';
+      });
+
+      if (preSearchCollapsedState) {
+        document.querySelectorAll('.nav-category-item').forEach(catItem => {
+          if (preSearchCollapsedState.has(catItem)) {
+            catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
+          }
+        });
+        preSearchCollapsedState = null;
+      }
+      searchInput.focus();
+    }
+
+    if (sidebarSearchClear) {
+      sidebarSearchClear.addEventListener('click', clearSearch);
+    }
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && searchInput.value) {
+        e.preventDefault();
+        clearSearch();
+      }
+    });
+
     searchInput.addEventListener('input', (e) => {
       const term = e.target.value.toLowerCase().trim();
+      if (sidebarSearchClear) {
+        sidebarSearchClear.style.display = e.target.value.length > 0 ? 'flex' : 'none';
+      }
       clearTimeout(searchTimeout);
       if (abortController) abortController.abort();
 
       if (term === '') {
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
-          link.style.display = 'flex';
+          link.style.display = '';
         });
+        if (preSearchCollapsedState) {
+          document.querySelectorAll('.nav-category-item').forEach(catItem => {
+            if (preSearchCollapsedState.has(catItem)) {
+              catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
+            }
+          });
+          preSearchCollapsedState = null;
+        }
         return;
+      }
+
+      if (!preSearchCollapsedState) {
+        preSearchCollapsedState = new Map();
+        document.querySelectorAll('.nav-category-item').forEach(catItem => {
+          preSearchCollapsedState.set(catItem, catItem.classList.contains('collapsed'));
+        });
       }
 
       searchTimeout = setTimeout(async () => {
@@ -1012,6 +1068,15 @@ document.addEventListener('DOMContentLoaded', () => {
       editActions.style.display = 'flex';
       editorContainer.style.display = 'block';
 
+      const mainContent = document.querySelector('.app-content');
+      if (mainContent) {
+        mainContent.classList.add('is-editing-doc');
+        const header = document.querySelector('.content-header');
+        if (header) {
+          mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
+        }
+      }
+
       const rawContent = rawMarkdownData.value || '';
       const hasHtml = containsHtmlMarkup(rawContent);
 
@@ -1195,6 +1260,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tuiEditor && rawMarkdownData) {
         tuiEditor.setMarkdown(rawMarkdownData.value);
       }
+      const mainContent = document.querySelector('.app-content');
+      if (mainContent) mainContent.classList.remove('is-editing-doc');
       editActions.style.display = 'none';
       editorContainer.style.display = 'none';
       readActions.style.display = 'flex';
@@ -1237,6 +1304,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (err) {
         alert('Save request failed');
+      }
+    });
+
+    // Window resize handler to maintain exact sticky toolbar offset
+    window.addEventListener('resize', () => {
+      const mainContent = document.querySelector('.app-content.is-editing-doc');
+      const header = document.querySelector('.content-header');
+      if (mainContent && header) {
+        mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
+      }
+    });
+
+    // Ctrl+S / Cmd+S shortcut inside inline Markdown editor
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        if (editorContainer && editorContainer.style.display !== 'none') {
+          e.preventDefault();
+          if (btnSaveInline && !btnSaveInline.disabled) {
+            btnSaveInline.click();
+          }
+        }
       }
     });
   }

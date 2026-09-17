@@ -356,12 +356,26 @@ class SubwikiManager {
             return ['success' => false, 'error' => "Failed to create directory '{$slug}'."];
         }
 
-        // Copy core application files
-        @copy($baseDir . '/index.php', $targetDir . '/index.php');
-        @copy($baseDir . '/.htaccess', $targetDir . '/.htaccess');
-        Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
-        Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
-        Config::copyDir($baseDir . '/api', $targetDir . '/api');
+        // Copy core application files or generate lightweight bootstrap in hosted mode
+        $isHostedMode = defined('QWIKI_BASE_DIR') || !is_dir($baseDir . '/lib');
+        if ($isHostedMode) {
+            $coreIndex = dirname(__DIR__, 2) . '/index.php';
+            $assetsUrl = defined('QWIKI_ASSETS_URL') ? QWIKI_ASSETS_URL : '/_core/assets';
+            $subBootstrap = "<?php\n"
+                . "define('QWIKI_BASE_DIR', __DIR__);\n"
+                . "define('QWIKI_ASSETS_URL', '" . addslashes($assetsUrl) . "');\n"
+                . "require_once '" . addslashes($coreIndex) . "';\n";
+            file_put_contents($targetDir . '/index.php', $subBootstrap);
+            if (file_exists($baseDir . '/.htaccess')) {
+                @copy($baseDir . '/.htaccess', $targetDir . '/.htaccess');
+            }
+        } else {
+            @copy($baseDir . '/index.php', $targetDir . '/index.php');
+            @copy($baseDir . '/.htaccess', $targetDir . '/.htaccess');
+            Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
+            Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
+            Config::copyDir($baseDir . '/api', $targetDir . '/api');
+        }
 
         // Create uploads directory and protect it
         @mkdir($targetDir . '/uploads/images', 0755, true);
@@ -491,6 +505,11 @@ class SubwikiManager {
         $subwikis = self::listSubwikis();
         $updatedCount = 0;
         $errors = [];
+
+        // In hosted mode, all subwikis share the central _core automatically
+        if (defined('QWIKI_BASE_DIR') || !is_dir($sourceDir . '/lib')) {
+            return ['success' => true, 'updatedCount' => count($subwikis), 'errors' => []];
+        }
 
         foreach ($subwikis as $sub) {
             $slug = $sub['slug'] ?? '';

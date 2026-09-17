@@ -10,7 +10,7 @@ class Config {
 
     public static function init($baseDir = null) {
         if ($baseDir === null) {
-            $baseDir = dirname(dirname(__DIR__));
+            $baseDir = defined('QWIKI_BASE_DIR') ? QWIKI_BASE_DIR : dirname(dirname(__DIR__));
         }
         self::$baseDir = rtrim($baseDir, '/\\');
         self::$configFile = self::$baseDir . '/qwiki.json';
@@ -165,7 +165,7 @@ class Config {
     }
 
     public static function getReservedNames(): array {
-        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis'];
+        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis', '_core', 'admin'];
     }
 
     public static function isSubwiki(): bool {

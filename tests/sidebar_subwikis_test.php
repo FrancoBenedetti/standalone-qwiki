@@ -23,7 +23,13 @@ function cleanupDir($dir) {
     $files = array_diff(scandir($dir), ['.', '..']);
     foreach ($files as $file) {
         $path = $dir . '/' . $file;
-        is_dir($path) ? cleanupDir($path) : @unlink($path);
+        if (is_link($path)) {
+            @unlink($path);
+        } elseif (is_dir($path)) {
+            cleanupDir($path);
+        } else {
+            @unlink($path);
+        }
     }
     @rmdir($dir);
 }

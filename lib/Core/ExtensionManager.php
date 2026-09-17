@@ -19,6 +19,14 @@ class ExtensionManager {
     public function __construct() {
         $baseDir = Config::getBaseDir();
         $this->extensionsDir = $baseDir . '/assets/extensions';
+        if (!is_dir($this->extensionsDir)) {
+            $sharedExtensions = dirname(__DIR__, 2) . '/assets/extensions';
+            if (is_dir($sharedExtensions)) {
+                $this->extensionsDir = $sharedExtensions;
+            }
+        }
+        $assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
+        $this->webExtensionsDir = $assetsUrl . '/extensions';
     }
 
     public function discover() {
