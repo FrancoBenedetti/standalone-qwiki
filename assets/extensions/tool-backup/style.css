@@ -2,6 +2,12 @@
  * Standalone Qwiki - Backup & Export Extension Styles
  */
 
+/* Modal Display */
+#modal-backup.open,
+#modal-backup.active {
+    display: flex !important;
+}
+
 /* Modal Card Sizing */
 .backup-modal-card {
     max-height: 90vh;

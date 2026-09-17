@@ -1,7 +1,7 @@
 /**
  * Standalone Qwiki - Backup & Export Extension Client Script
  */
-document.addEventListener('DOMContentLoaded', () => {
+function initBackupExtension() {
     const btnOpen = document.getElementById('btn-util-backup');
     const modalBackup = document.getElementById('modal-backup');
     if (!modalBackup) return;
@@ -60,23 +60,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Modal Show/Hide
-    function openModal() {
+    window.openBackupModal = function() {
+        if (!modalBackup) return;
+        modalBackup.classList.add('open');
         modalBackup.classList.add('active');
+
+        // Close user dropdown if open
+        const dropdownMenu = document.querySelector('.dropdown-menu.show');
+        if (dropdownMenu) {
+            dropdownMenu.classList.remove('show');
+        }
+
         if (!scanData && !isScanning) {
             fetchScanData();
         }
-    }
+    };
 
     function closeModal() {
+        modalBackup.classList.remove('open');
         modalBackup.classList.remove('active');
     }
 
     if (btnOpen) {
         btnOpen.addEventListener('click', (e) => {
             e.preventDefault();
-            openModal();
+            e.stopPropagation();
+            window.openBackupModal();
         });
     }
+
+    // Delegate clicks for any backup open triggers
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('#btn-util-backup, .btn-open-backup, [data-open="modal-backup"]');
+        if (trigger) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.openBackupModal();
+        }
+    });
 
     const closeBtns = modalBackup.querySelectorAll('[data-close="modal-backup"]');
     closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
@@ -86,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modalBackup.classList.contains('active')) {
+        if (e.key === 'Escape' && (modalBackup.classList.contains('open') || modalBackup.classList.contains('active'))) {
             closeModal();
         }
     });
@@ -543,4 +564,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initBackupExtension);
+} else {
+    initBackupExtension();
+}
+

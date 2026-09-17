@@ -273,11 +273,14 @@ class ExtensionManager {
                     if (preg_match('#^(https?:)?//#i', $style)) {
                         $styles[] = $style;
                     } else {
-                        $styles[] = $ext['web_path'] . '/' . ltrim($style, '/');
+                        $localPath = $ext['base_dir'] . '/' . ltrim($style, '/');
+                        $v = file_exists($localPath) ? '?v=' . filemtime($localPath) : '';
+                        $styles[] = $ext['web_path'] . '/' . ltrim($style, '/') . $v;
                     }
                 }
             } elseif (file_exists($ext['base_dir'] . '/style.css')) {
-                $styles[] = $ext['web_path'] . '/style.css';
+                $v = '?v=' . filemtime($ext['base_dir'] . '/style.css');
+                $styles[] = $ext['web_path'] . '/style.css' . $v;
             }
 
             if (!empty($ext['scripts'])) {
@@ -285,11 +288,14 @@ class ExtensionManager {
                     if (preg_match('#^(https?:)?//#i', $script)) {
                         $scripts[] = $script;
                     } else {
-                        $scripts[] = $ext['web_path'] . '/' . ltrim($script, '/');
+                        $localPath = $ext['base_dir'] . '/' . ltrim($script, '/');
+                        $v = file_exists($localPath) ? '?v=' . filemtime($localPath) : '';
+                        $scripts[] = $ext['web_path'] . '/' . ltrim($script, '/') . $v;
                     }
                 }
             } elseif (file_exists($ext['base_dir'] . '/script.js')) {
-                $scripts[] = $ext['web_path'] . '/script.js';
+                $v = '?v=' . filemtime($ext['base_dir'] . '/script.js');
+                $scripts[] = $ext['web_path'] . '/script.js' . $v;
             }
         }
 
