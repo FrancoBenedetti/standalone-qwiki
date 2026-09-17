@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.0] - MultiGuard - 2026-09-17
+
+### 🏠 Multitenant Hosted Mode
+- **Shared Core Architecture**: Subwikis can now share a single central Qwiki installation. Define `QWIKI_BASE_DIR` and `QWIKI_ASSETS_URL` constants before including the central `index.php`; each subwiki uses a lightweight two-line bootstrap instead of duplicating `lib/`, `assets/`, and `api/`.
+- **Automatic Bootstrap Generation**: When provisioning a new subwiki in hosted mode, `SubwikiManager` generates the per-subwiki `index.php` bootstrap and copies the parent `.htaccess` automatically — no manual setup required.
+- **Shared Extension Fallback**: `ExtensionManager` now falls back to the shared central extensions directory when local per-subwiki extensions are not found, ensuring full extension parity across all hosted subwikis.
+- **Dynamic Asset URL Routing**: `index.php` reads `$assetsUrl` from `QWIKI_ASSETS_URL` when defined, routing all CSS/JS asset references through the central core path.
+- **Automatic Update Propagation**: In hosted mode, `SubwikiManager::pushUpdatesToSubwikis()` short-circuits — a single core update applies to every subwiki immediately without per-subwiki copy runs.
+- **Reserved Name Expansion**: `_core` and `admin` added to `Config::getReservedNames()` to prevent subwiki slugs from shadowing core system paths.
+- **New Test Suite**: `tests/multitenant_mode_test.php` covers hosted mode bootstrap generation, asset URL injection, and extension fallback scenarios.
+
+### 🔒 Document-Level Protection & Ancestor Inheritance
+- **UI Lock Toggle**: Administrators can now lock or unlock individual documents directly from the **Edit Details** modal (`⚙️`) without editing `qwiki.json` by hand. Locking immediately hides the edit and delete controls and displays a **Protected Document** badge; unchecking restores full capabilities.
+- **`Config::isChapterDirectlyProtected()`**: New method to check whether a document has a direct `readOnly`, `editable: false`, or `locked` flag set on its own node, independent of any parent category state.
+- **`Config::isChapterAncestorProtected()`**: New method to determine whether a document is locked via inheritance from an ancestor category, enabling the UI to display appropriate explanatory notices and disable the individual toggle.
+- **Inheritance-Aware UI**: When a document's lock is inherited from a parent category, the Edit Details toggle is disabled with a notice: "Inherited from parent category." Individual document unlocking is blocked while the containing category is locked.
+- **Demo Mode Safeguards**: In native demo mode (`Config::isDemoMode()`), protected demo documents cannot be unlocked by visitors — the unlock API endpoint validates demo mode state before applying any changes.
+- **API Guards**: `api/admin.php` enforces lock checks on save, rename, move, and delete operations for both direct and ancestor-protected documents.
+- **Expanded Test Coverage**: `tests/category_lock_test.php` extended with three new suites covering `isChapterDirectlyProtected`, `isChapterAncestorProtected`, and API guard validation for locked documents.
+
+### 🔍 Clear Search Button
+- **`×` Clear Button**: A clear button now appears inline in the sidebar search field when text is present. Clicking it empties the query, hides itself, restores the pre-search category collapse state, and returns focus to the search input.
+- **Escape Key Shortcut**: Pressing `Escape` while the search input is focused and non-empty triggers the same clear action as the `×` button.
+- **Pre-Search State Restoration**: The sidebar remembers which categories were collapsed before the search began and reinstates that exact state when the search is cleared.
+
+### ⚙️ SVGbob WASM Refactor
+- Replaced automatic WASM loading with manual `WebAssembly.instantiateStreaming` instantiation for the svgbob diagram renderer, improving cross-environment reliability and eliminating edge-case initialization failures.
+
+### 📚 Documentation
+- Updated `demo-data/content/getting-started/features.md` and `demo-data/content/user-guide/managing-content.md` to document multitenant hosted mode, the document lock UI toggle, ancestor inheritance, and the clear search button.
+- Synchronized all changes into live `content/` documentation.
+
+---
+
 ## [1.9.8] - TreeGuard - 2026-09-12
 
 ### 🛡️ Category Lock & Deletion Protection

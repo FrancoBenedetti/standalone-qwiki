@@ -98,6 +98,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
 - **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`) to admin users.
 - **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, and HTML documents.
+- **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---
 
@@ -114,10 +115,11 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ## 🛡️ 10. Document Protection & Sandbox Safeguards
 
-- **UI & File Protection (Document & Category Locking)**: Lock or unlock individual documents and categories directly from the user interface via the **Edit Details** or **Edit Category** modals, or configure `"readOnly": true`, `"editable": false`, or `"locked": true` in `qwiki.json`. Locking prevents content modifications, inline markdown edits, and deletions.
-- **Cascading Category Deletion Protection**: Categories containing protected documents automatically inherit deletion protection, preventing documents from being accidentally deleted through the removal of parent folders. Child documents located within a directly locked category inherit lock status and cannot be unlocked individually.
+- **UI Lock Toggle (Document & Category Locking)**: Lock or unlock individual documents directly from the **Edit Details** modal (`⚙️`) without editing `qwiki.json` by hand. Locking prevents content modifications, inline markdown edits, and deletions — the edit and delete buttons are hidden and replaced with a **Protected Document** badge.
+- **Ancestor Inheritance**: Documents inside a directly locked category automatically inherit read-only protection. The lock toggle in Edit Details is disabled with a notice explaining that the lock is inherited from a parent category — individual documents cannot be unlocked while their containing category is locked.
+- **Cascading Category Deletion Protection**: Categories containing protected documents automatically inherit deletion protection at all hierarchy levels, preventing documents from being accidentally removed by deleting a parent folder.
 - **Visual Lock Indicators**: Protected pages and categories display visual lock indicators (`🔒`), hide inline editor actions, and suppress deletion controls.
-- **Native Demo Mode & Auto-Updater Safeguards**: Activate sandbox mode via `"demoMode": true` in `qwiki.json`, environment variable `QWIKI_DEMO_MODE=1`, or a `.demo` marker file. Automatically suppresses the in-app auto-updater to prevent sandboxes from being overwritten, blocks unlocking protected demo content, and surfaces the `Reload Demo Package` reset engine.
+- **Native Demo Mode & Auto-Updater Safeguards**: Activate sandbox mode via `"demoMode": true` in `qwiki.json`, environment variable `QWIKI_DEMO_MODE=1`, or a `.demo` marker file. Automatically suppresses the in-app auto-updater to prevent sandboxes from being overwritten, blocks visitors from unlocking protected demo content, and surfaces the `Reload Demo Package` reset engine.
 - **Multi-Instance Session Isolation**: Generates unique `QWIKISESSID_<hash>` session names and subfolder cookie paths derived from each installation's filesystem path, preventing session bleed across adjacent sites or nested subfolders.
 
 ---
@@ -142,4 +144,14 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
 - **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
 
+---
 
+## 🏠 13. Multitenant Hosted Mode
+
+For managed hosting environments where many subwikis should share a single central Qwiki core:
+
+- **Shared Core Architecture**: Define `QWIKI_BASE_DIR` and `QWIKI_ASSETS_URL` constants before including the central `index.php`. Each subwiki gets a lightweight two-line bootstrap file instead of duplicating the entire `lib/`, `assets/`, and `api/` tree.
+- **Lightweight Subwiki Bootstraps**: When provisioning a new subwiki in hosted mode, SubwikiManager generates an `index.php` bootstrap automatically pointing to the central core — no manual setup required.
+- **Shared Extension Fallback**: ExtensionManager automatically falls back to the central shared extensions directory when local per-subwiki extensions are not present, ensuring all subwikis have access to core extensions.
+- **Automatic Update Propagation**: In hosted mode, a single core update rolls out to every subwiki simultaneously — no per-subwiki update runs needed.
+- **Reserved Name Expansion**: `_core` and `admin` are added to the reserved slug list to prevent subwikis from accidentally shadowing core system paths.
