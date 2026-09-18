@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.10.0';
+    const VERSION = '1.11.0';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -350,6 +350,43 @@ class Config {
             $webPath = '';
         }
         return $protocol . $domainName . (!empty($webPath) ? '/' . $webPath . '/' : '/');
+    }
+
+    public static function isPostboxEnabled(): bool {
+        $config = self::load();
+        return !isset($config['postboxEnabled']) || !empty($config['postboxEnabled']);
+    }
+
+    public static function getPostboxToken(): string {
+        $config = self::load();
+        if (!empty($config['postboxToken']) && is_string($config['postboxToken'])) {
+            return $config['postboxToken'];
+        }
+        try {
+            $newToken = bin2hex(random_bytes(16));
+        } catch (\Throwable $e) {
+            $newToken = md5(uniqid((string)mt_rand(), true));
+        }
+        $config['postboxToken'] = $newToken;
+        self::save($config);
+        return $newToken;
+    }
+
+    public static function setPostboxToken(string $token): bool {
+        $config = self::load();
+        $config['postboxToken'] = trim($token);
+        return self::save($config);
+    }
+
+    public static function getPostboxPeers(): array {
+        $config = self::load();
+        return isset($config['postboxPeers']) && is_array($config['postboxPeers']) ? $config['postboxPeers'] : [];
+    }
+
+    public static function savePostboxPeers(array $peers): bool {
+        $config = self::load();
+        $config['postboxPeers'] = array_values($peers);
+        return self::save($config);
     }
 }
 

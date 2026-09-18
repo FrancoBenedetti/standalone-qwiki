@@ -134,3 +134,23 @@ require_once '/path/to/_core/index.php';
 - **Shared Extension Fallback**: ExtensionManager falls back to the central shared extensions directory if local per-subwiki extensions are not present.
 - **Single-Update Rollouts**: Updating the core once propagates to every subwiki immediately — no per-subwiki update steps.
 - **Reserved Paths Protected**: `_core` and `admin` are added to the reserved slug list to prevent subwiki slugs from shadowing core system directories.
+
+---
+
+## 📬 Document Postbox & Desktop Transfers
+
+The **Postbox** extension provides an asynchronous document transfer pipeline to copy documents between wikis or send them directly from your desktop computer:
+
+- **Sending from Qwiki**:
+  - Click the **`📬`** quick trigger icon next to any document in the navigation sidebar, or open **Tools ➔ Qwiki Postbox ➔ Send Documents**.
+  - Select individual documents, entire categories, or multiple pages.
+  - Choose a configured peer wiki, enter a remote wiki webhook URL, or copy to a sibling subwiki.
+- **Inbound Review Queue (Zero Overwrites)**:
+  - Incoming documents land in the **Inbound Review** inbox (`uploads/.postbox/inbox/`) and will never overwrite existing pages.
+  - Administrators review pending documents, preview markdown, accept suggested destination categories (or choose a custom folder), customize title or slug, and click **Ingest Document**.
+- **Desktop & Workstation Integration**:
+  - Download the zero-dependency Python CLI and native OS integration scripts from **Qwiki Postbox ➔ Peers & Settings**.
+  - **Linux (GNOME Files / Nautilus, Nemo, Caja)**: Right-click any document or folder ➔ `Scripts` ➔ `Send to Qwiki`.
+  - **Windows (File Explorer)**: Right-click any document or folder ➔ `Send to` ➔ `Send to Qwiki`.
+  - **macOS (Finder)**: Right-click any document or folder ➔ `Quick Actions` ➔ `Send to Qwiki`.
+  - **Terminal / CI/CD**: Run `python3 qwiki-postbox.py send path/to/file.md --category "Guides"`.

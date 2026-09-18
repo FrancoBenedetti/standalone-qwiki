@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] - PostFlow - 2026-09-18
+
+### 📬 Editorial Postbox & Asynchronous Document Transfer
+- **Non-Destructive Postbox Service**: Asynchronously transfer single documents, entire categories, or bulk pages between standalone wikis, subwikis, and multitenant instances via token-authenticated webhooks. Source documents remain completely untouched.
+- **Mandatory Editorial Review & Staging Queue**: Inbound document transfers land safely in a `.htaccess`-protected staging inbox (`uploads/.postbox/inbox/`). Documents are never published or overwritten automatically.
+- **Category Hint & Destination Mapping**: Senders can attach a suggested category hint; recipients preview the document in the Inbound Review queue, see suggested categories with 1-click adoption, or designate an alternative target category and customize metadata (title, slug, theme) before committing to the wiki tree.
+- **Automated Local Asset Packaging & Link Remapping**: Automatically scans and bundles referenced local images into a self-contained schema 1.0 JSON envelope, extracts them safely to `uploads/images/`, and dynamically rewires Markdown and HTML links without broken paths.
+- **Slug Collision Resolution**: Automatically detects slug collisions in target categories and resolves them cleanly using numeric suffixes (`-2`, `-3`).
+- **Chapter-Level Quick Trigger**: Quick action `[📬]` button added directly alongside document options in the navigation sidebar for instant single-document dispatch.
+
+### 🖥️ Desktop CLI & Native OS Context Menu Integrations
+- **Zero-Dependency Python 3 CLI (`qwiki-postbox.py`)**: Standalone CLI utilizing Python standard libraries only (no external pip dependencies). Supports `send` (single files or directories), `--category` hint, `--all-assets` for unreferenced media, `--dry-run`, and `--json` envelope export.
+- **1-Click In-App Bundle Download**: Administrators can download pre-configured desktop tools with their wiki's URL and access token pre-filled in `config.sample.json` directly from **Qwiki Postbox ➔ Peers & Settings**.
+- **Linux Context Menu (GNOME Files / Nautilus, Nemo, Caja)**: Native `desktop/linux/install-nautilus.sh` installer adding **Right-click ➔ Scripts ➔ Send to Qwiki** with desktop notifications (`notify-send`) and error dialogs (`zenity`), complete with auto-reload (`nautilus -q`) on install.
+- **Windows Context Menu (File Explorer)**: Native `desktop/windows/setup-sendto.bat` installer enabling **Right-click ➔ Send to ➔ Send to Qwiki**.
+- **macOS Context Menu (Finder)**: Native `desktop/macos/install-quickaction.sh` Automator Quick Action installer enabling **Right-click ➔ Quick Actions ➔ Send to Qwiki**.
+
+### 🧪 Automated Test Coverage
+- `tests/postbox_test.php`: Packaging, asset extraction, staging, category mapping, overrides, slug collisions, and rejection.
+- `tests/postbox_multitenant_test.php`: Intra-tenant subwiki transfers, cross-tenant boundary isolation enforcement, and token staging.
+- `tests/cli_postbox_test.php`: CLI dry-runs, directory scanning, asset resolution, `--json` payload export, and ZIP download tool generation.
+
+### 📚 Documentation
+- Updated `demo-data/content/getting-started/features.md` and `content/getting-started/features.md` with Section 14 covering Postbox transfers and desktop tools.
+- Updated `demo-data/content/user-guide/managing-content.md` and `content/user-guide/managing-content.md` with complete usage guides.
+- Added comprehensive `tools/README.md` and bundled `README.txt` for desktop users.
+
+---
+
 ## [1.10.0] - MultiGuard - 2026-09-17
 
 ### 🏠 Multitenant Hosted Mode

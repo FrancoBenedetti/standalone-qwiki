@@ -155,3 +155,19 @@ For managed hosting environments where many subwikis should share a single centr
 - **Shared Extension Fallback**: ExtensionManager automatically falls back to the central shared extensions directory when local per-subwiki extensions are not present, ensuring all subwikis have access to core extensions.
 - **Automatic Update Propagation**: In hosted mode, a single core update rolls out to every subwiki simultaneously — no per-subwiki update runs needed.
 - **Reserved Name Expansion**: `_core` and `admin` are added to the reserved slug list to prevent subwikis from accidentally shadowing core system paths.
+
+---
+
+## 📬 14. Editorial Postbox Document Transfer & Desktop Integration
+
+Asynchronously transfer documents and folders across independent wikis or directly from your local workstation with non-destructive, reviewer-controlled staging:
+
+- **Peer-to-Peer & Multitenant Transfers**: Copy single documents, entire categories, or bulk document sets between standalone wikis and subwikis, or across separate hosted tenants via token-authenticated webhooks.
+- **Zero In-Place Overwrites (Mandatory Editorial Review)**: Inbound transfers land safely in a `.htaccess`-protected staging inbox queue. The recipient reviews the incoming document, sees category suggestions, selects the target category, customizes the title or slug, and confirms the import.
+- **Desktop & Server CLI (`qwiki-postbox.py`)**: Zero-dependency Python 3 CLI tool to transmit local `.md` and `.html` files or entire folders from local computers, CI/CD pipelines, or servers directly to any Qwiki instance.
+- **Automated Local Asset Packaging**: Automatically detects and bundles referenced local images into a self-contained envelope, unpacks them to the destination `uploads/images/`, and remaps Markdown and HTML links without broken paths.
+- **Native OS File Manager Integrations**:
+  - **Linux (Nautilus, Nemo, Caja)**: Right-click any document or folder ➔ `Scripts` ➔ `Send to Qwiki`.
+  - **Windows (File Explorer)**: Right-click any document or folder ➔ `Send to` ➔ `Send to Qwiki`.
+  - **macOS (Finder Quick Actions)**: Right-click any document or folder ➔ `Quick Actions` ➔ `Send to Qwiki`.
+- **1-Click Desktop Bundle Download**: Download pre-configured desktop tools directly from the Postbox modal in Qwiki with pre-populated URL and access token.
