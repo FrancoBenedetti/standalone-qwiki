@@ -545,7 +545,13 @@ if ($action === 'ext_postbox_download_cli') {
             . "   - macOS (Finder Quick Actions):\n"
             . "       Run: bash desktop/macos/install-quickaction.sh\n"
             . "       * Access via: Right-click any file/folder -> Quick Actions -> Send to Qwiki\n\n"
-            . "4. Requirements:\n"
+            . "4. Multi-Wiki Support & GUI Picker:\n"
+            . "   - If you configure multiple wiki profiles in config.json, right-clicking 'Send to Qwiki'\n"
+            . "     automatically displays a native GUI modal (Zenity on Linux, PowerShell on Windows,\n"
+            . "     AppleScript on macOS) to select the target wiki.\n"
+            . "   - If only one profile is configured, transfers proceed immediately without extra prompts.\n"
+            . "   - Run 'python3 qwiki-postbox.py profiles' to list all configured targets.\n\n"
+            . "5. Requirements:\n"
             . "   - Python 3.6+ (Standard library only; zero pip dependencies required)\n"
             . "   - Linux notifications (optional): libnotify-bin (notify-send) or zenity\n";
     $zipArchive->addFromString('qwiki-postbox/README.txt', $readme);

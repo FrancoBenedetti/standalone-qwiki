@@ -62,17 +62,15 @@ cat <<EOF > "${WORKFLOW_DIR}/Contents/document.wflow"
                 <key>ActionParameters</key>
                 <dict>
                     <key>COMMAND_STRING</key>
-                    <string>for f in "\$@"
-do
-    python3 "${PYTHON_CLI}" send "\$f"
-    STATUS=\$?
-    NAME=\$(basename "\$f")
-    if [ \$STATUS -eq 0 ]; then
-        osascript -e "display notification \"Delivered '\$NAME' to Qwiki Postbox\" with title \"Qwiki Postbox\""
-    else
-        osascript -e "display alert \"Qwiki Postbox Error\" message \"Failed to deliver '\$NAME' to Qwiki. Check terminal for details.\""
+                    <string>OUTPUT=\$(python3 "${PYTHON_CLI}" send "\$@" --gui 2>&amp;1)
+STATUS=\$?
+if [ \$STATUS -eq 0 ]; then
+    if [[ "\$OUTPUT" != *"[Cancelled]"* ]]; then
+        osascript -e "display notification \"Delivered to Qwiki Postbox\" with title \"Qwiki Postbox\""
     fi
-done</string>
+else
+    osascript -e "display alert \"Qwiki Postbox Error\" message \"Failed to deliver to Qwiki:\n\n\$OUTPUT\""
+fi</string>
                     <key>inputMethod</key>
                     <integer>1</integer>
                     <key>shell</key>

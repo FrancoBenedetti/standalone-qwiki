@@ -16,12 +16,14 @@ import socket
 import argparse
 import mimetypes
 import hashlib
+import subprocess
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 import urllib.request
 import urllib.error
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 SUPPORTED_DOC_EXTS = {
     ".md": "markdown",
@@ -74,6 +76,117 @@ def save_config(data: dict):
     cfile = get_config_file()
     with open(cfile, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
+
+
+def prompt_profile_gui(profiles: dict) -> str:
+    """Prompt user to choose a target profile using platform-native GUI dialogs."""
+    if not profiles:
+        return None
+    if len(profiles) == 1:
+        return list(profiles.keys())[0]
+
+    # Platform 1: Linux (GNOME zenity -> KDE kdialog)
+    if sys.platform.startswith("linux"):
+        if shutil.which("zenity"):
+            cmd = [
+                "zenity", "--list",
+                "--title=Qwiki Postbox",
+                "--text=Select Destination Wiki Profile:",
+                "--column=Profile", "--column=Destination URL",
+                "--width=540", "--height=320"
+            ]
+            for name, pdata in profiles.items():
+                cmd.extend([name, pdata.get("url", "")])
+            try:
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0:
+                    selected = proc.stdout.strip()
+                    if selected:
+                        pname = selected.split("|")[0].strip()
+                        if pname in profiles:
+                            return pname
+                return None
+            except Exception:
+                pass
+
+        if shutil.which("kdialog"):
+            cmd = ["kdialog", "--menu", "Select Destination Wiki Profile:", "--title", "Qwiki Postbox"]
+            for name, pdata in profiles.items():
+                cmd.extend([name, f"{name} ({pdata.get('url', '')})"])
+            try:
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0 and proc.stdout.strip() in profiles:
+                    return proc.stdout.strip()
+                return None
+            except Exception:
+                pass
+
+    # Platform 2: macOS (osascript / AppleScript dialog)
+    elif sys.platform == "darwin":
+        if shutil.which("osascript"):
+            item_list = [f"{name} — {pdata.get('url', '')}" for name, pdata in profiles.items()]
+            items_str = ", ".join(f'"{it}"' for it in item_list)
+            first_item = item_list[0]
+            script = f'''
+            tell application "System Events"
+                activate
+                set chosen to choose from list {{{items_str}}} with title "Qwiki Postbox" with prompt "Select Destination Wiki Profile:" default items {{"{first_item}"}}
+                if chosen is false then
+                    return ""
+                else
+                    return item 1 of chosen
+                end if
+            end tell
+            '''
+            try:
+                proc = subprocess.run(["osascript", "-e", script], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.returncode == 0 and proc.stdout.strip():
+                    pname = proc.stdout.strip().split(" — ")[0].strip()
+                    if pname in profiles:
+                        return pname
+                return None
+            except Exception:
+                pass
+
+    # Platform 3: Windows (PowerShell Out-GridView)
+    elif os.name == "nt" or sys.platform == "win32":
+        if shutil.which("powershell"):
+            ps_lines = ["$items = @("]
+            for name, pdata in profiles.items():
+                safe_name = name.replace("'", "''")
+                safe_url = pdata.get("url", "").replace("'", "''")
+                ps_lines.append(f"  [PSCustomObject]@{{ Profile = '{safe_name}'; URL = '{safe_url}' }}")
+            ps_lines.append(")")
+            ps_lines.append("$chosen = $items | Out-GridView -Title 'Qwiki Postbox - Select Destination Wiki' -OutputMode Single")
+            ps_lines.append("if ($chosen) { Write-Output $chosen.Profile }")
+            try:
+                proc = subprocess.run(
+                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "\n".join(ps_lines)],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                if proc.returncode == 0 and proc.stdout.strip() in profiles:
+                    return proc.stdout.strip()
+                return None
+            except Exception:
+                pass
+
+    # Fallback to interactive terminal if TTY
+    if sys.stdin and sys.stdin.isatty():
+        print("\nMultiple Qwiki profiles configured:")
+        keys = list(profiles.keys())
+        for i, k in enumerate(keys, 1):
+            print(f"  [{i}] {k:15} -> {profiles[k].get('url', '')}")
+        try:
+            ans = input(f"Select target wiki [1-{len(keys)}] (default: 1): ").strip()
+            if not ans:
+                return keys[0]
+            idx = int(ans) - 1
+            if 0 <= idx < len(keys):
+                return keys[idx]
+        except (ValueError, KeyboardInterrupt, EOFError):
+            return None
+
+    return "default" if "default" in profiles else (list(profiles.keys())[0] if profiles else None)
 
 
 def slugify(text: str) -> str:
@@ -307,50 +420,107 @@ def cmd_config(args):
             print(f"  • {p}: {d.get('url', '')} (Token: {masked})")
 
 
+def cmd_profiles(args):
+    cfg = load_config()
+    profiles = cfg.get("profiles", {})
+    if args.json:
+        print(json.dumps(profiles, indent=2))
+        return
+    print(f"Configuration file: {get_config_file()}")
+    if not profiles:
+        print("No profiles configured yet.")
+        print("Run 'qwiki-postbox config --url <URL> --token <TOKEN>' to add one.")
+        return
+    print(f"\nConfigured Profiles ({len(profiles)}):")
+    for name, pdata in profiles.items():
+        t = pdata.get("token", "")
+        masked = (t[:6] + "..." + t[-4:]) if len(t) > 10 else "***"
+        print(f"  • {name:16} -> {pdata.get('url', 'no-url'):35} (Token: {masked})")
+
+
 def cmd_send(args):
-    target_path = Path(args.path).resolve()
-    if not target_path.exists():
-        print(f"[Error] Path not found: {target_path}", file=sys.stderr)
+    # Collect target paths
+    input_paths = args.paths if isinstance(args.paths, list) else [args.paths]
+    valid_paths = []
+    for p in input_paths:
+        tp = Path(p).resolve()
+        if not tp.exists():
+            print(f"[Warning] Path not found: {tp}", file=sys.stderr)
+        else:
+            valid_paths.append(tp)
+
+    if not valid_paths:
+        print("[Error] No valid file or folder paths provided.", file=sys.stderr)
         sys.exit(1)
 
-    # Determine URL and Token
     cfg = load_config()
-    profile = args.profile or "default"
-    prof_data = cfg.get("profiles", {}).get(profile, {})
+    profiles = cfg.get("profiles", {})
 
-    url = args.url or prof_data.get("url")
-    token = args.token or prof_data.get("token")
+    # Determine URL, Token, and Profile
+    if args.url and args.token:
+        url = args.url.rstrip("/")
+        token = args.token.strip()
+        profile_label = "custom URL"
+    else:
+        profile_name = args.profile
+        if not profile_name:
+            if args.gui:
+                profile_name = prompt_profile_gui(profiles)
+                if profile_name is None:
+                    if not profiles:
+                        print("[Error] No Qwiki profiles configured. Run 'qwiki-postbox config --url <URL> --token <TOKEN>' first.", file=sys.stderr)
+                        sys.exit(1)
+                    print("[Cancelled] Transfer aborted by user.")
+                    sys.exit(0)
+            elif len(profiles) > 1 and sys.stdin and sys.stdin.isatty() and not args.json and not args.dry_run:
+                profile_name = prompt_profile_gui(profiles)
+                if profile_name is None:
+                    print("[Cancelled] Transfer aborted by user.")
+                    sys.exit(0)
+            else:
+                profile_name = "default" if "default" in profiles else (list(profiles.keys())[0] if profiles else "default")
+
+        prof_data = profiles.get(profile_name, {})
+        url = args.url or prof_data.get("url")
+        token = args.token or prof_data.get("token")
+        profile_label = f"profile '{profile_name}'"
 
     if not args.dry_run and not args.json and (not url or not token):
-        print("[Error] Missing wiki URL or Postbox token.", file=sys.stderr)
-        print("Provide them with --url and --token, or save them with 'qwiki-postbox config --url <URL> --token <TOKEN>'", file=sys.stderr)
+        print(f"[Error] Missing wiki URL or Postbox token for {profile_label}.", file=sys.stderr)
+        print("Configure it with 'qwiki-postbox config --url <URL> --token <TOKEN>' or specify --url and --token.", file=sys.stderr)
         sys.exit(1)
 
     category_hint = args.category
     docs = []
 
-    if target_path.is_file():
-        if not args.json:
-            print(f"📄 Packaging document: {target_path.name}...")
-        try:
-            doc = package_single_file(target_path, title=args.title, category_hint=category_hint)
-            docs.append(doc)
-        except Exception as e:
-            print(f"[Error] Failed to package {target_path}: {e}", file=sys.stderr)
-            sys.exit(1)
-    elif target_path.is_dir():
-        if not args.json:
-            print(f"📁 Scanning folder: {target_path} (recursive={args.recursive})...")
-        docs = package_directory(target_path, recursive=args.recursive, category_hint=category_hint, all_assets=args.all_assets)
-        if not docs:
+    for target_path in valid_paths:
+        if target_path.is_file():
             if not args.json:
-                print(f"[Warning] No supported document files (.md, .html, .pdf) found in {target_path}", file=sys.stderr)
-            sys.exit(0)
+                print(f"📄 Packaging document: {target_path.name}...")
+            try:
+                single_title = args.title if len(valid_paths) == 1 else None
+                doc = package_single_file(target_path, title=single_title, category_hint=category_hint)
+                docs.append(doc)
+            except Exception as e:
+                print(f"[Error] Failed to package {target_path}: {e}", file=sys.stderr)
+        elif target_path.is_dir():
+            if not args.json:
+                print(f"📁 Scanning folder: {target_path} (recursive={args.recursive})...")
+            dir_docs = package_directory(target_path, recursive=args.recursive, category_hint=category_hint, all_assets=args.all_assets)
+            if dir_docs:
+                docs.extend(dir_docs)
+                if not args.json:
+                    print(f"   Found {len(dir_docs)} document(s) in {target_path.name}")
+            else:
+                if not args.json:
+                    print(f"[Warning] No supported document files (.md, .html, .pdf) found in {target_path}", file=sys.stderr)
+
+    if not docs:
         if not args.json:
-            print(f"   Found {len(docs)} document(s)")
+            print("[Warning] No documents could be packaged from the provided paths.", file=sys.stderr)
+        sys.exit(0)
 
     envelope = build_envelope(docs, category_hint=category_hint)
-
     total_assets = sum(len(d.get("assets", [])) for d in docs)
     batch_id = envelope["batch_id"]
 
@@ -362,7 +532,7 @@ def cmd_send(args):
         return
 
     if args.dry_run:
-        print("\n--- DRY RUN SUMMARY ---")
+        print(f"\n--- DRY RUN SUMMARY (Target: {profile_label} -> {url or 'none'}) ---")
         for i, d in enumerate(docs, 1):
             print(f" {i}. [{d['type'].upper()}] {d['title']} (slug: {d['slug']}) - {len(d['assets'])} asset(s)")
             for a in d["assets"]:
@@ -370,11 +540,11 @@ def cmd_send(args):
         print("\n[Dry Run Completed] No data sent.")
         return
 
-    print(f"🚀 Transmitting to {url}...")
+    print(f"🚀 Transmitting to {url} ({profile_label})...")
     res = send_envelope(url, token, envelope)
 
     if res["status"] == 200 and res["data"].get("success"):
-        print(f"\n✅ SUCCESS! Documents delivered to Qwiki Postbox.")
+        print(f"\n✅ SUCCESS! Documents delivered to Qwiki Postbox ({profile_label}).")
         print(f"   Batch ID: {res['data'].get('batch_id', batch_id)}")
         print(f"   Destination: {url}")
         print("   The wiki administrator will review and file these into your category.")
@@ -400,12 +570,18 @@ def main():
     parser_cfg.add_argument("--profile", default="default", help="Profile name (default: 'default')")
     parser_cfg.set_defaults(func=cmd_config)
 
+    # profiles command
+    parser_prof = subparsers.add_parser("profiles", help="List configured target wiki profiles")
+    parser_prof.add_argument("--json", action="store_true", help="Output profiles in JSON format")
+    parser_prof.set_defaults(func=cmd_profiles)
+
     # send command
-    parser_send = subparsers.add_parser("send", help="Send a file or directory to Qwiki Postbox")
-    parser_send.add_argument("path", help="Path to file (.md, .html, .pdf) or directory")
+    parser_send = subparsers.add_parser("send", help="Send file(s) or directories to Qwiki Postbox")
+    parser_send.add_argument("paths", nargs="+", metavar="PATH", help="Path(s) to file (.md, .html, .pdf) or directory")
     parser_send.add_argument("--url", help="Override destination Qwiki base URL")
     parser_send.add_argument("--token", help="Override destination Postbox token")
-    parser_send.add_argument("--profile", default="default", help="Profile to use from config")
+    parser_send.add_argument("--profile", "-p", default=None, help="Target profile name from config")
+    parser_send.add_argument("--interactive", "--gui", "-i", action="store_true", dest="gui", help="Interactively choose destination profile if multiple exist")
     parser_send.add_argument("--category", "-c", help="Category / book name hint for the recipient wiki")
     parser_send.add_argument("--title", "-t", help="Override document title (single file only)")
     parser_send.add_argument("--recursive", "-r", action="store_true", default=True, help="Scan directories recursively (default: True)")
