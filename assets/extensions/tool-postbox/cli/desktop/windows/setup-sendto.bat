@@ -26,7 +26,7 @@ if not exist "%PYTHON_CLI%" (
     echo     pause
     echo     exit /b 1
     echo ^)
-    echo python "%PYTHON_CLI%" send "%%~1"
+    echo python "%PYTHON_CLI%" send %%* --gui
     echo if %%ERRORLEVEL% NEQ 0 ^(
     echo     echo.
     echo     echo Transfer failed with error code %%ERRORLEVEL%%.

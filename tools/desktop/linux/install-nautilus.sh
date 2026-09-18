@@ -42,23 +42,34 @@ else
     IFS=$'\n' read -d '' -r -a SELECTED <<< "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-$NEMO_SCRIPT_SELECTED_FILE_PATHS}"
 fi
 
-for TARGET in "${SELECTED[@]}"; do
-    [ -z "${TARGET}" ] && continue
-    OUTPUT=$(python3 "${CLI_PATH}" send "${TARGET}" 2>&1)
-    STATUS=$?
+if [ ${#SELECTED[@]} -eq 0 ]; then
+    exit 0
+fi
 
-    if [ ${STATUS} -eq 0 ]; then
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send -i document-send "Qwiki Postbox" "Delivered: $(basename "${TARGET}")"
-        fi
-    else
-        if command -v zenity >/dev/null 2>&1; then
-            zenity --error --title="Qwiki Postbox Error" --text="Failed to send $(basename "${TARGET}"):\n\n${OUTPUT}"
-        elif command -v notify-send >/dev/null 2>&1; then
-            notify-send -u critical -i dialog-error "Qwiki Postbox Error" "${OUTPUT}"
+# Pass all selected files with --gui for multi-profile selection dialog if needed
+OUTPUT=$(python3 "${CLI_PATH}" send "${SELECTED[@]}" --gui 2>&1)
+STATUS=$?
+
+if [ ${STATUS} -eq 0 ]; then
+    if [[ "${OUTPUT}" == *"[Cancelled]"* ]]; then
+        exit 0
+    fi
+    if command -v notify-send >/dev/null 2>&1; then
+        COUNT=${#SELECTED[@]}
+        if [ ${COUNT} -eq 1 ]; then
+            NAME="$(basename "${SELECTED[0]}")"
+            notify-send -i document-send "Qwiki Postbox" "Delivered: ${NAME}"
+        else
+            notify-send -i document-send "Qwiki Postbox" "Delivered ${COUNT} document(s) to Qwiki"
         fi
     fi
-done
+else
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --error --title="Qwiki Postbox Error" --text="Failed to send to Qwiki:\n\n${OUTPUT}"
+    elif command -v notify-send >/dev/null 2>&1; then
+        notify-send -u critical -i dialog-error "Qwiki Postbox Error" "${OUTPUT}"
+    fi
+fi
 EOF
 
     # Replace placeholder with actual path

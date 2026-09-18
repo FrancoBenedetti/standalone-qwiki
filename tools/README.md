@@ -98,7 +98,45 @@ python3 qwiki-postbox.py send path/to/docs/ --all-assets
 
 ---
 
+## 🌐 Multi-Wiki Profile Selection & Interactive GUI Picker
+
+If you publish to multiple Qwiki instances or subwikis (e.g., `main`, `engineering`, `client-docs`):
+
+### 1. Managing Named Profiles
+```bash
+# Add or update a profile
+python3 qwiki-postbox.py config --profile engineering \
+  --url https://wiki.example.com/engineering \
+  --token 32_character_token_here
+
+# List all configured profiles
+python3 qwiki-postbox.py profiles
+```
+
+### 2. Automatic OS Context Menu GUI Picker
+When right-clicking **Send to Qwiki** in your file manager (Linux, Windows, macOS):
+- **Single Profile**: If only one profile is configured, documents transmit immediately without extra prompts.
+- **Multiple Profiles**: A native GUI selection dialog appears automatically:
+  - **Linux (GNOME / KDE)**: Displays a Zenity / kdialog table showing profile names and target URLs.
+  - **Windows (File Explorer)**: Displays a PowerShell `Out-GridView` window with instant search and OK/Cancel buttons.
+  - **macOS (Finder)**: Displays an AppleScript / Cocoa list chooser with your configured profiles.
+- Select the destination wiki and click OK.
+
+### 3. Terminal CLI Profile Selection & Batch Transfer
+```bash
+# Explicitly target a specific profile
+python3 qwiki-postbox.py send doc.md --profile engineering
+
+# Interactively choose target profile in terminal
+python3 qwiki-postbox.py send doc.md --interactive
+
+# Send multiple files and folders together in one envelope
+python3 qwiki-postbox.py send guide.md specs/ release-notes.html --category "Release Docs"
+```
+
+---
+
 ## ⚙️ System Requirements
 
 - **Python**: Version 3.6 or higher (uses standard library only; zero external `pip` packages required).
-- **Linux Notifications (Optional)**: `libnotify-bin` (`notify-send`) or `zenity` for desktop notification bubbles and error dialogs.
+- **Linux Notifications & GUI (Optional)**: `zenity` (or `kdialog`) for interactive GUI profile picker; `libnotify-bin` (`notify-send`) for desktop notification bubbles.

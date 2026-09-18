@@ -165,6 +165,35 @@ if (!file_exists($coreTools . '/qwiki-postbox.py') ||
 }
 echo "PASS: Desktop tool bundle and OS integration scripts verified.\n\n";
 
+// -------------------------------------------------------------
+// Test 5: Multi-Path Arguments and Profiles Command
+// -------------------------------------------------------------
+echo "5. Testing Multi-Path Batch Packaging and Profiles Command...\n";
+$docPath1 = escapeshellarg($testDesktopDir . '/subfolder/architecture.md');
+$docPath2 = escapeshellarg($testDesktopDir . '/quickstart.md');
+$cmdMulti = "python3 {$cliPath} send {$docPath1} {$docPath2} --json";
+exec($cmdMulti, $outMulti, $retMulti);
+$jsonMulti = implode("\n", $outMulti);
+
+if ($retMulti !== 0 || empty($jsonMulti)) {
+    echo "FAIL: Multi-path send failed\n";
+    exit(1);
+}
+
+$envMulti = json_decode($jsonMulti, true);
+if (count($envMulti['documents'] ?? []) !== 2) {
+    echo "FAIL: Multi-path send did not bundle both documents into one envelope\n";
+    exit(1);
+}
+
+$cmdProf = "python3 {$cliPath} profiles --json";
+exec($cmdProf, $outProf, $retProf);
+if ($retProf !== 0) {
+    echo "FAIL: profiles --json command failed\n";
+    exit(1);
+}
+echo "PASS: Multi-path batch bundling and profiles CLI verified.\n\n";
+
 // Cleanup
 function cleanRecursive($dir) {
     if (!is_dir($dir)) return;
