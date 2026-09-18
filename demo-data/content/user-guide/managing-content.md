@@ -94,6 +94,18 @@ You can organize your documentation hierarchy visually:
 
 ---
 
+## 🛡️ Category & Document Protection
+
+Standalone Qwiki provides robust protection mechanisms to safeguard critical articles and structures against accidental edits or deletions:
+
+- **UI Lock Toggle**: Lock or unlock individual documents directly from the **Edit Details** modal (`⚙️ Edit Details`) — no need to manually edit `qwiki.json`. The lock toggle immediately hides the edit (`✏️ Edit Content`) and delete buttons, replacing them with a **Protected Document** badge. Unchecking the toggle cleanly restores full editing capabilities.
+- **Ancestor Inheritance**: Documents inside a directly locked category automatically inherit read-only protection. Their lock toggle in Edit Details is disabled with a note indicating the lock comes from a parent category. Individual documents cannot be unlocked while their containing category is locked.
+- **Direct Category Lock**: Click the category edit icon (`⚙️`) and toggle **Lock Category (Prevent Deletion)**. Directly locked categories cannot be deleted, and all nested documents inside them automatically inherit read-only protection.
+- **Cascading Deletion Safety Net**: Any category or folder containing protected documents automatically inherits deletion protection across all hierarchy levels. Even when a protected document is deeply nested within subfolders, parent folders cannot be deleted.
+- **Visual Lock Indicators**: Protected categories display a lock icon (`🔒`) in the navigation sidebar. In the Edit Category modal, the deletion button is replaced with a **Protected Category** badge.
+
+---
+
 ## 🖨️ Print & Social Sharing
 
 - **Print / PDF — Markdown & Standard Documents**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.
@@ -102,3 +114,43 @@ You can organize your documentation hierarchy visually:
 - **Social Sharing Shortcuts**: Inside the Share modal or from the Zen reader's floating **`🔗 Share`** dropdown, 1-click shortcuts let you immediately share the document across 𝕏 (Twitter), LinkedIn, Facebook, and WhatsApp with pre-filled titles and links.
 - **Custom Social Card Metadata**: In **`⚙️ Edit Details`**, administrators can specify a tailored **Short Description** and **Social Share Image URL** per article to display rich visual preview cards when shared.
 
+---
+
+## 🏠 Multitenant Hosted Mode
+
+For managed hosting environments where multiple independent wikis need to share a single Qwiki installation:
+
+1. Place the canonical Qwiki core (with `lib/`, `assets/`, `api/`, and `index.php`) in a central directory (e.g. `_core/`).
+2. For each subwiki, create a minimal `index.php` bootstrap:
+```php
+<?php
+define('QWIKI_BASE_DIR', __DIR__);
+define('QWIKI_ASSETS_URL', '/_core/assets');
+require_once '/path/to/_core/index.php';
+```
+3. Each subwiki has its own `qwiki.json`, `content/`, and `uploads/` — only the core code is shared.
+
+- **Automatic Bootstrap Generation**: When provisioning subwikis through the admin UI in hosted mode, SubwikiManager generates the bootstrap file automatically — no manual file creation required.
+- **Shared Extension Fallback**: ExtensionManager falls back to the central shared extensions directory if local per-subwiki extensions are not present.
+- **Single-Update Rollouts**: Updating the core once propagates to every subwiki immediately — no per-subwiki update steps.
+- **Reserved Paths Protected**: `_core` and `admin` are added to the reserved slug list to prevent subwiki slugs from shadowing core system directories.
+
+---
+
+## 📬 Document Postbox & Desktop Transfers
+
+The **Postbox** extension provides an asynchronous document transfer pipeline to copy documents between wikis or send them directly from your desktop computer:
+
+- **Sending from Qwiki**:
+  - Click the **`📬`** quick trigger icon next to any document in the navigation sidebar, or open **Tools ➔ Qwiki Postbox ➔ Send Documents**.
+  - Select individual documents, entire categories, or multiple pages.
+  - Choose a configured peer wiki, enter a remote wiki webhook URL, or copy to a sibling subwiki.
+- **Inbound Review Queue (Zero Overwrites)**:
+  - Incoming documents land in the **Inbound Review** inbox (`uploads/.postbox/inbox/`) and will never overwrite existing pages.
+  - Administrators review pending documents, preview markdown, accept suggested destination categories (or choose a custom folder), customize title or slug, and click **Ingest Document**.
+- **Desktop & Workstation Integration**:
+  - Download the zero-dependency Python CLI and native OS integration scripts from **Qwiki Postbox ➔ Peers & Settings**.
+  - **Linux (GNOME Files / Nautilus, Nemo, Caja)**: Right-click any document or folder ➔ `Scripts` ➔ `Send to Qwiki`.
+  - **Windows (File Explorer)**: Right-click any document or folder ➔ `Send to` ➔ `Send to Qwiki`.
+  - **macOS (Finder)**: Right-click any document or folder ➔ `Quick Actions` ➔ `Send to Qwiki`.
+  - **Terminal / CI/CD**: Run `python3 qwiki-postbox.py send path/to/file.md --category "Guides"`.

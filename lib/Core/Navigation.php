@@ -223,16 +223,26 @@ class Navigation {
         $nodeTheme = htmlspecialchars($node['theme'] ?? '');
         $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
         $nodeFolder = htmlspecialchars($node['folder'] ?? '');
-        $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}'" : "";
+        $isCatDirectlyReadOnly = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+        $isCatProtected = Config::isCategoryProtected($nodeId, [$node]);
+        $catReadOnlyAttr = $isCatDirectlyReadOnly ? "data-category-readonly='1'" : "";
+        $catProtectedAttr = $isCatProtected ? "data-category-protected='1'" : "";
+
+        $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}' {$catReadOnlyAttr} {$catProtectedAttr}" : "";
 
         echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
         echo "<div class='nav-category-header'>";
         echo "<span>";
         if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
-        echo "{$icon} " . htmlspecialchars($nodeTitle) . "</span>";
+        echo "{$icon} " . htmlspecialchars($nodeTitle);
+        if ($isCatProtected) {
+            $lockTitle = $isCatDirectlyReadOnly ? 'Protected Category (Locked against deletion)' : 'Protected Category (Contains protected documents)';
+            echo " <span class='cat-lock-icon' title='" . htmlspecialchars($lockTitle) . "' style='font-size: 0.8rem; opacity: 0.8; vertical-align: middle;'>🔒</span>";
+        }
+        echo "</span>";
         echo "<span class='header-actions-inline'>";
         if ($isAdmin) {
-            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' title='Edit Category'>⚙️</button> ";
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' title='Edit Category'>⚙️</button> ";
         }
         echo "<span class='chevron-icon'>▾</span>";
         echo "</span>";

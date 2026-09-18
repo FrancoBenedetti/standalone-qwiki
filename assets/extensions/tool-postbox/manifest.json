@@ -1,0 +1,22 @@
+{
+  "id": "postbox",
+  "type": "utility",
+  "title": "Document Postbox",
+  "icon": "📬",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_postbox_peers",
+    "ext_postbox_send",
+    "ext_postbox_receive",
+    "ext_postbox_inbox",
+    "ext_postbox_accept",
+    "ext_postbox_reject",
+    "ext_postbox_save_settings",
+    "ext_postbox_count",
+    "ext_postbox_download_cli"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

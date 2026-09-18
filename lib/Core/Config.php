@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.9.7';
+    const VERSION = '1.11.0';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -10,7 +10,7 @@ class Config {
 
     public static function init($baseDir = null) {
         if ($baseDir === null) {
-            $baseDir = dirname(dirname(__DIR__));
+            $baseDir = defined('QWIKI_BASE_DIR') ? QWIKI_BASE_DIR : dirname(dirname(__DIR__));
         }
         self::$baseDir = rtrim($baseDir, '/\\');
         self::$configFile = self::$baseDir . '/qwiki.json';
@@ -165,7 +165,7 @@ class Config {
     }
 
     public static function getReservedNames(): array {
-        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis'];
+        return ['api', 'assets', 'content', 'uploads', 'lib', 'tests', 'demo-data', 'wikis', '_core', 'admin'];
     }
 
     public static function isSubwiki(): bool {
@@ -190,7 +190,7 @@ class Config {
         return !empty($config['demoMode']);
     }
 
-    public static function isChapterProtected(string $slugOrFile, ?array $nodes = null): bool {
+    public static function isChapterProtected(string $slugOrFile, ?array $nodes = null, bool $inheritedProtection = false): bool {
         if (empty($slugOrFile)) return false;
         if ($nodes === null) {
             $config = self::load();
@@ -198,7 +198,8 @@ class Config {
         }
         $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
         foreach ($nodes as $node) {
-            $isProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false);
+            $isNodeDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isNodeDirectlyProtected;
             if ($isProtected) {
                 if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
                     return true;
@@ -211,7 +212,125 @@ class Config {
                 }
             }
             if (!empty($node['items']) && is_array($node['items'])) {
-                if (self::isChapterProtected($slugOrFile, $node['items'])) {
+                if (self::isChapterProtected($slugOrFile, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isChapterDirectlyProtected(string $slugOrFile, ?array $nodes = null): bool {
+        if (empty($slugOrFile)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
+        foreach ($nodes as $node) {
+            if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
+                return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            }
+            if (!empty($node['file'])) {
+                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                if ($normFile === $normTarget) {
+                    return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isChapterDirectlyProtected($slugOrFile, $node['items'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isChapterAncestorProtected(string $slugOrFile, ?array $nodes = null, bool $inheritedProtection = false): bool {
+        if (empty($slugOrFile)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        $normTarget = ltrim(str_replace('\\', '/', $slugOrFile), '/');
+        foreach ($nodes as $node) {
+            if (!empty($node['slug']) && $node['slug'] === $slugOrFile) {
+                return $inheritedProtection;
+            }
+            if (!empty($node['file'])) {
+                $normFile = ltrim(str_replace('\\', '/', $node['file']), '/');
+                if ($normFile === $normTarget) {
+                    return $inheritedProtection;
+                }
+            }
+            $isNodeDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isNodeDirectlyProtected;
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isChapterAncestorProtected($slugOrFile, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isCategoryProtected(string $categoryId, ?array $nodes = null, bool $inheritedProtection = false): bool {
+        if (empty($categoryId)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        foreach ($nodes as $node) {
+            $isDirectlyProtected = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            $isProtected = $inheritedProtection || $isDirectlyProtected;
+
+            if (($node['id'] ?? '') === $categoryId) {
+                if ($isProtected) {
+                    return true;
+                }
+                return self::nodeContainsProtectedItems($node);
+            }
+
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isCategoryProtected($categoryId, $node['items'], $isProtected)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function isCategoryDirectlyProtected(string $categoryId, ?array $nodes = null): bool {
+        if (empty($categoryId)) return false;
+        if ($nodes === null) {
+            $config = self::load();
+            $nodes = $config['books'] ?? [];
+        }
+        foreach ($nodes as $node) {
+            if (($node['id'] ?? '') === $categoryId) {
+                return !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isCategoryDirectlyProtected($categoryId, $node['items'])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static function nodeContainsProtectedItems(array $node): bool {
+        if (empty($node['items']) || !is_array($node['items'])) {
+            return false;
+        }
+        foreach ($node['items'] as $item) {
+            if (!is_array($item)) continue;
+            $isItemProtected = !empty($item['readOnly']) || (isset($item['editable']) && $item['editable'] === false) || !empty($item['locked']);
+            if ($isItemProtected) {
+                return true;
+            }
+            if (!empty($item['items']) && is_array($item['items'])) {
+                if (self::nodeContainsProtectedItems($item)) {
                     return true;
                 }
             }
@@ -231,6 +350,43 @@ class Config {
             $webPath = '';
         }
         return $protocol . $domainName . (!empty($webPath) ? '/' . $webPath . '/' : '/');
+    }
+
+    public static function isPostboxEnabled(): bool {
+        $config = self::load();
+        return !isset($config['postboxEnabled']) || !empty($config['postboxEnabled']);
+    }
+
+    public static function getPostboxToken(): string {
+        $config = self::load();
+        if (!empty($config['postboxToken']) && is_string($config['postboxToken'])) {
+            return $config['postboxToken'];
+        }
+        try {
+            $newToken = bin2hex(random_bytes(16));
+        } catch (\Throwable $e) {
+            $newToken = md5(uniqid((string)mt_rand(), true));
+        }
+        $config['postboxToken'] = $newToken;
+        self::save($config);
+        return $newToken;
+    }
+
+    public static function setPostboxToken(string $token): bool {
+        $config = self::load();
+        $config['postboxToken'] = trim($token);
+        return self::save($config);
+    }
+
+    public static function getPostboxPeers(): array {
+        $config = self::load();
+        return isset($config['postboxPeers']) && is_array($config['postboxPeers']) ? $config['postboxPeers'] : [];
+    }
+
+    public static function savePostboxPeers(array $peers): bool {
+        $config = self::load();
+        $config['postboxPeers'] = array_values($peers);
+        return self::save($config);
     }
 }
 

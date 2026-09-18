@@ -7,6 +7,121 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] - PostFlow - 2026-09-18
+
+### 📬 Editorial Postbox & Asynchronous Document Transfer
+- **Non-Destructive Postbox Service**: Asynchronously transfer single documents, entire categories, or bulk pages between standalone wikis, subwikis, and multitenant instances via token-authenticated webhooks. Source documents remain completely untouched.
+- **Mandatory Editorial Review & Staging Queue**: Inbound document transfers land safely in a `.htaccess`-protected staging inbox (`uploads/.postbox/inbox/`). Documents are never published or overwritten automatically.
+- **Category Hint & Destination Mapping**: Senders can attach a suggested category hint; recipients preview the document in the Inbound Review queue, see suggested categories with 1-click adoption, or designate an alternative target category and customize metadata (title, slug, theme) before committing to the wiki tree.
+- **Automated Local Asset Packaging & Link Remapping**: Automatically scans and bundles referenced local images into a self-contained schema 1.0 JSON envelope, extracts them safely to `uploads/images/`, and dynamically rewires Markdown and HTML links without broken paths.
+- **Slug Collision Resolution**: Automatically detects slug collisions in target categories and resolves them cleanly using numeric suffixes (`-2`, `-3`).
+- **Chapter-Level Quick Trigger**: Quick action `[📬]` button added directly alongside document options in the navigation sidebar for instant single-document dispatch.
+
+### 🖥️ Desktop CLI & Native OS Context Menu Integrations
+- **Zero-Dependency Python 3 CLI (`qwiki-postbox.py`)**: Standalone CLI utilizing Python standard libraries only (no external pip dependencies). Supports `send` (single files or directories), `--category` hint, `--all-assets` for unreferenced media, `--dry-run`, and `--json` envelope export.
+- **1-Click In-App Bundle Download**: Administrators can download pre-configured desktop tools with their wiki's URL and access token pre-filled in `config.sample.json` directly from **Qwiki Postbox ➔ Peers & Settings**.
+- **Linux Context Menu (GNOME Files / Nautilus, Nemo, Caja)**: Native `desktop/linux/install-nautilus.sh` installer adding **Right-click ➔ Scripts ➔ Send to Qwiki** with desktop notifications (`notify-send`) and error dialogs (`zenity`), complete with auto-reload (`nautilus -q`) on install.
+- **Windows Context Menu (File Explorer)**: Native `desktop/windows/setup-sendto.bat` installer enabling **Right-click ➔ Send to ➔ Send to Qwiki**.
+- **macOS Context Menu (Finder)**: Native `desktop/macos/install-quickaction.sh` Automator Quick Action installer enabling **Right-click ➔ Quick Actions ➔ Send to Qwiki**.
+
+### 🧪 Automated Test Coverage
+- `tests/postbox_test.php`: Packaging, asset extraction, staging, category mapping, overrides, slug collisions, and rejection.
+- `tests/postbox_multitenant_test.php`: Intra-tenant subwiki transfers, cross-tenant boundary isolation enforcement, and token staging.
+- `tests/cli_postbox_test.php`: CLI dry-runs, directory scanning, asset resolution, `--json` payload export, and ZIP download tool generation.
+
+### 📚 Documentation
+- Updated `demo-data/content/getting-started/features.md` and `content/getting-started/features.md` with Section 14 covering Postbox transfers and desktop tools.
+- Updated `demo-data/content/user-guide/managing-content.md` and `content/user-guide/managing-content.md` with complete usage guides.
+- Added comprehensive `tools/README.md` and bundled `README.txt` for desktop users.
+
+---
+
+## [1.10.0] - MultiGuard - 2026-09-17
+
+### 🏠 Multitenant Hosted Mode
+- **Shared Core Architecture**: Subwikis can now share a single central Qwiki installation. Define `QWIKI_BASE_DIR` and `QWIKI_ASSETS_URL` constants before including the central `index.php`; each subwiki uses a lightweight two-line bootstrap instead of duplicating `lib/`, `assets/`, and `api/`.
+- **Automatic Bootstrap Generation**: When provisioning a new subwiki in hosted mode, `SubwikiManager` generates the per-subwiki `index.php` bootstrap and copies the parent `.htaccess` automatically — no manual setup required.
+- **Shared Extension Fallback**: `ExtensionManager` now falls back to the shared central extensions directory when local per-subwiki extensions are not found, ensuring full extension parity across all hosted subwikis.
+- **Dynamic Asset URL Routing**: `index.php` reads `$assetsUrl` from `QWIKI_ASSETS_URL` when defined, routing all CSS/JS asset references through the central core path.
+- **Automatic Update Propagation**: In hosted mode, `SubwikiManager::pushUpdatesToSubwikis()` short-circuits — a single core update applies to every subwiki immediately without per-subwiki copy runs.
+- **Reserved Name Expansion**: `_core` and `admin` added to `Config::getReservedNames()` to prevent subwiki slugs from shadowing core system paths.
+- **New Test Suite**: `tests/multitenant_mode_test.php` covers hosted mode bootstrap generation, asset URL injection, and extension fallback scenarios.
+
+### 🔒 Document-Level Protection & Ancestor Inheritance
+- **UI Lock Toggle**: Administrators can now lock or unlock individual documents directly from the **Edit Details** modal (`⚙️`) without editing `qwiki.json` by hand. Locking immediately hides the edit and delete controls and displays a **Protected Document** badge; unchecking restores full capabilities.
+- **`Config::isChapterDirectlyProtected()`**: New method to check whether a document has a direct `readOnly`, `editable: false`, or `locked` flag set on its own node, independent of any parent category state.
+- **`Config::isChapterAncestorProtected()`**: New method to determine whether a document is locked via inheritance from an ancestor category, enabling the UI to display appropriate explanatory notices and disable the individual toggle.
+- **Inheritance-Aware UI**: When a document's lock is inherited from a parent category, the Edit Details toggle is disabled with a notice: "Inherited from parent category." Individual document unlocking is blocked while the containing category is locked.
+- **Demo Mode Safeguards**: In native demo mode (`Config::isDemoMode()`), protected demo documents cannot be unlocked by visitors — the unlock API endpoint validates demo mode state before applying any changes.
+- **API Guards**: `api/admin.php` enforces lock checks on save, rename, move, and delete operations for both direct and ancestor-protected documents.
+- **Expanded Test Coverage**: `tests/category_lock_test.php` extended with three new suites covering `isChapterDirectlyProtected`, `isChapterAncestorProtected`, and API guard validation for locked documents.
+
+### 🔍 Clear Search Button
+- **`×` Clear Button**: A clear button now appears inline in the sidebar search field when text is present. Clicking it empties the query, hides itself, restores the pre-search category collapse state, and returns focus to the search input.
+- **Escape Key Shortcut**: Pressing `Escape` while the search input is focused and non-empty triggers the same clear action as the `×` button.
+- **Pre-Search State Restoration**: The sidebar remembers which categories were collapsed before the search began and reinstates that exact state when the search is cleared.
+
+### 📦 Backup & Export Extension
+- **1-Click Full Backup**: Administrators can export a complete snapshot of the wiki into a standalone portable ZIP archive containing all document content (`content/`), uploaded media (`uploads/`), master navigation config (`qwiki.json`), and optional user credentials (`users.json`) or child subwiki bundles.
+- **Interactive Selective Export**: Granular directory tree explorer with collapsible folder nodes, file type icons, live selection counters, and calculated byte totals.
+- **Export Presets & Tree Filtering**: Quick presets for "Select All", "Content Only (No Media)", "Media Only", and "Clear All", alongside a real-time text filter to quickly isolate specific files or folders.
+- **Security & Path Validation**: Strict directory traversal safeguards (`backupIsSafePath`) blocking sensitive files (`.env`, `.git`) and unauthorized path breakouts.
+- **Asset Cache Busting**: `ExtensionManager::getFrontendAssets()` automatically appends `?v=<filemtime>` version hashes to all local extension stylesheets and scripts, ensuring browsers never serve stale client code.
+- **Automated Test Suite**: Added `tests/backup_test.php` with 27 unit and integration tests covering extension registration, authentication enforcement, traversal defenses, and ZIP archive integrity.
+
+### ⚙️ SVGbob WASM Refactor
+- Replaced automatic WASM loading with manual `WebAssembly.instantiateStreaming` instantiation for the svgbob diagram renderer, improving cross-environment reliability and eliminating edge-case initialization failures.
+
+### 📚 Documentation
+- Updated `demo-data/content/getting-started/features.md` and `demo-data/content/user-guide/managing-content.md` to document multitenant hosted mode, the document lock UI toggle, ancestor inheritance, and the clear search button.
+- Synchronized all changes into live `content/` documentation.
+
+---
+
+## [1.9.8] - TreeGuard - 2026-09-12
+
+### 🛡️ Category Lock & Deletion Protection
+- **Cascading Category Deletion Protection**:
+  - Categories containing protected documents (`"readOnly": true` or `"editable": false`) now automatically inherit deletion protection, preventing documents from being accidentally deleted through the deletion of parent folders.
+  - Multi-level nested folder hierarchies are fully protected: ancestor folders cannot be removed if any nested subfolder contains a protected document.
+- **Direct Category Lock**:
+  - Categories can now be directly configured with `"readOnly": true`, `"editable": false`, or `"locked": true` in `qwiki.json` to prevent category deletion.
+  - Child documents within directly locked categories inherit read-only protection against modification and deletion.
+  - Added `Config::isCategoryProtected($categoryId)` and `Config::isCategoryDirectlyProtected($categoryId)`.
+  - Added `is_category_protected($categoryId)` backward-compatibility helper in `api/admin.php`.
+- **UI & Administrative Controls**:
+  - Added visual lock indicators (`🔒`) in the sidebar for protected categories.
+  - In the Edit Category modal, the "Delete Category" button is automatically hidden and replaced with a `Protected Category` status badge when a category or its contents are protected.
+  - Added a "Lock Category (Prevent Deletion)" toggle to the Edit Category modal (`#edit-book-modal`).
+  - Hardened `save_tree` / `reorder_tree` to preserve category lock attributes and prevent accidental omission of protected categories or documents during menu reordering.
+
+### 🔒 Interactive Document Lock & Unlock in UI
+- **Administrative Lock/Unlock Toggle**:
+  - Administrators can now lock or unlock documents directly from the user interface via the Edit Details modal (`#edit-chapter-modal`).
+  - Added a "Lock Document (Prevent Deletion & Edits)" toggle with contextual status helper text.
+  - Locking a document immediately hides content editing (`#btn-edit-markdown`) and document deletion (`#btn-delete-chapter`), displaying the Protected Document badge.
+  - Unchecking the toggle cleanly unlocks the document and restores editing and deletion capabilities.
+- **Hierarchy & Inheritance Enforcement**:
+  - Documents located within a directly locked category inherit the category lock; the document lock toggle is disabled with a notice indicating the lock is inherited from the parent category.
+  - Added `Config::isChapterDirectlyProtected()` and `Config::isChapterAncestorProtected()` to differentiate direct document locks from ancestor category inheritance.
+- **Demo Mode Safeguards**:
+  - In native demo mode (`Config::isDemoMode()`), protected demo documents cannot be unlocked by visitors; the Edit Details button remains hidden or protected against unlocking.
+
+### 🌐 Sidebar Subwiki Navigation & Discovery
+- **Configurable Subwiki Sidebar Section**:
+  - Added a new administrative toggle in Site Settings (`#settings-modal`): **"Show Subwikis in Left Sidebar Navigation"** (`showSubwikisInSidebar`).
+  - Renders a clean, collapsible accordion group in the sidebar navigation displaying all deployed subwikis with their custom titles and document counts (`<N> docs`).
+- **Bi-Directional Cross-Wiki Discovery**:
+  - Implemented `SubwikiManager::getSidebarSubwikis()` supporting both parent and child wiki contexts.
+  - In the parent wiki, lists all deployed child subwikis.
+  - In a child subwiki, automatically inspects the parent directory to discover sibling subwikis, generates relative `../slug/` navigation paths, and excludes the active wiki.
+- **Visual Integration**:
+  - Styled subwiki navigation items with responsive count badges (`.badge-subwiki-count`) and distinct globe icons (`🌐`).
+
+### 🧪 Test Automation
+- Added `tests/category_lock_test.php` verifying direct category locks, transitive protection from child documents, multi-level folder cascades, deletion prevention via `delete_node_recursive`, document direct/ancestor protection detection, document locking/unlocking via `find_chapter_and_update`, and API security guards against unlocking protected demo docs or documents in locked categories.
+- Added `tests/sidebar_subwikis_test.php` verifying subwiki discovery in parent and child contexts, settings persistence, and sidebar accordion rendering.
+
 ## [1.9.7] - OmniShare - 2026-09-10
 
 ### 🔗 Full-Screen Secure Sharing & Reader Rights

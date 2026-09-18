@@ -1,0 +1,343 @@
+/**
+ * Standalone Qwiki - Backup & Export Extension Styles
+ */
+
+/* Modal Display */
+#modal-backup.open,
+#modal-backup.active {
+    display: flex !important;
+}
+
+/* Modal Card Sizing */
+.backup-modal-card {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Mode Navigation Tabs */
+.backup-mode-nav {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    margin: 1rem 0 1.25rem 0;
+    padding-bottom: 0.5rem;
+}
+
+.backup-nav-tab {
+    background: transparent;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+}
+
+.backup-nav-tab:hover {
+    color: var(--text-primary);
+    background: rgba(125, 125, 125, 0.1);
+}
+
+.backup-nav-tab.active {
+    color: #fff;
+    background: var(--accent-color, #2563eb);
+}
+
+/* Status Banner */
+.backup-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(37, 99, 235, 0.1);
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.backup-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(125, 125, 125, 0.2);
+    border-top-color: var(--accent-color, #2563eb);
+    border-radius: 50%;
+    animation: backup-spin 0.8s linear infinite;
+}
+
+@keyframes backup-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Description */
+.backup-desc {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    margin: 0 0 1.25rem 0;
+}
+
+/* Summary Grid Cards */
+.backup-grid-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.backup-summary-card {
+    background: var(--bg-secondary, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+}
+
+.backup-card-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.backup-card-info {
+    flex: 1;
+}
+
+.backup-card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.backup-card-metric {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent-color, #2563eb);
+    margin-bottom: 0.2rem;
+}
+
+.backup-card-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Options Box */
+.backup-options-box {
+    background: var(--bg-secondary, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.backup-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.backup-action-bar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.backup-download-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    width: 100%;
+}
+
+/* Selective Toolbar */
+.backup-selective-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.backup-preset-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.backup-tree-search {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.backup-tree-search input {
+    width: 100%;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.85rem;
+}
+
+/* Root Files Box */
+.backup-root-files-box {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    background: var(--bg-secondary, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.backup-tree-item-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.backup-size-tag {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: rgba(125, 125, 125, 0.15);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* Tree View */
+.backup-tree-wrapper {
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    max-height: 380px;
+    min-height: 200px;
+    overflow-y: auto;
+    background: var(--bg-primary, #ffffff);
+    padding: 0.5rem;
+}
+
+.backup-tree-empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    height: 180px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.backup-tree {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.88rem;
+}
+
+.backup-tree-node {
+    margin: 0.15rem 0;
+}
+
+.backup-tree-node-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    transition: background 0.1s ease;
+}
+
+.backup-tree-node-row:hover {
+    background: var(--bg-secondary, #f1f5f9);
+}
+
+.backup-tree-toggle {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    user-select: none;
+    transition: transform 0.15s ease;
+}
+
+.backup-tree-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+.backup-tree-checkbox {
+    cursor: pointer;
+}
+
+.backup-tree-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.backup-tree-name {
+    flex: 1;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.backup-tree-children {
+    list-style: none;
+    margin: 0 0 0 1.25rem;
+    padding: 0;
+    border-left: 1px dashed var(--border-color, #cbd5e1);
+}
+
+.backup-tree-children.collapsed {
+    display: none;
+}
+
+/* Subwikis Box */
+.backup-subwikis-box {
+    margin-top: 0.75rem;
+    background: var(--bg-secondary, #f8fafc);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+}
+
+.backup-subwikis-header {
+    margin-bottom: 0.5rem;
+    font-size: 0.88rem;
+}
+
+/* Selective Footer */
+.backup-selective-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.backup-selection-counter {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}

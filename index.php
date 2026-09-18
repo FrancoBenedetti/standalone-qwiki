@@ -20,24 +20,40 @@ if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
 }
 
-class QwikiParsedown extends Parsedown {
-    protected function inlineLink($Excerpt) {
-        $Inline = parent::inlineLink($Excerpt);
-        if (!isset($Inline)) {
-            return;
-        }
+// Check for API delegation via front-controller (e.g. multi-tenant hosted routing)
+$apiRequestedPath = $_GET['path'] ?? '';
+if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'api/') === 0 || $apiRequestedPath === 'api')) {
+    $endpoint = basename($apiRequestedPath);
+    if ($endpoint === 'api' || empty($endpoint)) {
+        $endpoint = 'admin.php';
+    }
+    $targetApiFile = __DIR__ . '/api/' . $endpoint;
+    if (file_exists($targetApiFile)) {
+        require $targetApiFile;
+        exit;
+    }
+}
 
-        $href = $Inline['element']['attributes']['href'] ?? '';
-        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
-        $parsedUrl = parse_url($href);
-        $linkHost = $parsedUrl['host'] ?? '';
-        
-        if ($linkHost && $linkHost !== $currentHost) {
-            $Inline['element']['attributes']['target'] = '_blank';
-            $Inline['element']['attributes']['rel'] = 'noopener noreferrer';
+if (!class_exists('QwikiParsedown')) {
+    class QwikiParsedown extends Parsedown {
+        protected function inlineLink($Excerpt) {
+            $Inline = parent::inlineLink($Excerpt);
+            if (!isset($Inline)) {
+                return;
+            }
+
+            $href = $Inline['element']['attributes']['href'] ?? '';
+            $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+            $parsedUrl = parse_url($href);
+            $linkHost = $parsedUrl['host'] ?? '';
+            
+            if ($linkHost && $linkHost !== $currentHost) {
+                $Inline['element']['attributes']['target'] = '_blank';
+                $Inline['element']['attributes']['rel'] = 'noopener noreferrer';
+            }
+            
+            return $Inline;
         }
-        
-        return $Inline;
     }
 }
 
@@ -63,6 +79,7 @@ $baseUrl = Config::getBaseUrl();
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
+$assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
 
 // Share link routing
 $shareKey = trim($_GET['share'] ?? '');
@@ -251,6 +268,8 @@ $chapterTheme = $activeChapter['theme'] ?? null;
 $resolvedTheme = $chapterTheme ?: $categoryTheme ?: $siteTheme;
 $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($config['showDocTypesOnlyToAdmin']) : true;
 $showPoweredBy = isset($config['showPoweredBy']) ? !empty($config['showPoweredBy']) : true;
+$showSubwikisInSidebar = !empty($config['showSubwikisInSidebar']);
+$sidebarSubwikis = $showSubwikisInSidebar ? SubwikiManager::getSidebarSubwikis($config) : [];
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
@@ -369,9 +388,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <meta name="twitter:title" content="<?= $ogTitle ?>">
     <meta name="twitter:description" content="<?= $ogDesc ?>">
 
-    <link rel="stylesheet" href="assets/css/qwiki.css?v=<?= filemtime(__DIR__ . '/assets/css/qwiki.css') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
-        <link rel="stylesheet" href="assets/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
+        <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
     <?php endif; ?>
 
     <!-- Extension Styles -->
@@ -486,7 +505,15 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <aside class="app-sidebar" id="app-sidebar">
             <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
             <div class="sidebar-search">
-                <input type="text" id="search-input" class="search-input" placeholder="Search documentation...">
+                <div class="sidebar-search-wrapper">
+                    <input type="text" id="search-input" class="search-input" placeholder="Search documentation..." autocomplete="off">
+                    <button type="button" id="sidebar-search-clear" class="sidebar-search-clear" aria-label="Clear search" title="Clear search" style="display: none;">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
             <?php if ($isSubwiki): ?>
             <div class="subwiki-parent-banner">
@@ -500,6 +527,27 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <?php foreach ($config['books'] as $book): ?>
                     <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
+                <?php if ($showSubwikisInSidebar && !empty($sidebarSubwikis)): ?>
+                <div class="nav-category-item depth-0 nav-subwikis-group collapsed">
+                    <div class="nav-category-header">
+                        <span>🌐 Subwikis</span>
+                        <span class="header-actions-inline">
+                            <span class="chevron-icon">▾</span>
+                        </span>
+                    </div>
+                    <div class="nav-document-list">
+                        <?php foreach ($sidebarSubwikis as $sub): ?>
+                            <a href="<?= htmlspecialchars($sub['url']) ?>" class="nav-link nav-subwiki-link" title="<?= htmlspecialchars($sub['title']) ?>">
+                                <span class="nav-link-title-container">
+                                    <span class="subwiki-item-icon">🌐</span>
+                                    <span><?= htmlspecialchars($sub['title']) ?></span>
+                                </span>
+                                <span class="badge-subwiki-count" title="<?= (int)$sub['docCount'] ?> Documents"><?= (int)$sub['docCount'] ?> docs</span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </nav>
             <?php if ($showPoweredBy): ?>
             <div class="sidebar-footer">
@@ -577,27 +625,37 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 </span>
                             <?php endif; ?>
 
-                            <?php if ($isAdmin && !$isPageReadOnly): ?>
-                                <?php if (($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
+                            <?php if ($isAdmin): ?>
+                                <?php if (!$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                                     <button class="btn btn-primary btn-sm" id="btn-edit-markdown" title="Edit Content">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                     </button>
                                 <?php endif; ?>
-                                <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="Edit Details"
-                                        data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
-                                        data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
-                                        data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
-                                        data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
-                                        data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
-                                        data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
-                                        data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
-                                        data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
-                                        data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
-                                        data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                                </button>
-                                <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
-                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                <?php if (!Config::isDemoMode() || !$isPageReadOnly): ?>
+                                    <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="Edit Details"
+                                            data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
+                                            data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
+                                            data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
+                                            data-url="<?= htmlspecialchars($activeChapter['url'] ?? '') ?>"
+                                            data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
+                                            data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
+                                            data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                            data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
+                                            data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                            data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>"
+                                            data-doc-readonly="<?= (!empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false) || !empty($activeChapter['locked'])) ? '1' : '0' ?>"
+                                            data-doc-protected="<?= $isPageReadOnly ? '1' : '0' ?>"
+                                            data-parent-locked="<?= (!empty($activeChapter['slug']) && Config::isChapterAncestorProtected($activeChapter['slug'], $config['books'] ?? [])) ? '1' : '0' ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                    </button>
+                                <?php endif; ?>
+                                <?php if (!$isPageReadOnly): ?>
+                                    <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    </button>
+                                <?php endif; ?>
+                                <button class="btn btn-outline btn-sm" id="btn-send-to-postbox" title="Send to Postbox..." data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                                 </button>
                             <?php endif; ?>
                         </div>
@@ -832,9 +890,23 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                     </div>
                 </div>
+                <div class="form-group" id="group-edit-book-readonly">
+                    <input type="hidden" name="readOnly" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="readOnly" id="edit-book-readonly-input" value="1">
+                        <span>🔒 Lock Category (Prevent Deletion)</span>
+                    </label>
+                    <small id="edit-book-readonly-help" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Protected categories and categories containing protected documents cannot be deleted.</small>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
-                    <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
-                    <button type="submit" class="btn btn-primary">Save Category Title</button>
+                    <div>
+                        <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>
+                        <span id="edit-book-protected-notice" class="badge badge-secondary" title="This category is protected against deletion" style="display: none; align-items: center; gap: 0.35rem; padding: 0.4rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            <span id="edit-book-protected-label"><?= Config::isDemoMode() ? 'Protected Demo Category' : 'Protected Category' ?></span>
+                        </span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Category Details</button>
                 </div>
             </form>
         </div>
@@ -1078,6 +1150,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" id="edit-chapter-share-key" class="form-control" value="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>" readonly style="font-family: monospace; font-size: 0.85rem;" placeholder="Generated automatically upon first share">
                     <input type="hidden" name="regenerateShareKey" id="edit-chapter-regenerate-key" value="0">
                 </div>
+                <div class="form-group" id="group-edit-chapter-readonly" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                    <input type="hidden" name="readOnly" value="0">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="readOnly" id="edit-chapter-readonly-input" value="1">
+                        <span>🔒 Lock Document (Prevent Deletion &amp; Edits)</span>
+                    </label>
+                    <small id="edit-chapter-readonly-help" style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Protected documents cannot be edited or deleted.</small>
+                </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
         </div>
@@ -1126,6 +1206,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">
                         <input type="checkbox" name="showPoweredBy" value="1" <?= $showPoweredBy ? 'checked' : '' ?>>
                         Show "Powered by Qwiki" Badge in Sidebar
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="showSubwikisInSidebar" value="1" <?= $showSubwikisInSidebar ? 'checked' : '' ?>>
+                        Show Subwikis in Left Sidebar Navigation
                     </label>
                 </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
@@ -1329,8 +1415,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <script src="assets/js/soft-lock.js?v=<?= filemtime(__DIR__ . '/assets/js/soft-lock.js') ?>"></script>
-    <script src="assets/js/app.js?v=<?= filemtime(__DIR__ . '/assets/js/app.js') ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/app.js?v=<?= @filemtime(__DIR__ . '/assets/js/app.js') ?: time() ?>"></script>
 
     <!-- Extension Scripts -->
     <?php foreach ($extensionAssets['scripts'] as $scriptFile): ?>

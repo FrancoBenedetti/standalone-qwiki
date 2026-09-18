@@ -81,20 +81,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sidebar Filter Search (with Auto-Expand)
   const searchInput = document.getElementById('search-input');
+  const sidebarSearchClear = document.getElementById('sidebar-search-clear');
   if (searchInput) {
     let searchTimeout = null;
     let abortController = null;
-    
+    let preSearchCollapsedState = null;
+
+    if (sidebarSearchClear && searchInput.value.length > 0) {
+      sidebarSearchClear.style.display = 'flex';
+    }
+
+    function clearSearch() {
+      searchInput.value = '';
+      if (sidebarSearchClear) sidebarSearchClear.style.display = 'none';
+      clearTimeout(searchTimeout);
+      if (abortController) abortController.abort();
+
+      document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+        link.style.display = '';
+      });
+
+      if (preSearchCollapsedState) {
+        document.querySelectorAll('.nav-category-item').forEach(catItem => {
+          if (preSearchCollapsedState.has(catItem)) {
+            catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
+          }
+        });
+        preSearchCollapsedState = null;
+      }
+      searchInput.focus();
+    }
+
+    if (sidebarSearchClear) {
+      sidebarSearchClear.addEventListener('click', clearSearch);
+    }
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && searchInput.value) {
+        e.preventDefault();
+        clearSearch();
+      }
+    });
+
     searchInput.addEventListener('input', (e) => {
       const term = e.target.value.toLowerCase().trim();
+      if (sidebarSearchClear) {
+        sidebarSearchClear.style.display = e.target.value.length > 0 ? 'flex' : 'none';
+      }
       clearTimeout(searchTimeout);
       if (abortController) abortController.abort();
 
       if (term === '') {
         document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
-          link.style.display = 'flex';
+          link.style.display = '';
         });
+        if (preSearchCollapsedState) {
+          document.querySelectorAll('.nav-category-item').forEach(catItem => {
+            if (preSearchCollapsedState.has(catItem)) {
+              catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
+            }
+          });
+          preSearchCollapsedState = null;
+        }
         return;
+      }
+
+      if (!preSearchCollapsedState) {
+        preSearchCollapsedState = new Map();
+        document.querySelectorAll('.nav-category-item').forEach(catItem => {
+          preSearchCollapsedState.set(catItem, catItem.classList.contains('collapsed'));
+        });
       }
 
       searchTimeout = setTimeout(async () => {
@@ -247,6 +303,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
             if (regenKeyHidden) {
               regenKeyHidden.value = '0';
+            }
+
+            const isDocReadOnly = btnMeta.getAttribute('data-doc-readonly') === '1';
+            const isDocProtected = btnMeta.getAttribute('data-doc-protected') === '1';
+            const isParentLocked = btnMeta.getAttribute('data-parent-locked') === '1';
+            const isDemoMode = document.getElementById('btn-reload-demo-package') !== null;
+
+            const docReadOnlyInput = document.getElementById('edit-chapter-readonly-input');
+            const docReadOnlyHelp = document.getElementById('edit-chapter-readonly-help');
+
+            if (docReadOnlyInput) {
+              docReadOnlyInput.checked = isDocReadOnly || isDocProtected;
+
+              if (isParentLocked) {
+                docReadOnlyInput.disabled = true;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'This document is inside a locked category and inherits its lock.';
+                }
+              } else if (isDemoMode && isDocProtected) {
+                docReadOnlyInput.disabled = true;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Protected demo documents cannot be unlocked in demo mode.';
+                }
+              } else if (isDocReadOnly) {
+                docReadOnlyInput.disabled = false;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Uncheck to unlock this document and allow edits/deletion.';
+                }
+              } else {
+                docReadOnlyInput.disabled = false;
+                if (docReadOnlyHelp) {
+                  docReadOnlyHelp.textContent = 'Protected documents cannot be edited or deleted.';
+                }
+              }
+            }
+
+            const saveBtn = document.querySelector('#edit-chapter-form button[type="submit"]');
+            if (saveBtn) {
+              saveBtn.disabled = isParentLocked || (isDemoMode && isDocProtected);
             }
           }
           
@@ -578,13 +673,63 @@ document.addEventListener('DOMContentLoaded', () => {
       const bookTitle = btn.getAttribute('data-book-title');
       const bookTheme = btn.getAttribute('data-book-theme');
       const bookVisibility = btn.getAttribute('data-book-visibility');
+      const isDirectlyReadOnly = btn.getAttribute('data-book-readonly') === '1';
+      const isProtected = btn.getAttribute('data-book-protected') === '1';
 
       const editBookIdInput = document.getElementById('edit-book-id-hidden');
       const editBookTitleInput = document.getElementById('edit-book-title-input');
       const editBookThemeInput = document.getElementById('edit-book-theme-input');
       const editBookVisInput = document.getElementById('edit-book-visibility-input');
       const editBookRssUrlInput = document.getElementById('edit-book-rss-url');
+      const editBookReadOnlyInput = document.getElementById('edit-book-readonly-input');
+      const editBookReadOnlyHelp = document.getElementById('edit-book-readonly-help');
+      const editBookProtectedNotice = document.getElementById('edit-book-protected-notice');
+      const deleteBookBtn = document.getElementById('btn-delete-book');
       const editBookModal = document.getElementById('edit-book-modal');
+      const isDemoMode = document.getElementById('btn-reload-demo-package') !== null;
+
+      if (deleteBookBtn) {
+        if (isProtected) {
+          deleteBookBtn.style.display = 'none';
+          deleteBookBtn.setAttribute('data-protected', '1');
+        } else {
+          deleteBookBtn.style.display = 'inline-block';
+          deleteBookBtn.removeAttribute('data-protected');
+        }
+      }
+
+      if (editBookProtectedNotice) {
+        editBookProtectedNotice.style.display = isProtected ? 'inline-flex' : 'none';
+      }
+
+      if (editBookReadOnlyInput) {
+        editBookReadOnlyInput.checked = isDirectlyReadOnly || isProtected;
+
+        if (!isDirectlyReadOnly && isProtected) {
+          // Protected because it contains protected documents
+          editBookReadOnlyInput.disabled = true;
+          if (editBookReadOnlyHelp) {
+            editBookReadOnlyHelp.textContent = 'This category contains protected documents and is automatically locked against deletion.';
+          }
+        } else if (isDirectlyReadOnly) {
+          if (isDemoMode) {
+            editBookReadOnlyInput.disabled = true;
+            if (editBookReadOnlyHelp) {
+              editBookReadOnlyHelp.textContent = 'Protected demo categories cannot be unlocked in demo mode.';
+            }
+          } else {
+            editBookReadOnlyInput.disabled = false;
+            if (editBookReadOnlyHelp) {
+              editBookReadOnlyHelp.textContent = 'Uncheck to unlock this category and allow deletion.';
+            }
+          }
+        } else {
+          editBookReadOnlyInput.disabled = false;
+          if (editBookReadOnlyHelp) {
+            editBookReadOnlyHelp.textContent = 'Protected categories and categories containing protected documents cannot be deleted.';
+          }
+        }
+      }
 
       if (editBookIdInput && editBookTitleInput && editBookModal) {
         editBookIdInput.value = bookId;
@@ -670,6 +815,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const bookTitle = bookTitleInput ? bookTitleInput.value : 'this category';
 
       if (!bookId) return;
+
+      if (deleteBookBtn.getAttribute('data-protected') === '1') {
+        alert('This category is protected or contains protected documents and cannot be deleted.');
+        return;
+      }
 
       if (!confirm(`Are you sure you want to delete the category "${bookTitle}" and all its sub-folders from the wiki structure?`)) {
         return;
@@ -918,6 +1068,15 @@ document.addEventListener('DOMContentLoaded', () => {
       editActions.style.display = 'flex';
       editorContainer.style.display = 'block';
 
+      const mainContent = document.querySelector('.app-content');
+      if (mainContent) {
+        mainContent.classList.add('is-editing-doc');
+        const header = document.querySelector('.content-header');
+        if (header) {
+          mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
+        }
+      }
+
       const rawContent = rawMarkdownData.value || '';
       const hasHtml = containsHtmlMarkup(rawContent);
 
@@ -1101,6 +1260,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tuiEditor && rawMarkdownData) {
         tuiEditor.setMarkdown(rawMarkdownData.value);
       }
+      const mainContent = document.querySelector('.app-content');
+      if (mainContent) mainContent.classList.remove('is-editing-doc');
       editActions.style.display = 'none';
       editorContainer.style.display = 'none';
       readActions.style.display = 'flex';
@@ -1143,6 +1304,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (err) {
         alert('Save request failed');
+      }
+    });
+
+    // Window resize handler to maintain exact sticky toolbar offset
+    window.addEventListener('resize', () => {
+      const mainContent = document.querySelector('.app-content.is-editing-doc');
+      const header = document.querySelector('.content-header');
+      if (mainContent && header) {
+        mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
+      }
+    });
+
+    // Ctrl+S / Cmd+S shortcut inside inline Markdown editor
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        if (editorContainer && editorContainer.style.display !== 'none') {
+          e.preventDefault();
+          if (btnSaveInline && !btnSaveInline.disabled) {
+            btnSaveInline.click();
+          }
+        }
       }
     });
   }
@@ -1328,6 +1510,10 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (nodeVis === 'public') result.visibility = 'public';
     if (nodeTheme) result.theme = nodeTheme;
     if (nodeFolder) result.folder = nodeFolder;
+    if (catEl.getAttribute('data-category-readonly') === '1') {
+      result.readOnly = true;
+      result.editable = false;
+    }
 
     if (items.length > 0) result.items = items;
     return result;
@@ -1639,9 +1825,50 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!svgbobInitPromise) {
       svgbobInitPromise = (async () => {
         try {
-          const mod = await import('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm.js');
-          await mod.default('https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm_bg.wasm');
-          svgbobRenderFn = mod.render;
+          const wasmUrl = 'https://unpkg.com/svgbob-wasm@1.0.0/svgbob_wasm_bg.wasm';
+          const res = await fetch(wasmUrl);
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+          const bytes = await res.arrayBuffer();
+          const { instance } = await WebAssembly.instantiate(bytes, {});
+          const wasm = instance.exports;
+
+          const encoder = new TextEncoder();
+          const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+          let wasmVectorLen = 0;
+
+          function getUint8Memory() {
+            return new Uint8Array(wasm.memory.buffer);
+          }
+          function getInt32Memory() {
+            return new Int32Array(wasm.memory.buffer);
+          }
+
+          function passStringToWasm(arg) {
+            const buf = encoder.encode(arg);
+            const ptr = wasm.__wbindgen_malloc(buf.length);
+            getUint8Memory().subarray(ptr, ptr + buf.length).set(buf);
+            wasmVectorLen = buf.length;
+            return ptr;
+          }
+
+          svgbobRenderFn = function(ascii) {
+            let r0, r1;
+            try {
+              const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+              const ptr0 = passStringToWasm(ascii);
+              const len0 = wasmVectorLen;
+              wasm.render(retptr, ptr0, len0);
+              r0 = getInt32Memory()[retptr / 4 + 0];
+              r1 = getInt32Memory()[retptr / 4 + 1];
+              return decoder.decode(getUint8Memory().subarray(r0, r0 + r1));
+            } finally {
+              wasm.__wbindgen_add_to_stack_pointer(16);
+              if (r0 !== undefined && r1 !== undefined) {
+                wasm.__wbindgen_free(r0, r1);
+              }
+            }
+          };
+
           return svgbobRenderFn;
         } catch (err) {
           console.warn('Could not initialize Svgbob WASM:', err);
@@ -1723,21 +1950,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const codeBlocks = document.querySelectorAll('.content-body pre code');
     if (codeBlocks.length === 0) return;
 
-    const renderFn = await loadSvgbob();
-
     for (const block of codeBlocks) {
       const pre = block.parentElement;
       if (!pre || pre.dataset.rendered === 'true') continue;
 
-      const isSvgbobClass = block.classList.contains('language-bob') ||
-                            block.classList.contains('language-svgbob') ||
-                            block.classList.contains('language-ascii') ||
-                            block.classList.contains('language-diagram');
-
       const hasBoxChars = /[\u2500-\u257F]/.test(block.textContent);
-      const isCandidate = isSvgbobClass || (hasBoxChars && block.textContent.trim().split('\n').length >= 2);
+      const isExplicitSvgbob = block.classList.contains('language-bob') ||
+                               block.classList.contains('language-svgbob');
+      const isGenericDiagram = (block.classList.contains('language-diagram') ||
+                                block.classList.contains('language-ascii')) && !hasBoxChars;
 
-      if (isCandidate) {
+      // Unicode box-drawing diagrams & tables are rendered as crisp monospace pre blocks
+      if (hasBoxChars && !isExplicitSvgbob) {
+        pre.style.lineHeight = '1.0';
+        pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
+        pre.style.letterSpacing = '0px';
+        pre.style.fontSize = '0.84rem';
+        block.style.fontFamily = 'inherit';
+        block.style.letterSpacing = 'inherit';
+        pre.style.padding = '1rem';
+        pre.dataset.rendered = 'true';
+        continue;
+      }
+
+      // ASCII art diagrams are converted to SVG vector diagrams using Svgbob WASM
+      if (isExplicitSvgbob || isGenericDiagram) {
+        const renderFn = await loadSvgbob();
         if (renderFn) {
           try {
             const svgOutput = renderFn(block.textContent);
@@ -1754,11 +1992,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Fallback styling for box characters
-        pre.style.lineHeight = '1.15';
-        pre.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+        // Fallback styling if Svgbob could not render
+        pre.style.lineHeight = '1.0';
+        pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         block.style.fontFamily = 'inherit';
         pre.style.padding = '1rem';
+        pre.dataset.rendered = 'true';
       }
     }
   }

@@ -1,6 +1,27 @@
 # ⚡ Standalone Qwiki
 
-**Standalone Qwiki** is a modern, fast, zero-database documentation portal and wiki system written in PHP, Vanilla JavaScript, and CSS. It supports local Markdown files (`.md`), embedded PDF documents (`.pdf`), and published Google Docs (`gdoc`) within a unified, responsive interface featuring dynamic search, dark/light themes, drag-and-drop menu reordering, resizable sidebar, and role-based user management.
+[![Website](https://img.shields.io/badge/Website-qwiki.wiki-2563eb?style=flat&logo=googlechrome&logoColor=white)](https://qwiki.wiki)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Try%20Online-10b981?style=flat&logo=rocket&logoColor=white)](https://qwiki.wiki/demo/)
+[![Documentation](https://img.shields.io/badge/Docs-home.qwiki.wiki-8b5cf6?style=flat&logo=gitbook&logoColor=white)](https://home.qwiki.wiki/docs)
+[![PHP](https://img.shields.io/badge/PHP-%3E%3D%207.4-777bb4?style=flat&logo=php&logoColor=white)](https://www.php.net/)
+[![Latest Release](https://img.shields.io/github/v/release/FrancoBenedetti/standalone-qwiki?style=flat&color=f59e0b)](https://github.com/FrancoBenedetti/standalone-qwiki/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat)](https://opensource.org/licenses/MIT)
+
+**[🌐 Website](https://qwiki.wiki)** &nbsp;•&nbsp; **[🚀 Live Demo](https://qwiki.wiki/demo/)** &nbsp;•&nbsp; **[📖 Documentation](https://home.qwiki.wiki/docs)** &nbsp;•&nbsp; **[⚡ Quick Start](#-quick-start--installation)** &nbsp;•&nbsp; **[📦 Releases](https://github.com/FrancoBenedetti/standalone-qwiki/releases)**
+
+---
+
+**Standalone Qwiki** is a modern, fast, zero-database documentation portal and wiki system written in PHP, Vanilla JavaScript, and CSS. It supports local Markdown files (`.md`), rich HTML documents (`.html`), embedded PDF documents (`.pdf`), and published Google Docs (`gdoc`) within a unified, responsive interface featuring dynamic search, zero-flicker dark/light themes, drag-and-drop menu reordering, resizable sidebar, and role-based user management.
+
+---
+
+## 🎬 See Standalone Qwiki in Action
+
+Watch Standalone Qwiki in action:
+
+https://github.com/user-attachments/assets/22c6bf1b-c2e9-41f4-bc37-7317d839771a
+
+> 💡 **Try it live**: Test features firsthand in the [**Interactive Live Demo**](https://qwiki.wiki/demo/) *(Log in as Admin: `admin` / `admin`)* or explore complete setup guides in the [**Official Documentation**](https://home.qwiki.wiki/docs).
 
 ---
 
@@ -10,6 +31,7 @@ Standalone Qwiki is **100% location-agnostic**:
 - It can be deployed in **any sub-folder** of your server root (e.g. `/help`, `/documentation`, `/docs/v1`, `/wiki`) or as a root domain.
 - **Zero Hardcoded Paths**: All web assets, navigation links, and API requests use relative paths (`index.php?`, `assets/css/`, `api/admin.php`).
 - **Zero Configuration Required**: Simply place the `standalone-qwiki` folder into your desired directory on your server; no rewrite rules or configuration changes are needed!
+
 
 ---
 
@@ -53,6 +75,9 @@ Admins can control whether documentation is publicly readable or requires authen
 - **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
 - **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data or installed extensions.
 - **🔒 Multi-Tab & Collaborative Document Soft Locks**: Protects documents against simultaneous editing and overwrite collisions across different users and multiple browser tabs. Powered by an advisory lease engine, background heartbeats, immediate `BroadcastChannel` tab synchronization, automatic local draft preservation, and takeover controls.
+- **🛡️ Category Lock & Cascading Deletion Protection**: Lock categories directly (`readOnly: true`, `locked: true`) or inherit deletion protection whenever a category holds protected documents. Visual lock indicators (`🔒`) and smart suppression of deletion actions prevent accidental data loss across deep folder hierarchies.
+- **🌐 Sidebar Subwiki Navigation & Discovery**: Seamlessly navigate deployed subwikis with an optional collapsible accordion in the navigation sidebar, real-time document count badges, and bi-directional cross-wiki linking.
+- **📬 Editorial Postbox & Desktop Transfer System**: Asynchronously transfer documents and folders across independent wikis or directly from your workstation (Linux, Windows, macOS) with non-destructive, reviewer-controlled staging. Includes zero-dependency Python 3 CLI tools, native OS file manager integrations (`Send to Qwiki`), automated asset packaging, and category mapping without in-place overwrites.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).
@@ -105,6 +130,8 @@ Extensions live in `assets/extensions/{extension-id}/` and require zero core mod
 
 ## 🚀 Quick Start & Installation
 
+> 📘 **Looking for full documentation?** Comprehensive configuration guides, server recipes (Apache, Nginx, Caddy, Docker), and advanced customization options are available at **[home.qwiki.wiki/docs](https://home.qwiki.wiki/docs)**.
+
 1. **Download the Latest Release**:
    Download the latest `.zip` file from the [GitHub Releases page](https://github.com/FrancoBenedetti/standalone-qwiki/releases/latest) and extract it to your web server root or subfolder.
 
@@ -132,6 +159,8 @@ When accessing for the first time, click **Login** in the top right header:
 
 - **Username**: `admin`
 - **Password**: `admin`
+
+*(You can also use these credentials right now to explore the [Interactive Live Demo](https://qwiki.wiki/demo/)).*
 
 ---
 

@@ -1,0 +1,15 @@
+{
+  "id": "backup",
+  "type": "utility",
+  "title": "Backup & Export",
+  "icon": "📦",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_backup_scan",
+    "ext_backup_download"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}
