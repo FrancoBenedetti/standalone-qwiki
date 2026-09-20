@@ -27,9 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Contextual Split Authoring**: Added prominent **`New Document`** and **`+ Cat`** buttons to the top of the sidebar navigation for instant access to authoring workflows, while streamlining the header profile dropdown to focus on Tools, Administration, and Account actions.
 - **Theme Editor & Contrast Accessibility**: Enhanced contrast and dark/light mode readability across interactive modals and toolbars.
 
+### 📦 Clean Release Packaging & Updater Hardening
+- **Native Archive Filtering (`.gitattributes`)**: Configured `export-ignore` rules for `tests/`, `AGENTS.md`, `package.json`, `demo-reload.php`, and build tools so GitHub release archives (`zipball_url` and Source code zips) automatically omit internal tests and dev artifacts.
+- **In-App Updater Defense-in-Depth**: Hardened `api/admin.php` (`install_update`) to exclude test suites, dev files, and git metadata from extraction, preventing production instances from being polluted during updates. Added release asset prioritization in `check_updates`.
+- **Distribution Build Script (`tools/build-release.sh`)**: Added 1-command release packaging script that compiles and verifies clean `dist/standalone-qwiki-v*.zip` production archives.
+
 ### 🧪 Automated Test Coverage
 - `tests/edit_chapter_category_test.php`: 18 assertions covering `Navigation::findChapterParentId`, server-side modal rendering for root and nested categories, dropdown selection validation, and API category preservation on metadata update.
 - `tests/anchor_and_contrast_test.php`: 30 assertions verifying in-page heading ID generation, WCAG AA contrast compliance for links in dark and light modes, and smooth scroll offsets.
+- `tests/clean_release_test.php`: 30 assertions verifying `.gitattributes` export-ignore coverage, `git archive` production cleanliness, updater exclusions, and release asset resolution.
 - Updated `tests/share_rights_test.php` covering Telegram and Slack sharing buttons in the share modal and Zen reader floating bar.
 
 ---

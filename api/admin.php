@@ -1452,12 +1452,22 @@ switch ($action) {
                 $parsedown->setSafeMode(true);
                 $notesHtml = $parsedown->text($latest['body'] ?? '');
 
+                $zipUrl = $latest['zipball_url'] ?? '';
+                if (!empty($latest['assets']) && is_array($latest['assets'])) {
+                    foreach ($latest['assets'] as $asset) {
+                        if (isset($asset['name']) && preg_match('/\.zip$/i', $asset['name'])) {
+                            $zipUrl = $asset['browser_download_url'] ?? $zipUrl;
+                            break;
+                        }
+                    }
+                }
+
                 $data = [
                     'has_update' => $hasUpdate,
                     'version' => $latest['tag_name'],
                     'notes' => $latest['body'] ?? '',
                     'notes_html' => $notesHtml,
-                    'zip_url' => $latest['zipball_url'] ?? ''
+                    'zip_url' => $zipUrl
                 ];
                 if (!is_dir($baseDir . '/uploads')) @mkdir($baseDir . '/uploads', 0755, true);
                 file_put_contents($cacheFile, json_encode($data));
@@ -1496,9 +1506,12 @@ switch ($action) {
         $zip = new ZipArchive;
         if ($zip->open($tempZip) === TRUE) {
             $rootFolder = '';
-            // NOTE: We do not exclude assets/extensions/ here because we need built-in extensions to receive bug fixes.
-            // Custom extensions added by users will not be deleted, as ZipArchive extraction only overwrites existing files.
-            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/'];
+            // Protect persistent user data, subwikis, and prevent dev/test artifacts from polluting production
+            $excludes = [
+                'content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/',
+                'tests/', 'node_modules/', 'AGENTS.md', 'package.json', 'package-lock.json',
+                'demo-reload.php', '.git', '.github', '.gitignore', '.gitattributes', 'tools/build-release.sh'
+            ];
             $existingSubwikis = SubwikiManager::listSubwikis();
             foreach ($existingSubwikis as $sub) {
                 if (!empty($sub['slug'])) {
