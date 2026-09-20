@@ -36,6 +36,57 @@ if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'api/') === 0 || 
 
 if (!class_exists('QwikiParsedown')) {
     class QwikiParsedown extends Parsedown {
+        protected $headingIds = [];
+
+        public function text($text) {
+            $this->headingIds = [];
+            return parent::text($text);
+        }
+
+        protected function slugify($text) {
+            $text = strip_tags($text);
+            $text = preg_replace('/\[(.*?)\]\(.*?\)/', '$1', $text);
+            $text = preg_replace('/[*_`~#]/', '', $text);
+            $slug = mb_strtolower($text, 'UTF-8');
+            $slug = preg_replace('/\s+/', '-', $slug);
+            $slug = preg_replace('/[^\w\-]+/u', '', $slug);
+            $slug = preg_replace('/--+/', '-', $slug);
+            return trim($slug, '-');
+        }
+
+        protected function generateUniqueHeadingId($text) {
+            $baseId = $this->slugify($text);
+            if ($baseId === '') {
+                $baseId = 'section';
+            }
+            $id = $baseId;
+            $counter = 1;
+            while (isset($this->headingIds[$id])) {
+                $id = $baseId . '-' . $counter;
+                $counter++;
+            }
+            $this->headingIds[$id] = true;
+            return $id;
+        }
+
+        protected function blockHeader($Line) {
+            $Block = parent::blockHeader($Line);
+            if (isset($Block['element'])) {
+                $arg = $Block['element']['handler']['argument'] ?? '';
+                $Block['element']['attributes']['id'] = $this->generateUniqueHeadingId($arg);
+            }
+            return $Block;
+        }
+
+        protected function blockSetextHeader($Line, ?array $Block = null) {
+            $Block = parent::blockSetextHeader($Line, $Block);
+            if (isset($Block['element'])) {
+                $arg = $Block['element']['handler']['argument'] ?? '';
+                $Block['element']['attributes']['id'] = $this->generateUniqueHeadingId($arg);
+            }
+            return $Block;
+        }
+
         protected function inlineLink($Excerpt) {
             $Inline = parent::inlineLink($Excerpt);
             if (!isset($Inline)) {
@@ -159,9 +210,24 @@ if (!$isShareMode && !$shareError) {
     // Active tree resolution state
     $activeBook = null;
     foreach ($allowedBooks as $book) {
-        if ($book['id'] === $requestedBookId) {
+        if (($book['id'] ?? '') === $requestedBookId) {
             $activeBook = $book;
             break;
+        }
+    }
+    // Subfolder route resolution: if requestedBookId is actually a subfolder ID
+    if (!$activeBook && !empty($requestedBookId) && !empty($allowedBooks)) {
+        foreach ($allowedBooks as $b) {
+            $dummyTrail = [];
+            $dummyIds = [];
+            $testChapter = Navigation::findChapterAndPath($b, $requestedBookId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
+            if ($testChapter) {
+                $activeBook = $b;
+                $activeChapter = $testChapter;
+                $breadcrumbsTrail = $dummyTrail;
+                $activePathIds = array_unique(array_merge([$b['id'] ?? ''], $dummyIds));
+                break;
+            }
         }
     }
     if (!$activeBook && !empty($allowedBooks)) {
@@ -176,11 +242,11 @@ if (!$isShareMode && !$shareError) {
         }
     }
 
-    $activeChapter = null;
-    $breadcrumbsTrail = [];
-    $activePathIds = $activeBook ? [$activeBook['id']] : [];
+    $activeChapter = $activeChapter ?? null;
+    $breadcrumbsTrail = $breadcrumbsTrail ?? [];
+    $activePathIds = $activePathIds ?? ($activeBook ? [$activeBook['id'] ?? ''] : []);
 
-    if ($activeBook) {
+    if ($activeBook && !$activeChapter) {
         $dummyTrail = [];
         $dummyIds = [];
         $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
@@ -193,22 +259,50 @@ if (!$isShareMode && !$shareError) {
             $activeChapter = Navigation::findChapterAndPath($activeBook, $fallbackFolderId, '', $dummyTrail, $dummyIds, $isAdmin, $isViewer);
         }
 
+        // Global fallback: find chapter across all books if requestedChapterSlug not found in activeBook
+        if (!$activeChapter && !empty($requestedChapterSlug)) {
+            foreach ($allowedBooks as $b) {
+                if (($b['id'] ?? '') === ($activeBook['id'] ?? '')) continue;
+                $dummyTrail = [];
+                $dummyIds = [];
+                $foundCandidate = Navigation::findChapterAndPath($b, '', $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
+                if ($foundCandidate) {
+                    $activeBook = $b;
+                    $activeChapter = $foundCandidate;
+                    break;
+                }
+            }
+        }
+
         if ($activeChapter) {
             $breadcrumbsTrail = $dummyTrail;
-            $activePathIds = array_unique(array_merge([$activeBook['id']], $dummyIds));
+            $activePathIds = array_unique(array_merge([$activeBook['id'] ?? ''], $dummyIds));
         } else {
             // Fallback to first document in the active book
             if (!empty($activeBook['items'])) {
                 foreach ($activeBook['items'] as $item) {
                     if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
                         $activeChapter = $item;
-                        $breadcrumbsTrail = [['title' => $activeBook['title'], 'id' => $activeBook['id']]];
+                        $breadcrumbsTrail = [['title' => $activeBook['title'] ?? '', 'id' => $activeBook['id'] ?? '']];
                         break;
                     }
                 }
             }
         }
     }
+}
+
+// Determine immediate containing category ID for active document
+$currentCategoryId = '';
+if (!empty($activeChapter['slug'])) {
+    $currentCategoryId = Navigation::findChapterParentId($config['books'] ?? [], $activeChapter['slug']) ?? '';
+}
+if (empty($currentCategoryId) && !empty($breadcrumbsTrail)) {
+    $lastCrumb = end($breadcrumbsTrail);
+    $currentCategoryId = $lastCrumb['id'] ?? '';
+}
+if (empty($currentCategoryId) && $activeBook) {
+    $currentCategoryId = $activeBook['id'] ?? '';
 }
 
 $categoryHierarchy = Navigation::getCategoriesHierarchy($config['books'] ?? []);
@@ -428,21 +522,42 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.3rem;"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?></span> ▾
                     </button>
                     <div class="dropdown-menu">
+                        <div class="dropdown-user-header">
+                            <div class="dropdown-user-info">
+                                <span class="dropdown-user-name"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?></span>
+                                <span class="dropdown-user-role"><?= $isAdmin ? 'Administrator' : 'Viewer' ?></span>
+                            </div>
+                            <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.4rem;"><?= $isAdmin ? 'admin' : 'viewer' ?></span>
+                        </div>
                         <?php if ($isAdmin): ?>
-                            <button class="dropdown-item" id="btn-add-book">+ Category</button>
-                            <button class="dropdown-item" id="btn-add-chapter">+ Document</button>
+                            <div class="dropdown-header">Tools & Utilities</div>
                             <?php $extManager->renderHeaderUtilityButtons(); ?>
-                            <button class="dropdown-item" id="btn-users">👥 Users</button>
+                            <div class="dropdown-divider"></div>
+                            <div class="dropdown-header">Administration</div>
+                            <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">
+                                <span class="dropdown-item-icon">⚙️</span>
+                                <span class="dropdown-item-text">Settings</span>
+                            </button>
+                            <button class="dropdown-item" id="btn-users">
+                                <span class="dropdown-item-icon">👥</span>
+                                <span class="dropdown-item-text">Users</span>
+                            </button>
                             <?php if (!$isSubwiki): ?>
-                                <button class="dropdown-item" id="btn-subwikis">🌐 Subwikis</button>
-                            <?php endif; ?>
-                            <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">⚙️ Settings</button>
-                            <?php if (!$isSubwiki): ?>
-                                <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">🎉 Update Available!</button>
+                                <button class="dropdown-item" id="btn-subwikis">
+                                    <span class="dropdown-item-icon">🌐</span>
+                                    <span class="dropdown-item-text">Subwikis</span>
+                                </button>
+                                <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">
+                                    <span class="dropdown-item-icon">🎉</span>
+                                    <span class="dropdown-item-text">Update Available!</span>
+                                </button>
                             <?php endif; ?>
                             <div class="dropdown-divider"></div>
                         <?php endif; ?>
-                        <button class="dropdown-item text-danger" id="btn-logout">Logout</button>
+                        <button class="dropdown-item text-danger" id="btn-logout">
+                            <span class="dropdown-item-icon">🚪</span>
+                            <span class="dropdown-item-text">Logout</span>
+                        </button>
                     </div>
                 </div>
             <?php else: ?>
@@ -481,6 +596,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <a href="https://api.whatsapp.com/send?text=<?= urlencode(($activeChapter['title'] ?? '') . ' ' . $canonicalUrl) ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
                         💬 Share on WhatsApp
                     </a>
+                    <a href="https://t.me/share/url?url=<?= urlencode($canonicalUrl) ?>&text=<?= urlencode($activeChapter['title'] ?? '') ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
+                        ✈️ Share on Telegram
+                    </a>
+                    <button type="button" class="dropdown-item" id="btn-share-slack-bar" data-url="<?= htmlspecialchars($canonicalUrl) ?>" data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>">
+                        #️⃣ Share on Slack
+                    </button>
                     <div class="dropdown-divider"></div>
                     <button type="button" class="dropdown-item" id="btn-copy-bar-share" data-url="<?= htmlspecialchars($canonicalUrl) ?>">
                         🔗 Copy Share Link
@@ -521,6 +642,18 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <span>←</span>
                     <span>Back to <?= htmlspecialchars($parentTitle) ?></span>
                 </a>
+            </div>
+            <?php endif; ?>
+            <?php if ($isAdmin): ?>
+            <div class="sidebar-actions">
+                <button type="button" class="btn-sidebar-add-doc" id="btn-add-chapter" title="Create New Document">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>New Document</span>
+                </button>
+                <button type="button" class="btn-sidebar-add-cat" id="btn-add-book" title="Add New Category">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="12" y2="12"></line><line x1="9" y1="9" x2="15" y2="9"></line></svg>
+                    <span style="font-size: 0.75rem; font-weight: 600;">+ Cat</span>
+                </button>
             </div>
             <?php endif; ?>
             <nav class="sidebar-nav">
@@ -640,9 +773,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                             data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
                                             data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                            data-description="<?= htmlspecialchars($activeChapter['description'] ?? '') ?>"
+                                            data-image="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>"
                                             data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
                                             data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
-                                            data-book-id="<?= htmlspecialchars($activeBook['id'] ?? '') ?>"
+                                            data-book-id="<?= htmlspecialchars($currentCategoryId) ?>"
+                                            data-category-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-doc-readonly="<?= (!empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false) || !empty($activeChapter['locked'])) ? '1' : '0' ?>"
                                             data-doc-protected="<?= $isPageReadOnly ? '1' : '0' ?>"
                                             data-parent-locked="<?= (!empty($activeChapter['slug']) && Config::isChapterAncestorProtected($activeChapter['slug'], $config['books'] ?? [])) ? '1' : '0' ?>">
@@ -701,7 +837,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
             <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
-                <div class="toc-nav-buttons" style="display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <div class="toc-nav-buttons">
                     <?php if ($prevDoc): ?>
                         <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Previous: <?= htmlspecialchars($prevDoc['title']) ?>">&laquo; Prev</a>
                     <?php else: ?>
@@ -766,6 +902,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <a href="#" id="modal-share-linkedin" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on LinkedIn">💼 LinkedIn</a>
                         <a href="#" id="modal-share-facebook" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on Facebook">📘 Facebook</a>
                         <a href="#" id="modal-share-whatsapp" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on WhatsApp">💬 WhatsApp</a>
+                        <a href="#" id="modal-share-telegram" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Share on Telegram">✈️ Telegram</a>
+                        <button type="button" id="modal-share-slack" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;" title="Copy link & open Slack in new tab">#️⃣ Slack</button>
                     </div>
                 </div>
                 <?php if ($isAdmin): ?>
@@ -835,6 +973,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="title" id="book-title" class="form-control" placeholder="e.g. Developer Guides" required>
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="book-description">Category Description (Optional)</label>
+                    <textarea name="description" id="book-description" class="form-control" rows="2" placeholder="Brief explanation of this category (shown as tooltip)..."></textarea>
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="book-id-input">Category Folder / Slug (Optional)</label>
                     <input type="text" name="id" id="book-id-input" class="form-control" placeholder="e.g. developer-guides">
                 </div>
@@ -858,7 +1000,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <div class="modal-overlay" id="edit-book-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Edit Category Title</h3>
+                <h3>Edit Category</h3>
                 <button class="modal-close" data-close="edit-book-modal">&times;</button>
             </div>
             <form id="edit-book-form">
@@ -866,6 +1008,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="form-group">
                     <label class="form-label" for="edit-book-title-input">Category Title</label>
                     <input type="text" name="title" id="edit-book-title-input" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="edit-book-description-input">Category Description (Optional)</label>
+                    <textarea name="description" id="edit-book-description-input" class="form-control" rows="2" placeholder="Brief explanation of this category (shown as tooltip)..."></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-book-theme-input">Category Theme (Optional)</label>
@@ -966,7 +1112,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($categoryHierarchy as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
                                 <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -990,7 +1136,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($categoryHierarchy as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
                                 <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -1013,7 +1159,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label">Target Category / Folder</label>
                     <select name="bookId" class="form-control" required>
                         <?php foreach ($categoryHierarchy as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
                                 <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -1041,7 +1187,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <select name="bookId" class="form-control">
                         <option value="">-- Top Level (Sidebar Root) --</option>
                         <?php foreach ($categoryHierarchy as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
                                 <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -1091,7 +1237,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label" for="edit-chapter-category">Category / Folder</label>
                     <select name="targetBookId" id="edit-chapter-category" class="form-control">
                         <?php foreach ($categoryHierarchy as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($activeBook && $activeBook['id'] === $cat['id']) ? 'selected' : '' ?>>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
                                 <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                             </option>
                         <?php endforeach; ?>

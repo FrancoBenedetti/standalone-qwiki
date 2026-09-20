@@ -15,6 +15,7 @@
         {
             "id": "getting-started",
             "title": "About Qwiki",
+            "description": "Core documentation and overview of Standalone Qwiki features",
             "type": "folder",
             "items": [
                 {
@@ -46,6 +47,7 @@
                 {
                     "id": "advanced-topics",
                     "title": "Advanced Topics",
+                    "description": "Advanced architectural guides, security, and performance configurations",
                     "type": "folder",
                     "items": [
                         {

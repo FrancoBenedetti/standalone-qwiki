@@ -9,9 +9,11 @@ $books = $config['books'] ?? [];
     <label class="form-label">Target Category / Folder</label>
     <select name="bookId" class="form-control" required>
         <?php foreach ($books as $b): ?>
-            <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && $activeBook['id'] === $b['id']) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($b['title']) ?>
-            </option>
+            <?php if (($b['type'] ?? 'folder') === 'folder' && isset($b['id'])): ?>
+                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && ($activeBook['id'] ?? '') === $b['id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($b['title']) ?>
+                </option>
+            <?php endif; ?>
         <?php endforeach; ?>
     </select>
 </div>

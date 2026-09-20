@@ -215,7 +215,8 @@ class Navigation {
         }
 
         $nodeId = $node['id'] ?? '';
-        $nodeTitle = $node['title'] ?? '';
+        $nodeTitle = $node['title'] ?? $node['name'] ?? '';
+        $nodeDesc = htmlspecialchars($node['description'] ?? $node['desc'] ?? '');
         $isExpanded = in_array($nodeId, $activePathIds);
         $icon = ($depth === 0) ? '📂' : '📁';
         $indentClass = 'depth-' . min($depth, 5);
@@ -228,10 +229,12 @@ class Navigation {
         $catReadOnlyAttr = $isCatDirectlyReadOnly ? "data-category-readonly='1'" : "";
         $catProtectedAttr = $isCatProtected ? "data-category-protected='1'" : "";
 
-        $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}' {$catReadOnlyAttr} {$catProtectedAttr}" : "";
+        $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-description='{$nodeDesc}' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}' {$catReadOnlyAttr} {$catProtectedAttr}" : "";
+
+        $headerTitleAttr = ($nodeDesc !== '') ? " title='{$nodeDesc}'" : "";
 
         echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
-        echo "<div class='nav-category-header'>";
+        echo "<div class='nav-category-header'{$headerTitleAttr}>";
         echo "<span>";
         if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
         echo "{$icon} " . htmlspecialchars($nodeTitle);
@@ -242,7 +245,7 @@ class Navigation {
         echo "</span>";
         echo "<span class='header-actions-inline'>";
         if ($isAdmin) {
-            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' title='Edit Category'>⚙️</button> ";
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' title='Edit Category'>⚙️</button> ";
         }
         echo "<span class='chevron-icon'>▾</span>";
         echo "</span>";
@@ -255,7 +258,7 @@ class Navigation {
                 if (isset($item['type']) && $item['type'] === 'folder') {
                     self::renderSidebarNode($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extensionManager);
                 } elseif (isset($item['type']) && $item['type'] === 'link') {
-                    self::renderLinkItem($item, $bookId, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
+                    self::renderLinkItem($item, $nodeId, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
                 } else {
                     $ch = $item;
                     $isActive = ($isExpanded && $activeChapterSlug === ($ch['slug'] ?? ''));
@@ -370,6 +373,44 @@ class Navigation {
                 } elseif (isset($item['type']) && $item['type'] === 'folder') {
                     $found = self::findChapterByShareKeyInNode($item, $shareKey);
                     if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Recursively locate the immediate containing category/folder ID for a document slug.
+     *
+     * @param array $books Array of tree nodes
+     * @param string $slug Document slug
+     * @return string|null The ID of the containing category/folder, or null if not found
+     */
+    public static function findChapterParentId(array $books, string $slug): ?string {
+        if (empty($slug)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterParentIdInNode($book, $slug);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterParentIdInNode(array $node, string $slug): ?string {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (($item['slug'] ?? '') === $slug) {
+                        return $node['id'] ?? null;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterParentIdInNode($item, $slug);
+                    if ($found !== null) {
                         return $found;
                     }
                 }

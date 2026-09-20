@@ -173,6 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             document.querySelectorAll('.nav-category-item').forEach(catItem => {
               let catMatch = false;
+              const catTitle = (catItem.getAttribute('data-node-title') || '').toLowerCase();
+              const catDesc = (catItem.getAttribute('data-node-description') || '').toLowerCase();
+              const catSelfMatches = catTitle.includes(term) || catDesc.includes(term);
+
               catItem.querySelectorAll('.nav-link').forEach(link => {
                 const linkSlug = link.getAttribute('data-doc-slug');
                 const url = new URL(link.href, window.location.origin);
@@ -180,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const chapterSlug = linkSlug || url.searchParams.get('chapter') || url.searchParams.get('doc') || pathnameParts[pathnameParts.length - 1];
                 const text = link.textContent.toLowerCase();
                 
-                if (matchedSlugs.includes(chapterSlug) || text.includes(term)) {
+                if (catSelfMatches || matchedSlugs.includes(chapterSlug) || text.includes(term)) {
                   link.style.display = 'flex';
                   catMatch = true;
                 } else {
@@ -188,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               });
               
-              if (catMatch) {
+              if (catMatch || catSelfMatches) {
                 catItem.classList.remove('collapsed');
               } else {
                 catItem.classList.add('collapsed');
@@ -227,6 +231,13 @@ document.addEventListener('DOMContentLoaded', () => {
         dropdownMenu.classList.remove('show');
       }
     });
+
+    // Close user dropdown when any dropdown item is clicked
+    dropdownMenu.addEventListener('click', (e) => {
+      if (e.target.closest('.dropdown-item')) {
+        dropdownMenu.classList.remove('show');
+      }
+    });
   }
 
   // Trigger buttons
@@ -246,6 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn && modal) {
       btn.addEventListener('click', () => {
         modal.classList.add('open');
+        if (userDropdownToggle && userDropdownToggle.nextElementSibling) {
+          userDropdownToggle.nextElementSibling.classList.remove('show');
+        }
         if (modalId === 'users-modal') {
           loadUsersList();
         }
@@ -265,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const curUrl = btnMeta.getAttribute('data-url') || '';
             const curEditUrl = btnMeta.getAttribute('data-edit-url') || '';
             const curFile = btnMeta.getAttribute('data-file') || '';
-            const curBookId = btnMeta.getAttribute('data-book-id') || '';
+            const curBookId = btnMeta.getAttribute('data-category-id') || btnMeta.getAttribute('data-book-id') || '';
 
             const slugHidden = document.getElementById('edit-chapter-slug-hidden');
             if (slugHidden) slugHidden.value = curSlug;
@@ -292,6 +306,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (catSelect && curBookId) catSelect.value = curBookId;
 
             populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+            const descInput = document.getElementById('edit-chapter-description');
+            if (descInput && btnMeta.hasAttribute('data-description')) {
+              descInput.value = btnMeta.getAttribute('data-description') || '';
+            }
+            const imgInput = document.getElementById('edit-chapter-image');
+            if (imgInput && btnMeta.hasAttribute('data-image')) {
+              imgInput.value = btnMeta.getAttribute('data-image') || '';
+            }
             const shareableCheckbox = document.getElementById('edit-chapter-public-shareable');
             if (shareableCheckbox) {
               shareableCheckbox.checked = btnMeta.getAttribute('data-public-shareable') !== '0';
@@ -671,6 +693,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       const bookId = btn.getAttribute('data-book-id');
       const bookTitle = btn.getAttribute('data-book-title');
+      const bookDesc = btn.getAttribute('data-book-description') || '';
       const bookTheme = btn.getAttribute('data-book-theme');
       const bookVisibility = btn.getAttribute('data-book-visibility');
       const isDirectlyReadOnly = btn.getAttribute('data-book-readonly') === '1';
@@ -678,6 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const editBookIdInput = document.getElementById('edit-book-id-hidden');
       const editBookTitleInput = document.getElementById('edit-book-title-input');
+      const editBookDescInput = document.getElementById('edit-book-description-input');
       const editBookThemeInput = document.getElementById('edit-book-theme-input');
       const editBookVisInput = document.getElementById('edit-book-visibility-input');
       const editBookRssUrlInput = document.getElementById('edit-book-rss-url');
@@ -734,6 +758,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (editBookIdInput && editBookTitleInput && editBookModal) {
         editBookIdInput.value = bookId;
         editBookTitleInput.value = bookTitle;
+        if (editBookDescInput) editBookDescInput.value = bookDesc;
         if (editBookVisInput) editBookVisInput.value = bookVisibility || 'public';
         populateThemes(editBookThemeInput, bookTheme);
 
@@ -1487,6 +1512,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function extractCategoryNodeFromDOM(catEl) {
     const nodeId = catEl.getAttribute('data-node-id');
     const nodeTitle = catEl.getAttribute('data-node-title');
+    const nodeDesc = catEl.getAttribute('data-node-description');
     const nodeVis = catEl.getAttribute('data-node-visibility');
     const nodeTheme = catEl.getAttribute('data-node-theme');
     const nodeFolder = catEl.getAttribute('data-node-folder');
@@ -1506,6 +1532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const result = { id: nodeId, title: nodeTitle, type: 'folder' };
+    if (nodeDesc) result.description = nodeDesc;
     if (nodeVis && nodeVis !== 'public') result.visibility = nodeVis;
     else if (nodeVis === 'public') result.visibility = 'public';
     if (nodeTheme) result.theme = nodeTheme;
@@ -2388,10 +2415,130 @@ document.addEventListener('DOMContentLoaded', () => {
     headings.forEach(h => observer.observe(h));
   }
 
+  // ----------------------------------------------------
+  // In-Page Anchor Links Normalization & Navigation
+  // ----------------------------------------------------
+  function initAnchorLinks() {
+    const contentBody = document.getElementById('content-body');
+    if (!contentBody) return;
+
+    const slugify = (text) => {
+      return text.toString().toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
+    };
+
+    // Ensure all headings (h1..h6) have IDs if not assigned by server
+    const allHeadings = contentBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    allHeadings.forEach((heading, index) => {
+      if (!heading.id) {
+        let baseId = slugify(heading.textContent) || 'section-' + index;
+        let id = baseId;
+        let counter = 1;
+        while (document.getElementById(id)) {
+          id = baseId + '-' + counter;
+          counter++;
+        }
+        heading.id = id;
+      }
+    });
+
+    // Normalize in-page fragment links in content body
+    // Because <base href> is defined in <head>, relative links like href="#anchor"
+    // would otherwise resolve against <base href> (the site root/homepage).
+    const currentBaseUrl = window.location.href.split('#')[0];
+    const anchorLinks = contentBody.querySelectorAll('a[href^="#"]');
+    anchorLinks.forEach(link => {
+      const rawHref = link.getAttribute('href');
+      if (rawHref && rawHref.startsWith('#') && rawHref.length > 1) {
+        link.href = currentBaseUrl + rawHref;
+      }
+    });
+  }
+
+  function scrollToAnchorTarget(targetId, updateHistory = true) {
+    if (!targetId) return false;
+    const cleanId = decodeURIComponent(targetId.replace(/^#/, ''));
+    if (!cleanId) return false;
+
+    let targetEl = document.getElementById(cleanId);
+    if (!targetEl) {
+      try {
+        targetEl = document.querySelector(`[name="${CSS.escape(cleanId)}"]`);
+      } catch (e) {
+        targetEl = null;
+      }
+    }
+
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (updateHistory) {
+        history.pushState(null, '', window.location.href.split('#')[0] + '#' + encodeURIComponent(cleanId));
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // Intercept click on in-page anchor links across the document
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+
+    // Ignore modified clicks (Ctrl, Cmd, Shift, Alt) or right clicks
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+    const href = link.getAttribute('href');
+    if (!href) return;
+
+    let hash = '';
+    if (href.startsWith('#') && href.length > 1) {
+      hash = href;
+    } else {
+      try {
+        const linkUrl = new URL(link.href, window.location.origin);
+        const currentUrl = new URL(window.location.href);
+        if (linkUrl.origin === currentUrl.origin && linkUrl.pathname === currentUrl.pathname && linkUrl.search === currentUrl.search && linkUrl.hash) {
+          hash = linkUrl.hash;
+        }
+      } catch (err) {}
+    }
+
+    if (hash && hash.length > 1) {
+      const handled = scrollToAnchorTarget(hash, true);
+      if (handled) {
+        e.preventDefault();
+      }
+    }
+  });
+
+  // Handle browser Back / Forward history navigation with hash
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash) {
+      scrollToAnchorTarget(window.location.hash, false);
+    }
+  });
+
+  // Handle initial page load with hash in URL
+  function handleInitialHashNavigation() {
+    if (window.location.hash && window.location.hash.length > 1) {
+      setTimeout(() => {
+        scrollToAnchorTarget(window.location.hash, false);
+      }, 150);
+    }
+  }
+
+  window.initAnchorLinks = initAnchorLinks;
+
   // Run on page load
   initVideoEmbeds();
   renderVisualDiagrams();
+  initAnchorLinks();
   generateTableOfContents();
+  handleInitialHashNavigation();
 
   // Print / Download as PDF (Delegates to HTML iframe if active to enable full pagination)
   document.querySelectorAll('#btn-print-chapter').forEach(btn => {
@@ -2437,10 +2584,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnIn = document.getElementById('modal-share-linkedin');
     const btnFb = document.getElementById('modal-share-facebook');
     const btnWa = document.getElementById('modal-share-whatsapp');
+    const btnTg = document.getElementById('modal-share-telegram');
     if (btnX) btnX.href = `https://twitter.com/intent/tweet?url=${encUrl}&text=${encTitle}`;
     if (btnIn) btnIn.href = `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}`;
     if (btnFb) btnFb.href = `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`;
     if (btnWa) btnWa.href = `https://api.whatsapp.com/send?text=${encTitle}%20${encUrl}`;
+    if (btnTg) btnTg.href = `https://t.me/share/url?url=${encUrl}&text=${encTitle}`;
   };
 
   if (btnShareChapter) {
@@ -2539,6 +2688,36 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('Failed to copy link:', err);
       }
+    });
+  }
+
+  // Slack share button inside Share Modal (Copies link and opens Slack in a new tab)
+  const btnModalSlack = document.getElementById('modal-share-slack');
+  if (btnModalSlack) {
+    btnModalSlack.addEventListener('click', async () => {
+      const urlToCopy = (shareLinkInput && shareLinkInput.value && !shareLinkInput.value.startsWith('Generating') && !shareLinkInput.value.startsWith('Failed'))
+        ? shareLinkInput.value
+        : (btnShareChapter ? btnShareChapter.getAttribute('data-share-url') : window.location.href);
+      if (!urlToCopy) return;
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(urlToCopy);
+        } else if (shareLinkInput) {
+          shareLinkInput.select();
+          document.execCommand('copy');
+        }
+      } catch (err) {
+        console.error('Failed to copy share link for Slack:', err);
+      }
+
+      const origText = btnModalSlack.textContent;
+      btnModalSlack.textContent = '✅ Copied for Slack!';
+      setTimeout(() => {
+        btnModalSlack.textContent = origText;
+      }, 2000);
+
+      window.open('https://slack.com/app_redirect', '_blank', 'noopener,noreferrer');
     });
   }
 
@@ -2644,6 +2823,36 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('Failed to copy share link:', err);
       }
+    });
+  }
+
+  // Slack share button in floating share bar (Copies link and opens Slack in a new tab)
+  const btnShareSlackBar = document.getElementById('btn-share-slack-bar');
+  if (btnShareSlackBar) {
+    btnShareSlackBar.addEventListener('click', async () => {
+      const urlToCopy = btnShareSlackBar.getAttribute('data-url') || window.location.href;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(urlToCopy);
+        } else {
+          const input = document.createElement('input');
+          input.value = urlToCopy;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand('copy');
+          document.body.removeChild(input);
+        }
+      } catch (err) {
+        console.error('Failed to copy share link for Slack:', err);
+      }
+
+      const origText = btnShareSlackBar.innerHTML;
+      btnShareSlackBar.innerHTML = '✅ Copied for Slack!';
+      setTimeout(() => {
+        btnShareSlackBar.innerHTML = origText;
+      }, 2000);
+
+      window.open('https://slack.com/app_redirect', '_blank', 'noopener,noreferrer');
     });
   }
 

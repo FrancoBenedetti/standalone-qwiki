@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [1.12.0] - PathNest - 2026-09-20
+
+### 🗂️ Category Prefilling & Hierarchy Preservation
+- **Immediate Parent Category Detection (`Navigation::findChapterParentId`)**: Added recursive category resolution to accurately determine the immediate containing folder for any document slug across nested folder hierarchies.
+- **Accurate Category Prefilling in Edit Details**: In the document properties modal (`⚙️ Edit Details`), the "Category / Folder" dropdown is now accurately prefilled with the document's immediate parent category (both in initial server-side HTML rendering and JavaScript modal population), preventing nested documents from defaulting to the root category.
+- **Accidental Relocation Prevention**: Modifying document properties (such as title, custom slug, or theme) without explicitly changing the category dropdown now reliably preserves the document's original parent category in `qwiki.json` and on disk, eliminating unintentional moves to the root folder.
+- **Subfolder Direct Routing & Fallback Resolution**: Direct clean URLs and query requests to subfolder paths (e.g. `/subfolder/document` or `?chapter=slug`) now resolve cleanly across all allowed books without falling back to the wiki root.
+- **Add Document Subfolder Context**: When browsing inside a subfolder, opening the Add New Document tabs (`✏️ New Markdown`, `📁 Upload File`, `🌐 Google Doc`, `🔗 Web Link`) now preselects the active subfolder as the target destination.
+
+### 🔗 Document Sharing & Social Shortcuts
+- **Telegram & Slack Sharing**: Added 1-click sharing to **Telegram** (`https://t.me/share/url`) and **Slack** (`#️⃣ Share on Slack`) across both the Share Document modal and the floating Zen reader dropdown. The Slack action automatically copies the share URL to the clipboard, displays confirmation (`✅ Copied for Slack!`), and opens the Slack client ready for pasting with full Open Graph unfurling.
+
+### 🛠️ Split Admin Authoring & UI Ergonomics
+- **Contextual Split Authoring**: Added prominent **`New Document`** and **`+ Cat`** buttons to the top of the sidebar navigation for instant access to authoring workflows, while streamlining the header profile dropdown to focus on Tools, Administration, and Account actions.
+- **Theme Editor & Contrast Accessibility**: Enhanced contrast and dark/light mode readability across interactive modals and toolbars.
+
+### 🧪 Automated Test Coverage
+- `tests/edit_chapter_category_test.php`: 18 assertions covering `Navigation::findChapterParentId`, server-side modal rendering for root and nested categories, dropdown selection validation, and API category preservation on metadata update.
+- `tests/anchor_and_contrast_test.php`: 30 assertions verifying in-page heading ID generation, WCAG AA contrast compliance for links in dark and light modes, and smooth scroll offsets.
+- Updated `tests/share_rights_test.php` covering Telegram and Slack sharing buttons in the share modal and Zen reader floating bar.
+
+---
+
 ## [1.11.0] - PostFlow - 2026-09-18
 
 ### 📬 Editorial Postbox & Asynchronous Document Transfer
