@@ -46,6 +46,10 @@ Here are the key features and workflows you can test right now:
 - Open **`👥 Users`** in the header to view user accounts or create new Viewer / Admin users.
 - Open **`⚙️ Settings`** to toggle between **Public Access** and **Private Portal** modes, change site branding, or copy RSS feeds.
 
+### 6. Gemini AI Assistant & LLM Agent Access
+- Click **`✨ AI Assistant`** in the header when viewing any page to test automated document summary generation and interactive OpenGraph social share card simulation (runs safely in simulated mode in this demo sandbox).
+- Open **Admin Dropdown ➔ 🤖 LLM & API Access** to explore API key generation, category scoping, OpenAPI 3.0 tool schemas, and standard `llms.txt` retrieval.
+
 ---
 
 ## 🔄 Demo Reload Utility
