@@ -27,7 +27,7 @@ Anyone can browse and search this demo package without signing in. To test admin
 Here are the key features and workflows you can test right now:
 
 ### 1. Create and Edit Content
-- Click **`+ Add Document`** in the top navigation bar to create a new **Markdown** article, interactive **HTML** page, embed a published **Google Doc**, or upload a **PDF**.
+- Click **`+ Add Document`** in the top navigation bar to create a new **Markdown** article, custom interactive **Form**, interactive **HTML** page, embed a published **Google Doc**, or upload a **PDF**.
 - Note: This **Introduction** landing page is protected as **read-only** in the demo environment to preserve the guide for all visitors. You can test inline editing and WYSIWYG modes on any other document or any new pages you create!
 
 ### 2. Drag-and-Drop Menu Reordering
