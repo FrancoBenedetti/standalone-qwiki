@@ -246,9 +246,11 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-book', modalId: 'book-modal' },
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
+    { btnId: 'btn-llm-keys', modalId: 'llm-keys-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
     { btnId: 'btn-subwikis', modalId: 'subwikis-modal' },
-    { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' }
+    { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' },
+    { btnId: 'btn-replace-document', modalId: 'replace-document-modal' }
   ];
 
   triggers.forEach(({ btnId, modalId }) => {
@@ -263,6 +265,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'users-modal') {
           loadUsersList();
         }
+        if (modalId === 'llm-keys-modal') {
+          loadLlmKeysList();
+        }
         if (modalId === 'subwikis-modal') {
           loadSubwikisList();
         }
@@ -270,7 +275,22 @@ document.addEventListener('DOMContentLoaded', () => {
           const btnSettings = document.getElementById('btn-settings');
           if (btnSettings) populateThemes(document.getElementById('setting-site-theme'), btnSettings.getAttribute('data-theme'));
         }
+        if (modalId === 'replace-document-modal') {
+          const btnReplace = document.getElementById('btn-replace-document');
+          if (btnReplace) {
+            const curSlug = btnReplace.getAttribute('data-slug') || '';
+            const curTitle = btnReplace.getAttribute('data-title') || '';
+            const slugInput = document.getElementById('replace-document-slug');
+            const titleDisplay = document.getElementById('replace-document-title-display');
+            if (slugInput) slugInput.value = curSlug;
+            if (titleDisplay) titleDisplay.textContent = curTitle;
+            const fileInput = document.getElementById('replace-document-file-input');
+            if (fileInput) fileInput.value = '';
+          }
+        }
         if (modalId === 'edit-chapter-modal') {
+          const replFileInput = document.getElementById('edit-chapter-replacement-file');
+          if (replFileInput) replFileInput.value = '';
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
           if (btnMeta) {
             const curSlug = btnMeta.getAttribute('data-slug') || '';
@@ -554,6 +574,242 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Open LLM Keys Modal directly from Settings Modal
+  const btnOpenLlmFromSettings = document.getElementById('btn-open-llm-from-settings');
+  if (btnOpenLlmFromSettings) {
+    btnOpenLlmFromSettings.addEventListener('click', () => {
+      const settingsModal = document.getElementById('settings-modal');
+      if (settingsModal) settingsModal.classList.remove('open');
+      const llmModal = document.getElementById('llm-keys-modal');
+      if (llmModal) {
+        llmModal.classList.add('open');
+        loadLlmKeysList();
+      }
+    });
+  }
+
+  // Load and render LLM access keys in LLM Keys Modal
+  async function loadLlmKeysList() {
+    const container = document.getElementById('llm-keys-list-container');
+    if (!container) return;
+
+    try {
+      const res = await fetch('api/admin.php?action=list_llm_keys');
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.keys)) {
+        if (data.keys.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.88rem;">No LLM access keys generated yet. Use the form above to generate your first key.</p>';
+          return;
+        }
+
+        const currentOrigin = window.location.origin;
+        const currentPath = window.location.pathname.replace(/\/[^/]*$/, '/');
+        const apiBaseUrl = currentOrigin + currentPath + 'api/llm.php';
+
+        let html = '<table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.88rem;">';
+        html += '<thead style="border-bottom:1px solid var(--border-color); color:var(--text-muted); font-size:0.82rem;">';
+        html += '<tr>';
+        html += '<th style="padding:0.6rem 0.5rem;">Name / Purpose</th>';
+        html += '<th style="padding:0.6rem 0.5rem;">Scope</th>';
+        html += '<th style="padding:0.6rem 0.5rem;">Types</th>';
+        html += '<th style="padding:0.6rem 0.5rem;">Expiration</th>';
+        html += '<th style="padding:0.6rem 0.5rem;">Last Used</th>';
+        html += '<th style="padding:0.6rem 0.5rem;">Status</th>';
+        html += '<th style="padding:0.6rem 0.5rem; text-align:right;">Actions</th>';
+        html += '</tr></thead><tbody>';
+
+        data.keys.forEach(k => {
+          const isExpired = k.isExpired || k.effectiveStatus === 'expired';
+          const isRevoked = k.status === 'revoked';
+
+          let statusBadge = '<span class="doc-badge badge-md" style="background:#10b981; color:#fff;">Active</span>';
+          if (isRevoked) {
+            statusBadge = '<span class="doc-badge badge-pdf" style="background:#ef4444; color:#fff;">Revoked</span>';
+          } else if (isExpired) {
+            statusBadge = '<span class="doc-badge badge-pdf" style="background:#f59e0b; color:#fff;">Expired</span>';
+          }
+
+          const scopeText = (!k.category || k.category === 'all') ? '<span style="color:var(--text-muted);">All Categories</span>' : `<code>${escapeHtml(k.category)}</code>`;
+          const typesList = (k.allowedTypes || ['markdown']).map(t => `<span class="doc-badge badge-md" style="padding:0.1rem 0.35rem; font-size:0.75rem; text-transform:uppercase;">${escapeHtml(t)}</span>`).join(' ');
+
+          const expText = k.expiresAt ? escapeHtml(k.expiresAt) : '<span style="color:var(--text-muted);">Never</span>';
+          const lastUsedText = k.lastUsedAt ? escapeHtml(k.lastUsedAt) : '<span style="color:var(--text-muted);">Never</span>';
+
+          const treeUrl = `${apiBaseUrl}?mode=tree&key=${encodeURIComponent(k.key)}`;
+
+          html += `<tr style="border-bottom:1px solid var(--border-color);">`;
+          html += `<td style="padding:0.6rem 0.5rem;">`;
+          html += `<strong>${escapeHtml(k.name)}</strong>`;
+          html += `<div style="font-family:monospace; font-size:0.75rem; color:var(--text-muted); display:flex; align-items:center; gap:0.35rem; margin-top:0.2rem;">`;
+          html += `<span>${escapeHtml(k.key.substring(0, 14))}...${escapeHtml(k.key.substring(k.key.length - 4))}</span>`;
+          html += `<button type="button" class="btn-copy-llm-token" data-key="${escapeHtml(k.key)}" title="Copy full key token" style="background:none; border:none; cursor:pointer; font-size:0.85rem; padding:0; color:var(--primary-color);">📋</button>`;
+          html += `</div></td>`;
+          html += `<td style="padding:0.6rem 0.5rem;">${scopeText}</td>`;
+          html += `<td style="padding:0.6rem 0.5rem;">${typesList}</td>`;
+          html += `<td style="padding:0.6rem 0.5rem; font-size:0.82rem;">${expText}</td>`;
+          html += `<td style="padding:0.6rem 0.5rem; font-size:0.82rem;">${lastUsedText}</td>`;
+          html += `<td style="padding:0.6rem 0.5rem;">${statusBadge}</td>`;
+          html += `<td style="padding:0.6rem 0.5rem; text-align:right; white-space:nowrap;">`;
+          html += `<button type="button" class="btn btn-outline btn-sm btn-copy-llm-tree-url" data-url="${escapeHtml(treeUrl)}" title="Copy Tree API URL" style="padding:0.2rem 0.45rem; margin-right:0.3rem;">🔗 Tree URL</button>`;
+
+          if (isRevoked) {
+            html += `<button type="button" class="btn btn-outline btn-sm btn-toggle-llm-key" data-id="${escapeHtml(k.id)}" data-status="active" title="Reactivate key" style="padding:0.2rem 0.45rem; margin-right:0.3rem; color:#10b981;">Reactivate</button>`;
+          } else {
+            html += `<button type="button" class="btn btn-outline btn-sm btn-toggle-llm-key" data-id="${escapeHtml(k.id)}" data-status="revoked" title="Revoke key" style="padding:0.2rem 0.45rem; margin-right:0.3rem; color:#f59e0b;">Revoke</button>`;
+          }
+
+          if (isExpired) {
+            html += `<button type="button" class="btn btn-outline btn-sm btn-extend-llm-key" data-id="${escapeHtml(k.id)}" title="Extend expiration date" style="padding:0.2rem 0.45rem; margin-right:0.3rem;">Extend</button>`;
+          }
+
+          html += `<button type="button" class="btn btn-outline btn-sm btn-delete-llm-key" data-id="${escapeHtml(k.id)}" data-name="${escapeHtml(k.name)}" title="Delete key" style="padding:0.2rem 0.45rem; color:#ef4444;">Delete</button>`;
+          html += `</td></tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // Bind copy key token
+        container.querySelectorAll('.btn-copy-llm-token').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const rawKey = btn.getAttribute('data-key');
+            if (rawKey) {
+              navigator.clipboard.writeText(rawKey).then(() => {
+                const origText = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(() => { btn.textContent = origText; }, 1500);
+              });
+            }
+          });
+        });
+
+        // Bind copy tree URL
+        container.querySelectorAll('.btn-copy-llm-tree-url').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const url = btn.getAttribute('data-url');
+            if (url) {
+              navigator.clipboard.writeText(url).then(() => {
+                const origText = btn.textContent;
+                btn.textContent = '✓ Copied';
+                setTimeout(() => { btn.textContent = origText; }, 1500);
+              });
+            }
+          });
+        });
+
+        // Bind toggle revoke/activate
+        container.querySelectorAll('.btn-toggle-llm-key').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const keyId = btn.getAttribute('data-id');
+            const targetStatus = btn.getAttribute('data-status');
+            const formData = new FormData();
+            formData.append('action', 'revoke_llm_key');
+            formData.append('keyId', keyId);
+            formData.append('status', targetStatus);
+
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (result.success) {
+              loadLlmKeysList();
+            } else {
+              alert('Failed to update key: ' + (result.error || 'Unknown error'));
+            }
+          });
+        });
+
+        // Bind extend expiry
+        container.querySelectorAll('.btn-extend-llm-key').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const keyId = btn.getAttribute('data-id');
+            const newExpiry = prompt('Enter new expiration date (e.g. 2026-12-31 23:59:59) or leave blank to make non-expiring:');
+            if (newExpiry === null) return;
+
+            const formData = new FormData();
+            formData.append('action', 'update_llm_key_expiry');
+            formData.append('keyId', keyId);
+            formData.append('expiresAt', newExpiry.trim());
+
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (result.success) {
+              loadLlmKeysList();
+            } else {
+              alert('Failed to extend key: ' + (result.error || 'Unknown error'));
+            }
+          });
+        });
+
+        // Bind delete key
+        container.querySelectorAll('.btn-delete-llm-key').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const keyId = btn.getAttribute('data-id');
+            const keyName = btn.getAttribute('data-name');
+            if (!confirm(`Are you sure you want to permanently delete the API key "${keyName}"?`)) return;
+
+            const formData = new FormData();
+            formData.append('action', 'delete_llm_key');
+            formData.append('keyId', keyId);
+
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (result.success) {
+              loadLlmKeysList();
+            } else {
+              alert('Failed to delete key: ' + (result.error || 'Unknown error'));
+            }
+          });
+        });
+
+      } else {
+        container.innerHTML = '<p style="color:#ef4444;">Failed to load LLM access keys.</p>';
+      }
+    } catch (err) {
+      container.innerHTML = '<p style="color:#ef4444;">Network error loading keys.</p>';
+    }
+  }
+
+  // Handle add LLM key form submission
+  const addLlmKeyForm = document.getElementById('add-llm-key-form');
+  if (addLlmKeyForm) {
+    addLlmKeyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(addLlmKeyForm);
+      formData.append('action', 'create_llm_key');
+
+      // Collect allowed types from checkboxes
+      const checkedTypes = [];
+      addLlmKeyForm.querySelectorAll('input[name="allowedTypes[]"]:checked').forEach(cb => {
+        checkedTypes.push(cb.value);
+      });
+      formData.delete('allowedTypes[]');
+      formData.append('allowedTypes', checkedTypes.join(','));
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const result = await res.json();
+
+        if (result.success && result.key) {
+          addLlmKeyForm.reset();
+          const mdCheck = addLlmKeyForm.querySelector('input[name="allowedTypes[]"][value="markdown"]');
+          if (mdCheck) mdCheck.checked = true;
+
+          loadLlmKeysList();
+
+          const keyVal = result.key.key;
+          prompt(`New LLM Access Key created successfully!\n\nKey Token (copied to clipboard if permitted):`, keyVal);
+          try {
+            navigator.clipboard.writeText(keyVal);
+          } catch (e) {}
+        } else {
+          alert('Failed to generate key: ' + (result.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network error while generating API key.');
+      }
+    });
   }
 
   // Load and render subwikis in Subwikis Modal
@@ -913,6 +1169,8 @@ document.addEventListener('DOMContentLoaded', () => {
               window.location.reload();
             }
           }
+        } else if (data.conflict) {
+          handleUploadConflict(form, data);
         } else {
           alert('Operation failed: ' + (data.error || 'Unknown error'));
         }
@@ -920,6 +1178,116 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Server request failed');
       }
     });
+  }
+
+  // Handle Upload Conflict Modal Interaction
+  function handleUploadConflict(originalForm, conflictData) {
+    const conflictModal = document.getElementById('upload-conflict-modal');
+    if (!conflictModal) {
+      alert('Upload failed: ' + (conflictData.error || 'A document with this slug already exists.'));
+      return;
+    }
+
+    const titleEl = document.getElementById('conflict-existing-title');
+    const slugEl = document.getElementById('conflict-existing-slug');
+    const catEl = document.getElementById('conflict-existing-category');
+    const newSlugInput = document.getElementById('conflict-new-slug');
+    const replaceCard = document.getElementById('conflict-replace-card');
+    const replaceBtn = document.getElementById('btn-conflict-replace');
+    const renameBtn = document.getElementById('btn-conflict-rename');
+
+    if (titleEl) titleEl.textContent = conflictData.existingTitle || conflictData.existingSlug;
+    if (slugEl) slugEl.textContent = conflictData.existingSlug;
+    if (catEl) catEl.textContent = conflictData.existingCategory || 'Root';
+    if (newSlugInput) newSlugInput.value = conflictData.suggestedSlug || (conflictData.existingSlug + '-1');
+
+    if (conflictData.isProtected) {
+      if (replaceBtn) {
+        replaceBtn.disabled = true;
+        replaceBtn.textContent = 'Replacement Blocked (Protected)';
+      }
+      if (replaceCard) {
+        replaceCard.style.opacity = '0.6';
+        const p = replaceCard.querySelector('p');
+        if (p) p.textContent = 'This document is protected and cannot be modified or replaced.';
+      }
+    } else {
+      if (replaceBtn) {
+        replaceBtn.disabled = false;
+        replaceBtn.textContent = 'Replace Document Content';
+      }
+      if (replaceCard) {
+        replaceCard.style.opacity = '1';
+        const p = replaceCard.querySelector('p');
+        if (p) p.textContent = 'Overwrites the content of the existing document with this uploaded file. All other settings (URL slug, category, custom themes, permissions, and sharing keys) will be preserved.';
+      }
+    }
+
+    // Bind Replace Action
+    if (replaceBtn) {
+      replaceBtn.onclick = async () => {
+        replaceBtn.disabled = true;
+        replaceBtn.textContent = 'Replacing...';
+        try {
+          const formData = new FormData(originalForm);
+          formData.append('action', 'upload_file');
+          formData.append('conflictAction', 'replace');
+          const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.success) {
+            conflictModal.classList.remove('open');
+            if (data.bookId && data.slug) {
+              window.location.href = `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
+            } else {
+              window.location.reload();
+            }
+          } else {
+            alert('Replace failed: ' + (data.error || 'Unknown error'));
+            replaceBtn.disabled = false;
+            replaceBtn.textContent = 'Replace Document Content';
+          }
+        } catch (err) {
+          alert('Server request failed');
+          replaceBtn.disabled = false;
+          replaceBtn.textContent = 'Replace Document Content';
+        }
+      };
+    }
+
+    // Bind Rename / Copy Action
+    if (renameBtn) {
+      renameBtn.onclick = async () => {
+        renameBtn.disabled = true;
+        renameBtn.textContent = 'Uploading Copy...';
+        const customSlug = newSlugInput ? newSlugInput.value.trim() : '';
+        try {
+          const formData = new FormData(originalForm);
+          formData.append('action', 'upload_file');
+          formData.append('conflictAction', 'rename');
+          if (customSlug) formData.append('customSlug', customSlug);
+          const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.success) {
+            conflictModal.classList.remove('open');
+            if (data.bookId && data.slug) {
+              window.location.href = `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
+            } else {
+              window.location.reload();
+            }
+          } else {
+            alert('Upload copy failed: ' + (data.error || 'Unknown error'));
+            renameBtn.disabled = false;
+            renameBtn.textContent = 'Upload as Copy';
+          }
+        } catch (err) {
+          alert('Server request failed');
+          renameBtn.disabled = false;
+          renameBtn.textContent = 'Upload as Copy';
+        }
+      };
+    }
+
+    conflictModal.classList.add('open');
   }
 
   // Bind Form Submissions
@@ -932,6 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
   submitAdminForm('tab-link', 'add_link');
   submitAdminForm('edit-chapter-form', 'edit_chapter');
   submitAdminForm('edit-link-form', 'edit_chapter');
+  submitAdminForm('replace-document-form', 'replace_document_file');
   submitAdminForm('settings-form', 'update_settings');
 
   // Reload Demo Package handler

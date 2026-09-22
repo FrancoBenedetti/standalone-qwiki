@@ -10,7 +10,7 @@ Click the **`New Document`** button at the top of the sidebar navigation (or **`
 1. **Markdown (`.md`)**: Write new Markdown using the Toast UI WYSIWYG editor or import an existing `.md` file.
 2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view with automatic two-way synchronization, use **`Ctrl+S`** / **`Cmd+S`** to save quickly, or upload an existing `.html` file.
 3. **Interactive Forms (`.form.json`)**: Build native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email notifications, webhooks, anti-spam honeypots, and CSV submission export.
-4. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree.
+4. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree. If a file with the same identifier already exists, an interactive conflict resolution modal lets you either replace the existing document in-place or upload as a copy with an auto-incremented slug.
 5. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
 6. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
 
@@ -34,6 +34,18 @@ You can add hyperlinks to external locations or internal pages directly into the
 - **HTML Documents**: Click **`✏️ Edit HTML`** in the document viewer toolbar to open SunEditor, format text, modify tables, or tweak raw HTML code. Edits in Code View mode sync automatically on save.
 - **Interactive Form Documents**: Click **`⚙️ Edit Form Builder`** or **`📊 View Submissions`** in the document viewer toolbar to tweak fields, configure outgoing webhooks, or inspect respondent submissions with 1-click CSV export.
 - **Document Metadata & Category Relocation**: Click **`⚙️ Edit Details`** to change the document title, custom slug, category/folder, individual CSS theme, short description, or social preview image. The current category is accurately prefilled in the hierarchical selector (even for deep nested folders), preventing accidental folder resets when saving title or metadata updates. Moving a document to another category automatically relocates the physical file on disk (e.g. into `content/<target-folder>/`), renames it if the slug changed, resolves any naming clashes with numeric suffixes, and updates `qwiki.json`.
+- **In-Place File Replacement**: Click the **`Replace Document Content`** toolbar button to upload a revised file and overwrite the active document's contents on disk without breaking existing bookmarks, permissions, or share keys.
+
+---
+
+## 🔄 Upload Conflict Resolution & File Replacement
+
+When uploading documents or assets that share a filename or slug with an existing wiki document:
+
+- **Conflict Detection Modal**: Qwiki immediately intercepts collisions and presents the existing document title, slug, and containing category.
+- **1. Replace Existing Document**: Overwrites the physical file on disk with your uploaded version. All document settings (slug, category, permissions, custom themes, and secret share tokens) remain intact.
+- **2. Upload as Copy (Auto-Incremented Slug)**: Automatically increments numeric suffixes (`doc-1`, `doc-2`) or accepts a custom slug name, checking both `qwiki.json` and physical disk storage to guarantee unique URLs.
+- **Direct In-Place Replacement**: When viewing an existing Markdown or PDF document, click the **Replace Document Content** icon in the viewer action bar to swap the underlying file directly without deleting and recreating the article.
 
 ---
 
@@ -75,6 +87,18 @@ To prevent concurrent write conflicts and accidental overwrites when multiple ta
 3. Type a directive (e.g. `Quarterly Sales: Q1: 30, Q2: 55, Q3: 90, Q4: 120`).
 4. Click **`Generate & Save`** to generate the vector SVG graphic into `uploads/`.
 5. Click **`Insert into Editor`** (or **`Copy Markdown`**) to place the visual into your document.
+
+---
+
+## 🤖 Gemini AI Assistant & Social Meta Generation
+
+Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API:
+
+- **Launch Assistant**: Click the **`✨ AI Assistant`** button in the header utility bar when viewing any document.
+- **Generate Descriptions & Tags**: Click **`Generate Description & Tags`** to analyze the active document. The assistant produces a concise summary description and semantic topic tags.
+- **Interactive Social Card Simulator**: Preview in real time how your document will look when shared on social networks (𝕏, LinkedIn, Facebook, Slack, Telegram), complete with title, URL, description, and tag pills.
+- **1-Click Apply**: Click **`Apply to Document`** to save the generated description and tags directly into `qwiki.json`.
+- **Configurable Model & API Key**: In the assistant modal, switch to the **Settings** tab to enter your Google Gemini API key and select preferred models (`gemini-2.5-pro`, `gemini-2.5-flash`, or custom models) with 1-click connection testing.
 
 ---
 

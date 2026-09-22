@@ -11,6 +11,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.0] - AgentFlow - 2026-09-22
+
+### 🤖 Controlled LLM & AI Agent Access Pipeline
+- **Dedicated Key-Authenticated REST API (`/api/llm.php`)**: Built-in endpoint engineered specifically for Large Language Models, autonomous coding agents (Claude Desktop, Cursor IDE, Gemini CLI, OpenAI GPTs), and local RAG ingestion pipelines.
+- **Granular Category & Scope Control**: Confine individual API keys to a specific folder or category branch (with automatic recursive subcategory access) or permit full-wiki exploration.
+- **Document Format Filtering**: Authorize keys to access Markdown documents only (`markdown`), or permit binary and structured formats (`pdf`, `html`, `text`, `all`).
+- **Lifecycle, Expiration & Revocation**: Set optional expiration dates with 1-click renewal extensions, or immediately revoke/reactivate keys without deleting audit entries.
+- **4 Operational Retrieval Modes**:
+  - **Document Tree Mode** (`?mode=tree`): Structured catalog with titles, slugs, URLs, byte sizes, word counts, token estimates, and direct API endpoints. Supports standard [llms.txt](https://llmstxt.org) Markdown format (`format=llms.txt`).
+  - **Document Content Mode** (`?mode=doc&slug=<slug>`): Clean Markdown and plain-text extraction with absolute canonical link and image rewriting, token counts, and byte-range truncation (`max_bytes`) for context window optimization.
+  - **Live Search Mode** (`?mode=search&q=<query>`): Fast keyword and semantic relevance search across authorized documents with calculated relevance scoring and contextual excerpts.
+  - **OpenAPI 3.0 Tool Schema** (`?mode=schema`): Auto-generated OpenAPI 3.0 specification for 1-click import into OpenAI Custom GPT Actions, LangChain, or Claude Custom Tools.
+- **In-App Key Management UI**: Dedicated administration modal accessible via **Admin Dropdown ➔ 🤖 LLM & API Access** and **⚙️ Settings ➔ LLM & AI Agent Access** for generating, copying, inspecting, and managing API keys.
+
+### ✨ Native Gemini AI Assistant Extension
+- **Google Gemini API Integration (`tool-gemini-assistant`)**: Built-in utility extension leveraging Google's Gemini models (`gemini-2.5-pro`, `gemini-2.5-flash`, or custom models) to provide real-time editorial assistance.
+- **Automated Metadata & SEO Synthesis**: Analyzes active document content with 1 click to extract concise meta descriptions and semantic topic tags.
+- **Interactive OpenGraph / Social Card Simulator**: Real-time interactive preview card demonstrating exactly how the document title, description, domain, and tags will unfurl across social networks (𝕏, LinkedIn, Facebook, Slack, Telegram).
+- **1-Click Metadata Application**: Seamlessly writes synthesized descriptions and tags directly to the active document in `qwiki.json`.
+- **In-App Key & Model Management**: Configurable Gemini API key input and model selector with real-time connection testing. Built with native demo-mode safeguards to prevent saving API keys in public sandboxes while providing realistic simulated metadata.
+
+### 🔄 Smart Upload Conflict Resolution & In-Place Document Replacement
+- **Automated Collision Interception**: Automatically detects when an uploaded Markdown, HTML, PDF, or media file shares an existing document title or slug in the wiki.
+- **Conflict Resolution Modal**:
+  - **Option 1: In-Place Document Replacement**: Overwrites physical file contents on disk with the uploaded version while preserving the document's URL slug, parent category, custom CSS themes, read-only protection status, and public share keys.
+  - **Option 2: Upload as Copy (Auto-Incremented Slug)**: Automatically increments numeric suffixes (`doc-1`, `doc-2`) or accepts a custom slug, verifying uniqueness against both the navigation tree and physical files on disk before saving.
+- **Direct "Replace Document Content" Action**: Dedicated action bar button (`btn-replace-document`) and properties modal control allowing administrators to swap out Markdown or PDF document files on disk directly.
+- **Single-Item Deletion Resilience**: Ensures duplicate or renamed files are tracked independently without accidental cross-document deletion corruption.
+
+### 🧪 Automated Test Coverage
+- `tests/llm_access_test.php`: 32 assertions verifying key generation, authorization channels (Bearer headers, query params), revocation, expiry extension, category scoping, type filtering, `llms.txt` formatting, OpenAPI schema dispatch, and search ranking.
+- `tests/gemini_assistant_test.php`: 31 assertions covering extension registration, frontend assets, modal rendering, social card preview, admin authentication, settings storage, metadata persistence to `qwiki.json`, and demo-mode protection.
+- `tests/upload_duplicate_replacement_test.php`: Unit and integration assertions verifying `Navigation::isSlugTaken`, `Navigation::generateUniqueSlug`, conflict detection, in-place replacement, copy renaming with auto-incremented slugs, protected document safeguards, and deletion resilience.
+
+---
+
 ## [1.12.1] - FormFlow - 2026-09-22
 
 ### 📝 Native Form Extension Tracking & Release Restoration

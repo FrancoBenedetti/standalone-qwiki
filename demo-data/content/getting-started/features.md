@@ -180,3 +180,42 @@ Asynchronously transfer documents and folders across independent wikis or direct
   - **Windows (File Explorer)**: Right-click any document or folder ➔ `Send to` ➔ `Send to Qwiki`.
   - **macOS (Finder Quick Actions)**: Right-click any document or folder ➔ `Quick Actions` ➔ `Send to Qwiki`.
 - **1-Click Desktop Bundle Download**: Download pre-configured desktop tools directly from the Postbox modal in Qwiki with pre-populated URL and access token.
+
+---
+
+## 🤖 15. Controlled LLM & AI Agent Access Pipeline
+
+Standalone Qwiki provides a dedicated, key-authenticated API endpoint (`api/llm.php`) engineered specifically for Large Language Models, autonomous coding agents (Claude Desktop, Cursor IDE, Gemini CLI, OpenAI GPT Actions), and Retrieval-Augmented Generation (RAG) pipelines:
+
+- **Token-Authenticated API (`qwk_llm_...`)**: Generate granular API keys from **⚙️ Settings ➔ 🤖 LLM & AI Agent Access** or the Admin menu. Authenticate requests via standard `Authorization: Bearer <key>` header or query parameter (`?key=<key>`).
+- **Granular Category Scoping**: Confine an agent key to a specific folder branch (with recursive subcategory access) or grant full-wiki visibility.
+- **Document Type Filtering**: Restrict keys to Markdown only (`markdown`), or permit binary and structured formats (`pdf`, `html`, `text`, `all`).
+- **Lifecycle & Expiration Controls**: Configure optional expiration dates with 1-click renewal extensions, or instantly revoke keys without deleting audit entries.
+- **Multiple Operational Retrieval Modes**:
+  - **Document Tree Mode** (`/api/llm.php?mode=tree`): Returns structured document catalog including document titles, URL slugs, byte sizes, word counts, token estimates, and API retrieval endpoints. Supports standard [llms.txt](https://llmstxt.org) Markdown format (`format=llms.txt`).
+  - **Document Content Mode** (`/api/llm.php?mode=doc&slug=<slug>`): Retrieves clean document content with absolute canonical link and image rewriting, word counts, token estimation, and byte-range truncation (`max_bytes`) for context window management.
+  - **Live Search Mode** (`/api/llm.php?mode=search&q=<query>`): Fast keyword and semantic relevance search across authorized documents with calculated scoring and contextual excerpts.
+  - **OpenAPI 3.0 Schema** (`/api/llm.php?mode=schema`): Provides an auto-generated OpenAPI 3.0 specification for 1-click import into OpenAI Custom GPT Actions, LangChain, or Claude Custom Tools.
+
+---
+
+## ✨ 16. Native Gemini AI Assistant Extension
+
+Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-assistant`) powered by Google's Gemini models (`gemini-2.5-pro`, `gemini-2.5-flash`, or custom models):
+
+- **Automated Metadata & SEO Synthesis**: Analyzes active document content with 1 click to generate concise meta descriptions and relevant topic tags.
+- **Live OpenGraph / Social Share Simulator**: Renders an interactive social preview card showing how the title, generated description, URL, and tag pills will unfurl when shared on social networks or messaging apps.
+- **1-Click Metadata Application**: Apply generated descriptions and tags directly to the active document in `qwiki.json` without leaving the viewer.
+- **Secure Key Management & Sandbox Protection**: Configure Gemini API keys in the extension settings tab. Keys are securely stored and masked in the UI. In demo mode, live API key updates are protected and simulated metadata is returned safely.
+
+---
+
+## 📁 17. Upload Conflict Resolution & In-Place Document Replacement
+
+Intelligent conflict detection and in-place replacement safeguards streamline document uploads and media asset maintenance:
+
+- **Automated Collision Detection**: When uploading a Markdown, HTML, PDF, or media file whose identifier already exists in the wiki, Qwiki detects the collision and displays an interactive resolution modal.
+- **Option 1: In-Place Document Replacement**: Overwrites physical file contents on disk with the uploaded version while preserving the document's URL slug, parent category, custom CSS themes, read-only protection status, and public share keys.
+- **Option 2: Upload as Copy (Auto-Incremented Slug)**: Automatically increments numeric suffixes (`my-doc-1`, `my-doc-2`) or accepts a custom slug, verifying uniqueness against both the navigation tree and physical files on disk before saving.
+- **Direct "Replace File" Action**: In the document toolbar (`btn-replace-document`) and document properties modal (`⚙️ Edit Details`), administrators can upload a new file directly to replace the active document without deleting or recreating the navigation node.
+

@@ -79,6 +79,9 @@ Admins can control whether documentation is publicly readable or requires authen
 - **🛡️ Category Lock & Cascading Deletion Protection**: Lock categories directly (`readOnly: true`, `locked: true`) or inherit deletion protection whenever a category holds protected documents. Visual lock indicators (`🔒`) and smart suppression of deletion actions prevent accidental data loss across deep folder hierarchies.
 - **🌐 Sidebar Subwiki Navigation & Discovery**: Seamlessly navigate deployed subwikis with an optional collapsible accordion in the navigation sidebar, real-time document count badges, and bi-directional cross-wiki linking.
 - **📬 Editorial Postbox & Desktop Transfer System**: Asynchronously transfer documents and folders across independent wikis or directly from your workstation (Linux, Windows, macOS) with non-destructive, reviewer-controlled staging. Includes zero-dependency Python 3 CLI tools, native OS file manager integrations (`Send to Qwiki`), automated asset packaging, and category mapping without in-place overwrites.
+- **🤖 Controlled LLM & AI Agent Access Pipeline**: Dedicated, key-authenticated REST API (`/api/llm.php`) tailored for Large Language Models, autonomous coding agents (Claude Desktop, Cursor, Gemini CLI), and local RAG pipelines. Features category branch scoping, permitted format filtering, token estimation, live search, standard `llms.txt` Markdown export, and OpenAPI 3.0 tool schemas.
+- **✨ Native Gemini AI Assistant**: Built-in utility extension (`tool-gemini-assistant`) leveraging Google's Gemini models to analyze active document content, synthesize concise descriptions, generate discovery tags, and preview interactive OpenGraph / Social Share cards with 1-click application to `qwiki.json`.
+- **🔄 Smart Upload Conflict Resolution & In-Place Replacement**: Automatically intercepts filename and slug collisions during file uploads, providing 1-click options to either replace document content in-place (preserving URLs, categories, custom themes, and share tokens) or upload as a copy with auto-incremented slugs. Features a dedicated "Replace Document Content" toolbar button.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).
@@ -174,6 +177,7 @@ standalone-qwiki/
 ├── api/
 │   ├── admin.php              # REST API endpoint delegating to Core & Extensions
 │   ├── feed.php               # RSS / JSON feed syndication endpoint
+│   ├── llm.php                # Authenticated AI Agent & LLM document access endpoint
 │   ├── search.php             # Search endpoint querying all registered page types
 │   └── publish.php            # External publishing endpoint
 ├── assets/
@@ -182,8 +186,13 @@ standalone-qwiki/
 │   ├── js/
 │   │   └── app.js             # Theme toggle, search, DND engine, sidebar resizer
 │   └── extensions/            # Self-contained drop-in extensions
-│       ├── page-html/         # HTML Page Type Reference Extension
-│       └── tool-ai-visuals/   # AI Visual & Chart Generator Utility
+│       ├── page-html/         # HTML Page Type (SunEditor WYSIWYG)
+│       ├── page-form/         # Interactive Flat-File Forms & Surveys
+│       ├── tool-ai-visuals/   # AI Visual & Chart Generator Utility
+│       ├── tool-gallery/      # Media & Image Assets Gallery
+│       ├── tool-postbox/      # Editorial Document Transfer & Desktop Pipeline
+│       ├── tool-backup/       # Full & Selective Backup Archive Exporter
+│       └── tool-gemini-assistant/ # Gemini AI Assistant & Social Card Generator
 ├── demo-data/                 # Auto-Setup templates for fresh installs
 │   ├── content/               # Demo documentation files
 │   └── qwiki-default.json     # Demo wiki tree structure
@@ -191,6 +200,7 @@ standalone-qwiki/
 │   ├── Core/
 │   │   ├── Auth.php           # Session, authentication, and RBAC
 │   │   ├── Config.php         # Config persistence and path validation
+│   │   ├── LlmAccess.php      # LLM tree indexing, token estimation, and scope guard
 │   │   ├── Navigation.php     # Tree traversal, breadcrumbs, next/prev links
 │   │   └── ExtensionManager.php # Dynamic discovery and hook registry
 │   ├── Parsedown.php          # Markdown parser
