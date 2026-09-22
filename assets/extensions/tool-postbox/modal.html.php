@@ -316,6 +316,7 @@ $endpointUrl = $baseUrl . 'api/admin.php?action=ext_postbox_receive';
                         <option value="markdown">Markdown (.md)</option>
                         <option value="html">HTML Page (.html)</option>
                         <option value="pdf">PDF Document (.pdf)</option>
+                        <option value="form">Interactive Form (.form.json)</option>
                     </select>
                 </div>
                 <div class="form-group">

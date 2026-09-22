@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [1.12.1] - FormFlow - 2026-09-22
+
+### 📝 Native Form Extension Tracking & Release Restoration
+- **Restored Flat-File Form Extension (`page-form`)**: Tracked and committed the native `page-form` extension across repository history and production archives. Includes drag-and-drop field builder, submission storage, anti-spam honeypot, webhook dispatch, and CSV export.
+- **Root-Scoped Scratch Test Rules**: Updated `.gitignore` from `test_*` to `/test_*`, ensuring root-level scratch files remain ignored while preventing test suites inside `tests/` (`tests/test_form_page_extension.php`) from being masked.
+- **Nested Category Hierarchy in Extension Modals**: Upgraded `ExtensionManager::renderAddDocumentForms` and extension creation modals (`page-form` and `page-html`) to support `$categoryHierarchy` with visual depth indentation (`↳ Subfolder`) and active folder preselection, bringing full subfolder authoring parity with built-in document types.
+- **Clean URL Redirection on Form Creation**: Form creation now seamlessly redirects using clean route paths (`category/slug`) matching the rest of the application.
+- **Editorial Postbox Form Support**: Added `form` (`.form.json`) to `ALLOWED_DOC_TYPES` in `Envelope.php` and added the Interactive Form format option to the Postbox Ingestion modal for asynchronous cross-wiki transfers.
+- **Sample Feedback Survey**: Bundled a clean, professional Community Feedback Survey in `demo-data/` and default configuration.
+
+---
+
+## [1.12.0] - PathNest - 2026-09-20
+
+### 🗂️ Category Prefilling & Hierarchy Preservation
+- **Immediate Parent Category Detection (`Navigation::findChapterParentId`)**: Added recursive category resolution to accurately determine the immediate containing folder for any document slug across nested folder hierarchies.
+- **Accurate Category Prefilling in Edit Details**: In the document properties modal (`⚙️ Edit Details`), the "Category / Folder" dropdown is now accurately prefilled with the document's immediate parent category (both in initial server-side HTML rendering and JavaScript modal population), preventing nested documents from defaulting to the root category.
+- **Accidental Relocation Prevention**: Modifying document properties (such as title, custom slug, or theme) without explicitly changing the category dropdown now reliably preserves the document's original parent category in `qwiki.json` and on disk, eliminating unintentional moves to the root folder.
+- **Subfolder Direct Routing & Fallback Resolution**: Direct clean URLs and query requests to subfolder paths (e.g. `/subfolder/document` or `?chapter=slug`) now resolve cleanly across all allowed books without falling back to the wiki root.
+- **Add Document Subfolder Context**: When browsing inside a subfolder, opening the Add New Document tabs (`✏️ New Markdown`, `📁 Upload File`, `🌐 Google Doc`, `🔗 Web Link`) now preselects the active subfolder as the target destination.
+
+### 🔗 Document Sharing & Social Shortcuts
+- **Telegram & Slack Sharing**: Added 1-click sharing to **Telegram** (`https://t.me/share/url`) and **Slack** (`#️⃣ Share on Slack`) across both the Share Document modal and the floating Zen reader dropdown. The Slack action automatically copies the share URL to the clipboard, displays confirmation (`✅ Copied for Slack!`), and opens the Slack client ready for pasting with full Open Graph unfurling.
+
+### 🛠️ Split Admin Authoring & UI Ergonomics
+- **Contextual Split Authoring**: Added prominent **`New Document`** and **`+ Cat`** buttons to the top of the sidebar navigation for instant access to authoring workflows, while streamlining the header profile dropdown to focus on Tools, Administration, and Account actions.
+- **Theme Editor & Contrast Accessibility**: Enhanced contrast and dark/light mode readability across interactive modals and toolbars.
+
+### 📦 Clean Release Packaging & Updater Hardening
+- **Native Archive Filtering (`.gitattributes`)**: Configured `export-ignore` rules for `tests/`, `AGENTS.md`, `package.json`, `demo-reload.php`, and build tools so GitHub release archives (`zipball_url` and Source code zips) automatically omit internal tests and dev artifacts.
+- **In-App Updater Defense-in-Depth**: Hardened `api/admin.php` (`install_update`) to exclude test suites, dev files, and git metadata from extraction, preventing production instances from being polluted during updates. Added release asset prioritization in `check_updates`.
+- **Distribution Build Script (`tools/build-release.sh`)**: Added 1-command release packaging script that compiles and verifies clean `dist/standalone-qwiki-v*.zip` production archives.
+
+### 🧪 Automated Test Coverage
+- `tests/edit_chapter_category_test.php`: 18 assertions covering `Navigation::findChapterParentId`, server-side modal rendering for root and nested categories, dropdown selection validation, and API category preservation on metadata update.
+- `tests/anchor_and_contrast_test.php`: 30 assertions verifying in-page heading ID generation, WCAG AA contrast compliance for links in dark and light modes, and smooth scroll offsets.
+- `tests/clean_release_test.php`: 30 assertions verifying `.gitattributes` export-ignore coverage, `git archive` production cleanliness, updater exclusions, and release asset resolution.
+- Updated `tests/share_rights_test.php` covering Telegram and Slack sharing buttons in the share modal and Zen reader floating bar.
+
+---
+
 ## [1.11.0] - PostFlow - 2026-09-18
 
 ### 📬 Editorial Postbox & Asynchronous Document Transfer

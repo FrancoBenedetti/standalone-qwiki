@@ -1,0 +1,73 @@
+{
+  "title": "Community Feedback Survey",
+  "description": "Help us improve Standalone Qwiki by sharing your feedback, ideas, and suggestions.",
+  "submitButtonText": "Submit Feedback",
+  "successMessage": "Thank you! Your feedback has been received.",
+  "requireLogin": false,
+  "allowMultiple": true,
+  "notificationEmail": "",
+  "webhookUrl": "",
+  "fields": [
+    {
+      "id": "full_name",
+      "label": "Your Name",
+      "type": "text",
+      "placeholder": "Jane Doe",
+      "required": true,
+      "help": ""
+    },
+    {
+      "id": "email",
+      "label": "Email Address",
+      "type": "email",
+      "placeholder": "you@example.com",
+      "required": true,
+      "help": "Optional: only used if follow-up is requested."
+    },
+    {
+      "id": "category",
+      "label": "Feedback Category",
+      "type": "select",
+      "options": [
+        "Documentation",
+        "Feature Request",
+        "Bug Report",
+        "General Feedback"
+      ],
+      "required": true
+    },
+    {
+      "id": "satisfaction",
+      "label": "Overall Satisfaction",
+      "type": "radio",
+      "options": [
+        "Very Satisfied",
+        "Satisfied",
+        "Neutral",
+        "Unsatisfied"
+      ],
+      "required": false
+    },
+    {
+      "id": "features_used",
+      "label": "What features do you use most?",
+      "type": "checkbox",
+      "options": [
+        "Markdown Docs",
+        "Interactive HTML",
+        "Interactive Forms",
+        "PDF Viewer",
+        "Google Docs"
+      ],
+      "required": false
+    },
+    {
+      "id": "comments",
+      "label": "Comments & Suggestions",
+      "type": "textarea",
+      "placeholder": "Tell us your thoughts...",
+      "required": true,
+      "help": ""
+    }
+  ]
+}

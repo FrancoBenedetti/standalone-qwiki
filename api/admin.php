@@ -29,7 +29,7 @@ $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Helper for tree category updates
 if (!function_exists('update_node_meta')) {
-    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null) {
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null) {
         if (($node['id'] ?? '') === $targetId) {
             $node['title'] = $newTitle;
             if ($newTheme !== '') {
@@ -48,12 +48,19 @@ if (!function_exists('update_node_meta')) {
                     unset($node['locked']);
                 }
             }
+            if ($newDescription !== null) {
+                if ($newDescription !== '') {
+                    $node['description'] = $newDescription;
+                } else {
+                    unset($node['description']);
+                }
+            }
             return true;
         }
         if (!empty($node['items'])) {
             foreach ($node['items'] as &$sub) {
                 if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly)) {
+                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription)) {
                         return true;
                     }
                 }
@@ -387,6 +394,7 @@ switch ($action) {
             exit;
         }
         $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
         $bookId = Config::makeSlug($_POST['id'] ?? $title);
         $parentId = trim($_POST['parentId'] ?? '');
         if (empty($title) || empty($bookId)) {
@@ -421,6 +429,9 @@ switch ($action) {
                 'folder' => $targetRelFolder,
                 'items' => []
             ];
+            if ($description !== '') {
+                $newNode['description'] = $description;
+            }
             $inserted = false;
             foreach ($config['books'] as &$book) {
                 if (insert_chapter_into_node($book, $parentId, $newNode)) {
@@ -438,13 +449,17 @@ switch ($action) {
             if (!is_dir($targetAbsFolder)) {
                 @mkdir($targetAbsFolder, 0755, true);
             }
-            $config['books'][] = [
+            $newBook = [
                 'id' => $bookId,
                 'title' => $title,
                 'type' => 'folder',
                 'folder' => $targetRelFolder,
                 'items' => []
             ];
+            if ($description !== '') {
+                $newBook['description'] = $description;
+            }
+            $config['books'][] = $newBook;
         }
 
         if (Config::save($config)) {
@@ -463,6 +478,7 @@ switch ($action) {
         $title = trim($_POST['title'] ?? '');
         $theme = trim($_POST['theme'] ?? '');
         $visibility = trim($_POST['visibility'] ?? 'public');
+        $description = isset($_POST['description']) ? trim($_POST['description']) : null;
         if (empty($bookId) || empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
             exit;
@@ -478,7 +494,7 @@ switch ($action) {
 
         $updated = false;
         foreach ($config['books'] as &$book) {
-            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly)) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description)) {
                 $updated = true;
                 break;
             }
@@ -709,10 +725,11 @@ switch ($action) {
                 foreach ($config['books'] as &$book) {
                     if (insert_chapter_into_node($book, $targetBookId, $chapterCopy)) {
                         $inserted = true;
+                        $finalBookId = $book['id'] ?? $targetBookId;
                         break;
                     }
                 }
-                if ($inserted) {
+                if ($inserted && empty($finalBookId)) {
                     $finalBookId = $targetBookId;
                 }
             }
@@ -1435,12 +1452,22 @@ switch ($action) {
                 $parsedown->setSafeMode(true);
                 $notesHtml = $parsedown->text($latest['body'] ?? '');
 
+                $zipUrl = $latest['zipball_url'] ?? '';
+                if (!empty($latest['assets']) && is_array($latest['assets'])) {
+                    foreach ($latest['assets'] as $asset) {
+                        if (isset($asset['name']) && preg_match('/\.zip$/i', $asset['name'])) {
+                            $zipUrl = $asset['browser_download_url'] ?? $zipUrl;
+                            break;
+                        }
+                    }
+                }
+
                 $data = [
                     'has_update' => $hasUpdate,
                     'version' => $latest['tag_name'],
                     'notes' => $latest['body'] ?? '',
                     'notes_html' => $notesHtml,
-                    'zip_url' => $latest['zipball_url'] ?? ''
+                    'zip_url' => $zipUrl
                 ];
                 if (!is_dir($baseDir . '/uploads')) @mkdir($baseDir . '/uploads', 0755, true);
                 file_put_contents($cacheFile, json_encode($data));
@@ -1479,9 +1506,12 @@ switch ($action) {
         $zip = new ZipArchive;
         if ($zip->open($tempZip) === TRUE) {
             $rootFolder = '';
-            // NOTE: We do not exclude assets/extensions/ here because we need built-in extensions to receive bug fixes.
-            // Custom extensions added by users will not be deleted, as ZipArchive extraction only overwrites existing files.
-            $excludes = ['content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/'];
+            // Protect persistent user data, subwikis, and prevent dev/test artifacts from polluting production
+            $excludes = [
+                'content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/',
+                'tests/', 'node_modules/', 'AGENTS.md', 'package.json', 'package-lock.json',
+                'demo-reload.php', '.git', '.github', '.gitignore', '.gitattributes', 'tools/build-release.sh'
+            ];
             $existingSubwikis = SubwikiManager::listSubwikis();
             foreach ($existingSubwikis as $sub) {
                 if (!empty($sub['slug'])) {

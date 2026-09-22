@@ -1,0 +1,20 @@
+# Git attributes configuration for Standalone Qwiki
+# Automatically exclude test suites, dev files, and internal tools from release archives (git archive / GitHub zipball)
+
+# Tests
+/tests                  export-ignore
+tests/**                export-ignore
+test_*                  export-ignore
+
+# Developer / Agent Guidelines & Tooling
+/AGENTS.md              export-ignore
+/demo-reload.php        export-ignore
+/.gitignore             export-ignore
+/.gitattributes         export-ignore
+/.github                export-ignore
+/tools/build-release.sh export-ignore
+
+# Node Dependencies (Dev tooling for tests)
+/package.json           export-ignore
+/package-lock.json      export-ignore
+/node_modules           export-ignore

@@ -29,12 +29,21 @@
 - **Smart Print / Save as PDF**: All print buttons (toolbar, header icon, and any in-document button) delegate to the sandboxed iframe and trigger the browser print dialog. When viewed embedded in Qwiki, redundant print controls are automatically hidden — the HTML viewer toolbar button is the single entry point. In the full-tab expanded view or share mode, only the in-document button is shown.
 
 
-### C. Published Google Docs (`gdoc`)
+### C. Interactive Forms (`.form.json`)
+- Native flat-file interactive forms, surveys, and event RSVPs without any SQL database.
+- **Visual Field Builder**: Add, configure, and reorder text inputs, textareas, email fields, select dropdowns, radio buttons, and checkboxes with customized labels, placeholders, and validation rules.
+- **Starter Templates**: Rapidly initialize forms from presets including **Feedback Survey**, **Contact Us**, **Event RSVP**, or start from a blank canvas.
+- **Submission Management & Alerts**: Collect visitor submissions into append-only flat-file JSON storage (`.submissions.json`). Authenticated Admins can inspect submissions in a responsive data table, delete individual entries, or clear all responses.
+- **Anti-Spam Defenses**: Built-in silent honeypot fields deceive automated spam bots without impeding real visitors, paired with timestamp token verification.
+- **CSV Export**: Export all collected responses with 1 click to Excel/UTF-8 formatted `.csv` spreadsheets.
+- **Outgoing Notifications & Webhooks**: Optionally configure email alerts and webhook URLs (Slack, Discord, Zapier) to receive real-time POST payloads on every new submission.
+
+### D. Published Google Docs (`gdoc`)
 - Embed published Google Doc URLs directly into your wiki tree.
 - Automatic formatting: automatically appends `?embedded=true` if omitted.
 - HTML cleaning & extraction via `lib/simple_html_dom.php` to match dark/light theme styling seamlessly.
 
-### D. PDF Documents (`.pdf`)
+### E. PDF Documents (`.pdf`)
 - Embedded PDF viewer container with zoom, page navigation, and download links.
 
 ---
@@ -65,7 +74,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Reorder Documents**: Drag pages up or down within a section.
 - **Nest Items into Categories**: Drag a document into a category or sub-folder. Physical files on disk are automatically moved to the new category folder without broken links.
 - **Reorder Categories**: Drag category headers to re-arrange main sections.
-- **Document Relocation via Modal**: In **`⚙️ Edit Details`**, administrators can change a document's parent category/folder via a hierarchical category selector (`↳`), or edit its slug. Qwiki automatically moves the physical file on disk to the destination folder, renames it, resolves any filename clashes with numeric suffixes, and updates `qwiki.json`.
+- **Document Relocation & Pre-filled Category Hierarchy**: In **`⚙️ Edit Details`**, administrators can change a document's parent category/folder via a hierarchical category selector (`↳`), or edit its slug. The document's active category is always accurately prefilled—even when deeply nested in multi-level subfolders—ensuring folder placement is never accidentally reset when updating titles or metadata. Qwiki automatically moves the physical file on disk to the destination folder, renames it, resolves any filename clashes with numeric suffixes, and updates `qwiki.json`.
 - **Instant Backend Sync**: Menu changes and physical file moves automatically save to `qwiki.json`.
 
 ---
@@ -96,8 +105,8 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 ## 👁️ 8. Visibility Controls & Search
 
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
-- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`) to admin users.
-- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, and HTML documents.
+- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`, `FORM`) to admin users.
+- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms.
 - **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---
@@ -129,7 +138,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Unguessable Unique Share Keys**: Signed-in users with view rights (both Viewers and Administrators) can generate a secure share link for any document. Links use a cryptographically random 16-hexadecimal key (`?share=...`), completely masking internal category structures, folder paths, and slugs from recipients.
 - **Role-Agnostic Sharing from Private Portals**: Viewers on private portals requiring sign-in can generate and distribute public full-screen share links, allowing recipients without accounts to view shared documents without encountering the portal login gate.
 - **Distraction-Free Zen Reader**: Shared documents open in full-screen reader mode with the sidebar, brand header, search bar, and previous/next buttons hidden. Features a centered reading canvas and a floating glassmorphic bar with theme toggle, print/PDF button, social sharing dropdown, and an "Open in Wiki" exit link for authenticated users.
-- **Dynamic Social Sharing & Rich Previews**: Built-in 1-click sharing to 𝕏 (Twitter), LinkedIn, Facebook, and WhatsApp from both the share modal and the floating Zen reader dropdown. Complete Open Graph (`og:title`, `og:description`, `og:image`, `og:url`) and Twitter Card meta tag integration ensures rich link previews across social networks and messaging platforms.
+- **Dynamic Social Sharing & Rich Previews**: Built-in 1-click sharing to 𝕏 (Twitter), LinkedIn, Facebook, WhatsApp, Telegram, and Slack from both the share modal and the floating Zen reader dropdown. Complete Open Graph (`og:title`, `og:description`, `og:image`, `og:url`) and Twitter Card meta tag integration ensures rich link previews across social networks and messaging platforms.
 - **Custom Social Metadata & Fallback Chain**: Authors can set document-specific social descriptions and image URLs in **Edit Details**, with automatic fallback to site-wide social settings in Settings (`Global Social Share Description`, `Global Social Share Image URL`), portal defaults, or article intros.
 - **Admin Access Controls & Instant Revocation**: Documents are publicly shareable by default. Administrators can disable public sharing for any document (`publicShareable: false`) or click **Reset Key** to immediately invalidate all previously distributed links.
 

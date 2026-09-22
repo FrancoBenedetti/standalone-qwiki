@@ -16,6 +16,7 @@
         {
             "id": "getting-started",
             "title": "About Qwiki",
+            "description": "Core documentation and overview of Standalone Qwiki features",
             "type": "folder",
             "items": [
                 {
@@ -49,6 +50,7 @@
                 {
                     "id": "advanced-topics",
                     "title": "Advanced Topics",
+                    "description": "Advanced architectural guides, security, and performance configurations",
                     "type": "folder",
                     "items": [
                         {
@@ -92,6 +94,14 @@
                     "url": "",
                     "editUrl": "",
                     "file": "content/getting-started/interactive-dashboard.html"
+                },
+                {
+                    "title": "Community Feedback Survey",
+                    "slug": "feedback-survey",
+                    "type": "form",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/feedback-survey.form.json"
                 }
             ]
         },

@@ -54,6 +54,16 @@ if (strpos($viewerHtml, 'id="btn-copy-share-link"') === false) {
 }
 echo "3. Copy share link button is present for viewer (PASS)\n";
 
+if (strpos($viewerHtml, 'id="modal-share-telegram"') === false) {
+    echo "FAIL: modal-share-telegram must be present inside share-modal for viewers\n";
+    exit(1);
+}
+if (strpos($viewerHtml, 'id="modal-share-slack"') === false) {
+    echo "FAIL: modal-share-slack must be present inside share-modal for viewers\n";
+    exit(1);
+}
+echo "3b. Telegram and Slack sharing buttons are present in share-modal (PASS)\n";
+
 if (strpos($viewerHtml, 'id="share-admin-toggle-public"') !== false) {
     echo "FAIL: Admin toggle 'share-admin-toggle-public' must NOT be rendered for viewers\n";
     exit(1);
@@ -147,6 +157,29 @@ if (empty($guestJson['success']) || empty($guestJson['shareUrl'])) {
     exit(1);
 }
 echo "8. Unauthenticated guest can retrieve existing public share link (PASS)\n";
+
+// 6. Test Zen Reader floating bar rendering for Telegram and Slack
+parse_str(parse_url($guestJson['shareUrl'], PHP_URL_QUERY) ?? '', $queryParams);
+$shareKey = $queryParams['share'] ?? '';
+if (!empty($shareKey)) {
+    $_GET = ['share' => $shareKey];
+    $_REQUEST = $_GET;
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    $_SERVER['REQUEST_URI'] = '/index.php?share=' . urlencode($shareKey);
+    ob_start();
+    include __DIR__ . '/../index.php';
+    $shareModeHtml = ob_get_clean();
+
+    if (strpos($shareModeHtml, 'https://t.me/share/url') === false) {
+        echo "FAIL: Share mode floating bar must contain Telegram share link\n";
+        exit(1);
+    }
+    if (strpos($shareModeHtml, 'id="btn-share-slack-bar"') === false) {
+        echo "FAIL: Share mode floating bar must contain Slack share button\n";
+        exit(1);
+    }
+    echo "9. Zen reader floating bar contains Telegram and Slack share actions (PASS)\n";
+}
 
 echo "\nALL SHARE RIGHTS TESTS PASSED! 🎉\n";
 

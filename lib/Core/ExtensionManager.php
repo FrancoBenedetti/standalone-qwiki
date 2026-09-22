@@ -123,7 +123,7 @@ class ExtensionManager {
             $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
             if (file_exists($filePath)) {
                 $rawMarkdown = file_get_contents($filePath);
-                $parsedown = new \QwikiParsedown();
+                $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
                 return $parsedown->text($rawMarkdown);
             } else {
                 return "<div class='alert warning'>Markdown file not found: " . htmlspecialchars($activeChapter['file'] ?? '') . "</div>";
@@ -315,7 +315,7 @@ class ExtensionManager {
         }
     }
 
-    public function renderAddDocumentForms($activeBook, $config) {
+    public function renderAddDocumentForms($activeBook, $config, $categoryHierarchy = [], $currentCategoryId = '') {
         $this->discover();
         foreach ($this->pageTypes as $id => $ext) {
             $tabId = 'tab-ext-' . htmlspecialchars($id);
@@ -347,7 +347,7 @@ class ExtensionManager {
             $icon = $util['icon'] ?? '⚡';
             $title = htmlspecialchars($util['title'] ?? ucfirst($id));
             $btnId = 'btn-util-' . htmlspecialchars($id);
-            echo "<button class='dropdown-item' id='{$btnId}'>{$icon} {$title}</button>\n";
+            echo "<button class='dropdown-item' id='{$btnId}'><span class='dropdown-item-icon'>{$icon}</span> <span class='dropdown-item-text'>{$title}</span></button>\n";
         }
     }
 }
