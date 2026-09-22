@@ -542,6 +542,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span class="dropdown-item-icon">👥</span>
                                 <span class="dropdown-item-text">Users</span>
                             </button>
+                            <button class="dropdown-item" id="btn-llm-keys">
+                                <span class="dropdown-item-icon">🤖</span>
+                                <span class="dropdown-item-text">LLM & API Access</span>
+                            </button>
                             <?php if (!$isSubwiki): ?>
                                 <button class="dropdown-item" id="btn-subwikis">
                                     <span class="dropdown-item-icon">🌐</span>
@@ -785,6 +789,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                                     </button>
                                 <?php endif; ?>
+                                <?php if (!$isPageReadOnly && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'pdf'])): ?>
+                                    <button class="btn btn-outline btn-sm" id="btn-replace-document" title="Replace Document Content"
+                                            data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
+                                            data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
+                                            data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                    </button>
+                                <?php endif; ?>
                                 <?php if (!$isPageReadOnly): ?>
                                     <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -957,6 +969,86 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div id="users-list-container">
                 <p style="color: var(--text-muted);">Loading users...</p>
             </div>
+        </div>
+    </div>
+
+    <!-- LLM & API Keys Management Modal -->
+    <div class="modal-overlay" id="llm-keys-modal">
+        <div class="modal-card" style="max-width: 880px;">
+            <div class="modal-header">
+                <h3>🤖 Controlled LLM & AI Agent Access</h3>
+                <button class="modal-close" data-close="llm-keys-modal">&times;</button>
+            </div>
+            
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                Create and manage scoped, revocable access keys for autonomous AI agents, LLMs (Claude Desktop, Cursor IDE, ChatGPT), and RAG pipelines to explore the wiki tree and analyze document content.
+            </p>
+
+            <form id="add-llm-key-form" style="margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 8px;">
+                <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Generate New Access Key</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label class="form-label">Name / Purpose <span style="color: var(--danger-color, #ef4444); font-size: 0.75rem;">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="e.g. Claude Desktop, Cursor AI, Support Bot" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Authorised Branch / Category</label>
+                        <select name="category" class="form-control">
+                            <option value="">All Categories (Entire Wiki)</option>
+                            <?php foreach ($categoryHierarchy as $cat): ?>
+                                <option value="<?= htmlspecialchars($cat['id']) ?>">
+                                    <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">Key will only be permitted to view this branch and its subcategories.</small>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label class="form-label">Permitted Document Types</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.25rem; font-size: 0.85rem;">
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" name="allowedTypes[]" value="markdown" checked> Markdown (.md)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" name="allowedTypes[]" value="html"> HTML (.html)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" name="allowedTypes[]" value="pdf"> PDF (.pdf)
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" name="allowedTypes[]" value="gdoc"> Google Docs
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Expiration Date (Optional)</label>
+                        <input type="datetime-local" name="expiresAt" class="form-control">
+                        <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">Leave empty for a non-expiring key.</small>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-sm">+ Generate API Key</button>
+            </form>
+
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Configured Access Keys</h4>
+            <div id="llm-keys-list-container" style="overflow-x: auto;">
+                <p style="color: var(--text-muted);">Loading keys...</p>
+            </div>
+
+            <!-- Integration Endpoints Guide -->
+            <details style="margin-top: 1.5rem; padding: 0.75rem 1rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem;">
+                <summary style="cursor: pointer; font-weight: 600; color: var(--text-primary);">📡 Integration Endpoints & Quick Start</summary>
+                <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; line-height: 1.5;">
+                    <div><strong>Authentication:</strong> Pass your key in the HTTP header: <code>Authorization: Bearer &lt;key&gt;</code> or via query parameter <code>?key=&lt;key&gt;</code>.</div>
+                    <div><strong>1. Document Tree Mode:</strong> <code><?= htmlspecialchars(Config::getBaseUrl()) ?>api/llm.php?mode=tree</code> (JSON) or <code>?mode=tree&amp;format=llms.txt</code> (<a href="https://llmstxt.org" target="_blank" rel="noopener">llms.txt</a> Markdown).</div>
+                    <div><strong>2. Document Access Mode:</strong> <code><?= htmlspecialchars(Config::getBaseUrl()) ?>api/llm.php?mode=doc&amp;slug=&lt;document-slug&gt;</code> (Supports optional <code>format=raw</code>).</div>
+                    <div><strong>3. Search Mode:</strong> <code><?= htmlspecialchars(Config::getBaseUrl()) ?>api/llm.php?mode=search&amp;q=&lt;query&gt;</code></div>
+                    <div><strong>4. OpenAPI Tool Schema:</strong> <code><?= htmlspecialchars(Config::getBaseUrl()) ?>api/llm.php?mode=schema</code> (1-click import into ChatGPT Custom Actions or Claude Projects).</div>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -1267,6 +1359,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="file" id="edit-chapter-file" class="form-control" value="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>" readonly style="background-color: var(--bg-tertiary); cursor: not-allowed;">
                     <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Managed automatically by Qwiki based on category and slug.</small>
                 </div>
+                <div class="form-group" id="group-edit-replacement-file">
+                    <label class="form-label" for="edit-chapter-replacement-file">Replace Document Content (.md or .pdf)</label>
+                    <input type="file" name="replacement_file" id="edit-chapter-replacement-file" class="form-control" accept=".md,.pdf">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Optional: Upload a replacement file to update content while preserving its slug, settings, and sharing keys.</small>
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="edit-chapter-theme">Document Theme (Optional)</label>
                     <select name="theme" id="edit-chapter-theme" class="form-control theme-selector">
@@ -1306,6 +1403,73 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Save Document Details</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Quick Replace Document Content Modal -->
+    <div class="modal-overlay" id="replace-document-modal">
+        <div class="modal-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>Replace Document Content</h3>
+                <button class="modal-close" data-close="replace-document-modal">&times;</button>
+            </div>
+            <form id="replace-document-form" enctype="multipart/form-data">
+                <input type="hidden" name="slug" id="replace-document-slug" value="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>">
+                <p style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
+                    Replace the content of <strong id="replace-document-title-display"><?= htmlspecialchars($activeChapter['title'] ?? '') ?></strong> with an updated file without modifying its URL slug, category, custom themes, or sharing settings.
+                </p>
+                <div class="form-group">
+                    <label class="form-label" for="replace-document-file-input">Select Replacement File (.md or .pdf)</label>
+                    <input type="file" name="document" id="replace-document-file-input" class="form-control" accept=".md,.pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-submit-replace-doc" style="width: 100%;">Upload &amp; Replace</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Duplicate Conflict Modal -->
+    <div class="modal-overlay" id="upload-conflict-modal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3>⚠️ Document Already Exists</h3>
+                <button class="modal-close" data-close="upload-conflict-modal">&times;</button>
+            </div>
+            <div style="padding: 0.75rem 0;">
+                <p style="margin-bottom: 0.85rem; font-size: 0.95rem; line-height: 1.5;" id="upload-conflict-msg">
+                    A document or file with this identifier already exists in this wiki.
+                </p>
+                <div style="background-color: var(--bg-tertiary); padding: 0.85rem 1rem; border-radius: 6px; margin-bottom: 1.25rem; font-size: 0.88rem;">
+                    <div><strong>Existing Title:</strong> <span id="conflict-existing-title"></span></div>
+                    <div style="margin-top: 0.35rem;"><strong>Slug Identifier:</strong> <code id="conflict-existing-slug" style="color: var(--accent-color);"></code></div>
+                    <div style="margin-top: 0.35rem;"><strong>Category:</strong> <span id="conflict-existing-category"></span></div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+                    <!-- Option A: Replace -->
+                    <div id="conflict-replace-card" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem 1rem; background-color: var(--bg-secondary);">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem; font-size: 0.95rem;">1. Replace Existing Document</div>
+                        <p style="font-size: 0.83rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.4;">
+                            Overwrites the content of the existing document with this uploaded file. All other settings (URL slug, category, custom themes, permissions, and sharing keys) will be preserved.
+                        </p>
+                        <button type="button" class="btn btn-primary btn-sm" id="btn-conflict-replace">Replace Document Content</button>
+                    </div>
+
+                    <!-- Option B: Save as Copy -->
+                    <div id="conflict-copy-card" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.85rem 1rem; background-color: var(--bg-secondary);">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem; font-size: 0.95rem;">2. Upload as Copy (Auto-Incremented Slug)</div>
+                        <p style="font-size: 0.83rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.4;">
+                            Uploads this file as a new separate document under an incremented or custom URL slug so both versions exist side-by-side.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="conflict-new-slug" class="form-control" style="flex: 1; min-width: 180px; font-size: 0.85rem;" placeholder="new-slug-identifier">
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-conflict-rename">Upload as Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top: 1rem; text-align: right; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <button type="button" class="btn btn-outline btn-sm" data-close="upload-conflict-modal">Cancel Upload</button>
+            </div>
         </div>
     </div>
     <?php endif; ?>
@@ -1407,6 +1571,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
                     </div>
+                </div>
+                <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: var(--bg-surface, rgba(0,0,0,0.03)); border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div>
+                        <strong>🤖 LLM &amp; AI Agent Access</strong>
+                        <span style="color: var(--text-muted); display: block; font-size: 0.8rem; margin-top: 0.15rem;">Provide controlled, key-authenticated tree exploration &amp; document retrieval to AI models.</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-open-llm-from-settings" style="white-space: nowrap;">Manage Keys</button>
                 </div>
                 <?php if ($isSubwiki): ?>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">

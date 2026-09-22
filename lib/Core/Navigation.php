@@ -454,6 +454,75 @@ class Navigation {
         }
         return $result;
     }
+
+    /**
+     * Checks if a slug is already taken across all categories and documents.
+     */
+    public static function isSlugTaken(string $slug, array $nodes, ?string $currentSlug = null): bool {
+        if (empty($slug) || !is_array($nodes)) return false;
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+            if (isset($node['id']) && $node['id'] === $slug) {
+                return true;
+            }
+            if (isset($node['slug']) && $node['slug'] === $slug) {
+                if ($currentSlug === null || $currentSlug !== $slug) {
+                    return true;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isSlugTaken($slug, $node['items'], $currentSlug)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Generates a unique, non-colliding slug.
+     * Auto-increments numeric suffix (e.g. "my-doc" -> "my-doc-1", "doc-1" -> "doc-2")
+     * verifying against both qwiki.json books/nodes and existing files on disk if targetDir is provided.
+     */
+    public static function generateUniqueSlug(string $baseSlug, array $books, ?string $targetDir = null, ?string $ext = null): string {
+        $baseSlug = trim($baseSlug);
+        if (empty($baseSlug)) {
+            $baseSlug = 'document';
+        }
+
+        $stem = $baseSlug;
+        $counter = 1;
+
+        if (preg_match('/^(.*)-(\d+)$/', $baseSlug, $matches)) {
+            $stem = $matches[1];
+            $counter = (int)$matches[2] + 1;
+        }
+
+        $slug = $baseSlug;
+        $extSuffix = $ext ? ('.' . ltrim($ext, '.')) : '';
+
+        $checkExists = function($candidateSlug) use ($books, $targetDir, $extSuffix) {
+            if (self::isSlugTaken($candidateSlug, $books)) {
+                return true;
+            }
+            if ($targetDir !== null) {
+                $targetFile = rtrim($targetDir, '/\\') . '/' . $candidateSlug . $extSuffix;
+                if (file_exists($targetFile)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if ($checkExists($slug)) {
+            do {
+                $slug = $stem . '-' . $counter;
+                $counter++;
+            } while ($checkExists($slug));
+        }
+
+        return $slug;
+    }
 }
 
 

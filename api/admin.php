@@ -6,6 +6,7 @@ require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
+require_once __DIR__ . '/../lib/Core/LlmAccess.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -13,6 +14,7 @@ use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 use Qwiki\Core\LockManager;
 use Qwiki\Core\SubwikiManager;
+use Qwiki\Core\LlmAccess;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -183,21 +185,20 @@ if (!function_exists('update_chapter_in_node')) {
 
 // Helper for chapter deletion from tree
 if (!function_exists('delete_chapter_from_node')) {
-    function delete_chapter_from_node(&$node, $slug) {
-        if (!empty($node['items'])) {
-            $newItems = [];
-            foreach ($node['items'] as &$item) {
-                if (!isset($item['type']) || $item['type'] !== 'folder') {
-                    if (($item['slug'] ?? '') !== $slug) {
-                        $newItems[] = $item;
-                    }
-                } else {
-                    delete_chapter_from_node($item, $slug);
-                    $newItems[] = $item;
-                }
+    function delete_chapter_from_node(&$node, $slug, &$deleted = false) {
+        if ($deleted || empty($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
+                $deleted = true;
+                continue;
             }
-            $node['items'] = $newItems;
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                delete_chapter_from_node($item, $slug, $deleted);
+            }
+            $newItems[] = $item;
         }
+        $node['items'] = $newItems;
     }
 }
 
@@ -250,21 +251,18 @@ if (!function_exists('relocate_document_file')) {
 // Checks if a slug is already taken across all books and documents
 if (!function_exists('is_slug_taken')) {
     function is_slug_taken($slug, $nodes, $currentSlug = null) {
-        if (empty($slug) || !is_array($nodes)) return false;
-        foreach ($nodes as $node) {
-            if (isset($node['id']) && $node['id'] === $slug) {
-                return true;
-            }
-            if (isset($node['slug']) && $node['slug'] === $slug) {
-                if ($currentSlug === null || $currentSlug !== $slug) {
-                    return true;
-                }
-            }
-            if (!empty($node['items']) && is_array($node['items'])) {
-                if (is_slug_taken($slug, $node['items'], $currentSlug)) {
-                    return true;
-                }
-            }
+        return Navigation::isSlugTaken($slug, $nodes, $currentSlug);
+    }
+}
+
+// Safely moves uploaded file, falling back to copy in CLI test environments
+if (!function_exists('safe_move_uploaded_file')) {
+    function safe_move_uploaded_file($tmpName, $destPath) {
+        if (@move_uploaded_file($tmpName, $destPath)) {
+            return true;
+        }
+        if (php_sapi_name() === 'cli' && @copy($tmpName, $destPath)) {
+            return true;
         }
         return false;
     }
@@ -386,6 +384,61 @@ switch ($action) {
         $targetUsername = trim($_POST['username'] ?? '');
         $newPassword = $_POST['newPassword'] ?? $_POST['password'] ?? '';
         echo json_encode(Auth::updateUserPassword($targetUsername, $newPassword));
+        break;
+
+    case 'list_llm_keys':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'keys' => LlmAccess::listKeys()
+        ]);
+        break;
+
+    case 'create_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyName = trim($_POST['name'] ?? '');
+        $keyCategory = trim($_POST['category'] ?? '');
+        $rawTypes = $_POST['allowedTypes'] ?? ['markdown'];
+        if (is_string($rawTypes)) {
+            $rawTypes = array_filter(array_map('trim', explode(',', $rawTypes)));
+        }
+        $keyExpiresAt = !empty($_POST['expiresAt']) ? trim($_POST['expiresAt']) : null;
+        echo json_encode(LlmAccess::generateKey($keyName, $keyCategory, (array)$rawTypes, $keyExpiresAt));
+        break;
+
+    case 'revoke_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        $targetStatus = isset($_POST['status']) ? trim($_POST['status']) : null;
+        echo json_encode(LlmAccess::revokeKey($keyId, $targetStatus));
+        break;
+
+    case 'delete_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        echo json_encode(LlmAccess::deleteKey($keyId));
+        break;
+
+    case 'update_llm_key_expiry':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        $newExpiresAt = !empty($_POST['expiresAt']) ? trim($_POST['expiresAt']) : null;
+        echo json_encode(LlmAccess::updateKeyExpiry($keyId, $newExpiresAt));
         break;
 
     case 'add_book':
@@ -551,12 +604,13 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Category and title are required']);
             exit;
         }
-        $slug = Config::makeSlug($title);
+        $baseSlug = Config::makeSlug($title);
         $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($targetAbsDir)) {
             @mkdir($targetAbsDir, 0755, true);
         }
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books'], $targetAbsDir, 'md');
         $targetRelFile = $targetRelDir . '/' . $slug . '.md';
         $targetAbsFile = $baseDir . '/' . $targetRelFile;
         if (file_put_contents($targetAbsFile, $content) === false) {
@@ -696,8 +750,30 @@ switch ($action) {
                 $foundChapter['shareKey'] = Navigation::generateShareKey();
             }
 
-            // Handle physical file relocation & slug renaming on disk
+            // Handle optional file replacement upload
             $origRelFile = $foundChapter['file'] ?? '';
+            if (isset($_FILES['replacement_file']) && $_FILES['replacement_file']['error'] === UPLOAD_ERR_OK) {
+                $replFileName = basename($_FILES['replacement_file']['name']);
+                $replExt = strtolower(pathinfo($replFileName, PATHINFO_EXTENSION));
+                if (in_array($replExt, ['md', 'pdf'])) {
+                    $destAbsDir = $baseDir . '/' . $destCategoryFolder;
+                    if (!is_dir($destAbsDir)) {
+                        @mkdir($destAbsDir, 0755, true);
+                    }
+                    $newRelFile = $destCategoryFolder . '/' . $newSlug . '.' . $replExt;
+                    $newAbsFile = $baseDir . '/' . $newRelFile;
+                    if (safe_move_uploaded_file($_FILES['replacement_file']['tmp_name'], $newAbsFile)) {
+                        if (!empty($origRelFile) && $origRelFile !== $newRelFile && file_exists($baseDir . '/' . $origRelFile)) {
+                            @unlink($baseDir . '/' . $origRelFile);
+                        }
+                        $foundChapter['file'] = $newRelFile;
+                        $foundChapter['type'] = ($replExt === 'pdf') ? 'pdf' : 'markdown';
+                        $origRelFile = ''; // Handled
+                    }
+                }
+            }
+
+            // Handle physical file relocation & slug renaming on disk
             if (!empty($origRelFile) && strpos($origRelFile, 'content/') === 0) {
                 $ext = pathinfo($origRelFile, PATHINFO_EXTENSION);
                 $newFileName = ($newSlug !== $slug) ? ($newSlug . ($ext ? '.' . $ext : '')) : basename($origRelFile);
@@ -953,6 +1029,9 @@ switch ($action) {
         }
         $bookId = $_POST['bookId'] ?? '';
         $title = trim($_POST['title'] ?? '');
+        $conflictAction = trim($_POST['conflictAction'] ?? ''); // 'replace' | 'rename'
+        $customSlug = trim($_POST['customSlug'] ?? '');
+
         if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK || empty($title) || empty($bookId)) {
             echo json_encode(['success' => false, 'error' => 'Missing file or required parameters']);
             exit;
@@ -963,21 +1042,118 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Only .md and .pdf files are supported via direct upload']);
             exit;
         }
-        $slug = Config::makeSlug($title);
+
+        $baseSlug = Config::makeSlug($title);
+        if (empty($baseSlug)) {
+            $baseSlug = 'document';
+        }
+
         $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($targetAbsDir)) {
             @mkdir($targetAbsDir, 0755, true);
         }
-        $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
+
+        $targetRelFile = $targetRelDir . '/' . $baseSlug . '.' . $ext;
         $targetAbsFile = $baseDir . '/' . $targetRelFile;
-        if (move_uploaded_file($_FILES['document']['tmp_name'], $targetAbsFile)) {
+
+        $isSlugTaken = Navigation::isSlugTaken($baseSlug, $config['books']);
+        $fileExists = file_exists($targetAbsFile);
+        $hasConflict = ($isSlugTaken || $fileExists);
+
+        // Scenario 1: Initial upload with collision detected, and no conflictAction provided
+        if ($hasConflict && empty($conflictAction)) {
+            $existingParent = null;
+            $existingDoc = Navigation::findChapterBySlug($config['books'], $baseSlug, $existingParent);
+            $isProtected = Config::isChapterProtected($baseSlug, $config['books']);
+            $isAncestorProtected = Config::isChapterAncestorProtected($baseSlug, $config['books']);
+            $suggestedSlug = Navigation::generateUniqueSlug($baseSlug, $config['books'], $targetAbsDir, $ext);
+
+            echo json_encode([
+                'success' => false,
+                'conflict' => true,
+                'existingSlug' => $baseSlug,
+                'existingTitle' => $existingDoc['title'] ?? $title,
+                'existingCategory' => $existingParent['title'] ?? $bookId,
+                'existingType' => $existingDoc['type'] ?? (($ext === 'pdf') ? 'pdf' : 'markdown'),
+                'isProtected' => ($isProtected || $isAncestorProtected || (Config::isDemoMode() && $isProtected)),
+                'suggestedSlug' => $suggestedSlug,
+                'error' => "A document or file with the identifier '{$baseSlug}' already exists."
+            ]);
+            exit;
+        }
+
+        // Scenario 2: User requested to replace the existing document
+        if ($hasConflict && $conflictAction === 'replace') {
+            $isProtected = Config::isChapterProtected($baseSlug, $config['books']);
+            $isAncestorProtected = Config::isChapterAncestorProtected($baseSlug, $config['books']);
+            if ($isProtected || $isAncestorProtected || (Config::isDemoMode() && $isProtected)) {
+                echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be replaced.']);
+                exit;
+            }
+
+            $foundParent = null;
+            $existingDoc = Navigation::findChapterBySlug($config['books'], $baseSlug, $foundParent);
+            $oldRelFile = $existingDoc['file'] ?? '';
+
+            $destRelFile = $targetRelFile;
+            $destAbsFile = $targetAbsFile;
+
+            if (safe_move_uploaded_file($_FILES['document']['tmp_name'], $destAbsFile)) {
+                if (!empty($oldRelFile) && $oldRelFile !== $destRelFile && file_exists($baseDir . '/' . $oldRelFile)) {
+                    @unlink($baseDir . '/' . $oldRelFile);
+                }
+
+                $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+                if ($existingDoc) {
+                    find_chapter_and_update($config['books'], $baseSlug, function(&$ch) use ($title, $docType, $destRelFile) {
+                        if (!empty($title)) $ch['title'] = $title;
+                        $ch['type'] = $docType;
+                        $ch['file'] = $destRelFile;
+                    });
+                } else {
+                    $chapterData = [
+                        'title' => $title,
+                        'slug' => $baseSlug,
+                        'type' => $docType,
+                        'file' => $destRelFile
+                    ];
+                    foreach ($config['books'] as &$book) {
+                        if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                            break;
+                        }
+                    }
+                }
+                Config::save($config);
+                echo json_encode(['success' => true, 'bookId' => $foundParent['id'] ?? $bookId, 'slug' => $baseSlug, 'action' => 'replaced']);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
+            }
+            break;
+        }
+
+        // Scenario 3: Rename / Copy or standard non-conflicting upload
+        if ($hasConflict || $conflictAction === 'rename') {
+            $rawChosen = !empty($customSlug) ? Config::makeSlug($customSlug) : '';
+            if (!empty($rawChosen) && !Navigation::isSlugTaken($rawChosen, $config['books']) && !file_exists($targetAbsDir . '/' . $rawChosen . '.' . $ext)) {
+                $slug = $rawChosen;
+            } else {
+                $slug = Navigation::generateUniqueSlug(!empty($rawChosen) ? $rawChosen : $baseSlug, $config['books'], $targetAbsDir, $ext);
+            }
+        } else {
+            $slug = $baseSlug;
+        }
+
+        $finalRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
+        $finalAbsFile = $baseDir . '/' . $finalRelFile;
+
+        if (safe_move_uploaded_file($_FILES['document']['tmp_name'], $finalAbsFile)) {
             $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
             $chapterData = [
                 'title' => $title,
                 'slug' => $slug,
                 'type' => $docType,
-                'file' => $targetRelFile
+                'file' => $finalRelFile
             ];
             foreach ($config['books'] as &$book) {
                 if (insert_chapter_into_node($book, $bookId, $chapterData)) {
@@ -985,10 +1161,79 @@ switch ($action) {
                 }
             }
             Config::save($config);
-            echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+            echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug, 'action' => 'created']);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
         }
+        break;
+
+    case 'replace_document_file':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'error' => 'No file uploaded or upload error occurred']);
+            exit;
+        }
+        $isProtected = Config::isChapterProtected($slug, $config['books'] ?? []);
+        $isAncestorProtected = Config::isChapterAncestorProtected($slug, $config['books'] ?? []);
+        if ($isAncestorProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is inside a protected category and cannot be modified.']);
+            exit;
+        }
+        if (Config::isDemoMode() && $isProtected) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo documents cannot be modified in demo mode.']);
+            exit;
+        }
+        if ($isProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
+            exit;
+        }
+        $fileName = basename($_FILES['document']['name']);
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['md', 'pdf'])) {
+            echo json_encode(['success' => false, 'error' => 'Only .md and .pdf files are supported for replacement']);
+            exit;
+        }
+        $parentBook = null;
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug, $parentBook);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $existingRelFile = $chapter['file'] ?? '';
+        $targetRelDir = !empty($existingRelFile) ? dirname($existingRelFile) : (get_category_folder($config['books'], $parentBook['id'] ?? '') ?: ('content/' . ($parentBook['id'] ?? '')));
+        $targetAbsDir = $baseDir . '/' . $targetRelDir;
+        if (!is_dir($targetAbsDir)) {
+            @mkdir($targetAbsDir, 0755, true);
+        }
+        $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
+        $targetAbsFile = $baseDir . '/' . $targetRelFile;
+
+        if (!safe_move_uploaded_file($_FILES['document']['tmp_name'], $targetAbsFile)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to save replacement file']);
+            exit;
+        }
+
+        // Clean up old file if extension changed
+        if (!empty($existingRelFile) && $existingRelFile !== $targetRelFile && file_exists($baseDir . '/' . $existingRelFile)) {
+            @unlink($baseDir . '/' . $existingRelFile);
+        }
+
+        $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+        find_chapter_and_update($config['books'], $slug, function(&$ch) use ($docType, $targetRelFile) {
+            $ch['type'] = $docType;
+            $ch['file'] = $targetRelFile;
+        });
+
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $parentBook['id'] ?? '', 'slug' => $slug, 'action' => 'replaced']);
         break;
 
     case 'add_gdoc':
@@ -1007,7 +1252,8 @@ switch ($action) {
         if (strpos($url, 'embedded=true') === false) {
             $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
         }
-        $slug = Config::makeSlug($title);
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
         $chapterData = [
             'title' => $title,
             'slug' => $slug,
@@ -1041,22 +1287,8 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Invalid or unsafe URL protocol']);
             exit;
         }
-        $slug = Config::makeSlug($title);
-        $baseSlug = $slug;
-        $counter = 1;
-        $allSlugs = [];
-        $collectSlugs = function($nodes) use (&$collectSlugs, &$allSlugs) {
-            if (!is_array($nodes)) return;
-            foreach ($nodes as $n) {
-                if (isset($n['slug'])) $allSlugs[] = $n['slug'];
-                if (!empty($n['items']) && is_array($n['items'])) $collectSlugs($n['items']);
-            }
-        };
-        $collectSlugs($config['books'] ?? []);
-        while (in_array($slug, $allSlugs)) {
-            $slug = $baseSlug . '-' . $counter;
-            $counter++;
-        }
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
 
         $linkData = [
             'title' => $title,
@@ -1101,12 +1333,14 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
             exit;
         }
+        $deleted = false;
         $filteredBooks = [];
         foreach ($config['books'] as &$book) {
-            if (($book['slug'] ?? '') === $slug) {
+            if (!$deleted && ($book['slug'] ?? '') === $slug) {
+                $deleted = true;
                 continue;
             }
-            delete_chapter_from_node($book, $slug);
+            delete_chapter_from_node($book, $slug, $deleted);
             $filteredBooks[] = $book;
         }
         $config['books'] = $filteredBooks;

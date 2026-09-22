@@ -42,6 +42,22 @@ To change site visibility:
 
 ---
 
+## 🤖 Controlled LLM & AI Agent Access
+
+Standalone Qwiki provides a key-authenticated, scoped API for Large Language Models, autonomous coding agents (such as Claude Desktop, Cursor IDE, OpenAI GPTs), and local RAG pipelines to safely explore your wiki tree and retrieve document contents:
+
+- **Dedicated Key Management**: Generate multiple named API keys from **Admin Dropdown ➔ 🤖 LLM & API Access**.
+- **Scope Restriction**: Confine a key to a specific branch or category (with recursive subcategory access) or allow full-wiki exploration.
+- **Permitted Document Types**: Filter access by document type (`markdown`, `html`, `pdf`, `gdoc`).
+- **Configurable Expiry & Revocation**: Set optional expiration dates with 1-click extension, or instantly revoke keys without deleting audit history.
+- **Operational Modes**:
+  1. **Document Tree Mode** (`/api/llm.php?mode=tree`): Returns document hierarchy, URLs, and metadata in JSON or standard [llms.txt](https://llmstxt.org) Markdown format (`format=llms.txt`).
+  2. **Document Access Mode** (`/api/llm.php?mode=doc&slug=<slug>`): Retrieves document contents with absolute canonical link and image rewriting, token estimation, and pagination support.
+  3. **Search Mode** (`/api/llm.php?mode=search&q=<query>`): Enables agents to locate relevant documents quickly without retrieving the entire tree.
+  4. **OpenAPI Tool Schema** (`/api/llm.php?mode=schema`): Provides an OpenAPI 3.0 specification for 1-click import into ChatGPT Custom Actions and Claude Custom Tools.
+
+---
+
 ## 🎉 1-Click Auto Updates
 
 - When a new version of Qwiki is released, an **`🎉 Update Available!`** button appears in the admin menu.
