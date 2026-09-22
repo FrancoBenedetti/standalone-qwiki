@@ -10,7 +10,7 @@ class Envelope {
     /**
      * Allowed document types
      */
-    const ALLOWED_DOC_TYPES = ['markdown', 'md', 'html', 'pdf', 'gdoc'];
+    const ALLOWED_DOC_TYPES = ['markdown', 'md', 'html', 'pdf', 'gdoc', 'form'];
 
     /**
      * Allowed media extensions for embedded asset transfer
@@ -397,6 +397,7 @@ class Envelope {
         $ext = 'md';
         if ($docType === 'html') $ext = 'html';
         elseif ($docType === 'pdf') $ext = 'pdf';
+        elseif ($docType === 'form') $ext = 'form.json';
 
         // Ensure unique slug and filename in target category
         $slug = $baseSlug;
@@ -471,6 +472,12 @@ class Envelope {
             $sanitizedContent = self::sanitizeContent($content, $docType);
             if (file_put_contents($targetAbsFile, $sanitizedContent, LOCK_EX) === false) {
                 return ['success' => false, 'error' => 'Failed to write document file to storage'];
+            }
+            if ($docType === 'form') {
+                $subFile = preg_replace('/\.form\.json$/i', '.submissions.json', $targetAbsFile);
+                if (!file_exists($subFile)) {
+                    @file_put_contents($subFile, '', LOCK_EX);
+                }
             }
         }
 

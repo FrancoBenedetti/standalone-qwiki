@@ -8,13 +8,21 @@ $books = $config['books'] ?? [];
 <div class="form-group">
     <label class="form-label">Target Category / Folder</label>
     <select name="bookId" class="form-control" required>
-        <?php foreach ($books as $b): ?>
-            <?php if (($b['type'] ?? 'folder') === 'folder' && isset($b['id'])): ?>
-                <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && ($activeBook['id'] ?? '') === $b['id']) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($b['title']) ?>
+        <?php if (!empty($categoryHierarchy)): ?>
+            <?php foreach ($categoryHierarchy as $cat): ?>
+                <option value="<?= htmlspecialchars($cat['id']) ?>" <?= (($currentCategoryId ?? '') === $cat['id']) ? 'selected' : '' ?>>
+                    <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
                 </option>
-            <?php endif; ?>
-        <?php endforeach; ?>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <?php foreach ($books as $b): ?>
+                <?php if (($b['type'] ?? 'folder') === 'folder' && isset($b['id'])): ?>
+                    <option value="<?= htmlspecialchars($b['id']) ?>" <?= ($activeBook && ($activeBook['id'] ?? '') === $b['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($b['title']) ?>
+                    </option>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </select>
 </div>
 <div class="form-group">

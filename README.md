@@ -53,11 +53,12 @@ Admins can control whether documentation is publicly readable or requires authen
 - **Multi-Format Support**:
   - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks & custom styles). Supports direct image uploading, importing existing local Markdown files, and auto-embedded playable videos.
   - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with built-in **SunEditor WYSIWYG visual editor** and raw code view toggle for creating and in-place editing of `.html` pages.
+  - **Interactive Forms (`.form.json`)**: Native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email alerts, webhooks, anti-spam honeypots, and CSV submission exports.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
   - **PDF Manuals (`.pdf`)**: Embedded responsive iframe PDF viewer with download links.
 - **🎬 Playable Video Auto-Embedding**: Seamlessly embed responsive video players by pasting standalone video URLs on their own line. Natively supports YouTube (including timestamps and Shorts via `youtube-nocookie.com`), Vimeo (with Do Not Track), Loom screencasts, and direct video files (`.mp4`, `.webm`, `.ogg`, `.mov`) with custom caption formatting.
 - **✨ Agentic Visual & Chart Generator**: Integrated visual generator producing vector Bar Charts, Line Trends, Pie/Donut Charts, Process Flows, and Status Badges. Generates standalone SVG files saved directly to `uploads/` and inserts Markdown snippets with 1 click.
-- **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, etc.), respecting category visibility rules.
+- **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, Forms, etc.), respecting category visibility rules.
 - **🌓 Instant Zero-Flicker Theming**: Server-side cookie sync paired with immediate synchronous head script execution eliminates all flash-of-unstyled-theme (FOUC) when switching pages in light or dark mode.
 - **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
 - **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
@@ -71,7 +72,7 @@ Admins can control whether documentation is publicly readable or requires authen
   - **Viewer**: Read-only documentation access.
   - Passwords encrypted using native PHP Bcrypt (`password_hash()`).
 - **🎨 Cascading Themes & Built-in UI Editor**: Assign different CSS themes across the site, specific categories, or individual documents. Write and preview themes via a live CSS editor directly in the browser!
-- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC, HTML) to admin users.
+- **👁️ Visibility Controls**: Restrict entire categories to logged-in users or admins only. Restrict document type badges (MD, PDF, GDOC, HTML, FORM) to admin users.
 - **📡 RSS Feed Syndication**: Automatically generates full-text RSS feeds per category (e.g. `/api/feed.php?category=blog`), perfectly compatible with RSSHub integrations.
 - **🎉 1-Click Auto Updates**: Built-in update checker securely polls for new releases. Admins can download and install new core updates directly from the UI with a single click, without risking any user data or installed extensions.
 - **🔒 Multi-Tab & Collaborative Document Soft Locks**: Protects documents against simultaneous editing and overwrite collisions across different users and multiple browser tabs. Powered by an advisory lease engine, background heartbeats, immediate `BroadcastChannel` tab synchronization, automatic local draft preservation, and takeover controls.

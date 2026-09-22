@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.12.1] - FormFlow - 2026-09-22
+
+### 📝 Native Form Extension Tracking & Release Restoration
+- **Restored Flat-File Form Extension (`page-form`)**: Tracked and committed the native `page-form` extension across repository history and production archives. Includes drag-and-drop field builder, submission storage, anti-spam honeypot, webhook dispatch, and CSV export.
+- **Root-Scoped Scratch Test Rules**: Updated `.gitignore` from `test_*` to `/test_*`, ensuring root-level scratch files remain ignored while preventing test suites inside `tests/` (`tests/test_form_page_extension.php`) from being masked.
+- **Nested Category Hierarchy in Extension Modals**: Upgraded `ExtensionManager::renderAddDocumentForms` and extension creation modals (`page-form` and `page-html`) to support `$categoryHierarchy` with visual depth indentation (`↳ Subfolder`) and active folder preselection, bringing full subfolder authoring parity with built-in document types.
+- **Clean URL Redirection on Form Creation**: Form creation now seamlessly redirects using clean route paths (`category/slug`) matching the rest of the application.
+- **Editorial Postbox Form Support**: Added `form` (`.form.json`) to `ALLOWED_DOC_TYPES` in `Envelope.php` and added the Interactive Form format option to the Postbox Ingestion modal for asynchronous cross-wiki transfers.
+- **Sample Feedback Survey**: Bundled a clean, professional Community Feedback Survey in `demo-data/` and default configuration.
+
+---
+
 ## [1.12.0] - PathNest - 2026-09-20
 
 ### 🗂️ Category Prefilling & Hierarchy Preservation

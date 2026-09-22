@@ -91,6 +91,14 @@
                     "url": "",
                     "editUrl": "",
                     "file": "content/getting-started/interactive-dashboard.html"
+                },
+                {
+                    "title": "Community Feedback Survey",
+                    "slug": "feedback-survey",
+                    "type": "form",
+                    "url": "",
+                    "editUrl": "",
+                    "file": "content/getting-started/feedback-survey.form.json"
                 }
             ]
         },

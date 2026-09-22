@@ -29,12 +29,21 @@
 - **Smart Print / Save as PDF**: All print buttons (toolbar, header icon, and any in-document button) delegate to the sandboxed iframe and trigger the browser print dialog. When viewed embedded in Qwiki, redundant print controls are automatically hidden — the HTML viewer toolbar button is the single entry point. In the full-tab expanded view or share mode, only the in-document button is shown.
 
 
-### C. Published Google Docs (`gdoc`)
+### C. Interactive Forms (`.form.json`)
+- Native flat-file interactive forms, surveys, and event RSVPs without any SQL database.
+- **Visual Field Builder**: Add, configure, and reorder text inputs, textareas, email fields, select dropdowns, radio buttons, and checkboxes with customized labels, placeholders, and validation rules.
+- **Starter Templates**: Rapidly initialize forms from presets including **Feedback Survey**, **Contact Us**, **Event RSVP**, or start from a blank canvas.
+- **Submission Management & Alerts**: Collect visitor submissions into append-only flat-file JSON storage (`.submissions.json`). Authenticated Admins can inspect submissions in a responsive data table, delete individual entries, or clear all responses.
+- **Anti-Spam Defenses**: Built-in silent honeypot fields deceive automated spam bots without impeding real visitors, paired with timestamp token verification.
+- **CSV Export**: Export all collected responses with 1 click to Excel/UTF-8 formatted `.csv` spreadsheets.
+- **Outgoing Notifications & Webhooks**: Optionally configure email alerts and webhook URLs (Slack, Discord, Zapier) to receive real-time POST payloads on every new submission.
+
+### D. Published Google Docs (`gdoc`)
 - Embed published Google Doc URLs directly into your wiki tree.
 - Automatic formatting: automatically appends `?embedded=true` if omitted.
 - HTML cleaning & extraction via `lib/simple_html_dom.php` to match dark/light theme styling seamlessly.
 
-### D. PDF Documents (`.pdf`)
+### E. PDF Documents (`.pdf`)
 - Embedded PDF viewer container with zoom, page navigation, and download links.
 
 ---
@@ -96,8 +105,8 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 ## 👁️ 8. Visibility Controls & Search
 
 - **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
-- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`) to admin users.
-- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, and HTML documents.
+- **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`, `FORM`) to admin users.
+- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms.
 - **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---

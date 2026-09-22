@@ -9,9 +9,10 @@ As an Admin, you have full control over the documentation tree and content direc
 Click the **`New Document`** button at the top of the sidebar navigation (or **`+ Cat`** to add a category):
 1. **Markdown (`.md`)**: Write new Markdown using the Toast UI WYSIWYG editor or import an existing `.md` file.
 2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view with automatic two-way synchronization, use **`Ctrl+S`** / **`Cmd+S`** to save quickly, or upload an existing `.html` file.
-3. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree.
-4. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
-5. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
+3. **Interactive Forms (`.form.json`)**: Build native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email notifications, webhooks, anti-spam honeypots, and CSV submission export.
+4. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree.
+5. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
+6. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
 
 ---
 
@@ -31,6 +32,7 @@ You can add hyperlinks to external locations or internal pages directly into the
 
 - **Markdown Documents**: Click **`✏️ Edit Content`** in the top right toolbar to open the inline visual editor with live markdown preview.
 - **HTML Documents**: Click **`✏️ Edit HTML`** in the document viewer toolbar to open SunEditor, format text, modify tables, or tweak raw HTML code. Edits in Code View mode sync automatically on save.
+- **Interactive Form Documents**: Click **`⚙️ Edit Form Builder`** or **`📊 View Submissions`** in the document viewer toolbar to tweak fields, configure outgoing webhooks, or inspect respondent submissions with 1-click CSV export.
 - **Document Metadata & Category Relocation**: Click **`⚙️ Edit Details`** to change the document title, custom slug, category/folder, individual CSS theme, short description, or social preview image. The current category is accurately prefilled in the hierarchical selector (even for deep nested folders), preventing accidental folder resets when saving title or metadata updates. Moving a document to another category automatically relocates the physical file on disk (e.g. into `content/<target-folder>/`), renames it if the slug changed, resolves any naming clashes with numeric suffixes, and updates `qwiki.json`.
 
 ---

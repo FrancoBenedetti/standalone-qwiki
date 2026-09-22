@@ -6,8 +6,9 @@
 /uploads
 /qwiki.json
 /users.json
-test_*
-admin_test*
+/test_*
+/admin_test*
+/api/admin_test*
 output.html
 tests/lock_integration_test.php
 tests/lock_test.php

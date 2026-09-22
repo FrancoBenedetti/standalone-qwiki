@@ -1210,7 +1210,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             </form>
 
             <!-- Dynamic Extension Tabs -->
-            <?php $extManager->renderAddDocumentForms($activeBook, $config); ?>
+            <?php $extManager->renderAddDocumentForms($activeBook, $config, $categoryHierarchy, $currentCategoryId); ?>
         </div>
     </div>
 

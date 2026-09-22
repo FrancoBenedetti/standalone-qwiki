@@ -315,7 +315,7 @@ class ExtensionManager {
         }
     }
 
-    public function renderAddDocumentForms($activeBook, $config) {
+    public function renderAddDocumentForms($activeBook, $config, $categoryHierarchy = [], $currentCategoryId = '') {
         $this->discover();
         foreach ($this->pageTypes as $id => $ext) {
             $tabId = 'tab-ext-' . htmlspecialchars($id);
