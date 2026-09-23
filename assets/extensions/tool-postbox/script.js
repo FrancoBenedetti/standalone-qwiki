@@ -302,7 +302,9 @@
         activeCategories.forEach(cat => {
             const opt = document.createElement('option');
             opt.value = cat.id;
-            opt.textContent = cat.title + ' (' + cat.id + ')';
+            const indent = '\u00A0\u00A0'.repeat(cat.depth || 0);
+            const prefix = (cat.depth > 0) ? '↳ ' : '';
+            opt.textContent = indent + prefix + (cat.path || cat.title || cat.id);
             catSelect.appendChild(opt);
         });
 
@@ -402,6 +404,7 @@
             if (!data.success) return;
 
             peersData = data;
+            populateOutboxDocuments(data);
 
             // Populate local peers
             const optLocal = document.getElementById('postbox-optgroup-local');
@@ -557,81 +560,193 @@
         }
     }
 
+    // Update category info note in Outbox Category mode
+    function updateCategoryInfoNotice() {
+        const catSelect = document.getElementById('postbox-category-select');
+        const notice = document.getElementById('postbox-category-info-notice');
+        if (!catSelect || !notice) return;
+
+        const selectedOpt = catSelect.options[catSelect.selectedIndex];
+        if (!catSelect.value || !selectedOpt) {
+            notice.style.display = 'none';
+            notice.textContent = '';
+            return;
+        }
+
+        const count = selectedOpt.dataset.docCount || '0';
+        notice.innerHTML = `ℹ️ <strong>${escapeHtml(count)} document(s)</strong> and any referenced media will be packaged from this category.`;
+        notice.style.display = 'block';
+    }
+
+    // Update selected count badge in Outbox Bulk mode
+    function updateBulkCount() {
+        const checked = document.querySelectorAll('input[name="postbox_bulk_docs[]"]:checked').length;
+        const total = document.querySelectorAll('input[name="postbox_bulk_docs[]"]').length;
+        const countBadge = document.getElementById('postbox-bulk-count');
+        if (countBadge) {
+            countBadge.textContent = `${checked} of ${total} selected`;
+            if (checked > 0) {
+                countBadge.style.background = '#3b82f6';
+                countBadge.style.color = '#fff';
+            } else {
+                countBadge.style.background = 'var(--bg-tertiary)';
+                countBadge.style.color = 'var(--text-primary)';
+            }
+        }
+    }
+
     // Populate Outbox Document choices
-    function populateOutboxDocuments() {
+    function populateOutboxDocuments(data) {
         const singleSelect = document.getElementById('postbox-single-doc-select');
         const catSelect = document.getElementById('postbox-category-select');
         const bulkList = document.getElementById('postbox-bulk-list');
 
         if (!singleSelect || !catSelect || !bulkList) return;
 
-        // Collect all documents from current page tree (read from navigation DOM or global config)
-        const docLinks = document.querySelectorAll('.sidebar-nav a[href*="/"]');
-        const items = [];
-        const categories = [];
+        let categories = (data && data.categories) ? data.categories : (peersData && peersData.categories ? peersData.categories : []);
+        let documents = (data && data.documents) ? data.documents : (peersData && peersData.documents ? peersData.documents : []);
 
-        // Check sidebar categories
-        document.querySelectorAll('.nav-group').forEach(group => {
-            const catHeader = group.querySelector('.nav-group-title, .nav-book-title, [data-category-id]');
-            const catId = group.dataset.categoryId || (catHeader ? catHeader.textContent.trim() : '');
-            const catTitle = catHeader ? catHeader.textContent.trim() : catId;
-            if (catId) {
-                categories.push({ id: catId, title: catTitle });
-            }
+        // Fallback to DOM parsing if API data is not yet loaded
+        if (categories.length === 0 || documents.length === 0) {
+            const domCategories = [];
+            const domDocs = [];
 
-            group.querySelectorAll('.nav-item a, .nav-chapter a').forEach(link => {
-                const href = link.getAttribute('href') || '';
-                const title = link.textContent.trim();
-                const slugMatch = href.split('/').filter(Boolean).pop();
-                if (slugMatch) {
-                    items.push({
-                        title: title,
-                        slug: slugMatch,
-                        bookId: catId
+            document.querySelectorAll('.sidebar-nav .nav-category-item').forEach(catEl => {
+                const catId = catEl.getAttribute('data-node-id');
+                const catTitle = catEl.getAttribute('data-node-title') || catId;
+                if (catId && !domCategories.some(c => c.id === catId)) {
+                    domCategories.push({
+                        id: catId,
+                        title: catTitle,
+                        path: catTitle,
+                        depth: 0,
+                        doc_count: 0
                     });
                 }
             });
-        });
 
-        // Single Doc Dropdown
+            document.querySelectorAll('.sidebar-nav a.nav-link[data-doc-slug]').forEach(link => {
+                const slug = link.getAttribute('data-doc-slug');
+                const title = link.getAttribute('data-doc-title') || link.textContent.trim();
+                const parentCatEl = link.closest('.nav-category-item');
+                const bookId = parentCatEl ? parentCatEl.getAttribute('data-node-id') : '';
+                const catTitle = parentCatEl ? (parentCatEl.getAttribute('data-node-title') || bookId) : '';
+                if (slug) {
+                    domDocs.push({
+                        slug: slug,
+                        title: title,
+                        bookId: bookId,
+                        categoryTitle: catTitle,
+                        categoryPath: catTitle,
+                        type: link.getAttribute('data-doc-type') || 'markdown',
+                        readOnly: link.getAttribute('data-doc-readonly') === '1'
+                    });
+                }
+            });
+
+            if (categories.length === 0) categories = domCategories;
+            if (documents.length === 0) documents = domDocs;
+        }
+
+        // 1. Single Doc Dropdown (Grouped by Category Path)
+        const currentSingleVal = singleSelect.value;
         singleSelect.innerHTML = '<option value="">-- Choose a document --</option>';
-        items.forEach(it => {
-            const opt = document.createElement('option');
-            opt.value = it.slug;
-            opt.dataset.bookId = it.bookId;
-            opt.textContent = it.title + ' (' + it.slug + ')';
-            singleSelect.appendChild(opt);
+
+        const docsByCat = {};
+        documents.forEach(doc => {
+            const catKey = doc.categoryPath || doc.categoryTitle || doc.bookId || 'General';
+            if (!docsByCat[catKey]) docsByCat[catKey] = [];
+            docsByCat[catKey].push(doc);
         });
 
-        // Try to preselect active chapter
-        const activeLink = document.querySelector('.sidebar-nav .nav-item.active a, .nav-chapter.active a');
-        if (activeLink) {
-            const activeSlug = (activeLink.getAttribute('href') || '').split('/').filter(Boolean).pop();
-            if (activeSlug) {
-                singleSelect.value = activeSlug;
+        Object.keys(docsByCat).forEach(catPath => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = catPath;
+            docsByCat[catPath].forEach(it => {
+                const opt = document.createElement('option');
+                opt.value = it.slug;
+                opt.dataset.bookId = it.bookId;
+                const typeLabel = (it.type || 'markdown').toUpperCase();
+                opt.textContent = `${it.title} [${typeLabel}] (${it.slug})`;
+                optgroup.appendChild(opt);
+            });
+            singleSelect.appendChild(optgroup);
+        });
+
+        // Try to retain existing selection or preselect active chapter
+        if (currentSingleVal) {
+            singleSelect.value = currentSingleVal;
+        } else {
+            const activeLink = document.querySelector('.sidebar-nav a.nav-link.active[data-doc-slug], .sidebar-nav a.nav-link.active');
+            if (activeLink) {
+                const activeSlug = activeLink.getAttribute('data-doc-slug') || (activeLink.getAttribute('href') || '').split('/').filter(Boolean).pop();
+                if (activeSlug) {
+                    singleSelect.value = activeSlug;
+                }
             }
         }
 
-        // Category Dropdown
+        // 2. Category Dropdown with Visual Hierarchy & Document Counts
+        const currentCatVal = catSelect.value;
         catSelect.innerHTML = '<option value="">-- Choose a category --</option>';
         categories.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
-            opt.textContent = c.title + ' (' + c.id + ')';
+            opt.dataset.docCount = c.doc_count || 0;
+            const indent = '\u00A0\u00A0'.repeat(c.depth || 0);
+            const prefix = (c.depth > 0) ? '↳ ' : '';
+            const countStr = ` (${c.doc_count || 0} doc${(c.doc_count === 1) ? '' : 's'})`;
+            opt.textContent = indent + prefix + (c.path || c.title || c.id) + countStr;
             catSelect.appendChild(opt);
         });
 
-        // Bulk Checklist
-        bulkList.innerHTML = '';
-        items.forEach(it => {
-            const row = document.createElement('label');
-            row.className = 'postbox-check-item';
-            row.innerHTML = `
-                <input type="checkbox" name="postbox_bulk_docs[]" value="${escapeHtml(it.slug)}" data-book="${escapeHtml(it.bookId)}">
-                <span>${escapeHtml(it.title)} <small style="color:var(--text-muted)">(${escapeHtml(it.bookId)} / ${escapeHtml(it.slug)})</small></span>
-            `;
-            bulkList.appendChild(row);
+        if (currentCatVal) {
+            catSelect.value = currentCatVal;
+        }
+        updateCategoryInfoNotice();
+
+        // 3. Bulk Checklist Grouped by Category
+        const previouslyChecked = new Set();
+        document.querySelectorAll('input[name="postbox_bulk_docs[]"]:checked').forEach(cb => {
+            previouslyChecked.add(cb.dataset.book + '::' + cb.value);
         });
+
+        bulkList.innerHTML = '';
+        if (documents.length === 0) {
+            bulkList.innerHTML = '<div style="color:var(--text-muted); padding:1rem; text-align:center;">No documents available to transfer.</div>';
+        } else {
+            Object.keys(docsByCat).forEach(catPath => {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'postbox-bulk-cat-group';
+
+                const catDocs = docsByCat[catPath];
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'postbox-bulk-cat-header';
+                headerDiv.innerHTML = `
+                    <span class="postbox-bulk-cat-title">📁 ${escapeHtml(catPath)}</span>
+                    <button type="button" class="btn btn-outline btn-sm btn-bulk-select-group" style="padding: 0.1rem 0.4rem; font-size: 0.72rem;">Toggle Group</button>
+                `;
+                groupDiv.appendChild(headerDiv);
+
+                catDocs.forEach(it => {
+                    const row = document.createElement('label');
+                    row.className = 'postbox-check-item';
+                    const key = it.bookId + '::' + it.slug;
+                    const isChecked = previouslyChecked.has(key);
+                    const typeLabel = (it.type || 'md').toUpperCase();
+
+                    row.innerHTML = `
+                        <input type="checkbox" name="postbox_bulk_docs[]" value="${escapeHtml(it.slug)}" data-book="${escapeHtml(it.bookId)}" ${isChecked ? 'checked' : ''}>
+                        <span>${escapeHtml(it.title)} <small style="color:var(--text-muted);">[${typeLabel}] (${escapeHtml(it.slug)})</small></span>
+                    `;
+                    groupDiv.appendChild(row);
+                });
+
+                bulkList.appendChild(groupDiv);
+            });
+        }
+
+        updateBulkCount();
     }
 
     // Outbound form submission
@@ -777,14 +892,87 @@
         });
 
         // 5. Transfer Scope radio toggles
+        function setScopeMode(mode) {
+            const singleBox = document.getElementById('postbox-scope-single');
+            const catBox = document.getElementById('postbox-scope-category');
+            const bulkBox = document.getElementById('postbox-scope-bulk');
+            if (singleBox) singleBox.style.display = (mode === 'single') ? 'block' : 'none';
+            if (catBox) catBox.style.display = (mode === 'category') ? 'block' : 'none';
+            if (bulkBox) bulkBox.style.display = (mode === 'bulk') ? 'block' : 'none';
+
+            document.querySelectorAll('.postbox-radio-pill').forEach(pill => {
+                const radio = pill.querySelector('input[name="postbox_mode"]');
+                if (radio && radio.value === mode) {
+                    radio.checked = true;
+                    pill.classList.add('active');
+                } else if (radio) {
+                    pill.classList.remove('active');
+                }
+            });
+        }
+
         document.querySelectorAll('input[name="postbox_mode"]').forEach(radio => {
             radio.addEventListener('change', function() {
-                const mode = this.value;
-                document.getElementById('postbox-scope-single').style.display = (mode === 'single') ? 'block' : 'none';
-                document.getElementById('postbox-scope-category').style.display = (mode === 'category') ? 'block' : 'none';
-                document.getElementById('postbox-scope-bulk').style.display = (mode === 'bulk') ? 'block' : 'none';
+                setScopeMode(this.value);
             });
         });
+
+        document.querySelectorAll('.postbox-radio-pill').forEach(pill => {
+            pill.addEventListener('click', function() {
+                const radio = this.querySelector('input[name="postbox_mode"]');
+                if (radio && !radio.checked) {
+                    setScopeMode(radio.value);
+                }
+            });
+        });
+
+        // 5b. Category change in outbox
+        const postboxCatSelect = document.getElementById('postbox-category-select');
+        if (postboxCatSelect) {
+            postboxCatSelect.addEventListener('change', updateCategoryInfoNotice);
+        }
+
+        // 5c. Bulk Selection Toolbar Handlers
+        const bulkSelectAll = document.getElementById('postbox-bulk-select-all');
+        if (bulkSelectAll) {
+            bulkSelectAll.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('input[name="postbox_bulk_docs[]"]').forEach(cb => cb.checked = true);
+                updateBulkCount();
+            });
+        }
+
+        const bulkDeselectAll = document.getElementById('postbox-bulk-deselect-all');
+        if (bulkDeselectAll) {
+            bulkDeselectAll.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('input[name="postbox_bulk_docs[]"]').forEach(cb => cb.checked = false);
+                updateBulkCount();
+            });
+        }
+
+        const bulkListEl = document.getElementById('postbox-bulk-list');
+        if (bulkListEl) {
+            bulkListEl.addEventListener('change', (e) => {
+                if (e.target && e.target.name === 'postbox_bulk_docs[]') {
+                    updateBulkCount();
+                }
+            });
+
+            bulkListEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('.btn-bulk-select-group');
+                if (btn) {
+                    e.preventDefault();
+                    const group = btn.closest('.postbox-bulk-cat-group');
+                    if (group) {
+                        const cbs = group.querySelectorAll('input[name="postbox_bulk_docs[]"]');
+                        const anyUnchecked = Array.from(cbs).some(cb => !cb.checked);
+                        cbs.forEach(cb => cb.checked = anyUnchecked);
+                        updateBulkCount();
+                    }
+                }
+            });
+        }
 
         // 6. Destination selection toggle for custom URL
         const destSelect = document.getElementById('postbox-destination-select');
@@ -902,10 +1090,20 @@
         if (quickSendBtn) {
             quickSendBtn.addEventListener('click', function(e) {
                 e.preventDefault();
+                const targetSlug = this.dataset.slug || '';
                 const modal = document.getElementById('modal-postbox');
                 if (modal) {
                     modal.style.display = 'flex';
                     switchPostboxTab('outbox');
+                    setScopeMode('single');
+                    if (targetSlug) {
+                        setTimeout(() => {
+                            const singleSelect = document.getElementById('postbox-single-doc-select');
+                            if (singleSelect) {
+                                singleSelect.value = targetSlug;
+                            }
+                        }, 50);
+                    }
                 }
             });
         }

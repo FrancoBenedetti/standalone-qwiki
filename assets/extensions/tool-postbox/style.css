@@ -99,7 +99,8 @@
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.postbox-radio-pill:has(input:checked) {
+.postbox-radio-pill:has(input:checked),
+.postbox-radio-pill.active {
     background: rgba(59, 130, 246, 0.12);
     border-color: #3b82f6;
     color: #3b82f6;
@@ -107,7 +108,7 @@
 }
 
 .postbox-checklist-container {
-    max-height: 220px;
+    max-height: 260px;
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -115,14 +116,42 @@
     background: var(--bg-primary);
 }
 
+.postbox-bulk-cat-group {
+    margin-bottom: 0.75rem;
+}
+
+.postbox-bulk-cat-group:last-child {
+    margin-bottom: 0;
+}
+
+.postbox-bulk-cat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.3rem 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    user-select: none;
+}
+
+.postbox-bulk-cat-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .postbox-check-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.35rem 0.5rem;
+    padding: 0.35rem 0.5rem 0.35rem 1.25rem;
     border-radius: 4px;
     font-size: 0.88rem;
     cursor: pointer;
+    transition: background 0.1s ease;
 }
 
 .postbox-check-item:hover {

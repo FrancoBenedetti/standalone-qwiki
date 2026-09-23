@@ -333,6 +333,193 @@ if (strpos($ingestedHtmlContent, 'uploads/images/chart.png') === false) {
 
 echo "PASS: HTML document integrity, full tag preservation, and base href injection verified.\n\n";
 
+// -------------------------------------------------------------
+// Test 7: Subcategory Resolution & Ingestion into Nested Subcategory
+// -------------------------------------------------------------
+echo "7. Testing Subcategory Ingestion & Folder Hierarchy Resolution...\n";
+$nestedConfig = [
+    'title' => 'Nested Target Wiki',
+    'books' => [
+        [
+            'id' => 'guides',
+            'title' => 'Main Guides',
+            'type' => 'folder',
+            'items' => [
+                [
+                    'id' => 'advanced',
+                    'title' => 'Advanced Subcategory',
+                    'type' => 'folder',
+                    'items' => []
+                ]
+            ]
+        ]
+    ]
+];
+file_put_contents($testBaseDir . '/qwiki.json', json_encode($nestedConfig, JSON_PRETTY_PRINT));
+Config::init($testBaseDir);
+
+// Verify Envelope::resolveCategoryFolder
+$resolvedFolder = Envelope::resolveCategoryFolder($nestedConfig['books'], 'advanced');
+if ($resolvedFolder !== 'content/guides/advanced') {
+    echo "FAIL: Expected folder 'content/guides/advanced', got '{$resolvedFolder}'\n";
+    exit(1);
+}
+
+// Stage envelope to ingest into subcategory 'advanced'
+$nestedEnv = Envelope::createPackage($docsToPackage, $testBaseDir, $testConfig);
+Envelope::saveStagedEnvelope($testBaseDir, $nestedEnv);
+
+$subIngest = Envelope::ingestDocument(
+    $testBaseDir,
+    $nestedConfig,
+    $nestedEnv['batch_id'],
+    0,
+    'advanced',
+    ['title' => 'Nested Guide', 'slug' => 'nested-guide']
+);
+
+if (empty($subIngest['success'])) {
+    echo "FAIL: Ingesting into subcategory failed: " . ($subIngest['error'] ?? '') . "\n";
+    exit(1);
+}
+
+$expectedNestedFile = $testBaseDir . '/content/guides/advanced/nested-guide.md';
+if (!file_exists($expectedNestedFile)) {
+    echo "FAIL: Ingested file was not created at expected nested path: {$expectedNestedFile}\n";
+    exit(1);
+}
+
+$updatedConf = Config::load();
+$subCategoryFound = false;
+foreach ($updatedConf['books'] as $b) {
+    if (($b['id'] ?? '') === 'guides') {
+        foreach ($b['items'] ?? [] as $sub) {
+            if (($sub['id'] ?? '') === 'advanced') {
+                foreach ($sub['items'] ?? [] as $doc) {
+                    if (($doc['slug'] ?? '') === 'nested-guide') {
+                        $subCategoryFound = true;
+                        break 3;
+                    }
+                }
+            }
+        }
+    }
+}
+
+if (!$subCategoryFound) {
+    echo "FAIL: Ingested document was not placed inside the subcategory in qwiki.json\n";
+    exit(1);
+}
+echo "PASS: Subcategory resolution and nested folder ingestion verified.\n\n";
+
+// -------------------------------------------------------------
+// Test 8: Recursive Category Document Extraction
+// -------------------------------------------------------------
+echo "8. Testing Recursive Category Document Extraction...\n";
+// Create a category with top-level and nested documents
+$sourceConfig = [
+    'title' => 'Source Wiki',
+    'books' => [
+        [
+            'id' => 'dept-engineering',
+            'title' => 'Engineering Department',
+            'type' => 'folder',
+            'items' => [
+                [
+                    'title' => 'Overview',
+                    'slug' => 'eng-overview',
+                    'type' => 'markdown',
+                    'file' => 'content/general/welcome.md'
+                ],
+                [
+                    'id' => 'backend-team',
+                    'title' => 'Backend Team',
+                    'type' => 'folder',
+                    'items' => [
+                        [
+                            'title' => 'API Guidelines',
+                            'slug' => 'api-guidelines',
+                            'type' => 'markdown',
+                            'file' => 'content/general/welcome.md'
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+];
+
+// Helper recursive gather
+$docsGathered = [];
+$collectDocsRecursive = function($items) use (&$collectDocsRecursive, &$docsGathered) {
+    foreach ($items as $it) {
+        if (($it['type'] ?? '') === 'folder') {
+            $collectDocsRecursive($it['items'] ?? []);
+        } elseif (($it['type'] ?? '') !== 'link' && !empty($it['slug'])) {
+            $docsGathered[] = $it;
+        }
+    }
+};
+$collectDocsRecursive($sourceConfig['books'][0]['items']);
+
+if (count($docsGathered) !== 2) {
+    echo "FAIL: Expected 2 documents gathered from category including subfolders, got " . count($docsGathered) . "\n";
+    exit(1);
+}
+
+$categoryPkg = Envelope::createPackage($docsGathered, $testBaseDir, $sourceConfig);
+if (count($categoryPkg['documents']) !== 2) {
+    echo "FAIL: Expected 2 documents in category package, got " . count($categoryPkg['documents']) . "\n";
+    exit(1);
+}
+echo "PASS: Recursive category document extraction verified.\n\n";
+
+// -------------------------------------------------------------
+// Test 9: Bulk Selection Packaging with Category Disambiguation
+// -------------------------------------------------------------
+echo "9. Testing Bulk Packaging with Category Disambiguation...\n";
+$multiCatConfig = [
+    'title' => 'Multi-Category Wiki',
+    'books' => [
+        [
+            'id' => 'cat-a',
+            'title' => 'Category A',
+            'type' => 'folder',
+            'items' => [
+                ['title' => 'Introduction A', 'slug' => 'intro', 'type' => 'markdown', 'file' => 'content/general/welcome.md']
+            ]
+        ],
+        [
+            'id' => 'cat-b',
+            'title' => 'Category B',
+            'type' => 'folder',
+            'items' => [
+                ['title' => 'Introduction B', 'slug' => 'intro', 'type' => 'markdown', 'file' => 'content/general/welcome.md']
+            ]
+        ]
+    ]
+];
+
+$findDocDisambiguated = function($nodes, $slug, $bookId = null) {
+    if (!empty($bookId)) {
+        foreach ($nodes as $n) {
+            if (($n['id'] ?? '') === $bookId) {
+                foreach ($n['items'] ?? [] as $it) {
+                    if (($it['slug'] ?? '') === $slug) return $it;
+                }
+            }
+        }
+    }
+    return null;
+};
+
+$matchedDoc = $findDocDisambiguated($multiCatConfig['books'], 'intro', 'cat-b');
+if (!$matchedDoc || $matchedDoc['title'] !== 'Introduction B') {
+    echo "FAIL: Bulk document disambiguation did not select the document from the requested category\n";
+    exit(1);
+}
+echo "PASS: Bulk document disambiguation verified.\n\n";
+
 // Cleanup test directory
 function cleanRecursive($dir) {
     if (!is_dir($dir)) return;

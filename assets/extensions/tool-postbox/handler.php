@@ -7,6 +7,7 @@
  */
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
+use Qwiki\Core\Navigation;
 use Qwiki\Core\SubwikiManager;
 use Qwiki\Extension\Postbox\Envelope;
 
@@ -101,14 +102,7 @@ if ($action === 'ext_postbox_count') {
 if ($action === 'ext_postbox_inbox') {
     $envelopes = Envelope::listInboxEnvelopes($baseDir);
     $config = Config::load();
-    $categories = [];
-    foreach ($config['books'] ?? [] as $book) {
-        $categories[] = [
-            'id' => $book['id'] ?? '',
-            'title' => $book['title'] ?? ($book['id'] ?? 'Untitled'),
-            'type' => $book['type'] ?? 'folder'
-        ];
-    }
+    $categories = Navigation::getCategoriesHierarchy($config['books'] ?? []);
 
     postboxJsonReply([
         'success' => true,
@@ -123,7 +117,7 @@ if ($action === 'ext_postbox_inbox') {
 }
 
 // -------------------------------------------------------------
-// 5. ENUMERATE AVAILABLE DESTINATIONS (PEERS)
+// 5. ENUMERATE AVAILABLE DESTINATIONS (PEERS) & OUTBOX DATA
 // -------------------------------------------------------------
 if ($action === 'ext_postbox_peers') {
     $config = Config::load();
@@ -186,11 +180,63 @@ if ($action === 'ext_postbox_peers') {
 
     $remotePeers = Config::getPostboxPeers();
 
+    // Hierarchical Categories for destination / outbox selection
+    $categories = Navigation::getCategoriesHierarchy($config['books'] ?? []);
+
+    // Helper to recursively collect all documents from a node
+    $allDocs = [];
+    $collectDocs = function($items, $currentBookId, $currentCatTitle, $currentCatPath) use (&$collectDocs, &$allDocs) {
+        if (!is_array($items)) return;
+        foreach ($items as $item) {
+            $type = $item['type'] ?? 'markdown';
+            if ($type === 'folder') {
+                $subId = $item['id'] ?? $currentBookId;
+                $subTitle = $item['title'] ?? $subId;
+                $subPath = $currentCatPath !== '' ? ($currentCatPath . ' / ' . $subTitle) : $subTitle;
+                $collectDocs($item['items'] ?? [], $subId, $subTitle, $subPath);
+            } elseif ($type === 'link') {
+                // External links don't have document files to package
+                continue;
+            } elseif (!empty($item['slug'])) {
+                $allDocs[] = [
+                    'slug' => $item['slug'],
+                    'title' => $item['title'] ?? $item['slug'],
+                    'bookId' => $currentBookId,
+                    'categoryTitle' => $currentCatTitle,
+                    'categoryPath' => $currentCatPath,
+                    'type' => $type,
+                    'readOnly' => !empty($item['readOnly']) || (isset($item['editable']) && $item['editable'] === false)
+                ];
+            }
+        }
+    };
+
+    foreach ($config['books'] ?? [] as $book) {
+        $bookId = $book['id'] ?? '';
+        $bookTitle = $book['title'] ?? ($bookId ?: 'Untitled');
+        $collectDocs($book['items'] ?? [], $bookId, $bookTitle, $bookTitle);
+    }
+
+    // Attach doc counts to each category/subcategory
+    foreach ($categories as &$cat) {
+        $catId = $cat['id'];
+        $count = 0;
+        foreach ($allDocs as $doc) {
+            if ($doc['bookId'] === $catId) {
+                $count++;
+            }
+        }
+        $cat['doc_count'] = $count;
+    }
+    unset($cat);
+
     postboxJsonReply([
         'success' => true,
         'local_peers' => $localPeers,
         'remote_peers' => $remotePeers,
-        'my_token' => Config::getPostboxToken()
+        'my_token' => Config::getPostboxToken(),
+        'categories' => $categories,
+        'documents' => $allDocs
     ]);
 }
 
@@ -207,14 +253,44 @@ if ($action === 'ext_postbox_send') {
     $mode = $_POST['mode'] ?? 'single';
     $docsToPackage = [];
 
-    // Helper to find document in hierarchy
+    // Helper to find document in hierarchy, with optional category disambiguation
     $findDocument = function($nodes, $slug, $bookId = null) use (&$findDocument) {
+        // If bookId is provided, first search specifically within that category node
+        if (!empty($bookId)) {
+            $findInTargetNode = function($list) use (&$findInTargetNode, $slug, $bookId) {
+                foreach ($list as $node) {
+                    if (($node['id'] ?? '') === $bookId) {
+                        $searchLeaves = function($items) use (&$searchLeaves, $slug) {
+                            if (!is_array($items)) return null;
+                            foreach ($items as $item) {
+                                if (($item['slug'] ?? '') === $slug) return $item;
+                                if (!empty($item['items']) && is_array($item['items'])) {
+                                    $res = $searchLeaves($item['items']);
+                                    if ($res) return $res;
+                                }
+                            }
+                            return null;
+                        };
+                        return $searchLeaves($node['items'] ?? []);
+                    }
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $res = $findInTargetNode($node['items']);
+                        if ($res) return $res;
+                    }
+                }
+                return null;
+            };
+            $foundInBook = $findInTargetNode($nodes);
+            if ($foundInBook) return $foundInBook;
+        }
+
+        // Global search fallback
         foreach ($nodes as $node) {
             if (($node['slug'] ?? '') === $slug) {
                 return $node;
             }
             if (!empty($node['items']) && is_array($node['items'])) {
-                $found = $findDocument($node['items'], $slug, $bookId);
+                $found = $findDocument($node['items'], $slug, null);
                 if ($found) return $found;
             }
         }
@@ -227,7 +303,7 @@ if ($action === 'ext_postbox_send') {
         if (empty($slug)) {
             postboxJsonReply(['success' => false, 'error' => 'No document slug specified.'], 400);
         }
-        $docNode = $findDocument($config['books'], $slug, $bookId);
+        $docNode = $findDocument($config['books'] ?? [], $slug, $bookId);
         if (!$docNode) {
             postboxJsonReply(['success' => false, 'error' => "Document '{$slug}' not found in configuration."], 404);
         }
@@ -237,17 +313,39 @@ if ($action === 'ext_postbox_send') {
         if (empty($categoryId)) {
             postboxJsonReply(['success' => false, 'error' => 'No category specified.'], 400);
         }
-        // Find category and collect its items
-        foreach ($config['books'] as $book) {
-            if (($book['id'] ?? '') === $categoryId) {
-                foreach ($book['items'] ?? [] as $item) {
-                    if (isset($item['type']) && $item['type'] !== 'folder' && !empty($item['slug'])) {
+
+        // Find category or sub-category node recursively
+        $findCategoryNode = function($nodes, $catId) use (&$findCategoryNode) {
+            foreach ($nodes as $n) {
+                if (($n['id'] ?? '') === $catId) {
+                    return $n;
+                }
+                if (!empty($n['items']) && is_array($n['items'])) {
+                    $found = $findCategoryNode($n['items'], $catId);
+                    if ($found) return $found;
+                }
+            }
+            return null;
+        };
+
+        $catNode = $findCategoryNode($config['books'] ?? [], $categoryId);
+        if ($catNode) {
+            $collectCategoryDocs = function($items) use (&$collectCategoryDocs, &$docsToPackage) {
+                if (!is_array($items)) return;
+                foreach ($items as $item) {
+                    $type = $item['type'] ?? 'markdown';
+                    if ($type === 'folder') {
+                        $collectCategoryDocs($item['items'] ?? []);
+                    } elseif ($type === 'link') {
+                        continue;
+                    } elseif (!empty($item['slug'])) {
                         $docsToPackage[] = $item;
                     }
                 }
-                break;
-            }
+            };
+            $collectCategoryDocs($catNode['items'] ?? []);
         }
+
         if (empty($docsToPackage)) {
             postboxJsonReply(['success' => false, 'error' => "No documents found in category '{$categoryId}'."], 404);
         }
@@ -258,8 +356,9 @@ if ($action === 'ext_postbox_send') {
         }
         foreach ($docKeys as $k) {
             $slug = is_array($k) ? ($k['slug'] ?? '') : (string)$k;
+            $bookId = is_array($k) ? ($k['bookId'] ?? '') : '';
             if ($slug) {
-                $found = $findDocument($config['books'], $slug);
+                $found = $findDocument($config['books'] ?? [], $slug, $bookId);
                 if ($found) $docsToPackage[] = $found;
             }
         }

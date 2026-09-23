@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dialog Modal Display & State Fixes**: Resolved CSS modal display issues with explicit `.open` and `.active` flex styling, backdrop click closing, and improved active chapter detection across toolbar edit states.
 
 ### 📬 Editorial Postbox & Desktop Transfer Hardening
+- **Document, Category & Bulk Selection Architecture**: Fixed broken DOM scraping in outbound transfers by migrating document and category population to authoritative API payloads (`ext_postbox_peers`). Outbound transfers now support grouped `<optgroup>` single document selection, interactive bulk checklist selection with category section headers, "Select All" / "Clear All" convenience toggles, and live selection counters.
+- **Hierarchical Sub-Category Navigation & Resolution**: Enhanced both outbound package creation and inbound staging/ingestion dialogs with full multi-level category hierarchies (`Navigation::getCategoriesHierarchy()`) displaying `↳` visual depth indentation and live document counts. Implemented `Envelope::resolveCategoryFolder()` to resolve nested sub-directory filesystem paths (e.g. `content/parent/sub/`) and insert ingested documents into their corresponding nested JSON hierarchy.
+- **Recursive Category Packaging & Disambiguation**: Added recursive document collection for parent categories in category transfer mode and unambiguous category identification (`bookId`) in single and bulk transfer modes.
 - **HTML Document Integrity in Staging & Ingestion**: Preserved full HTML document structures (including `<script>`, `<meta>`, `<form>`, and inline event handlers) during Postbox ingestion, ensuring interactive HTML applications and dashboards remain fully intact within their isolated sandboxed iframes.
 - **Automatic `<base href>` Injection**: Injects depth-aware `<base href="...">` tags into imported HTML documents so relative assets (`uploads/images/...`) resolve cleanly within iframe contexts.
 - **Media Asset Link Remapping**: Upgraded asset replacement logic to support trimmed and relative path formats (`./img/...` and `img/...`).
@@ -33,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Automated Test Coverage
 - `tests/test_gemini_dialog_open.js`: Comprehensive JSDOM functional suite verifying modal open/close lifecycle, settings modal transitions, LLM modal switches, backdrop clicks, and Escape key dismissal.
 - `tests/gemini_assistant_test.php`: Added test cases for `ext_gemini_list_models`, demo mode model synthesis, and clean configuration restoration.
-- `tests/postbox_test.php`: Added Test 6 verifying HTML document preservation, script retention, and base href injection.
+- `tests/postbox_test.php`: Added Test 6 (HTML document preservation, script retention, base href injection), Test 7 (nested sub-category folder resolution and ingestion), Test 8 (recursive category packaging), and Test 9 (bulk selection with category disambiguation).
 - `tests/cli_postbox_test.php`: Added Test 6 verifying HTML title extraction, media asset parsing, and BOM handling in desktop CLI transfers.
 
 ---
