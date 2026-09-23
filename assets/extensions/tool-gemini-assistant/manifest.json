@@ -10,6 +10,7 @@
     "ext_gemini_get_settings",
     "ext_gemini_save_settings",
     "ext_gemini_test_connection",
+    "ext_gemini_list_models",
     "ext_gemini_generate_meta",
     "ext_gemini_generate_social_post",
     "ext_gemini_summarize",

@@ -204,7 +204,8 @@ def extract_referenced_assets(doc_path: Path, content: str) -> list:
     # Match Markdown: ![alt](path) and HTML: src="path" / href="path"
     patterns = [
         r'!\[.*?\]\((?!https?://|data:|mailto:|#)([^)\s]+)\)',
-        r'<img[^>]+src=["\'](?!https?://|data:|mailto:|#)([^"\']+)["\']'
+        r'<(?:img|video|audio|source)\b[^>]+src=["\'](?!https?://|data:|mailto:|#)([^"\']+)["\']',
+        r'<a\b[^>]+href=["\'](?!https?://|data:|mailto:|#)([^"\']+)["\']'
     ]
 
     doc_dir = doc_path.parent
@@ -266,8 +267,27 @@ def package_single_file(file_path: Path, title: str = None, category_hint: str =
             content = base64.b64encode(f.read()).decode("ascii")
         assets = []
     else:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        try:
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            with open(file_path, "r", encoding="latin-1") as f:
+                content = f.read()
+
+        if not title:
+            if doc_type == "html":
+                m = re.search(r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL)
+                if m:
+                    clean_t = re.sub(r"\s+", " ", m.group(1)).strip()
+                    if clean_t:
+                        doc_title = clean_t
+            elif doc_type == "markdown":
+                m = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+                if m:
+                    clean_t = m.group(1).strip()
+                    if clean_t:
+                        doc_title = clean_t
+
         assets = extract_referenced_assets(file_path, content)
 
     doc_data = {

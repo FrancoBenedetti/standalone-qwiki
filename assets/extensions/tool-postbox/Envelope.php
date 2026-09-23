@@ -298,14 +298,41 @@ class Envelope {
     }
 
     /**
-     * Sanitize markdown / HTML content against high-risk tags
+     * Ensure an HTML document contains a <base href="..."> pointing to the wiki root
+     * so that relative assets (e.g. uploads/images/...) resolve correctly in the iframe.
      */
-    public static function sanitizeContent(string $content, string $type): string {
-        if ($type === 'pdf') {
+    public static function ensureHtmlBaseHref(string $content, string $filePath): string {
+        if (empty($content) || preg_match('/<base\s+[^>]*href=/i', $content)) {
             return $content;
         }
 
-        $dangerous_tags = ['script', 'applet', 'meta', 'base', 'form', 'embed', 'object'];
+        $dir = dirname(str_replace('\\', '/', $filePath));
+        $segments = array_filter(explode('/', $dir), function($s) { return $s !== '' && $s !== '.'; });
+        $depth = count($segments);
+        $relativeBase = $depth > 0 ? str_repeat('../', $depth) : './';
+
+        if (preg_match('/<head[^>]*>/i', $content)) {
+            return preg_replace('/(<head[^>]*>)/i', "$1\n    <base href=\"{$relativeBase}\">", $content, 1);
+        }
+
+        return "<base href=\"{$relativeBase}\">\n" . $content;
+    }
+
+    /**
+     * Sanitize markdown content against high-risk executable tags.
+     * Note: HTML documents are isolated inside sandboxed iframes (page-html extension)
+     * and their meta, script, form, and event handlers must remain fully intact.
+     */
+    public static function sanitizeContent(string $content, string $type): string {
+        if ($type === 'pdf' || $type === 'html') {
+            return $content;
+        }
+
+        // For Markdown: strip entire script blocks (tags and script body)
+        $content = preg_replace('/<script\b[^>]*>.*?<\/script>/is', '', $content);
+        $content = preg_replace('/<script\b[^>]*\/?>/is', '', $content);
+
+        $dangerous_tags = ['applet', 'meta', 'base', 'form', 'embed', 'object'];
         foreach ($dangerous_tags as $tag) {
             $content = preg_replace('/<\/?\s*' . $tag . '\b[^>]*>/is', '', $content);
         }
@@ -458,6 +485,10 @@ class Envelope {
                     $content = str_replace($origRel, $newRelPath, $content);
                     // Also replace urlencoded variations
                     $content = str_replace(urlencode($origRel), $newRelPath, $content);
+                    $trimmedRel = ltrim($origRel, './');
+                    if ($trimmedRel !== $origRel && !empty($trimmedRel)) {
+                        $content = str_replace($trimmedRel, $newRelPath, $content);
+                    }
                 }
             }
         }
@@ -467,6 +498,11 @@ class Envelope {
             $pdfData = base64_decode($content);
             if ($pdfData === false || file_put_contents($targetAbsFile, $pdfData, LOCK_EX) === false) {
                 return ['success' => false, 'error' => 'Failed to write PDF file to storage'];
+            }
+        } elseif ($docType === 'html') {
+            $htmlContent = self::ensureHtmlBaseHref($content, $targetRelFile);
+            if (file_put_contents($targetAbsFile, $htmlContent, LOCK_EX) === false) {
+                return ['success' => false, 'error' => 'Failed to write HTML file to storage'];
             }
         } else {
             $sanitizedContent = self::sanitizeContent($content, $docType);

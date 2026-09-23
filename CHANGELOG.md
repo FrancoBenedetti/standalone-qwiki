@@ -11,6 +11,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.13.1] - AssistFlow - 2026-09-23
+
+### 🤖 Gemini AI Assistant: Dynamic Model Discovery & Fallback
+- **Active Model Auto-Detection (`ext_gemini_list_models`)**: Added real-time query mechanism to discover models supporting `generateContent` directly from Google's `v1beta/models` endpoint for the configured API key.
+- **Interactive UI Auto-Detect Button**: Added "🔍 Auto-Detect Models" button in the assistant settings tab to dynamically query and populate the model dropdown with active models.
+- **Resilient Multi-Version API Fallback**: Handles seamless fallback between API versions (`v1beta` and `v1`) and candidate models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-3.5-flash`) to prevent 404 Model Not Found errors.
+- **Enhanced Upstream Error Diagnostics**: Immediate detection of `RESOURCE_EXHAUSTED` (quota limits) and `INVALID_ARGUMENT` (bad API key) with descriptive resolution prompts.
+- **Cross-Modal Navigation**: Integrated direct access buttons within **⚙️ Settings** (`#btn-open-gemini-from-settings`) and **🤖 LLM Keys** (`#btn-open-gemini-from-llm`) modals to jump straight to the Gemini AI Assistant settings tab with auto-closing of parent dialogs.
+- **Dialog Modal Display & State Fixes**: Resolved CSS modal display issues with explicit `.open` and `.active` flex styling, backdrop click closing, and improved active chapter detection across toolbar edit states.
+
+### 📬 Editorial Postbox & Desktop Transfer Hardening
+- **HTML Document Integrity in Staging & Ingestion**: Preserved full HTML document structures (including `<script>`, `<meta>`, `<form>`, and inline event handlers) during Postbox ingestion, ensuring interactive HTML applications and dashboards remain fully intact within their isolated sandboxed iframes.
+- **Automatic `<base href>` Injection**: Injects depth-aware `<base href="...">` tags into imported HTML documents so relative assets (`uploads/images/...`) resolve cleanly within iframe contexts.
+- **Media Asset Link Remapping**: Upgraded asset replacement logic to support trimmed and relative path formats (`./img/...` and `img/...`).
+- **Desktop Postbox CLI Enhancements (`qwiki-postbox.py`)**:
+  - Expanded asset discovery patterns to package `<video>`, `<audio>`, `<source src="...">`, and `<a href="...">` local file references alongside images.
+  - Added robust character encoding detection supporting UTF-8 with BOM (`utf-8-sig`) and `latin-1` fallback.
+  - Implemented automated title extraction from `<title>` tags in HTML documents and `# H1` headers in Markdown documents when explicit titles are omitted.
+
+### 🧪 Automated Test Coverage
+- `tests/test_gemini_dialog_open.js`: Comprehensive JSDOM functional suite verifying modal open/close lifecycle, settings modal transitions, LLM modal switches, backdrop clicks, and Escape key dismissal.
+- `tests/gemini_assistant_test.php`: Added test cases for `ext_gemini_list_models`, demo mode model synthesis, and clean configuration restoration.
+- `tests/postbox_test.php`: Added Test 6 verifying HTML document preservation, script retention, and base href injection.
+- `tests/cli_postbox_test.php`: Added Test 6 verifying HTML title extraction, media asset parsing, and BOM handling in desktop CLI transfers.
+
+---
+
 ## [1.13.0] - AgentFlow - 2026-09-22
 
 ### 🤖 Controlled LLM & AI Agent Access Pipeline

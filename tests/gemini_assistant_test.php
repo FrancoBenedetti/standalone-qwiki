@@ -37,6 +37,7 @@ assert_true(($utility['id'] ?? '') === 'gemini_assistant', "Utility ID is gemini
 assert_true(in_array('ext_gemini_generate_meta', $utility['actions'] ?? []), "Action ext_gemini_generate_meta is registered");
 assert_true(in_array('ext_gemini_save_settings', $utility['actions'] ?? []), "Action ext_gemini_save_settings is registered");
 assert_true(in_array('ext_gemini_test_connection', $utility['actions'] ?? []), "Action ext_gemini_test_connection is registered");
+assert_true(in_array('ext_gemini_list_models', $utility['actions'] ?? []), "Action ext_gemini_list_models is registered");
 
 // 2. Asset Discovery
 $assets = $extManager->getFrontendAssets();
@@ -92,6 +93,14 @@ $_SESSION['qwiki_logged_in'] = true;
 $_SESSION['qwiki_admin'] = true;
 $_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
 $_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
+
+// Back up initial gemini configuration if present to ensure clean testing environment
+$preTestConfig = Config::load();
+$origGeminiConfig = $preTestConfig['gemini'] ?? null;
+if (isset($preTestConfig['gemini'])) {
+    unset($preTestConfig['gemini']);
+    Config::save($preTestConfig);
+}
 
 // Test Get Settings
 ob_start();
@@ -149,10 +158,12 @@ assert_true(!empty($resp['hasKey']), "get_settings reports hasKey true");
 // 8. Test ext_gemini_apply_meta
 $cfgBefore = Config::load();
 $origIntroDesc = '';
+$origIntroTags = null;
 foreach ($cfgBefore['books'] as $b) {
     foreach ($b['items'] ?? [] as $it) {
         if (($it['slug'] ?? '') === 'introduction') {
             $origIntroDesc = $it['description'] ?? '';
+            $origIntroTags = $it['tags'] ?? null;
             break 2;
         }
     }
@@ -189,16 +200,25 @@ foreach ($cfgAfter['books'] as $b) {
 assert_true($updatedDesc === $testNewDesc, "Description successfully persisted to qwiki.json");
 assert_true($updatedTags === $testTags, "Tags successfully persisted to qwiki.json");
 
-// Restore original introduction description and clear test key
+// Restore original introduction metadata and clear test key
 foreach ($cfgAfter['books'] as &$b) {
     foreach ($b['items'] ?? [] as &$it) {
         if (($it['slug'] ?? '') === 'introduction') {
             $it['description'] = $origIntroDesc;
+            if ($origIntroTags !== null) {
+                $it['tags'] = $origIntroTags;
+            } else {
+                unset($it['tags']);
+            }
             break 2;
         }
     }
 }
-unset($cfgAfter['gemini']);
+if ($origGeminiConfig !== null) {
+    $cfgAfter['gemini'] = $origGeminiConfig;
+} else {
+    unset($cfgAfter['gemini']);
+}
 Config::save($cfgAfter);
 echo "PASS: Cleanup restored original introduction metadata and removed test gemini config\n";
 $testsPassed++;
@@ -228,9 +248,27 @@ assert_true(!empty($resp['success']) && !empty($resp['isMock']), "Demo Mode retu
 assert_true(!empty($resp['metadata']['description']), "Demo Mode mock metadata has description");
 assert_true(is_array($resp['metadata']['tags']), "Demo Mode mock metadata has tags");
 
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_list_models', [
+    'action' => 'ext_gemini_list_models'
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']) && !empty($resp['models']), "Demo Mode ext_gemini_list_models returns list of models");
+assert_true(is_array($resp['models']) && count($resp['models']) > 0, "Demo Mode models array has items");
+
 // Cleanup Demo Mode
 putenv('QWIKI_DEMO_MODE=');
 unset($_SERVER['QWIKI_DEMO_MODE']);
+
+// Final cleanup: ensure test keys don't linger in qwiki.json
+$finalConfig = Config::load();
+if ($origGeminiConfig !== null) {
+    $finalConfig['gemini'] = $origGeminiConfig;
+} else {
+    unset($finalConfig['gemini']);
+}
+Config::save($finalConfig);
 
 echo "\n=== Tests Complete: {$testsPassed} Passed, {$testsFailed} Failed ===\n";
 exit($testsFailed === 0 ? 0 : 1);

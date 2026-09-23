@@ -194,6 +194,41 @@ if ($retProf !== 0) {
 }
 echo "PASS: Multi-path batch bundling and profiles CLI verified.\n\n";
 
+// -------------------------------------------------------------
+// Test 6: CLI Packaging of HTML Document & Title Extraction
+// -------------------------------------------------------------
+echo "6. Testing CLI Packaging of HTML Document with <title> and Assets...\n";
+$htmlTestFile = $testDesktopDir . '/dashboard.html';
+$sampleHtmlContent = "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Customer Success Metric Dashboard</title>\n</head>\n<body>\n    <h1>Dashboard</h1>\n    <img src=\"./subfolder/img/architecture.png\">\n</body>\n</html>";
+file_put_contents($htmlTestFile, $sampleHtmlContent);
+
+$cmdHtml = "python3 " . escapeshellarg($cliPath) . " send " . escapeshellarg($htmlTestFile) . " --json";
+exec($cmdHtml, $outHtml, $retHtml);
+$jsonHtml = implode("\n", $outHtml);
+
+if ($retHtml !== 0 || empty($jsonHtml)) {
+    echo "FAIL: CLI packaging of HTML file failed\n";
+    exit(1);
+}
+
+$envHtml = json_decode($jsonHtml, true);
+$htmlDoc = $envHtml['documents'][0] ?? null;
+
+if (!$htmlDoc || $htmlDoc['type'] !== 'html') {
+    echo "FAIL: Expected document type 'html', got " . ($htmlDoc['type'] ?? 'null') . "\n";
+    exit(1);
+}
+if ($htmlDoc['title'] !== 'Customer Success Metric Dashboard') {
+    echo "FAIL: Title not extracted from <title> tag. Got: " . ($htmlDoc['title'] ?? 'null') . "\n";
+    exit(1);
+}
+if (count($htmlDoc['assets'] ?? []) !== 1 || $htmlDoc['assets'][0]['basename'] !== 'architecture.png') {
+    echo "FAIL: Referenced image was not extracted in HTML document packaging\n";
+    exit(1);
+}
+
+echo "PASS: CLI packaging of HTML document, <title> extraction, and asset extraction verified.\n\n";
+
 // Cleanup
 function cleanRecursive($dir) {
     if (!is_dir($dir)) return;

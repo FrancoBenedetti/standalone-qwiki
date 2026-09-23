@@ -984,6 +984,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 Create and manage scoped, revocable access keys for autonomous AI agents, LLMs (Claude Desktop, Cursor IDE, ChatGPT), and RAG pipelines to explore the wiki tree and analyze document content.
             </p>
 
+            <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                <div>
+                    <strong>✨ Native Gemini AI Assistant</strong>
+                    <span style="color: var(--text-muted); display: block; font-size: 0.8rem; margin-top: 0.15rem;">Configure Gemini model selection, API key, and editorial AI tools.</span>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-open-gemini-from-llm" data-gemini-tab="settings" style="white-space: nowrap;">AI Assistant Settings</button>
+            </div>
+
             <form id="add-llm-key-form" style="margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 8px;">
                 <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Generate New Access Key</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
@@ -1578,6 +1586,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <span style="color: var(--text-muted); display: block; font-size: 0.8rem; margin-top: 0.15rem;">Provide controlled, key-authenticated tree exploration &amp; document retrieval to AI models.</span>
                     </div>
                     <button type="button" class="btn btn-outline btn-sm" id="btn-open-llm-from-settings" style="white-space: nowrap;">Manage Keys</button>
+                </div>
+                <div style="margin-top: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-surface, rgba(0,0,0,0.03)); border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                    <div>
+                        <strong>✨ Gemini AI Assistant &amp; Settings</strong>
+                        <span style="color: var(--text-muted); display: block; font-size: 0.8rem; margin-top: 0.15rem;">Configure Google Gemini API key, model selection, automated metadata &amp; summaries.</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-open-gemini-from-settings" data-gemini-tab="settings" style="white-space: nowrap;">AI Settings</button>
                 </div>
                 <?php if ($isSubwiki): ?>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">

@@ -251,6 +251,88 @@ if (file_exists($inboxDir . '/' . $rejectEnvelope['batch_id'] . '.json')) {
 }
 echo "PASS: Batch rejection and discard verified.\n\n";
 
+// -------------------------------------------------------------
+// Test 6: HTML Document Integrity & Base Href Injection
+// -------------------------------------------------------------
+echo "6. Testing HTML Document Preservation & <base href> Injection...\n";
+$htmlSource = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Live Analytics Dashboard</title>\n    <style>body { font-family: sans-serif; }</style>\n</head>\n<body>\n    <h1>Live Analytics</h1>\n    <img src=\"./img/chart.png\" alt=\"Chart\">\n    <button onclick=\"pingServer()\">Ping</button>\n    <script>\n        function pingServer() { console.log('ping'); }\n    </script>\n</body>\n</html>";
+
+$htmlEnvelope = [
+    'version' => '1.0',
+    'batch_id' => 'html_batch_' . uniqid(),
+    'created_at' => date('c'),
+    'sender' => ['title' => 'Desktop CLI'],
+    'documents' => [
+        [
+            'id' => 'live-analytics',
+            'slug' => 'live-analytics',
+            'title' => 'Live Analytics Dashboard',
+            'type' => 'html',
+            'content' => $htmlSource,
+            'assets' => [
+                [
+                    'rel_path' => './img/chart.png',
+                    'basename' => 'chart.png',
+                    'mime' => 'image/png',
+                    'size' => strlen($samplePngData),
+                    'sha1' => sha1($samplePngData),
+                    'data' => base64_encode($samplePngData)
+                ]
+            ]
+        ]
+    ]
+];
+
+$htmlStage = Envelope::saveStagedEnvelope($testBaseDir, $htmlEnvelope);
+if (empty($htmlStage['success'])) {
+    echo "FAIL: Could not stage HTML envelope: " . ($htmlStage['error'] ?? '') . "\n";
+    exit(1);
+}
+
+$htmlIngest = Envelope::ingestDocument(
+    $testBaseDir,
+    $destConfig,
+    $htmlEnvelope['batch_id'],
+    0,
+    'technical'
+);
+
+if (empty($htmlIngest['success'])) {
+    echo "FAIL: HTML document ingestion failed: " . ($htmlIngest['error'] ?? '') . "\n";
+    exit(1);
+}
+
+$ingestedHtmlFile = $testBaseDir . '/content/technical/live-analytics.html';
+if (!file_exists($ingestedHtmlFile)) {
+    echo "FAIL: Ingested HTML file does not exist at {$ingestedHtmlFile}\n";
+    exit(1);
+}
+
+$ingestedHtmlContent = file_get_contents($ingestedHtmlFile);
+
+if (strpos($ingestedHtmlContent, '<meta charset="UTF-8">') === false) {
+    echo "FAIL: <meta charset=\"UTF-8\"> was stripped or corrupted in HTML document\n";
+    exit(1);
+}
+if (strpos($ingestedHtmlContent, '<script>') === false || strpos($ingestedHtmlContent, 'function pingServer()') === false) {
+    echo "FAIL: <script> block was stripped or corrupted in HTML document\n";
+    exit(1);
+}
+if (strpos($ingestedHtmlContent, 'onclick="pingServer()"') === false) {
+    echo "FAIL: onclick event handler was stripped from HTML document\n";
+    exit(1);
+}
+if (strpos($ingestedHtmlContent, '<base href="../../">') === false) {
+    echo "FAIL: Injected <base href=\"../../\"> is missing in HTML document\n";
+    exit(1);
+}
+if (strpos($ingestedHtmlContent, 'uploads/images/chart.png') === false) {
+    echo "FAIL: Asset link ./img/chart.png was not remapped to uploads/images/chart.png\n";
+    exit(1);
+}
+
+echo "PASS: HTML document integrity, full tag preservation, and base href injection verified.\n\n";
+
 // Cleanup test directory
 function cleanRecursive($dir) {
     if (!is_dir($dir)) return;

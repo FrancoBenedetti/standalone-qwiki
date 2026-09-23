@@ -111,6 +111,19 @@
                     }
 
                     if (modelSelect && data.model) {
+                        var foundOpt = false;
+                        for (var i = 0; i < modelSelect.options.length; i++) {
+                            if (modelSelect.options[i].value === data.model) {
+                                foundOpt = true;
+                                break;
+                            }
+                        }
+                        if (!foundOpt) {
+                            var extra = document.createElement('option');
+                            extra.value = data.model;
+                            extra.textContent = data.model;
+                            modelSelect.appendChild(extra);
+                        }
                         modelSelect.value = data.model;
                     }
 
@@ -134,6 +147,68 @@
             });
     }
 
+    // Tab & Modal Helpers
+    function switchGeminiTab(tabId) {
+        var modal = document.getElementById('modal-gemini-assistant');
+        if (!modal) return;
+
+        var tabButtons = modal.querySelectorAll('.gemini-tab-btn');
+        tabButtons.forEach(function(b) {
+            if (b.getAttribute('data-tab') === tabId) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+
+        var views = modal.querySelectorAll('.gemini-tab-view');
+        views.forEach(function(v) {
+            v.style.display = 'none';
+            v.classList.remove('active');
+        });
+
+        var targetView = document.getElementById('gemini-view-' + tabId);
+        if (targetView) {
+            targetView.style.display = 'block';
+            targetView.classList.add('active');
+        }
+
+        if (tabId === 'settings') {
+            fetchSettings();
+        }
+    }
+
+    function openGeminiAssistant(tabId) {
+        var modal = document.getElementById('modal-gemini-assistant');
+        if (!modal) return;
+
+        modal.classList.add('open');
+        modal.classList.add('active');
+        onModalOpened();
+
+        // Close user dropdown if open
+        var dropdownMenu = document.querySelector('.dropdown-menu.show');
+        if (dropdownMenu) {
+            dropdownMenu.classList.remove('show');
+        }
+
+        if (tabId) {
+            switchGeminiTab(tabId);
+        }
+    }
+
+    function closeGeminiAssistant() {
+        var modal = document.getElementById('modal-gemini-assistant');
+        if (!modal) return;
+        modal.classList.remove('open');
+        modal.classList.remove('active');
+    }
+
+    // Expose helpers globally for other scripts and UI triggers
+    window.openGeminiAssistant = openGeminiAssistant;
+    window.closeGeminiAssistant = closeGeminiAssistant;
+    window.switchGeminiTab = switchGeminiTab;
+
     // Initialize once DOM is loaded
     function initGeminiAssistant() {
         var modal = document.getElementById('modal-gemini-assistant');
@@ -144,28 +219,43 @@
         if (btnOpen) {
             btnOpen.addEventListener('click', function(e) {
                 e.preventDefault();
-                modal.classList.add('active');
-                onModalOpened();
+                openGeminiAssistant();
             });
         }
+
+        // Global delegator for any Gemini Assistant opening trigger
+        document.addEventListener('click', function(e) {
+            var trigger = e.target.closest('#btn-util-gemini_assistant, #btn-open-gemini-from-settings, #btn-open-gemini-from-llm, [data-open="modal-gemini-assistant"], .btn-open-gemini-assistant');
+            if (trigger) {
+                e.preventDefault();
+                // Close parent modal if clicking from inside another modal (e.g. settings-modal or llm-keys-modal)
+                var parentModal = trigger.closest('.modal-overlay');
+                if (parentModal && parentModal !== modal) {
+                    parentModal.classList.remove('open');
+                    parentModal.classList.remove('active');
+                }
+                var targetTab = trigger.getAttribute('data-gemini-tab') || (trigger.id && trigger.id.indexOf('setting') !== -1 ? 'settings' : null);
+                openGeminiAssistant(targetTab);
+            }
+        });
 
         // 2. Hook Modal Close Elements
         var closeButtons = modal.querySelectorAll('[data-close="modal-gemini-assistant"]');
         closeButtons.forEach(function(btn) {
             btn.addEventListener('click', function() {
-                modal.classList.remove('active');
+                closeGeminiAssistant();
             });
         });
 
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
-                modal.classList.remove('active');
+                closeGeminiAssistant();
             }
         });
 
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && modal.classList.contains('active')) {
-                modal.classList.remove('active');
+            if (e.key === 'Escape' && (modal.classList.contains('open') || modal.classList.contains('active'))) {
+                closeGeminiAssistant();
             }
         });
 
@@ -174,21 +264,7 @@
         tabButtons.forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var tabId = btn.getAttribute('data-tab');
-                tabButtons.forEach(function(b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-
-                var views = modal.querySelectorAll('.gemini-tab-view');
-                views.forEach(function(v) { v.style.display = 'none'; v.classList.remove('active'); });
-
-                var targetView = document.getElementById('gemini-view-' + tabId);
-                if (targetView) {
-                    targetView.style.display = 'block';
-                    targetView.classList.add('active');
-                }
-
-                if (tabId === 'settings') {
-                    fetchSettings();
-                }
+                switchGeminiTab(tabId);
             });
         });
 
@@ -483,6 +559,81 @@
             });
         }
 
+        function updateModelDropdown(availableModels, currentSelected) {
+            var modelSelect = document.getElementById('gemini-select-model');
+            if (!modelSelect || !Array.isArray(availableModels) || availableModels.length === 0) return;
+
+            var chosen = currentSelected || modelSelect.value;
+            modelSelect.innerHTML = '';
+
+            availableModels.forEach(function(m) {
+                var opt = document.createElement('option');
+                var id = typeof m === 'object' ? (m.id || m.name) : m;
+                var displayName = typeof m === 'object' ? (m.name || m.id) : m;
+                opt.value = id;
+                opt.textContent = displayName + (displayName !== id ? ' (' + id + ')' : '');
+                modelSelect.appendChild(opt);
+            });
+
+            // Ensure current or chosen model is selected or added if missing
+            var exists = false;
+            for (var i = 0; i < modelSelect.options.length; i++) {
+                if (modelSelect.options[i].value === chosen) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists && chosen) {
+                var extraOpt = document.createElement('option');
+                extraOpt.value = chosen;
+                extraOpt.textContent = chosen;
+                modelSelect.appendChild(extraOpt);
+            }
+            if (chosen) {
+                modelSelect.value = chosen;
+            }
+        }
+
+        var btnDetectModels = document.getElementById('gemini-btn-detect-models');
+        if (btnDetectModels) {
+            btnDetectModels.addEventListener('click', function() {
+                var apiKey = inputApiKey ? inputApiKey.value : '';
+                var originalText = btnDetectModels.textContent;
+                btnDetectModels.disabled = true;
+                btnDetectModels.textContent = '⏳ Detecting...';
+
+                var formData = new FormData();
+                formData.append('apiKey', apiKey);
+
+                fetch('api/admin.php?action=ext_gemini_list_models', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    btnDetectModels.disabled = false;
+                    btnDetectModels.textContent = originalText;
+
+                    if (!data.success) {
+                        showBanner(data.error || 'Failed to detect models.', 'error');
+                        return;
+                    }
+
+                    if (Array.isArray(data.models) && data.models.length > 0) {
+                        updateModelDropdown(data.models);
+                        showBanner('Found ' + data.models.length + ' active models for your API key!', 'success');
+                    } else {
+                        showBanner('No generateContent models returned for this key.', 'warning');
+                    }
+                })
+                .catch(function(err) {
+                    btnDetectModels.disabled = false;
+                    btnDetectModels.textContent = originalText;
+                    showBanner('Network error detecting models: ' + err.message, 'error');
+                });
+            });
+        }
+
         var btnTestConn = document.getElementById('gemini-btn-test-conn');
         if (btnTestConn) {
             btnTestConn.addEventListener('click', function() {
@@ -513,6 +664,13 @@
                             testResult.textContent = '✕ ' + data.error;
                             testResult.style.color = '#ef4444';
                         }
+                    }
+
+                    if (data.available_models && Array.isArray(data.available_models) && data.available_models.length > 0) {
+                        updateModelDropdown(data.available_models, data.model || model);
+                    } else if (data.model) {
+                        var modelSelect = document.getElementById('gemini-select-model');
+                        if (modelSelect) modelSelect.value = data.model;
                     }
                 })
                 .catch(function(err) {
@@ -579,9 +737,15 @@
     function onModalOpened() {
         // Auto-select currently viewed chapter
         var currentSlug = '';
-        var editBtn = document.getElementById('btn-edit-chapter');
+        var editBtn = document.getElementById('btn-edit-chapter-meta') || document.getElementById('btn-edit-chapter') || document.getElementById('btn-replace-document');
         if (editBtn) {
             currentSlug = editBtn.getAttribute('data-slug') || '';
+        }
+        if (!currentSlug) {
+            var activeNav = document.querySelector('.nav-link.active');
+            if (activeNav) {
+                currentSlug = activeNav.getAttribute('data-doc-slug') || '';
+            }
         }
 
         var docSelect = document.getElementById('gemini-select-doc');

@@ -94,11 +94,11 @@ To prevent concurrent write conflicts and accidental overwrites when multiple ta
 
 Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API:
 
-- **Launch Assistant**: Click the **`✨ AI Assistant`** button in the header utility bar when viewing any document.
+- **Launch Assistant**: Click the **`✨ AI Assistant`** button in the header utility bar when viewing any document, or access AI Settings directly from the **Settings** or **LLM Keys** modals.
 - **Generate Descriptions & Tags**: Click **`Generate Description & Tags`** to analyze the active document. The assistant produces a concise summary description and semantic topic tags.
 - **Interactive Social Card Simulator**: Preview in real time how your document will look when shared on social networks (𝕏, LinkedIn, Facebook, Slack, Telegram), complete with title, URL, description, and tag pills.
 - **1-Click Apply**: Click **`Apply to Document`** to save the generated description and tags directly into `qwiki.json`.
-- **Configurable Model & API Key**: In the assistant modal, switch to the **Settings** tab to enter your Google Gemini API key and select preferred models (`gemini-2.5-pro`, `gemini-2.5-flash`, or custom models) with 1-click connection testing.
+- **Configurable Model & API Key**: In the assistant modal, switch to the **Settings** tab to enter your Google Gemini API key, click **Auto-Detect Models** to discover supported models for your key, or select preferred models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, or custom models) with 1-click connection testing.
 
 ---
 

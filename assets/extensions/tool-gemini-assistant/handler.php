@@ -64,13 +64,79 @@ if (!function_exists('gemini_get_resolved_config')) {
     }
 }
 
+if (!function_exists('gemini_list_models')) {
+    /**
+     * Queries Google Gemini ModelService.ListModels to retrieve models available to this key
+     */
+    function gemini_list_models(string $apiKey): array {
+        if (empty($apiKey)) {
+            return ['success' => false, 'error' => 'API key is missing.', 'models' => []];
+        }
+
+        $versions = ['v1beta', 'v1'];
+        $lastError = '';
+
+        foreach ($versions as $ver) {
+            $url = "https://generativelanguage.googleapis.com/{$ver}/models?key=" . urlencode($apiKey);
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                    'x-goog-api-key: ' . $apiKey,
+                    'User-Agent: Standalone-Qwiki-Gemini-Assistant/1.0'
+                ],
+                CURLOPT_TIMEOUT => 12,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_SSL_VERIFYPEER => true
+            ]);
+
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                $lastError = 'Connection failed: ' . $curlError;
+                continue;
+            }
+
+            $resData = json_decode($response, true);
+
+            if ($httpCode === 200 && !empty($resData['models']) && is_array($resData['models'])) {
+                $availableModels = [];
+                foreach ($resData['models'] as $m) {
+                    $rawName = $m['name'] ?? '';
+                    $cleanName = preg_replace('#^models/#', '', $rawName);
+                    $methods = $m['supportedGenerationMethods'] ?? $m['supported_actions'] ?? [];
+                    // Keep models that support generateContent
+                    if (in_array('generateContent', $methods) || empty($methods)) {
+                        $availableModels[] = [
+                            'id' => $cleanName,
+                            'name' => $m['displayName'] ?? $cleanName,
+                            'description' => $m['description'] ?? ''
+                        ];
+                    }
+                }
+                return ['success' => true, 'models' => $availableModels, 'api_version' => $ver];
+            }
+
+            if (!empty($resData['error']['message'])) {
+                $lastError = $resData['error']['message'];
+            }
+        }
+
+        return ['success' => false, 'error' => $lastError ?: 'No models returned from Gemini API.', 'models' => []];
+    }
+}
+
 if (!function_exists('gemini_call_api')) {
     function gemini_call_api(string $apiKey, string $model, array $contents, ?array $generationConfig = null): array {
         if (empty($apiKey)) {
             return ['success' => false, 'error' => 'Gemini API key is not configured. Please add your key in AI Assistant Settings.'];
         }
-
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/" . urlencode($model) . ":generateContent?key=" . urlencode($apiKey);
 
         $payload = ['contents' => $contents];
         if (!empty($generationConfig)) {
@@ -79,47 +145,121 @@ if (!function_exists('gemini_call_api')) {
 
         $jsonPayload = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $jsonPayload,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'User-Agent: Standalone-Qwiki-Gemini-Assistant/1.0'
-            ],
-            CURLOPT_TIMEOUT => 15,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_SSL_VERIFYPEER => true
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($curlError) {
-            return ['success' => false, 'error' => 'Connection to Gemini API failed: ' . $curlError];
+        // Clean model name (strip leading 'models/' prefix if present)
+        $cleanModel = preg_replace('#^models/#', '', trim($model));
+        if (empty($cleanModel)) {
+            $cleanModel = 'gemini-2.5-flash';
         }
 
-        $resData = json_decode($response, true);
+        // Build list of models to try in sequence if 404 occurs.
+        // Active 2026 models are prioritized; legacy models are automatically upgraded.
+        $modelsToTry = [$cleanModel];
 
-        if ($httpCode >= 400 || !empty($resData['error'])) {
-            $errorMsg = $resData['error']['message'] ?? "Gemini API error (HTTP {$httpCode})";
-            $status = $resData['error']['status'] ?? '';
-            if ($status === 'RESOURCE_EXHAUSTED') {
-                $errorMsg = 'Gemini API quota exceeded for this key. Please check your Google AI Studio quota.';
-            } elseif ($status === 'INVALID_ARGUMENT' && stripos($errorMsg, 'API key') !== false) {
-                $errorMsg = 'Invalid Gemini API key. Please check the key in AI Assistant Settings.';
-            } elseif ($httpCode === 404) {
-                $errorMsg = "Model '{$model}' was not found or is deprecated. Try gemini-2.5-flash or gemini-2.5-pro.";
+        if ($cleanModel === 'gemini-2.5-flash') {
+            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+        } elseif ($cleanModel === 'gemini-2.5-pro') {
+            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+        } elseif ($cleanModel === 'gemini-2.5-flash-lite') {
+            $modelsToTry = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+        } elseif ($cleanModel === 'gemini-3.5-flash') {
+            $modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+        } elseif ($cleanModel === 'gemini-2.0-flash' || $cleanModel === 'gemini-1.5-flash') {
+            // Deprecated/shut down models automatically upgrade to active equivalents
+            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash', $cleanModel];
+        } elseif ($cleanModel === 'gemini-1.5-pro' || $cleanModel === 'gemini-2.0-pro') {
+            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', $cleanModel];
+        } else {
+            // Custom or preview model name: try requested first, then fall back to standard flash
+            $modelsToTry = [$cleanModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+        }
+
+        // De-duplicate while preserving order
+        $modelsToTry = array_values(array_unique($modelsToTry));
+
+        $lastErrorMsg = '';
+        $lastHttpCode = 0;
+
+        foreach ($modelsToTry as $currentCandidate) {
+            $candidateName = preg_replace('#^models/#', '', trim($currentCandidate));
+
+            // Try v1beta first, then v1
+            $apiVersions = ['v1beta', 'v1'];
+            foreach ($apiVersions as $ver) {
+                $url = "https://generativelanguage.googleapis.com/{$ver}/models/" . urlencode($candidateName) . ":generateContent?key=" . urlencode($apiKey);
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $url,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => $jsonPayload,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => [
+                        'Content-Type: application/json',
+                        'x-goog-api-key: ' . $apiKey,
+                        'User-Agent: Standalone-Qwiki-Gemini-Assistant/1.0'
+                    ],
+                    CURLOPT_TIMEOUT => 20,
+                    CURLOPT_CONNECTTIMEOUT => 5,
+                    CURLOPT_SSL_VERIFYPEER => true
+                ]);
+
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curlError = curl_error($ch);
+                curl_close($ch);
+
+                if ($curlError) {
+                    return ['success' => false, 'error' => 'Connection to Gemini API failed: ' . $curlError];
+                }
+
+                $resData = json_decode($response, true);
+                $lastHttpCode = $httpCode;
+
+                // Success!
+                if ($httpCode === 200 && empty($resData['error'])) {
+                    $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? '';
+                    return [
+                        'success' => true,
+                        'text' => $text,
+                        'raw' => $resData,
+                        'model_used' => $candidateName,
+                        'api_version' => $ver
+                    ];
+                }
+
+                // Handle non-404 errors immediately (quota, bad key, bad request) - no fallback needed
+                if ($httpCode !== 404) {
+                    $errorMsg = $resData['error']['message'] ?? "Gemini API error (HTTP {$httpCode})";
+                    $status = $resData['error']['status'] ?? '';
+                    if ($status === 'RESOURCE_EXHAUSTED') {
+                        $errorMsg = 'Gemini API quota exceeded for this key. Please check your Google AI Studio quota.';
+                    } elseif ($status === 'INVALID_ARGUMENT' && stripos($errorMsg, 'API key') !== false) {
+                        $errorMsg = 'Invalid Gemini API key. Please check the key in AI Assistant Settings.';
+                    }
+                    return ['success' => false, 'error' => $errorMsg, 'http_code' => $httpCode];
+                }
+
+                // If 404, capture informative message and try next version/model
+                $upstreamMsg = !empty($resData['error']['message']) ? (' (' . $resData['error']['message'] . ')') : '';
+                $lastErrorMsg = "Model '{$candidateName}' was not found in API version {$ver}{$upstreamMsg}.";
             }
-            return ['success' => false, 'error' => $errorMsg, 'http_code' => $httpCode];
         }
 
-        $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        return ['success' => true, 'text' => $text, 'raw' => $resData];
+        // If all candidate models returned 404, attempt discovery via ListModels to give user the exact active models
+        $listRes = gemini_list_models($apiKey);
+        if ($listRes['success'] && !empty($listRes['models'])) {
+            $availNames = array_column($listRes['models'], 'id');
+            $availPreview = array_slice($availNames, 0, 5);
+            $lastErrorMsg = "Model '{$model}' is not available for your API key. Active models found: " . implode(', ', $availPreview) . ". Please select one in AI Assistant Settings.";
+            return [
+                'success' => false,
+                'error' => $lastErrorMsg,
+                'http_code' => 404,
+                'available_models' => $listRes['models']
+            ];
+        }
+
+        return ['success' => false, 'error' => $lastErrorMsg ?: "Model '{$model}' was not found or is unavailable.", 'http_code' => $lastHttpCode];
     }
 }
 
@@ -249,7 +389,11 @@ if ($action === 'ext_gemini_test_connection') {
             gemini_json_reply([
                 'success' => true,
                 'message' => 'Demo Mode: API key is simulated. Connected to ' . htmlspecialchars($testModel) . '.',
-                'model' => $testModel
+                'model' => $testModel,
+                'available_models' => [
+                    ['id' => 'gemini-2.5-flash', 'name' => 'Gemini 2.5 Flash', 'description' => 'Fast, hybrid reasoning (Demo)'],
+                    ['id' => 'gemini-2.5-pro', 'name' => 'Gemini 2.5 Pro', 'description' => 'Deep reasoning & coding (Demo)']
+                ]
             ]);
             return;
         }
@@ -266,16 +410,65 @@ if ($action === 'ext_gemini_test_connection') {
     ];
 
     $res = gemini_call_api($testKey, $testModel, $contents, ['temperature' => 0.1]);
+
+    // Discover models available on this key
+    $modelsList = gemini_list_models($testKey);
+    $availableModels = $modelsList['success'] ? $modelsList['models'] : [];
+
     if (!$res['success']) {
-        gemini_json_reply(['success' => false, 'error' => $res['error']]);
+        gemini_json_reply([
+            'success' => false,
+            'error' => $res['error'],
+            'available_models' => $availableModels
+        ]);
         return;
+    }
+
+    $modelUsed = $res['model_used'] ?? $testModel;
+    $msg = 'Successfully connected to Google Gemini (' . htmlspecialchars($modelUsed) . ')!';
+    if ($modelUsed !== $testModel) {
+        $msg = 'Connected to Google Gemini! Note: switched from unavailable \'' . htmlspecialchars($testModel) . '\' to active model \'' . htmlspecialchars($modelUsed) . '\'.';
     }
 
     gemini_json_reply([
         'success' => true,
-        'message' => 'Successfully connected to Google Gemini (' . htmlspecialchars($testModel) . ')!',
-        'model' => $testModel
+        'message' => $msg,
+        'model' => $modelUsed,
+        'available_models' => $availableModels
     ]);
+    return;
+}
+
+// -------------------------------------------------------------
+// 3b. LIST AVAILABLE MODELS FOR KEY
+// -------------------------------------------------------------
+if ($action === 'ext_gemini_list_models') {
+    if ($isDemo) {
+        gemini_json_reply([
+            'success' => true,
+            'models' => [
+                ['id' => 'gemini-2.5-flash', 'name' => 'Gemini 2.5 Flash', 'description' => 'Fast, hybrid reasoning (Demo)'],
+                ['id' => 'gemini-2.5-pro', 'name' => 'Gemini 2.5 Pro', 'description' => 'Deep reasoning & coding (Demo)'],
+                ['id' => 'gemini-2.5-flash-lite', 'name' => 'Gemini 2.5 Flash-Lite', 'description' => 'Cost-effective high throughput (Demo)'],
+                ['id' => 'gemini-3.5-flash', 'name' => 'Gemini 3.5 Flash', 'description' => 'Next-gen high performance (Demo)']
+            ]
+        ]);
+        return;
+    }
+
+    $testKey = trim($params['apiKey'] ?? '');
+    $cfg = gemini_get_resolved_config();
+    if (empty($testKey) || strpos($testKey, '••••') !== false) {
+        $testKey = $cfg['apiKey'];
+    }
+
+    if (empty($testKey)) {
+        gemini_json_reply(['success' => false, 'error' => 'API key is required to list available models.']);
+        return;
+    }
+
+    $res = gemini_list_models($testKey);
+    gemini_json_reply($res);
     return;
 }
 
@@ -303,8 +496,8 @@ if ($action === 'ext_gemini_generate_meta') {
 
     $cfg = gemini_get_resolved_config();
 
-    // Fallback in demo mode if no key configured
-    if ($isDemo && empty($cfg['apiKey'])) {
+    // Fallback in demo mode to simulated metadata
+    if ($isDemo) {
         $cleanSnippet = preg_replace('/[#*_>`~=-]/', '', strip_tags($content));
         $cleanSnippet = trim(preg_replace('/\s+/', ' ', $cleanSnippet));
         $mockDesc = (mb_strlen($cleanSnippet) > 150) ? mb_substr($cleanSnippet, 0, 147) . '...' : ($cleanSnippet ?: 'Documentation guide for ' . $docTitle);
@@ -418,7 +611,7 @@ if ($action === 'ext_gemini_summarize') {
 
     $cfg = gemini_get_resolved_config();
 
-    if ($isDemo && empty($cfg['apiKey'])) {
+    if ($isDemo) {
         $tldr = "> **TL;DR:** This document explains the essential features, architecture, and workflows of {$docTitle}. Designed for quick onboarding and practical reference.\n";
         gemini_json_reply([
             'success' => true,

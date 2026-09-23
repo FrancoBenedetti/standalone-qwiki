@@ -238,11 +238,15 @@ if (!function_exists('gemini_build_doc_options')) {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="gemini-select-model">Model Selection</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                        <label class="form-label" for="gemini-select-model" style="margin-bottom: 0;">Model Selection</label>
+                        <button type="button" class="btn btn-outline btn-xs" id="gemini-btn-detect-models" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;" title="Query Google API for models supported by your API key">🔍 Auto-Detect Models</button>
+                    </div>
                     <select id="gemini-select-model" class="form-control">
-                        <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended: Ultra-fast, low latency, free tier)</option>
-                        <option value="gemini-2.5-pro">gemini-2.5-pro (Deep reasoning, complex technical documentation)</option>
-                        <option value="gemini-1.5-flash">gemini-1.5-flash (Legacy fast model)</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended: Fast, hybrid reasoning, 1M context)</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro (Advanced: Complex reasoning & code synthesis)</option>
+                        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Cost-efficient, high throughput)</option>
+                        <option value="gemini-3.5-flash">gemini-3.5-flash (Next-generation high performance)</option>
                     </select>
                 </div>
 
