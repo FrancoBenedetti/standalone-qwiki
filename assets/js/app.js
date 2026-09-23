@@ -590,6 +590,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Open Gemini AI Assistant Modal directly from Settings Modal
+  const btnOpenGeminiFromSettings = document.getElementById('btn-open-gemini-from-settings');
+  if (btnOpenGeminiFromSettings) {
+    btnOpenGeminiFromSettings.addEventListener('click', () => {
+      const settingsModal = document.getElementById('settings-modal');
+      if (settingsModal) settingsModal.classList.remove('open');
+      if (typeof window.openGeminiAssistant === 'function') {
+        window.openGeminiAssistant('settings');
+      } else {
+        const geminiModal = document.getElementById('modal-gemini-assistant');
+        if (geminiModal) {
+          geminiModal.classList.add('open');
+          geminiModal.classList.add('active');
+        }
+      }
+    });
+  }
+
+  // Open Gemini AI Assistant Modal directly from LLM Keys Modal
+  const btnOpenGeminiFromLlm = document.getElementById('btn-open-gemini-from-llm');
+  if (btnOpenGeminiFromLlm) {
+    btnOpenGeminiFromLlm.addEventListener('click', () => {
+      const llmModal = document.getElementById('llm-keys-modal');
+      if (llmModal) llmModal.classList.remove('open');
+      if (typeof window.openGeminiAssistant === 'function') {
+        window.openGeminiAssistant('settings');
+      } else {
+        const geminiModal = document.getElementById('modal-gemini-assistant');
+        if (geminiModal) {
+          geminiModal.classList.add('open');
+          geminiModal.classList.add('active');
+        }
+      }
+    });
+  }
+
   // Load and render LLM access keys in LLM Keys Modal
   async function loadLlmKeysList() {
     const container = document.getElementById('llm-keys-list-container');

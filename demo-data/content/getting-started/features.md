@@ -201,12 +201,12 @@ Standalone Qwiki provides a dedicated, key-authenticated API endpoint (`api/llm.
 
 ## ✨ 16. Native Gemini AI Assistant Extension
 
-Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-assistant`) powered by Google's Gemini models (`gemini-2.5-pro`, `gemini-2.5-flash`, or custom models):
+Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-assistant`) powered by Google's Gemini models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, or custom models) with real-time model auto-detection:
 
 - **Automated Metadata & SEO Synthesis**: Analyzes active document content with 1 click to generate concise meta descriptions and relevant topic tags.
 - **Live OpenGraph / Social Share Simulator**: Renders an interactive social preview card showing how the title, generated description, URL, and tag pills will unfurl when shared on social networks or messaging apps.
 - **1-Click Metadata Application**: Apply generated descriptions and tags directly to the active document in `qwiki.json` without leaving the viewer.
-- **Secure Key Management & Sandbox Protection**: Configure Gemini API keys in the extension settings tab. Keys are securely stored and masked in the UI. In demo mode, live API key updates are protected and simulated metadata is returned safely.
+- **Interactive Model Discovery & Key Management**: Query Google's API to auto-detect active models supported by your API key, or choose from high-performance presets with automated version fallback and connection testing. Keys are securely stored and masked in the UI; in demo mode, simulated responses are provided safely.
 
 ---
 

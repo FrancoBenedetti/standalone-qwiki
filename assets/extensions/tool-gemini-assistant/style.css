@@ -3,6 +3,11 @@
  */
 
 /* Modal & Navigation */
+#modal-gemini-assistant.open,
+#modal-gemini-assistant.active {
+    display: flex;
+}
+
 .gemini-modal-card {
     max-height: 90vh;
     display: flex;
