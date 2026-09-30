@@ -2,9 +2,13 @@
  * HTML Page Extension Client Script with SunEditor Integration
  */
 document.addEventListener('DOMContentLoaded', () => {
-    // Hide the outer generic print icon — the HTML toolbar already has its own Print/Save button
-    const outerPrintBtn = document.getElementById('btn-print-chapter');
-    if (outerPrintBtn) outerPrintBtn.style.display = 'none';
+    // Hide the outer generic print icon ONLY when viewing an HTML document (since the HTML viewer toolbar has its own Print/Save button)
+    const htmlFrame = document.getElementById('current-html-frame');
+    if (htmlFrame) {
+        document.querySelectorAll('#btn-print-chapter').forEach(btn => {
+            btn.style.display = 'none';
+        });
+    }
 
     let createEditor = null;
     let editEditor = null;
@@ -183,8 +187,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const titleInput = form?.querySelector('input[name="title"]');
                     if (titleInput && !titleInput.value.trim()) {
-                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-                        titleInput.value = nameWithoutExt.replace(/[-_]/g, ' ');
+                        const titleMatch = content.match(/<title[^>]*>(.*?)<\/title>/i);
+                        if (titleMatch && titleMatch[1].trim()) {
+                            titleInput.value = titleMatch[1].trim();
+                        } else {
+                            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+                            titleInput.value = nameWithoutExt.replace(/[-_]/g, ' ');
+                        }
+                    }
+
+                    const descInput = form?.querySelector('textarea[name="description"]');
+                    if (descInput && !descInput.value.trim()) {
+                        const descMatch = content.match(/<meta\s+[^>]*(?:name=["']description["']|property=["']og:description["'])[^>]*content=["']([^"']+)["']/i) ||
+                                          content.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*(?:name=["']description["']|property=["']og:description["'])/i);
+                        if (descMatch && descMatch[1].trim()) {
+                            descInput.value = descMatch[1].trim();
+                        }
                     }
                 };
                 reader.readAsText(file);

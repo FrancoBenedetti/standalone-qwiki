@@ -294,6 +294,34 @@ foreach ($cfgAfterSave['books'][0]['items'] as $it) {
     }
 }
 assertTest($chapterTitleUpdated, 'Chapter title synchronized in qwiki.json');
+
+// ----------------------------------------------------
+// 8. Test Form Submission with Notification Email
+// ----------------------------------------------------
+$updatedSchema['notificationEmail'] = 'notify@example.com';
+$_POST = [
+    'action' => 'ext_form_save_schema',
+    'file' => $outCreate['file'],
+    'schema_json' => json_encode($updatedSchema)
+];
+ob_start();
+$extManager->handleAction('ext_form_save_schema', $_POST);
+ob_end_clean();
+
+$_POST = [
+    'action' => 'ext_form_submit',
+    'file' => $outCreate['file'],
+    '_qwiki_hp' => '',
+    'fields' => [
+        'name' => 'Charlie Chaplin',
+        'rating' => 'High'
+    ]
+];
+ob_start();
+$extManager->handleAction('ext_form_submit', $_POST);
+$outEmailSubmit = json_decode(ob_get_clean(), true);
+assertTest($outEmailSubmit['success'] === true, 'ext_form_submit succeeds when notificationEmail is set');
+
 $it = new RecursiveDirectoryIterator($tempDir, RecursiveDirectoryIterator::SKIP_DOTS);
 $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
 foreach ($files as $file) {

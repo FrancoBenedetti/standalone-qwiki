@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.13.1';
+    const VERSION = '1.14.0';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -83,7 +83,138 @@ class Config {
             return ['title' => 'Standalone Qwiki', 'books' => []];
         }
         $data = json_decode(file_get_contents($configFile), true);
-        return is_array($data) ? $data : ['title' => 'Standalone Qwiki', 'books' => []];
+        if (is_array($data)) {
+            if (isset($data['books']) && is_array($data['books'])) {
+                if (self::normalizeBooks($data['books'])) {
+                    self::save($data);
+                }
+            }
+            return $data;
+        }
+        return ['title' => 'Standalone Qwiki', 'books' => []];
+    }
+
+    /**
+     * Normalizes the root books structure by rescuing stranded non-link documents into categories
+     * and pruning invalid phantom categories that lack an ID and content.
+     *
+     * @param array $books
+     * @return bool True if any modifications were made
+     */
+    public static function normalizeBooks(array &$books): bool {
+        if (empty($books) || !is_array($books)) {
+            return false;
+        }
+
+        $modified = false;
+        $cleanBooks = [];
+        $strandedDocs = [];
+
+        // First pass: separate valid top-level items from stranded documents and empty phantom categories
+        foreach ($books as $node) {
+            if (!is_array($node)) continue;
+
+            $nodeId = trim($node['id'] ?? '');
+            $nodeSlug = trim($node['slug'] ?? '');
+            $nodeType = trim($node['type'] ?? '');
+
+            // 1. Valid Top-Level Link
+            if ($nodeType === 'link' || (!empty($nodeSlug) && !empty($node['url']) && empty($nodeId) && empty($node['items']))) {
+                if ($nodeType !== 'link') {
+                    $node['type'] = 'link';
+                    $modified = true;
+                }
+                $cleanBooks[] = $node;
+                continue;
+            }
+
+            // 2. Stranded non-link document at root level (has slug and no id)
+            if (empty($nodeId) && !empty($nodeSlug)) {
+                $strandedDocs[] = $node;
+                $modified = true;
+                continue;
+            }
+
+            // 3. Phantom category with empty id and no slug
+            if (empty($nodeId) && empty($nodeSlug)) {
+                // If it has items, assign a generated ID so it doesn't stay broken
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $generatedId = !empty($node['title']) ? preg_replace('/[^a-z0-9_-]/', '', strtolower(str_replace(' ', '-', (string)$node['title']))) : '';
+                    if (empty($generatedId)) $generatedId = 'category-' . uniqid();
+                    $node['id'] = $generatedId;
+                    $node['type'] = 'folder';
+                    $cleanBooks[] = $node;
+                    $modified = true;
+                } else {
+                    // Empty phantom category without items and without ID: prune it!
+                    $modified = true;
+                }
+                continue;
+            }
+
+            // 4. Regular Category / Book
+            $cleanBooks[] = $node;
+        }
+
+        // If there are stranded documents, rescue them by placing them into the appropriate category
+        if (!empty($strandedDocs)) {
+            foreach ($strandedDocs as $doc) {
+                $placed = false;
+                $docFile = $doc['file'] ?? '';
+
+                // Try to match category by file prefix: content/{categoryFolder}/...
+                if (!empty($docFile) && strpos($docFile, 'content/') === 0) {
+                    $parts = explode('/', substr($docFile, strlen('content/')));
+                    $potentialCatFolder = $parts[0] ?? '';
+                    if (!empty($potentialCatFolder)) {
+                        foreach ($cleanBooks as &$targetCat) {
+                            if (($targetCat['type'] ?? 'folder') === 'folder') {
+                                if (($targetCat['id'] ?? '') === $potentialCatFolder
+                                    || ($targetCat['folder'] ?? '') === 'content/' . $potentialCatFolder
+                                    || ($targetCat['folder'] ?? '') === $potentialCatFolder) {
+                                    if (!isset($targetCat['items']) || !is_array($targetCat['items'])) {
+                                        $targetCat['items'] = [];
+                                    }
+                                    $targetCat['items'][] = $doc;
+                                    $placed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If not matched, place in the first available folder category
+                if (!$placed) {
+                    foreach ($cleanBooks as &$targetCat) {
+                        if (($targetCat['type'] ?? 'folder') === 'folder') {
+                            if (!isset($targetCat['items']) || !is_array($targetCat['items'])) {
+                                $targetCat['items'] = [];
+                            }
+                            $targetCat['items'][] = $doc;
+                            $placed = true;
+                            break;
+                        }
+                    }
+                }
+
+                // If no folder category exists at all in the wiki, create one
+                if (!$placed) {
+                    $cleanBooks[] = [
+                        'id' => 'general',
+                        'title' => 'General',
+                        'type' => 'folder',
+                        'items' => [$doc]
+                    ];
+                }
+            }
+        }
+
+        if ($modified) {
+            $books = $cleanBooks;
+        }
+
+        return $modified;
     }
 
     public static function save(array $config) {

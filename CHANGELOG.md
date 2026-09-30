@@ -11,6 +11,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.14.0] - IntegrityFlow - 2026-09-30
+
+### 🛡️ Category Hierarchy Integrity & Drag-and-Drop Safety Guards
+- **Automated Book Normalization (`Config::normalizeBooks`)**: Prevents navigation tree corruption by auto-rescuing stranded non-link documents dropped at root level into their appropriate parent categories based on content paths or the first available category folder. Prunes empty phantom categories that lack both an ID and document items.
+- **Root Reorder Interception**: Updated `api/admin.php` tree merge logic to prevent documents from being mistakenly dropped as top-level categories, maintaining clean folder structures during drag-and-drop operations.
+- **Corrupt & Phantom Category Deletion**: Added fallback in `delete_book` to allow administrators to remove corrupt or phantom categories lacking an ID by title.
+- **Sidebar Node Guard**: Hardened `Navigation::renderSidebarNode` to silently skip un-categorized non-link documents, preventing them from rendering as broken folder nodes in the sidebar.
+
+### ✉️ Form Page Extension: RFC-Compliant Email Deliverability & Anti-Spam Hardening
+- **RFC 2822 Anti-Spam Headers**: Added RFC-compliant headers to form notification emails, including `Date:` (`date('r')`), unique `Message-ID: <timestamp.random@domain>`, `MIME-Version: 1.0`, `Content-Transfer-Encoding: 8bit`, `X-Mailer: Qwiki Form Notifications`, and `Auto-Submitted: auto-generated` (preventing auto-responder loops and classifying automated alerts correctly).
+- **Envelope Sender (`-f`) Alignment**: Injected the envelope sender parameter `-f <senderEmail>` in PHP `mail()` calls to eliminate the mismatch between the `From:` header and the MTA's `Return-Path` (which previously defaulted to `www-data` or `apache` and triggered spam bucket routing).
+- **Dynamic `Reply-To:` Detection**: Automatically extracts the submitter's email address from submitted form fields and sets it as the `Reply-To` header, enabling administrators to directly reply to respondents from their email clients.
+- **Configurable Sender Email**: Added support for `"systemEmail"` or `"senderEmail"` in `qwiki.json`, cleanly falling back to `noreply@<clean-host>`.
+- **Delivery Error Diagnostics & Resilient Fallback**: Replaced silent error suppression with automated parameter fallback and error logging (`error_log`) when server MTA dispatch encounters issues.
+- **UI Label Clarification**: Updated the Form Builder modal to explicitly denote `Notification Email (optional, alerts on new response)`.
+
+### 🌐 Open Graph & Social Sharing Metadata Enhancements
+- **HTML Document OG Metadata Extraction**: Added automatic extraction of `<meta name="description">` or `<meta property="og:description">` and `<meta property="og:image">` from interactive HTML documents (`.html`), falling back to clean visible body text without scripts or styling.
+- **Markdown Snippet Cleaning**: Strips markdown code blocks/fences (```` ``` ````) from auto-generated social share summaries, preventing raw code syntax from leaking into link previews.
+- **Chapter Property Preservation**: Fixed `update_chapter_in_node` during share-key generation to preserve chapter descriptions, themes, and images.
+
+### 🔐 Security & Form Autofill Hardening
+- **Explicit Autocomplete Attributes**: Added appropriate `autocomplete` attributes (`username`, `current-password`, `new-password`, `off`) across the main login dialog, user management creation modal, and subwiki creation form to prevent browser password managers from auto-filling administrator credentials into administrative creation inputs.
+- **Viewer / Admin Modal Guard**: Restricts the login modal markup from rendering in the DOM when a user is already authenticated.
+
+### 🧪 Automated Test Coverage
+- `tests/test_og_metadata.php`: Unit and integration tests for chapter property preservation, HTML document Open Graph description/image extraction, and share-key generation safety.
+- `tests/tree_drag_root_protection_test.php`: Complete test suite covering document rescuing, phantom category pruning, root reorder interception, and phantom deletion.
+- `tests/test_form_page_extension.php`: Added Test 8 verifying form submission notifications with anti-spam headers and envelope sender dispatch.
+
+---
+
 ## [1.13.1] - AssistFlow - 2026-09-23
 
 ### 🤖 Gemini AI Assistant: Dynamic Model Discovery & Fallback

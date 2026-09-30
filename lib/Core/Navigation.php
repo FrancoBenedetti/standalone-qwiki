@@ -214,6 +214,11 @@ class Navigation {
             return;
         }
 
+        // Safety guard: if an un-categorized document reaches renderSidebarNode, do not render as a category
+        if (empty($node['id']) && !empty($node['slug']) && ($node['type'] ?? '') !== 'folder') {
+            return;
+        }
+
         $nodeId = $node['id'] ?? '';
         $nodeTitle = $node['title'] ?? $node['name'] ?? '';
         $nodeDesc = htmlspecialchars($node['description'] ?? $node['desc'] ?? '');

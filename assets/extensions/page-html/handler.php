@@ -136,6 +136,35 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         LockManager::releaseLock($file, $tabId, $username);
     }
 
+    // Synchronize meta description to chapter metadata if present in saved HTML
+    $foundDesc = '';
+    if (preg_match('/<meta\s+[^>]*(?:name=["\']description["\']|property=["\']og:description["\'])[^>]*content=["\']([^"\']+)["\']/i', $content, $mDesc) ||
+        preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:name=["\']description["\']|property=["\']og:description["\'])/i', $content, $mDesc)) {
+        $foundDesc = trim(html_entity_decode($mDesc[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+    if (!empty($foundDesc)) {
+        $cfg = Config::load();
+        $descUpdated = false;
+        $syncDesc = function(&$nodes) use (&$syncDesc, $file, $foundDesc, &$descUpdated) {
+            foreach ($nodes as &$node) {
+                if (($node['file'] ?? '') === $file) {
+                    if (empty($node['description']) || $node['description'] !== $foundDesc) {
+                        $node['description'] = $foundDesc;
+                        $descUpdated = true;
+                    }
+                    return;
+                }
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $syncDesc($node['items']);
+                }
+            }
+        };
+        $syncDesc($cfg['books']);
+        if ($descUpdated) {
+            Config::save($cfg);
+        }
+    }
+
     echo json_encode(['success' => true, 'file' => $file]);
     return;
 }
@@ -161,6 +190,7 @@ if ($action === 'get_html' || $action === 'ext_html_get') {
 $title = trim($_POST['title'] ?? '');
 $bookId = $_POST['bookId'] ?? '';
 $content = $_POST['content'] ?? '';
+$description = trim($_POST['description'] ?? '');
 if (isset($_POST['content_base64'])) {
     $content = base64_decode($_POST['content_base64']);
 }
@@ -173,6 +203,21 @@ if (empty($title)) {
 $slug = Config::makeSlug($title);
 if (empty($slug)) {
     $slug = 'doc-' . time();
+}
+
+// Auto-extract description and social image from HTML if not explicitly supplied
+$image = '';
+if (!empty($content)) {
+    if (empty($description)) {
+        if (preg_match('/<meta\s+[^>]*(?:name=["\']description["\']|property=["\']og:description["\'])[^>]*content=["\']([^"\']+)["\']/i', $content, $mDesc) ||
+            preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:name=["\']description["\']|property=["\']og:description["\'])/i', $content, $mDesc)) {
+            $description = trim(html_entity_decode($mDesc[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+    }
+    if (preg_match('/<meta\s+[^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])[^>]*content=["\']([^"\']+)["\']/i', $content, $mImg) ||
+        preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])/i', $content, $mImg)) {
+        $image = trim($mImg[1]);
+    }
 }
 
 $config = Config::load();
@@ -203,7 +248,13 @@ $filePath = 'content/' . $targetFolder . '/' . $slug . '.html';
 $absolutePath = $baseDir . '/' . $filePath;
 
 if (empty($content)) {
-    $content = "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>" . htmlspecialchars($title) . "</title>\n    <style>body { font-family: system-ui, sans-serif; padding: 2rem; }</style>\n</head>\n<body>\n    <h1>" . htmlspecialchars($title) . "</h1>\n    <p>Welcome to this HTML document.</p>\n</body>\n</html>";
+    $metaTags = '';
+    if (!empty($description)) {
+        $escapedDesc = htmlspecialchars($description);
+        $escapedTitle = htmlspecialchars($title);
+        $metaTags = "    <meta name=\"description\" content=\"{$escapedDesc}\">\n    <meta property=\"og:title\" content=\"{$escapedTitle}\">\n    <meta property=\"og:description\" content=\"{$escapedDesc}\">\n";
+    }
+    $content = "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset=\"UTF-8\">\n    <title>" . htmlspecialchars($title) . "</title>\n{$metaTags}    <style>body { font-family: system-ui, sans-serif; padding: 2rem; }</style>\n</head>\n<body>\n    <h1>" . htmlspecialchars($title) . "</h1>\n    <p>" . (!empty($description) ? htmlspecialchars($description) : "Welcome to this HTML document.") . "</p>\n</body>\n</html>";
 }
 
 $content = ensure_html_base_href($content, $filePath);
@@ -219,6 +270,12 @@ $chapterData = [
     'type' => 'html',
     'file' => $filePath
 ];
+if (!empty($description)) {
+    $chapterData['description'] = $description;
+}
+if (!empty($image)) {
+    $chapterData['image'] = $image;
+}
 
 $inserted = false;
 foreach ($config['books'] as &$book) {

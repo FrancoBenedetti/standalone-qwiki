@@ -1128,10 +1128,10 @@ document.addEventListener('DOMContentLoaded', () => {
     deleteBookBtn.addEventListener('click', async () => {
       const bookIdInput = document.getElementById('edit-book-id-hidden');
       const bookTitleInput = document.getElementById('edit-book-title-input');
-      const bookId = bookIdInput ? bookIdInput.value : '';
-      const bookTitle = bookTitleInput ? bookTitleInput.value : 'this category';
+      const bookId = bookIdInput ? bookIdInput.value.trim() : '';
+      const bookTitle = bookTitleInput ? bookTitleInput.value.trim() : 'this category';
 
-      if (!bookId) return;
+      if (!bookId && !bookTitle) return;
 
       if (deleteBookBtn.getAttribute('data-protected') === '1') {
         alert('This category is protected or contains protected documents and cannot be deleted.');
@@ -1145,6 +1145,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData();
       formData.append('action', 'delete_book');
       formData.append('bookId', bookId);
+      if (bookTitle) {
+        formData.append('bookTitle', bookTitle);
+      }
 
       try {
         const res = await fetch('api/admin.php?action=delete_book', { method: 'POST', body: formData });
@@ -1952,13 +1955,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function saveTreeStructureToBackend() {
+    // Before building tree, ensure no non-link document sits directly in .sidebar-nav
+    document.querySelectorAll('.sidebar-nav > [data-drag-type="document"]').forEach(topDoc => {
+      if (topDoc.getAttribute('data-doc-type') !== 'link') {
+        const nearbyCat = topDoc.nextElementSibling && topDoc.nextElementSibling.matches('.nav-category-item')
+          ? topDoc.nextElementSibling
+          : (topDoc.previousElementSibling && topDoc.previousElementSibling.matches('.nav-category-item')
+            ? topDoc.previousElementSibling
+            : document.querySelector('.sidebar-nav > .nav-category-item'));
+        if (nearbyCat) {
+          const list = nearbyCat.querySelector('.nav-document-list');
+          if (list) {
+            list.appendChild(topDoc);
+          }
+        }
+      }
+    });
+
     const tree = [];
     document.querySelectorAll('.sidebar-nav > [data-drag-type]').forEach(topEl => {
       const dragType = topEl.getAttribute('data-drag-type');
       if (dragType === 'category') {
         tree.push(extractCategoryNodeFromDOM(topEl));
       } else if (dragType === 'document') {
-        tree.push(extractDocumentNodeFromDOM(topEl));
+        const docType = topEl.getAttribute('data-doc-type');
+        if (docType === 'link') {
+          tree.push(extractDocumentNodeFromDOM(topEl));
+        }
       }
     });
 
@@ -2019,7 +2042,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const height = rect.height;
 
       const draggedType = draggedElement.getAttribute('data-drag-type');
+      const isDraggedLink = draggedElement.getAttribute('data-doc-type') === 'link';
+      const isDraggedDoc = (draggedType === 'document' && !isDraggedLink);
+
       const targetType = el.getAttribute('data-drag-type');
+      const isTargetTopLevel = el.parentElement && el.parentElement.classList.contains('sidebar-nav');
+
+      // Non-link documents (chapters) CANNOT be placed at root level (.sidebar-nav)
+      if (isDraggedDoc && isTargetTopLevel) {
+        if (targetType === 'category') {
+          // When dragging a chapter onto a top-level category, always treat it as dropping inside
+          el.classList.add('drag-over-inside');
+          return;
+        }
+        // If target is a top-level link or other root element, dropping a chapter here is invalid
+        e.dataTransfer.dropEffect = 'none';
+        return;
+      }
 
       // Drag document or category onto a Category -> Drop inside if hovering in middle
       if (targetType === 'category') {
@@ -2053,7 +2092,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
       clearDragHighlights();
 
-      if (isInside && el.getAttribute('data-drag-type') === 'category') {
+      const draggedType = draggedElement.getAttribute('data-drag-type');
+      const isDraggedLink = draggedElement.getAttribute('data-doc-type') === 'link';
+      const isDraggedDoc = (draggedType === 'document' && !isDraggedLink);
+
+      const targetType = el.getAttribute('data-drag-type');
+      const isTargetTopLevel = el.parentElement && el.parentElement.classList.contains('sidebar-nav');
+
+      // Drop non-link document on a top-level item
+      if (isDraggedDoc && isTargetTopLevel) {
+        if (targetType === 'category') {
+          const targetDocList = el.querySelector(':scope > .nav-document-list');
+          if (targetDocList) {
+            targetDocList.appendChild(draggedElement);
+            el.classList.remove('collapsed');
+          }
+          await saveTreeStructureToBackend();
+        }
+        return;
+      }
+
+      if (isInside && targetType === 'category') {
         const targetDocList = el.querySelector(':scope > .nav-document-list');
         if (targetDocList) {
           targetDocList.appendChild(draggedElement);
@@ -2063,6 +2122,22 @@ document.addEventListener('DOMContentLoaded', () => {
         el.parentNode.insertBefore(draggedElement, el);
       } else if (isBelow) {
         el.parentNode.insertBefore(draggedElement, el.nextSibling);
+      }
+
+      // Safety check: ensure draggedElement never sits directly in .sidebar-nav if it is a non-link document
+      if (isDraggedDoc && draggedElement.parentElement && draggedElement.parentElement.classList.contains('sidebar-nav')) {
+        const nearbyCat = draggedElement.nextElementSibling && draggedElement.nextElementSibling.matches('.nav-category-item')
+          ? draggedElement.nextElementSibling
+          : (draggedElement.previousElementSibling && draggedElement.previousElementSibling.matches('.nav-category-item')
+            ? draggedElement.previousElementSibling
+            : document.querySelector('.sidebar-nav > .nav-category-item'));
+        if (nearbyCat) {
+          const list = nearbyCat.querySelector('.nav-document-list');
+          if (list) {
+            list.appendChild(draggedElement);
+            nearbyCat.classList.remove('collapsed');
+          }
+        }
       }
 
       updateTopLinkVisuals(draggedElement);
@@ -2705,7 +2780,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!contentBody || !tocContainer || !tocContent) return;
     
-    const headings = contentBody.querySelectorAll('h1, h2, h3');
+    const headings = Array.from(contentBody.querySelectorAll('h1, h2, h3')).filter(h => !h.closest('.modal-overlay'));
     if (headings.length === 0) return;
     
     // Show the TOC container

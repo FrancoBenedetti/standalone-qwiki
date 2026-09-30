@@ -406,16 +406,38 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         $ogTitle = htmlspecialchars($docTitle . ' - ' . $siteTitle);
 
         $rawDesc = trim($activeChapter['description'] ?? '');
+        $htmlFileContent = '';
         if (empty($rawDesc)) {
-            $sourceText = !empty($rawMarkdownContent) ? $rawMarkdownContent : (!empty($renderedContent) ? strip_tags($renderedContent) : '');
-            if (!empty($sourceText)) {
-                $cleanSnippet = preg_replace('/```[\s\S]*?```/', '', $sourceText);
+            $chapterType = strtolower($activeChapter['type'] ?? 'markdown');
+            $docFilePath = (!empty($activeChapter) && !empty($activeChapter['file'])) ? ($baseDir . '/' . $activeChapter['file']) : '';
+
+            if (($chapterType === 'markdown' || $chapterType === 'md') && !empty($rawMarkdownContent)) {
+                $cleanSnippet = preg_replace('/```[\s\S]*?```/', '', $rawMarkdownContent);
                 $cleanSnippet = preg_replace('/!\[.*?\]\(.*?\)/', '', $cleanSnippet);
                 $cleanSnippet = preg_replace('/\[(.*?)\]\(.*?\)/', '$1', $cleanSnippet);
                 $cleanSnippet = preg_replace('/[#*_>`~=-]/', '', $cleanSnippet);
                 $cleanSnippet = trim(preg_replace('/\s+/', ' ', strip_tags($cleanSnippet)));
                 if (!empty($cleanSnippet)) {
                     $rawDesc = (mb_strlen($cleanSnippet) > 160) ? mb_substr($cleanSnippet, 0, 157) . '...' : $cleanSnippet;
+                }
+            } elseif (($chapterType === 'html' || preg_match('/\.(html|htm)$/i', $docFilePath)) && !empty($docFilePath) && file_exists($docFilePath)) {
+                $htmlFileContent = @file_get_contents($docFilePath) ?: '';
+                if (!empty($htmlFileContent)) {
+                    // 1. Check for explicit meta description in the HTML file itself
+                    if (preg_match('/<meta\s+[^>]*(?:name=["\']description["\']|property=["\']og:description["\'])[^>]*content=["\']([^"\']+)["\']/i', $htmlFileContent, $mDesc) ||
+                        preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:name=["\']description["\']|property=["\']og:description["\'])/i', $htmlFileContent, $mDesc)) {
+                        $rawDesc = trim(html_entity_decode($mDesc[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    }
+                    // 2. Fall back to body text, stripping scripts, styles, and markup
+                    if (empty($rawDesc)) {
+                        $cleanHtml = preg_replace('/<script\b[^>]*>[\s\S]*?<\/script>/i', '', $htmlFileContent);
+                        $cleanHtml = preg_replace('/<style\b[^>]*>[\s\S]*?<\/style>/i', '', $cleanHtml);
+                        $cleanHtml = preg_replace('/<head\b[^>]*>[\s\S]*?<\/head>/i', '', $cleanHtml);
+                        $cleanText = trim(preg_replace('/\s+/', ' ', strip_tags($cleanHtml)));
+                        if (!empty($cleanText)) {
+                            $rawDesc = (mb_strlen($cleanText) > 160) ? mb_substr($cleanText, 0, 157) . '...' : $cleanText;
+                        }
+                    }
                 }
             }
         }
@@ -439,6 +461,16 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     $ogImage = $firstImg;
                 } else {
                     $ogImage = rtrim($baseUrl, '/') . '/' . ltrim($firstImg, '/');
+                }
+            }
+        } elseif (!empty($htmlFileContent)) {
+            if (preg_match('/<meta\s+[^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])[^>]*content=["\']([^"\']+)["\']/i', $htmlFileContent, $mImg) ||
+                preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])/i', $htmlFileContent, $mImg)) {
+                $htmlImg = trim($mImg[1]);
+                if (preg_match('#^https?://#i', $htmlImg)) {
+                    $ogImage = $htmlImg;
+                } else {
+                    $ogImage = rtrim($baseUrl, '/') . '/' . ltrim($htmlImg, '/');
                 }
             }
         }
@@ -870,6 +902,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php endif; ?>
     </div>
 
+    <?php if (!$isAdmin && !$isViewer): ?>
     <!-- Login Modal -->
     <div class="modal-overlay" id="login-modal">
         <div class="modal-card">
@@ -880,16 +913,17 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <form id="login-form">
                 <div class="form-group">
                     <label class="form-label" for="login-username">Username</label>
-                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" required>
+                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" autocomplete="username" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" required>
+                    <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" autocomplete="current-password" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Share Document Modal -->
     <div class="modal-overlay" id="share-modal">
@@ -943,16 +977,16 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <button class="modal-close" data-close="users-modal">&times;</button>
             </div>
             
-            <form id="add-user-form" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+            <form id="add-user-form" autocomplete="off" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
                 <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Add New User</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
                     <div>
                         <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" required>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" autocomplete="off" required>
                     </div>
                     <div>
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" placeholder="Set password" required>
+                        <input type="password" name="password" class="form-control" placeholder="Set password" autocomplete="new-password" required>
                     </div>
                     <div>
                         <label class="form-label">Role</label>
@@ -1674,7 +1708,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label" for="new-subwiki-pass">Initial Admin Password</label>
-                            <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" required>
+                            <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" autocomplete="new-password" required>
                         </div>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">

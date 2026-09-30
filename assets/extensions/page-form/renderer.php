@@ -256,7 +256,7 @@ $fields = $schema['fields'] ?? [];
                                 </label>
                             </div>
                             <div>
-                                <label class="form-label">Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional)</span></label>
+                                <label class="form-label">Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, alerts on new response)</span></label>
                                 <input type="email" id="edit-form-notify-email" class="form-control">
                             </div>
                             <div>

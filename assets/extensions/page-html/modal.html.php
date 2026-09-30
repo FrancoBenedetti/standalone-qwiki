@@ -30,6 +30,10 @@ $books = $config['books'] ?? [];
     <input type="text" name="title" class="form-control" placeholder="e.g. Interactive Dashboard" required>
 </div>
 <div class="form-group">
+    <label class="form-label">Short Description (for social sharing &amp; search)</label>
+    <textarea name="description" class="form-control" style="min-height: 60px;" placeholder="Optional summary for Open Graph and search..."></textarea>
+</div>
+<div class="form-group">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
         <label class="form-label" style="margin-bottom: 0;">HTML Content</label>
         <div style="display: flex; gap: 1rem; font-size: 0.85em; color: var(--text-muted);">
