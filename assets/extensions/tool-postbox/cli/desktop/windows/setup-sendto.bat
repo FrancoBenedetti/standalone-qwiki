@@ -40,7 +40,7 @@ if not exist "%PYTHON_CLI%" (
 
 echo.
 echo Success! Installed to: %TARGET_BAT%
-echo You can now right-click any Markdown, HTML, or PDF file or folder in File Explorer and choose:
+echo You can now right-click any Markdown, HTML, PDF, or JSON form file or folder in File Explorer and choose:
 echo   Send to -^> Send to Qwiki
 echo.
 pause
