@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.15.0] - DiagramFlow - 2026-10-03
+
+### 📊 Mermaid & Visual Diagram Scaling Architecture
+- **Natural Dimension Preservation**: Configured `useMaxWidth: false` across all Mermaid diagram types (`flowchart`, `sequence`, `gantt`, `journey`, `class`, `state`, `er`, `pie`, `quadrantChart`, `xyChart`, `requirement`, `mindmap`, `timeline`, `gitGraph`, `c4`, `sankey`, `block`), preventing wide diagrams from being squished down to the article column width.
+- **Responsive Horizontal Scrolling (`overflow-x: auto`)**: Diagrams wider than the viewport or article container now retain their full, sharp readability and allow smooth touch- and mouse-driven horizontal scrolling with start-aligned positioning (`scrollLeft = 0`), eliminating left-edge clipping.
+- **Dynamic Dimension Normalization (`normalizeMermaidSvgs`)**: Added automatic post-render SVG normalization that extracts intrinsic `viewBox` width and removes restrictive `max-width` inline constraints during both initial page render and live theme toggling (`reRenderMermaidDiagrams`).
+- **Flexible Container Centering**: Redesigned `.mermaid-diagram-container` as a block element with `text-align: center` and `.mermaid` as an `inline-flex` wrapper (`min-width: 100%`, `width: max-content`), allowing narrow diagrams to center naturally without distortion while removing the previous arbitrary `min-width: 680px` constraint.
+- **Dark & Light Mode Adaptation**: Ensured seamless live re-rendering on theme switches, maintaining full scaling and scrolling consistency.
+
+### 📬 Editorial Postbox CLI Proxy Enhancements
+- **Proxy Compatibility**: Added `james` proxy integration for `sani` across `qwiki-postbox.py` and installation scripts.
+
+### 🧪 Automated Test Coverage
+- `tests/test_mermaid_scaling.js`: Automated test suite verifying `qwiki.css` rules, Mermaid initialization options, and DOM SVG dimension normalization.
+
+---
+
 ## [1.14.0] - IntegrityFlow - 2026-09-30
 
 ### 🛡️ Category Hierarchy Integrity & Drag-and-Drop Safety Guards

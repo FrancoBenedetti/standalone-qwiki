@@ -1048,9 +1048,7 @@ body {
 /* Diagrams & Visual Flowcharts */
 .mermaid-diagram-container,
 .svgbob-diagram-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1058,17 +1056,31 @@ body {
   margin: 1.5rem 0;
   overflow-x: auto;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  text-align: center;
 }
 
 .mermaid-diagram-container .mermaid {
-  display: flex;
+  display: inline-flex;
   justify-content: center;
-  width: 100%;
+  align-items: center;
+  min-width: 100%;
+  width: max-content;
+}
+
+/* Prevent wide diagrams from shrinking: retain natural dimensions and allow horizontal scrolling */
+.mermaid-diagram-container .mermaid svg {
+  min-width: 0;
+  max-width: none !important;
+  height: auto;
+  flex-shrink: 0;
 }
 
 .svgbob-diagram-container svg {
-  max-width: 100%;
+  min-width: 0;
+  max-width: none;
   height: auto;
+  display: inline-block;
+  margin: 0 auto;
 }
 
 /* Svgbob dark & light mode styling */

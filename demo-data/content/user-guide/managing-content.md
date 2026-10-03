@@ -90,6 +90,17 @@ To prevent concurrent write conflicts and accidental overwrites when multiple ta
 
 ---
 
+## 📊 Rendering Mermaid & Visual Diagrams
+
+Standalone Qwiki natively renders Mermaid diagrams directly from standard fenced code blocks (` ```mermaid `) in Markdown articles:
+
+1. **Diverse Diagram Models**: Create flowcharts, sequence diagrams, state machines, entity-relationship diagrams, class hierarchies, user journeys, mindmaps, quadrants, and timelines.
+2. **Natural Width & Legibility**: Wide diagrams retain their sharp, uncompressed native scale without shrinking into miniature boxes.
+3. **Responsive Horizontal Scrolling**: If a diagram exceeds the article column width, the container provides smooth, touch-friendly horizontal scrolling (`overflow-x: auto`) aligned to the start.
+4. **Instant Theme Re-Rendering**: Diagrams adapt instantly when switching between dark and light themes without requiring page reloads.
+
+---
+
 ## 🤖 Gemini AI Assistant & Social Meta Generation
 
 Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API:

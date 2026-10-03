@@ -2386,16 +2386,49 @@ document.addEventListener('DOMContentLoaded', () => {
     return svgbobInitPromise;
   }
 
+  const MERMAID_DIAGRAM_TYPES = [
+    'flowchart', 'sequence', 'gantt', 'journey', 'class', 'state', 'er',
+    'pie', 'quadrantChart', 'xyChart', 'requirement', 'mindmap', 'timeline',
+    'gitGraph', 'c4', 'sankey', 'block'
+  ];
+
+  function getMermaidConfig(theme) {
+    const diagramConfigs = {};
+    MERMAID_DIAGRAM_TYPES.forEach(type => {
+      diagramConfigs[type] = { useMaxWidth: false };
+    });
+
+    return {
+      startOnLoad: false,
+      theme: theme === 'light' ? 'default' : 'dark',
+      securityLevel: 'loose',
+      fontSize: 16,
+      themeVariables: {
+        fontSize: '16px'
+      },
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      ...diagramConfigs
+    };
+  }
+
+  function normalizeMermaidSvgs() {
+    const svgs = document.querySelectorAll('.mermaid-diagram-container .mermaid svg');
+    for (const svg of svgs) {
+      svg.style.maxWidth = 'none';
+      if (svg.getAttribute('width') === '100%') {
+        const viewBox = svg.viewBox && svg.viewBox.baseVal;
+        if (viewBox && viewBox.width > 0) {
+          svg.setAttribute('width', viewBox.width);
+        }
+      }
+    }
+  }
+
   async function renderMermaidDiagrams(theme) {
     if (typeof mermaid === 'undefined') return;
 
     try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: theme === 'light' ? 'default' : 'dark',
-        securityLevel: 'loose',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      });
+      mermaid.initialize(getMermaidConfig(theme));
 
       const mermaidCodeBlocks = document.querySelectorAll('.content-body pre > code.language-mermaid, .content-body pre.mermaid');
       for (const codeEl of mermaidCodeBlocks) {
@@ -2419,6 +2452,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const unrenderedMermaid = document.querySelectorAll('.mermaid-diagram-container .mermaid:not([data-processed="true"])');
       if (unrenderedMermaid.length > 0) {
         await mermaid.run({ nodes: unrenderedMermaid });
+        normalizeMermaidSvgs();
       }
     } catch (err) {
       console.warn('Mermaid rendering error:', err);
@@ -2431,12 +2465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (containers.length === 0) return;
 
     try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: theme === 'light' ? 'default' : 'dark',
-        securityLevel: 'loose',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      });
+      mermaid.initialize(getMermaidConfig(theme));
 
       for (const container of containers) {
         const src = container.dataset.mermaidSrc;
@@ -2448,6 +2477,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       await mermaid.run({ nodes: document.querySelectorAll('.mermaid-diagram-container .mermaid') });
+      normalizeMermaidSvgs();
     } catch (e) {
       console.warn('Mermaid re-render failed:', e);
     }
