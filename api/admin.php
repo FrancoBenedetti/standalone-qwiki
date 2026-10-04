@@ -151,17 +151,17 @@ if (!function_exists('update_chapter_in_node')) {
                     if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
                     if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
                         $ch['theme'] = $updatedData['theme'];
-                    } elseif (isset($ch['theme'])) {
+                    } elseif (array_key_exists('theme', $updatedData)) {
                         unset($ch['theme']);
                     }
                     if (isset($updatedData['description']) && $updatedData['description'] !== '') {
                         $ch['description'] = $updatedData['description'];
-                    } elseif (isset($ch['description'])) {
+                    } elseif (array_key_exists('description', $updatedData)) {
                         unset($ch['description']);
                     }
                     if (isset($updatedData['image']) && $updatedData['image'] !== '') {
                         $ch['image'] = $updatedData['image'];
-                    } elseif (isset($ch['image'])) {
+                    } elseif (array_key_exists('image', $updatedData)) {
                         unset($ch['image']);
                     }
                     if (isset($updatedData['publicShareable'])) {
@@ -564,8 +564,28 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
-        $bookId = $_POST['bookId'] ?? '';
+        $bookId = trim($_POST['bookId'] ?? '');
+        $bookTitle = trim($_POST['bookTitle'] ?? '');
+
         if (empty($bookId)) {
+            // Handle deleting phantom or corrupted categories that lack an ID
+            if (!empty($bookTitle)) {
+                $deletedPhantom = false;
+                $filteredBooks = [];
+                foreach ($config['books'] as $b) {
+                    if (empty($b['id']) && (($b['title'] ?? '') === $bookTitle || ($b['name'] ?? '') === $bookTitle)) {
+                        $deletedPhantom = true;
+                        continue;
+                    }
+                    $filteredBooks[] = $b;
+                }
+                if ($deletedPhantom) {
+                    $config['books'] = $filteredBooks;
+                    Config::save($config);
+                    echo json_encode(['success' => true]);
+                    exit;
+                }
+            }
             echo json_encode(['success' => false, 'error' => 'Category ID is required']);
             exit;
         }
@@ -1412,8 +1432,9 @@ switch ($action) {
         if (is_array($tree)) {
             $existingCategories = [];
             $existingDocuments = [];
+            $docOriginalCategory = [];
 
-            $indexExistingNodes = function ($nodes) use (&$indexExistingNodes, &$existingCategories, &$existingDocuments) {
+            $indexExistingNodes = function ($nodes, $currentCatId = null) use (&$indexExistingNodes, &$existingCategories, &$existingDocuments, &$docOriginalCategory) {
                 if (!is_array($nodes)) return;
                 foreach ($nodes as $node) {
                     if (isset($node['id'])) {
@@ -1422,13 +1443,20 @@ switch ($action) {
                         $existingCategories[$node['id']] = $catCopy;
                     } elseif (isset($node['slug'])) {
                         $existingDocuments[$node['slug']] = $node;
+                        if ($currentCatId !== null) {
+                            $docOriginalCategory[$node['slug']] = $currentCatId;
+                        }
                     }
                     if (!empty($node['items']) && is_array($node['items'])) {
+                        $thisParent = $node['id'] ?? $currentCatId;
                         foreach ($node['items'] as $item) {
                             if (isset($item['type']) && $item['type'] === 'folder') {
-                                $indexExistingNodes([$item]);
+                                $indexExistingNodes([$item], $thisParent);
                             } elseif (isset($item['slug'])) {
                                 $existingDocuments[$item['slug']] = $item;
+                                if ($thisParent !== null) {
+                                    $docOriginalCategory[$item['slug']] = $thisParent;
+                                }
                             }
                         }
                     }
@@ -1437,8 +1465,9 @@ switch ($action) {
             $indexExistingNodes($config['books'] ?? []);
 
             $updatedFiles = [];
+            $strandedRootDocs = [];
 
-            $mergeTree = function ($nodes, $parentFolder = null) use (&$mergeTree, &$existingCategories, &$existingDocuments, &$updatedFiles, $baseDir) {
+            $mergeTree = function ($nodes, $parentFolder = null, $isRoot = false) use (&$mergeTree, &$existingCategories, &$existingDocuments, &$updatedFiles, &$strandedRootDocs, $baseDir) {
                 if (!is_array($nodes)) return [];
                 $merged = [];
                 foreach ($nodes as $node) {
@@ -1485,12 +1514,25 @@ switch ($action) {
                         $mergedNode = $node;
                     }
 
+                    // Root level safety checks
+                    if ($isRoot) {
+                        // Skip empty phantom folders with no ID and no slug
+                        if (empty($nodeId) && empty($nodeSlug)) {
+                            continue;
+                        }
+                        // If it's a non-link document placed at root, intercept it
+                        if (empty($nodeId) && !empty($nodeSlug) && ($mergedNode['type'] ?? '') !== 'link') {
+                            $strandedRootDocs[] = $mergedNode;
+                            continue;
+                        }
+                    }
+
                     if (isset($node['items']) && is_array($node['items'])) {
                         $mergedItems = [];
                         foreach ($node['items'] as $item) {
                             if (!is_array($item)) continue;
                             if (isset($item['type']) && $item['type'] === 'folder') {
-                                $mergedSub = $mergeTree([$item], $currentFolder);
+                                $mergedSub = $mergeTree([$item], $currentFolder, false);
                                 if (!empty($mergedSub)) {
                                     $mergedItems[] = $mergedSub[0];
                                 }
@@ -1533,7 +1575,58 @@ switch ($action) {
                 return $merged;
             };
 
-            $newBooks = $mergeTree($tree);
+            $newBooks = $mergeTree($tree, null, true);
+
+            // If any non-link documents were submitted at root, rescue them into valid categories
+            if (!empty($strandedRootDocs)) {
+                foreach ($strandedRootDocs as $sDoc) {
+                    $slug = $sDoc['slug'] ?? '';
+                    $targetCatId = $docOriginalCategory[$slug] ?? null;
+                    $placed = false;
+
+                    // 1. Try placing into original parent category
+                    if ($targetCatId !== null) {
+                        foreach ($newBooks as &$nb) {
+                            if (($nb['type'] ?? 'folder') === 'folder' && ($nb['id'] ?? '') === $targetCatId) {
+                                if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                $nb['items'][] = $sDoc;
+                                $placed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Try placing into category matching file path prefix
+                    if (!$placed && !empty($sDoc['file']) && strpos($sDoc['file'], 'content/') === 0) {
+                        $parts = explode('/', substr($sDoc['file'], strlen('content/')));
+                        $potCat = $parts[0] ?? '';
+                        if (!empty($potCat)) {
+                            foreach ($newBooks as &$nb) {
+                                if (($nb['type'] ?? 'folder') === 'folder' && (($nb['id'] ?? '') === $potCat || ($nb['folder'] ?? '') === 'content/' . $potCat)) {
+                                    if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                    $nb['items'][] = $sDoc;
+                                    $placed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Place into first available folder category
+                    if (!$placed) {
+                        foreach ($newBooks as &$nb) {
+                            if (($nb['type'] ?? 'folder') === 'folder') {
+                                if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                $nb['items'][] = $sDoc;
+                                $placed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Config::normalizeBooks($newBooks);
 
             // Safety guard: ensure no protected documents or protected categories are lost during reorder
             foreach ($existingDocuments as $slug => $origDoc) {

@@ -1,6 +1,6 @@
 # Standalone Qwiki - Desktop Postbox CLI & OS Integrations
 
-The **Qwiki Postbox Desktop Tools** allow you to asynchronously transfer Markdown documents (`.md`), HTML files (`.html`), and entire document folders directly from your local computer (Linux, Windows, macOS) or CI/CD pipelines to any Standalone Qwiki or subwiki.
+The **Qwiki Postbox Desktop Tools** allow you to asynchronously transfer Markdown documents (`.md`), HTML files (`.html`), PDF documents (`.pdf`), JSON forms (`.json`), and entire document folders directly from your local computer (Linux, Windows, macOS) or CI/CD pipelines to any Standalone Qwiki or subwiki.
 
 All transfers land safely in the receiving wiki's **Inbound Postbox** queue for editorial review — no documents are ever published or overwritten without reviewer confirmation.
 

@@ -192,22 +192,71 @@ if ($action === 'submit_form' || $action === 'ext_form_submit') {
 
     // F. Optional Notifications (Email & Webhook)
     if (!empty($schema['notificationEmail']) && filter_var($schema['notificationEmail'], FILTER_VALIDATE_EMAIL)) {
-        $subject = "[Qwiki Form] New Submission: " . ($schema['title'] ?? 'Form');
+        $rawHost = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+        if (strpos($rawHost, ':') !== false) {
+            $rawHost = explode(':', $rawHost)[0];
+        }
+        $cleanHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $rawHost);
+        if (empty($cleanHost) || $cleanHost === 'localhost') {
+            $cleanHost = 'qwiki.local';
+        }
+
+        $senderEmail = $config['systemEmail'] ?? $config['senderEmail'] ?? ("noreply@" . $cleanHost);
+        if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
+            $senderEmail = "noreply@" . $cleanHost;
+        }
+
+        $wikiTitle = $config['title'] ?? 'Qwiki';
+        $fromName = preg_match('/^[\x20-\x7E]+$/', $wikiTitle)
+            ? '"' . addcslashes($wikiTitle, '"\\') . '"'
+            : '=?UTF-8?B?' . base64_encode($wikiTitle) . '?=';
+
+        $formTitle = $schema['title'] ?? 'Form';
+        $subjectRaw = "[Qwiki Form] New Submission: " . $formTitle;
+        $subject = '=?UTF-8?B?' . base64_encode($subjectRaw) . '?=';
+
         $body = "A new form response was submitted on {$timestamp}.\n\n";
-        $body .= "Form: " . ($schema['title'] ?? 'Form') . "\n";
+        $body .= "Form: " . $formTitle . "\n";
         $body .= "Submitted By: {$submittedBy}\n\n";
         $body .= "--- Answers ---\n";
+
+        $replyToEmail = null;
         foreach ($schemaFields as $sf) {
             $fId = $sf['id'] ?? '';
             $fLabel = $sf['label'] ?? $fId;
+            $fType = $sf['type'] ?? '';
             $ans = $sanitized[$fId] ?? '';
+            if ($fType === 'email' && empty($replyToEmail) && !empty($ans) && filter_var($ans, FILTER_VALIDATE_EMAIL)) {
+                $replyToEmail = $ans;
+            }
             if (is_array($ans)) {
                 $ans = implode(', ', $ans);
             }
             $body .= "• {$fLabel}: {$ans}\n";
         }
-        $headers = "From: Qwiki <noreply@" . ($_SERVER['SERVER_NAME'] ?? 'localhost') . ">\r\nContent-Type: text/plain; charset=UTF-8\r\n";
-        @mail($schema['notificationEmail'], $subject, $body, $headers);
+
+        $headers = [];
+        $headers[] = "From: {$fromName} <{$senderEmail}>";
+        $headers[] = "Reply-To: " . (!empty($replyToEmail) ? "<{$replyToEmail}>" : "<{$senderEmail}>");
+        $headers[] = "Date: " . date('r');
+        $headers[] = "Message-ID: <" . time() . "." . bin2hex(random_bytes(8)) . "@{$cleanHost}>";
+        $headers[] = "MIME-Version: 1.0";
+        $headers[] = "Content-Type: text/plain; charset=UTF-8";
+        $headers[] = "Content-Transfer-Encoding: 8bit";
+        $headers[] = "X-Mailer: Qwiki Form Notifications";
+        $headers[] = "Auto-Submitted: auto-generated";
+
+        $headersStr = implode("\r\n", $headers) . "\r\n";
+
+        // Dispatch with envelope sender parameter (-f) to match Return-Path with From header
+        $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr, "-f" . $senderEmail);
+        if (!$sent) {
+            // Fallback without 5th parameter if host environment restricts extra parameters
+            $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr);
+        }
+        if (!$sent) {
+            error_log("Qwiki Form: Unable to dispatch notification email to {$schema['notificationEmail']}. Check server MTA / sendmail configuration.");
+        }
     }
 
     if (!empty($schema['webhookUrl']) && preg_match('#^https?://#i', $schema['webhookUrl'])) {

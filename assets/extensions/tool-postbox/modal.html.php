@@ -108,12 +108,20 @@ $endpointUrl = $baseUrl . 'api/admin.php?action=ext_postbox_receive';
                         <select id="postbox-category-select" class="form-control">
                             <option value="">-- Choose a category --</option>
                         </select>
+                        <div id="postbox-category-info-notice" style="display: none; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);"></div>
                     </div>
                 </div>
 
                 <!-- Mode 3: Bulk Selection -->
                 <div id="postbox-scope-bulk" class="postbox-scope-box" style="display: none;">
-                    <label class="form-label">Select Documents to Transfer</label>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <label class="form-label" style="margin: 0;">Select Documents to Transfer</label>
+                        <div class="postbox-bulk-toolbar" style="display: flex; align-items: center; gap: 0.4rem;">
+                            <button type="button" class="btn btn-outline btn-sm" id="postbox-bulk-select-all" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Select All</button>
+                            <button type="button" class="btn btn-outline btn-sm" id="postbox-bulk-deselect-all" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Clear All</button>
+                            <span id="postbox-bulk-count" class="postbox-badge-inline" style="font-size: 0.75rem; background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">0 selected</span>
+                        </div>
+                    </div>
                     <div id="postbox-bulk-list" class="postbox-checklist-container">
                         <!-- Populated dynamically -->
                     </div>

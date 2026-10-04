@@ -1128,10 +1128,10 @@ document.addEventListener('DOMContentLoaded', () => {
     deleteBookBtn.addEventListener('click', async () => {
       const bookIdInput = document.getElementById('edit-book-id-hidden');
       const bookTitleInput = document.getElementById('edit-book-title-input');
-      const bookId = bookIdInput ? bookIdInput.value : '';
-      const bookTitle = bookTitleInput ? bookTitleInput.value : 'this category';
+      const bookId = bookIdInput ? bookIdInput.value.trim() : '';
+      const bookTitle = bookTitleInput ? bookTitleInput.value.trim() : 'this category';
 
-      if (!bookId) return;
+      if (!bookId && !bookTitle) return;
 
       if (deleteBookBtn.getAttribute('data-protected') === '1') {
         alert('This category is protected or contains protected documents and cannot be deleted.');
@@ -1145,6 +1145,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData();
       formData.append('action', 'delete_book');
       formData.append('bookId', bookId);
+      if (bookTitle) {
+        formData.append('bookTitle', bookTitle);
+      }
 
       try {
         const res = await fetch('api/admin.php?action=delete_book', { method: 'POST', body: formData });
@@ -1952,13 +1955,33 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function saveTreeStructureToBackend() {
+    // Before building tree, ensure no non-link document sits directly in .sidebar-nav
+    document.querySelectorAll('.sidebar-nav > [data-drag-type="document"]').forEach(topDoc => {
+      if (topDoc.getAttribute('data-doc-type') !== 'link') {
+        const nearbyCat = topDoc.nextElementSibling && topDoc.nextElementSibling.matches('.nav-category-item')
+          ? topDoc.nextElementSibling
+          : (topDoc.previousElementSibling && topDoc.previousElementSibling.matches('.nav-category-item')
+            ? topDoc.previousElementSibling
+            : document.querySelector('.sidebar-nav > .nav-category-item'));
+        if (nearbyCat) {
+          const list = nearbyCat.querySelector('.nav-document-list');
+          if (list) {
+            list.appendChild(topDoc);
+          }
+        }
+      }
+    });
+
     const tree = [];
     document.querySelectorAll('.sidebar-nav > [data-drag-type]').forEach(topEl => {
       const dragType = topEl.getAttribute('data-drag-type');
       if (dragType === 'category') {
         tree.push(extractCategoryNodeFromDOM(topEl));
       } else if (dragType === 'document') {
-        tree.push(extractDocumentNodeFromDOM(topEl));
+        const docType = topEl.getAttribute('data-doc-type');
+        if (docType === 'link') {
+          tree.push(extractDocumentNodeFromDOM(topEl));
+        }
       }
     });
 
@@ -2019,7 +2042,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const height = rect.height;
 
       const draggedType = draggedElement.getAttribute('data-drag-type');
+      const isDraggedLink = draggedElement.getAttribute('data-doc-type') === 'link';
+      const isDraggedDoc = (draggedType === 'document' && !isDraggedLink);
+
       const targetType = el.getAttribute('data-drag-type');
+      const isTargetTopLevel = el.parentElement && el.parentElement.classList.contains('sidebar-nav');
+
+      // Non-link documents (chapters) CANNOT be placed at root level (.sidebar-nav)
+      if (isDraggedDoc && isTargetTopLevel) {
+        if (targetType === 'category') {
+          // When dragging a chapter onto a top-level category, always treat it as dropping inside
+          el.classList.add('drag-over-inside');
+          return;
+        }
+        // If target is a top-level link or other root element, dropping a chapter here is invalid
+        e.dataTransfer.dropEffect = 'none';
+        return;
+      }
 
       // Drag document or category onto a Category -> Drop inside if hovering in middle
       if (targetType === 'category') {
@@ -2053,7 +2092,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
       clearDragHighlights();
 
-      if (isInside && el.getAttribute('data-drag-type') === 'category') {
+      const draggedType = draggedElement.getAttribute('data-drag-type');
+      const isDraggedLink = draggedElement.getAttribute('data-doc-type') === 'link';
+      const isDraggedDoc = (draggedType === 'document' && !isDraggedLink);
+
+      const targetType = el.getAttribute('data-drag-type');
+      const isTargetTopLevel = el.parentElement && el.parentElement.classList.contains('sidebar-nav');
+
+      // Drop non-link document on a top-level item
+      if (isDraggedDoc && isTargetTopLevel) {
+        if (targetType === 'category') {
+          const targetDocList = el.querySelector(':scope > .nav-document-list');
+          if (targetDocList) {
+            targetDocList.appendChild(draggedElement);
+            el.classList.remove('collapsed');
+          }
+          await saveTreeStructureToBackend();
+        }
+        return;
+      }
+
+      if (isInside && targetType === 'category') {
         const targetDocList = el.querySelector(':scope > .nav-document-list');
         if (targetDocList) {
           targetDocList.appendChild(draggedElement);
@@ -2063,6 +2122,22 @@ document.addEventListener('DOMContentLoaded', () => {
         el.parentNode.insertBefore(draggedElement, el);
       } else if (isBelow) {
         el.parentNode.insertBefore(draggedElement, el.nextSibling);
+      }
+
+      // Safety check: ensure draggedElement never sits directly in .sidebar-nav if it is a non-link document
+      if (isDraggedDoc && draggedElement.parentElement && draggedElement.parentElement.classList.contains('sidebar-nav')) {
+        const nearbyCat = draggedElement.nextElementSibling && draggedElement.nextElementSibling.matches('.nav-category-item')
+          ? draggedElement.nextElementSibling
+          : (draggedElement.previousElementSibling && draggedElement.previousElementSibling.matches('.nav-category-item')
+            ? draggedElement.previousElementSibling
+            : document.querySelector('.sidebar-nav > .nav-category-item'));
+        if (nearbyCat) {
+          const list = nearbyCat.querySelector('.nav-document-list');
+          if (list) {
+            list.appendChild(draggedElement);
+            nearbyCat.classList.remove('collapsed');
+          }
+        }
       }
 
       updateTopLinkVisuals(draggedElement);
@@ -2311,16 +2386,336 @@ document.addEventListener('DOMContentLoaded', () => {
     return svgbobInitPromise;
   }
 
+  const MERMAID_DIAGRAM_TYPES = [
+    'flowchart', 'sequence', 'gantt', 'journey', 'class', 'state', 'er',
+    'pie', 'quadrantChart', 'xyChart', 'requirement', 'mindmap', 'timeline',
+    'gitGraph', 'c4', 'sankey', 'block'
+  ];
+
+  function getMermaidConfig(theme) {
+    const diagramConfigs = {};
+    MERMAID_DIAGRAM_TYPES.forEach(type => {
+      diagramConfigs[type] = { useMaxWidth: false };
+    });
+
+    return {
+      startOnLoad: false,
+      theme: theme === 'light' ? 'default' : 'dark',
+      securityLevel: 'loose',
+      fontSize: 16,
+      themeVariables: {
+        fontSize: '16px'
+      },
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      ...diagramConfigs
+    };
+  }
+
+  function normalizeMermaidSvgs() {
+    const svgs = document.querySelectorAll('.mermaid-diagram-container .mermaid svg');
+    for (const svg of svgs) {
+      svg.style.maxWidth = 'none';
+      if (svg.getAttribute('width') === '100%') {
+        const viewBox = svg.viewBox && svg.viewBox.baseVal;
+        if (viewBox && viewBox.width > 0) {
+          svg.setAttribute('width', viewBox.width);
+        }
+      }
+    }
+  }
+
+  // ----------------------------------------------------
+  // LaTeX / KaTeX Mathematical Symbols & Normalization
+  // ----------------------------------------------------
+  const LATEX_SYMBOL_MAP = {
+    // Arrows
+    'to': '→',
+    '\\to': '→',
+    'rightarrow': '→',
+    '\\rightarrow': '→',
+    'longrightarrow': '→',
+    '\\longrightarrow': '→',
+    'gets': '←',
+    '\\gets': '←',
+    'leftarrow': '←',
+    '\\leftarrow': '←',
+    'longleftarrow': '←',
+    '\\longleftarrow': '←',
+    'uparrow': '↑',
+    '\\uparrow': '↑',
+    'downarrow': '↓',
+    '\\downarrow': '↓',
+    'updownarrow': '↕',
+    '\\updownarrow': '↕',
+    'leftrightarrow': '↔',
+    '\\leftrightarrow': '↔',
+    'longleftrightarrow': '↔',
+    '\\longleftrightarrow': '↔',
+    'implies': '⇒',
+    '\\implies': '⇒',
+    'Rightarrow': '⇒',
+    '\\Rightarrow': '⇒',
+    'Leftarrow': '⇐',
+    '\\Leftarrow': '⇐',
+    'iff': '⇔',
+    '\\iff': '⇔',
+    'Leftrightarrow': '⇔',
+    '\\Leftrightarrow': '⇔',
+    'mapsto': '↦',
+    '\\mapsto': '↦',
+
+    // Comparison & Relations
+    'le': '≤',
+    '\\le': '≤',
+    'leq': '≤',
+    '\\leq': '≤',
+    'ge': '≥',
+    '\\ge': '≥',
+    'geq': '≥',
+    '\\geq': '≥',
+    'ne': '≠',
+    '\\ne': '≠',
+    'neq': '≠',
+    '\\neq': '≠',
+    'approx': '≈',
+    '\\approx': '≈',
+    'equiv': '≡',
+    '\\equiv': '≡',
+    'sim': '∼',
+    '\\sim': '∼',
+    'simeq': '≃',
+    '\\simeq': '≃',
+    'propto': '∝',
+    '\\propto': '∝',
+
+    // Operators & Sets
+    'pm': '±',
+    '\\pm': '±',
+    'mp': '∓',
+    '\\mp': '∓',
+    'times': '×',
+    '\\times': '×',
+    'div': '÷',
+    '\\div': '÷',
+    'cdot': '·',
+    '\\cdot': '·',
+    'circ': '∘',
+    '\\circ': '∘',
+    'bullet': '•',
+    '\\bullet': '•',
+    'infty': '∞',
+    '\\infty': '∞',
+    'in': '∈',
+    '\\in': '∈',
+    'notin': '∉',
+    '\\notin': '∉',
+    'subset': '⊂',
+    '\\subset': '⊂',
+    'supset': '⊃',
+    '\\supset': '⊃',
+    'subseteq': '⊆',
+    '\\subseteq': '⊆',
+    'supseteq': '⊇',
+    '\\supseteq': '⊇',
+    'cup': '∪',
+    '\\cup': '∪',
+    'cap': '∩',
+    '\\cap': '∩',
+    'empty': '∅',
+    '\\empty': '∅',
+    'emptyset': '∅',
+    '\\emptyset': '∅',
+    'forall': '∀',
+    '\\forall': '∀',
+    'exists': '∃',
+    '\\exists': '∃',
+    'nexists': '∄',
+    '\\nexists': '∄',
+    'partial': '∂',
+    '\\partial': '∂',
+    'nabla': '∇',
+    '\\nabla': '∇',
+    'sum': '∑',
+    '\\sum': '∑',
+    'prod': '∏',
+    '\\prod': '∏',
+    'int': '∫',
+    '\\int': '∫',
+    'sqrt': '√',
+    '\\sqrt': '√',
+    'therefore': '∴',
+    '\\therefore': '∴',
+    'because': '∵',
+    '\\because': '∵',
+
+    // Greek Alphabet (lowercase)
+    'alpha': 'α',
+    '\\alpha': 'α',
+    'beta': 'β',
+    '\\beta': 'β',
+    'gamma': 'γ',
+    '\\gamma': 'γ',
+    'delta': 'δ',
+    '\\delta': 'δ',
+    'epsilon': 'ε',
+    '\\epsilon': 'ε',
+    'zeta': 'ζ',
+    '\\zeta': 'ζ',
+    'eta': 'η',
+    '\\eta': 'η',
+    'theta': 'θ',
+    '\\theta': 'θ',
+    'iota': 'ι',
+    '\\iota': 'ι',
+    'kappa': 'κ',
+    '\\kappa': 'κ',
+    'lambda': 'λ',
+    '\\lambda': 'λ',
+    'mu': 'μ',
+    '\\mu': 'μ',
+    'nu': 'ν',
+    '\\nu': 'ν',
+    'xi': 'ξ',
+    '\\xi': 'ξ',
+    'pi': 'π',
+    '\\pi': 'π',
+    'rho': 'ρ',
+    '\\rho': 'ρ',
+    'sigma': 'σ',
+    '\\sigma': 'σ',
+    'tau': 'τ',
+    '\\tau': 'τ',
+    'upsilon': 'υ',
+    '\\upsilon': 'υ',
+    'phi': 'φ',
+    '\\phi': 'φ',
+    'chi': 'χ',
+    '\\chi': 'χ',
+    'psi': 'ψ',
+    '\\psi': 'ψ',
+    'omega': 'ω',
+    '\\omega': 'ω',
+
+    // Greek Alphabet (uppercase)
+    'Gamma': 'Γ',
+    '\\Gamma': 'Γ',
+    'Delta': 'Δ',
+    '\\Delta': 'Δ',
+    'Theta': 'Θ',
+    '\\Theta': 'Θ',
+    'Lambda': 'Λ',
+    '\\Lambda': 'Λ',
+    'Xi': 'Ξ',
+    '\\Xi': 'Ξ',
+    'Pi': 'Π',
+    '\\Pi': 'Π',
+    'Sigma': 'Σ',
+    '\\Sigma': 'Σ',
+    'Upsilon': 'Υ',
+    '\\Upsilon': 'Υ',
+    'Phi': 'Φ',
+    '\\Phi': 'Φ',
+    'Psi': 'Ψ',
+    '\\Psi': 'Ψ',
+    'Omega': 'Ω',
+    '\\Omega': 'Ω',
+
+    // Miscellaneous
+    'checkmark': '✓',
+    '\\checkmark': '✓',
+    'dag': '†',
+    '\\dag': '†',
+    'ddag': '‡',
+    '\\ddag': '‡',
+    'star': '★',
+    '\\star': '★',
+    'degree': '°',
+    '\\degree': '°'
+  };
+
+  function normalizeLatexSymbols(code) {
+    if (!code || typeof code !== 'string') return code;
+
+    // Split by $$...$$ blocks to avoid replacing inside complex math formulas
+    const parts = code.split(/(\$\$[\s\S]*?\$\$)/g);
+    for (let i = 0; i < parts.length; i += 2) {
+      let seg = parts[i];
+      // 1. Replace $symbol$ or $\symbol$
+      seg = seg.replace(/\$(?:\\)?([a-zA-Z]+)\$/g, (match, sym) => {
+        return LATEX_SYMBOL_MAP[sym] || LATEX_SYMBOL_MAP['\\' + sym] || match;
+      });
+      // 2. Replace \symbol when followed by boundary or non-letter
+      seg = seg.replace(/\\([a-zA-Z]+)(?![a-zA-Z])/g, (match, sym) => {
+        return LATEX_SYMBOL_MAP['\\' + sym] || LATEX_SYMBOL_MAP[sym] || match;
+      });
+      parts[i] = seg;
+    }
+    return parts.join('');
+  }
+
+  function renderMathExpressions(container) {
+    const root = container || document.getElementById('content-body') || document.body;
+    if (typeof katex === 'undefined') return;
+
+    // 1. Render protected block equations
+    const blockMaths = root.querySelectorAll('.katex-display-block[data-tex]');
+    for (const el of blockMaths) {
+      if (el.dataset.katexRendered === 'true') continue;
+      const tex = el.getAttribute('data-tex');
+      try {
+        katex.render(tex, el, {
+          displayMode: true,
+          throwOnError: false
+        });
+        el.dataset.katexRendered = 'true';
+      } catch (err) {
+        console.warn('KaTeX block render error:', err);
+      }
+    }
+
+    // 2. Render protected inline equations
+    const inlineMaths = root.querySelectorAll('.katex-inline[data-tex], .katex-display-inline[data-tex]');
+    for (const el of inlineMaths) {
+      if (el.dataset.katexRendered === 'true') continue;
+      const tex = el.getAttribute('data-tex');
+      const isDisplay = el.classList.contains('katex-display-inline');
+      try {
+        katex.render(tex, el, {
+          displayMode: isDisplay,
+          throwOnError: false
+        });
+        el.dataset.katexRendered = 'true';
+      } catch (err) {
+        console.warn('KaTeX inline render error:', err);
+      }
+    }
+
+    // 3. Fallback: Run auto-render on unhandled text if renderMathInElement is loaded
+    if (typeof renderMathInElement === 'function') {
+      try {
+        renderMathInElement(root, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false }
+          ],
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+          throwOnError: false
+        });
+      } catch (e) {
+        // Fallback catch
+      }
+    }
+  }
+
+  window.renderMathExpressions = renderMathExpressions;
+  window.normalizeLatexSymbols = normalizeLatexSymbols;
+
   async function renderMermaidDiagrams(theme) {
     if (typeof mermaid === 'undefined') return;
 
     try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: theme === 'light' ? 'default' : 'dark',
-        securityLevel: 'loose',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      });
+      mermaid.initialize(getMermaidConfig(theme));
 
       const mermaidCodeBlocks = document.querySelectorAll('.content-body pre > code.language-mermaid, .content-body pre.mermaid');
       for (const codeEl of mermaidCodeBlocks) {
@@ -2328,14 +2723,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pre || pre.dataset.rendered === 'true') continue;
 
         const rawCode = codeEl.textContent.trim();
+        const processedCode = normalizeLatexSymbols(rawCode);
         const container = document.createElement('div');
         container.className = 'mermaid-diagram-container';
-        container.dataset.mermaidSrc = rawCode;
+        container.dataset.mermaidSrc = processedCode;
         container.dataset.rendered = 'true';
 
         const diagramEl = document.createElement('div');
         diagramEl.className = 'mermaid';
-        diagramEl.textContent = rawCode;
+        diagramEl.textContent = processedCode;
 
         container.appendChild(diagramEl);
         pre.replaceWith(container);
@@ -2344,6 +2740,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const unrenderedMermaid = document.querySelectorAll('.mermaid-diagram-container .mermaid:not([data-processed="true"])');
       if (unrenderedMermaid.length > 0) {
         await mermaid.run({ nodes: unrenderedMermaid });
+        normalizeMermaidSvgs();
       }
     } catch (err) {
       console.warn('Mermaid rendering error:', err);
@@ -2356,23 +2753,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (containers.length === 0) return;
 
     try {
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: theme === 'light' ? 'default' : 'dark',
-        securityLevel: 'loose',
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      });
+      mermaid.initialize(getMermaidConfig(theme));
 
       for (const container of containers) {
         const src = container.dataset.mermaidSrc;
+        const processedCode = normalizeLatexSymbols(src);
         const newDiv = document.createElement('div');
         newDiv.className = 'mermaid';
-        newDiv.textContent = src;
+        newDiv.textContent = processedCode;
         container.innerHTML = '';
         container.appendChild(newDiv);
       }
 
       await mermaid.run({ nodes: document.querySelectorAll('.mermaid-diagram-container .mermaid') });
+      normalizeMermaidSvgs();
     } catch (e) {
       console.warn('Mermaid re-render failed:', e);
     }
@@ -2705,7 +3099,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!contentBody || !tocContainer || !tocContent) return;
     
-    const headings = contentBody.querySelectorAll('h1, h2, h3');
+    const headings = Array.from(contentBody.querySelectorAll('h1, h2, h3')).filter(h => !h.closest('.modal-overlay'));
     if (headings.length === 0) return;
     
     // Show the TOC container
@@ -2940,6 +3334,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Run on page load
   initVideoEmbeds();
+  renderMathExpressions();
   renderVisualDiagrams();
   initAnchorLinks();
   generateTableOfContents();

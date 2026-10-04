@@ -38,6 +38,223 @@ if (!class_exists('QwikiParsedown')) {
     class QwikiParsedown extends Parsedown {
         protected $headingIds = [];
 
+        public static $symbolMap = [
+            // Arrows
+            'to' => '→',
+            '\\to' => '→',
+            'rightarrow' => '→',
+            '\\rightarrow' => '→',
+            'longrightarrow' => '→',
+            '\\longrightarrow' => '→',
+            'gets' => '←',
+            '\\gets' => '←',
+            'leftarrow' => '←',
+            '\\leftarrow' => '←',
+            'longleftarrow' => '←',
+            '\\longleftarrow' => '←',
+            'uparrow' => '↑',
+            '\\uparrow' => '↑',
+            'downarrow' => '↓',
+            '\\downarrow' => '↓',
+            'updownarrow' => '↕',
+            '\\updownarrow' => '↕',
+            'leftrightarrow' => '↔',
+            '\\leftrightarrow' => '↔',
+            'longleftrightarrow' => '↔',
+            '\\longleftrightarrow' => '↔',
+            'implies' => '⇒',
+            '\\implies' => '⇒',
+            'Rightarrow' => '⇒',
+            '\\Rightarrow' => '⇒',
+            'Leftarrow' => '⇐',
+            '\\Leftarrow' => '⇐',
+            'iff' => '⇔',
+            '\\iff' => '⇔',
+            'Leftrightarrow' => '⇔',
+            '\\Leftrightarrow' => '⇔',
+            'mapsto' => '↦',
+            '\\mapsto' => '↦',
+
+            // Comparison & Relations
+            'le' => '≤',
+            '\\le' => '≤',
+            'leq' => '≤',
+            '\\leq' => '≤',
+            'ge' => '≥',
+            '\\ge' => '≥',
+            'geq' => '≥',
+            '\\geq' => '≥',
+            'ne' => '≠',
+            '\\ne' => '≠',
+            'neq' => '≠',
+            '\\neq' => '≠',
+            'approx' => '≈',
+            '\\approx' => '≈',
+            'equiv' => '≡',
+            '\\equiv' => '≡',
+            'sim' => '∼',
+            '\\sim' => '∼',
+            'simeq' => '≃',
+            '\\simeq' => '≃',
+            'propto' => '∝',
+            '\\propto' => '∝',
+
+            // Operators & Sets
+            'pm' => '±',
+            '\\pm' => '±',
+            'mp' => '∓',
+            '\\mp' => '∓',
+            'times' => '×',
+            '\\times' => '×',
+            'div' => '÷',
+            '\\div' => '÷',
+            'cdot' => '·',
+            '\\cdot' => '·',
+            'circ' => '∘',
+            '\\circ' => '∘',
+            'bullet' => '•',
+            '\\bullet' => '•',
+            'infty' => '∞',
+            '\\infty' => '∞',
+            'in' => '∈',
+            '\\in' => '∈',
+            'notin' => '∉',
+            '\\notin' => '∉',
+            'subset' => '⊂',
+            '\\subset' => '⊂',
+            'supset' => '⊃',
+            '\\supset' => '⊃',
+            'subseteq' => '⊆',
+            '\\subseteq' => '⊆',
+            'supseteq' => '⊇',
+            '\\supseteq' => '⊇',
+            'cup' => '∪',
+            '\\cup' => '∪',
+            'cap' => '∩',
+            '\\cap' => '∩',
+            'empty' => '∅',
+            '\\empty' => '∅',
+            'emptyset' => '∅',
+            '\\emptyset' => '∅',
+            'forall' => '∀',
+            '\\forall' => '∀',
+            'exists' => '∃',
+            '\\exists' => '∃',
+            'nexists' => '∄',
+            '\\nexists' => '∄',
+            'partial' => '∂',
+            '\\partial' => '∂',
+            'nabla' => '∇',
+            '\\nabla' => '∇',
+            'sum' => '∑',
+            '\\sum' => '∑',
+            'prod' => '∏',
+            '\\prod' => '∏',
+            'int' => '∫',
+            '\\int' => '∫',
+            'sqrt' => '√',
+            '\\sqrt' => '√',
+            'therefore' => '∴',
+            '\\therefore' => '∴',
+            'because' => '∵',
+            '\\because' => '∵',
+
+            // Greek Alphabet (lowercase)
+            'alpha' => 'α',
+            '\\alpha' => 'α',
+            'beta' => 'β',
+            '\\beta' => 'β',
+            'gamma' => 'γ',
+            '\\gamma' => 'γ',
+            'delta' => 'δ',
+            '\\delta' => 'δ',
+            'epsilon' => 'ε',
+            '\\epsilon' => 'ε',
+            'zeta' => 'ζ',
+            '\\zeta' => 'ζ',
+            'eta' => 'η',
+            '\\eta' => 'η',
+            'theta' => 'θ',
+            '\\theta' => 'θ',
+            'iota' => 'ι',
+            '\\iota' => 'ι',
+            'kappa' => 'κ',
+            '\\kappa' => 'κ',
+            'lambda' => 'λ',
+            '\\lambda' => 'λ',
+            'mu' => 'μ',
+            '\\mu' => 'μ',
+            'nu' => 'ν',
+            '\\nu' => 'ν',
+            'xi' => 'ξ',
+            '\\xi' => 'ξ',
+            'pi' => 'π',
+            '\\pi' => 'π',
+            'rho' => 'ρ',
+            '\\rho' => 'ρ',
+            'sigma' => 'σ',
+            '\\sigma' => 'σ',
+            'tau' => 'τ',
+            '\\tau' => 'τ',
+            'upsilon' => 'υ',
+            '\\upsilon' => 'υ',
+            'phi' => 'φ',
+            '\\phi' => 'φ',
+            'chi' => 'χ',
+            '\\chi' => 'χ',
+            'psi' => 'ψ',
+            '\\psi' => 'ψ',
+            'omega' => 'ω',
+            '\\omega' => 'ω',
+
+            // Greek Alphabet (uppercase)
+            'Gamma' => 'Γ',
+            '\\Gamma' => 'Γ',
+            'Delta' => 'Δ',
+            '\\Delta' => 'Δ',
+            'Theta' => 'Θ',
+            '\\Theta' => 'Θ',
+            'Lambda' => 'Λ',
+            '\\Lambda' => 'Λ',
+            'Xi' => 'Ξ',
+            '\\Xi' => 'Ξ',
+            'Pi' => 'Π',
+            '\\Pi' => 'Π',
+            'Sigma' => 'Σ',
+            '\\Sigma' => 'Σ',
+            'Upsilon' => 'Υ',
+            '\\Upsilon' => 'Υ',
+            'Phi' => 'Φ',
+            '\\Phi' => 'Φ',
+            'Psi' => 'Ψ',
+            '\\Psi' => 'Ψ',
+            'Omega' => 'Ω',
+            '\\Omega' => 'Ω',
+
+            // Miscellaneous
+            'checkmark' => '✓',
+            '\\checkmark' => '✓',
+            'dag' => '†',
+            '\\dag' => '†',
+            'ddag' => '‡',
+            '\\ddag' => '‡',
+            'star' => '★',
+            '\\star' => '★',
+            'degree' => '°',
+            '\\degree' => '°',
+        ];
+
+        public function __construct() {
+            $this->BlockTypes['$'] = ['Math'];
+            $this->InlineTypes['$'] = ['Math'];
+            $this->inlineMarkerList .= '$';
+            if (isset($this->InlineTypes['\\'])) {
+                array_unshift($this->InlineTypes['\\'], 'MathSymbol');
+            } else {
+                $this->InlineTypes['\\'] = ['MathSymbol'];
+            }
+        }
+
         public function text($text) {
             $this->headingIds = [];
             return parent::text($text);
@@ -85,6 +302,168 @@ if (!class_exists('QwikiParsedown')) {
                 $Block['element']['attributes']['id'] = $this->generateUniqueHeadingId($arg);
             }
             return $Block;
+        }
+
+        protected function blockMath($Line) {
+            $text = trim($Line['text']);
+            if (strpos($text, '$$') !== 0) {
+                return;
+            }
+
+            // Single line display math: $$ formula $$
+            if (strlen($text) > 4 && substr($text, -2) === '$$') {
+                $formula = trim(substr($text, 2, -2));
+                return [
+                    'element' => [
+                        'name' => 'div',
+                        'text' => '$$' . $formula . '$$',
+                        'attributes' => [
+                            'class' => 'katex-display-block',
+                            'data-tex' => $formula,
+                        ],
+                    ],
+                ];
+            }
+
+            // Multi-line block math starting with $$
+            $initialContent = trim(substr($text, 2));
+            return [
+                'char' => '$',
+                'element' => [
+                    'name' => 'div',
+                    'text' => $initialContent,
+                    'attributes' => [
+                        'class' => 'katex-display-block',
+                    ],
+                ],
+                'closed' => false,
+            ];
+        }
+
+        protected function blockMathContinue($Line, $Block) {
+            if (!empty($Block['closed'])) {
+                return;
+            }
+
+            $text = trim($Line['text']);
+            if (strlen($text) >= 2 && substr($text, -2) === '$$') {
+                $closingContent = trim(substr($text, 0, -2));
+                if ($closingContent !== '') {
+                    $Block['element']['text'] = ($Block['element']['text'] !== '' ? $Block['element']['text'] . "\n" : '') . $closingContent;
+                }
+                $Block['element']['attributes']['data-tex'] = trim($Block['element']['text']);
+                $Block['element']['text'] = '$$' . $Block['element']['attributes']['data-tex'] . '$$';
+                $Block['closed'] = true;
+                return $Block;
+            }
+
+            $Block['element']['text'] = ($Block['element']['text'] !== '' ? $Block['element']['text'] . "\n" : '') . $Line['text'];
+            return $Block;
+        }
+
+        protected function blockMathComplete($Block) {
+            if (!isset($Block['element']['attributes']['data-tex'])) {
+                $tex = trim($Block['element']['text']);
+                if (substr($tex, 0, 2) === '$$' && substr($tex, -2) === '$$') {
+                    $tex = trim(substr($tex, 2, -2));
+                }
+                $Block['element']['attributes']['data-tex'] = $tex;
+                $Block['element']['text'] = '$$' . $tex . '$$';
+            }
+            return $Block;
+        }
+
+        protected function inlineMath($Excerpt) {
+            $text = $Excerpt['text'];
+            if ($text[0] !== '$') {
+                return;
+            }
+
+            // 1. Display math inline: $$...$$
+            if (substr($text, 0, 2) === '$$') {
+                if (preg_match('/^\$\$([^\$\n]+?)\$\$/', $text, $matches)) {
+                    $formula = trim($matches[1]);
+                    return [
+                        'extent' => strlen($matches[0]),
+                        'element' => [
+                            'name' => 'span',
+                            'text' => '$$' . $formula . '$$',
+                            'attributes' => [
+                                'class' => 'katex-display-inline',
+                                'data-tex' => $formula,
+                            ],
+                        ],
+                    ];
+                }
+                return;
+            }
+
+            // 2. Inline math: $...$
+            if (preg_match('/^\$([^\$\n\s](?:[^\$\n]*?[^\$\n\s])?)\$/', $text, $matches)) {
+                $content = $matches[1];
+
+                // Currency check: pure numbers (e.g. $50, $1,000, $4.99)
+                if (preg_match('/^\d+(?:,\d{3})*(?:\.\d+)?$/', $content)) {
+                    return;
+                }
+
+                // Check symbol shorthand map: e.g. $to$, $\to$, $alpha$
+                $lookup = ltrim($content, '\\');
+                if (isset(self::$symbolMap[$content])) {
+                    $sym = self::$symbolMap[$content];
+                } elseif (isset(self::$symbolMap['\\' . $lookup])) {
+                    $sym = self::$symbolMap['\\' . $lookup];
+                } elseif (isset(self::$symbolMap[$lookup])) {
+                    $sym = self::$symbolMap[$lookup];
+                } else {
+                    $sym = null;
+                }
+
+                if ($sym !== null) {
+                    return [
+                        'extent' => strlen($matches[0]),
+                        'element' => [
+                            'name' => 'span',
+                            'text' => $sym,
+                            'attributes' => [
+                                'class' => 'math-symbol-unicode',
+                                'data-symbol' => $content,
+                            ],
+                        ],
+                    ];
+                }
+
+                return [
+                    'extent' => strlen($matches[0]),
+                    'element' => [
+                        'name' => 'span',
+                        'text' => '$' . $content . '$',
+                        'attributes' => [
+                            'class' => 'katex-inline',
+                            'data-tex' => $content,
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        protected function inlineMathSymbol($Excerpt) {
+            if (preg_match('/^\\\\([a-zA-Z]+)/', $Excerpt['text'], $matches)) {
+                $macro = '\\' . $matches[1];
+                if (isset(self::$symbolMap[$macro])) {
+                    return [
+                        'extent' => strlen($matches[0]),
+                        'element' => [
+                            'name' => 'span',
+                            'text' => self::$symbolMap[$macro],
+                            'attributes' => [
+                                'class' => 'math-symbol-unicode',
+                                'data-symbol' => $macro,
+                            ],
+                        ],
+                    ];
+                }
+            }
         }
 
         protected function inlineLink($Excerpt) {
@@ -406,16 +785,38 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         $ogTitle = htmlspecialchars($docTitle . ' - ' . $siteTitle);
 
         $rawDesc = trim($activeChapter['description'] ?? '');
+        $htmlFileContent = '';
         if (empty($rawDesc)) {
-            $sourceText = !empty($rawMarkdownContent) ? $rawMarkdownContent : (!empty($renderedContent) ? strip_tags($renderedContent) : '');
-            if (!empty($sourceText)) {
-                $cleanSnippet = preg_replace('/```[\s\S]*?```/', '', $sourceText);
+            $chapterType = strtolower($activeChapter['type'] ?? 'markdown');
+            $docFilePath = (!empty($activeChapter) && !empty($activeChapter['file'])) ? ($baseDir . '/' . $activeChapter['file']) : '';
+
+            if (($chapterType === 'markdown' || $chapterType === 'md') && !empty($rawMarkdownContent)) {
+                $cleanSnippet = preg_replace('/```[\s\S]*?```/', '', $rawMarkdownContent);
                 $cleanSnippet = preg_replace('/!\[.*?\]\(.*?\)/', '', $cleanSnippet);
                 $cleanSnippet = preg_replace('/\[(.*?)\]\(.*?\)/', '$1', $cleanSnippet);
                 $cleanSnippet = preg_replace('/[#*_>`~=-]/', '', $cleanSnippet);
                 $cleanSnippet = trim(preg_replace('/\s+/', ' ', strip_tags($cleanSnippet)));
                 if (!empty($cleanSnippet)) {
                     $rawDesc = (mb_strlen($cleanSnippet) > 160) ? mb_substr($cleanSnippet, 0, 157) . '...' : $cleanSnippet;
+                }
+            } elseif (($chapterType === 'html' || preg_match('/\.(html|htm)$/i', $docFilePath)) && !empty($docFilePath) && file_exists($docFilePath)) {
+                $htmlFileContent = @file_get_contents($docFilePath) ?: '';
+                if (!empty($htmlFileContent)) {
+                    // 1. Check for explicit meta description in the HTML file itself
+                    if (preg_match('/<meta\s+[^>]*(?:name=["\']description["\']|property=["\']og:description["\'])[^>]*content=["\']([^"\']+)["\']/i', $htmlFileContent, $mDesc) ||
+                        preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:name=["\']description["\']|property=["\']og:description["\'])/i', $htmlFileContent, $mDesc)) {
+                        $rawDesc = trim(html_entity_decode($mDesc[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    }
+                    // 2. Fall back to body text, stripping scripts, styles, and markup
+                    if (empty($rawDesc)) {
+                        $cleanHtml = preg_replace('/<script\b[^>]*>[\s\S]*?<\/script>/i', '', $htmlFileContent);
+                        $cleanHtml = preg_replace('/<style\b[^>]*>[\s\S]*?<\/style>/i', '', $cleanHtml);
+                        $cleanHtml = preg_replace('/<head\b[^>]*>[\s\S]*?<\/head>/i', '', $cleanHtml);
+                        $cleanText = trim(preg_replace('/\s+/', ' ', strip_tags($cleanHtml)));
+                        if (!empty($cleanText)) {
+                            $rawDesc = (mb_strlen($cleanText) > 160) ? mb_substr($cleanText, 0, 157) . '...' : $cleanText;
+                        }
+                    }
                 }
             }
         }
@@ -439,6 +840,16 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     $ogImage = $firstImg;
                 } else {
                     $ogImage = rtrim($baseUrl, '/') . '/' . ltrim($firstImg, '/');
+                }
+            }
+        } elseif (!empty($htmlFileContent)) {
+            if (preg_match('/<meta\s+[^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])[^>]*content=["\']([^"\']+)["\']/i', $htmlFileContent, $mImg) ||
+                preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:property=["\']og:image["\']|name=["\']twitter:image["\'])/i', $htmlFileContent, $mImg)) {
+                $htmlImg = trim($mImg[1]);
+                if (preg_match('#^https?://#i', $htmlImg)) {
+                    $ogImage = $htmlImg;
+                } else {
+                    $ogImage = rtrim($baseUrl, '/') . '/' . ltrim($htmlImg, '/');
                 }
             }
         }
@@ -498,6 +909,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <!-- Toast UI Editor -->
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css" />
     <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/theme/toastui-editor-dark.min.css" />
+    <!-- KaTeX Mathematics -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 </head>
 <body class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 
@@ -870,6 +1283,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php endif; ?>
     </div>
 
+    <?php if (!$isAdmin && !$isViewer): ?>
     <!-- Login Modal -->
     <div class="modal-overlay" id="login-modal">
         <div class="modal-card">
@@ -880,16 +1294,17 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <form id="login-form">
                 <div class="form-group">
                     <label class="form-label" for="login-username">Username</label>
-                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" required>
+                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" autocomplete="username" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" required>
+                    <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" autocomplete="current-password" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Share Document Modal -->
     <div class="modal-overlay" id="share-modal">
@@ -943,16 +1358,16 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <button class="modal-close" data-close="users-modal">&times;</button>
             </div>
             
-            <form id="add-user-form" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+            <form id="add-user-form" autocomplete="off" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
                 <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Add New User</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
                     <div>
                         <label class="form-label">Username</label>
-                        <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" required>
+                        <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" autocomplete="off" required>
                     </div>
                     <div>
                         <label class="form-label">Password</label>
-                        <input type="password" name="password" class="form-control" placeholder="Set password" required>
+                        <input type="password" name="password" class="form-control" placeholder="Set password" autocomplete="new-password" required>
                     </div>
                     <div>
                         <label class="form-label">Role</label>
@@ -1674,7 +2089,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label" for="new-subwiki-pass">Initial Admin Password</label>
-                            <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" required>
+                            <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" autocomplete="new-password" required>
                         </div>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
@@ -1747,6 +2162,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/app.js?v=<?= @filemtime(__DIR__ . '/assets/js/app.js') ?: time() ?>"></script>
 

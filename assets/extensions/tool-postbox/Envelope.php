@@ -52,6 +52,27 @@ class Envelope {
     }
 
     /**
+     * Resolves the disk relative directory for a category ID based on the hierarchy.
+     */
+    public static function resolveCategoryFolder(array $nodes, string $targetId, ?string $parentFolder = null): ?string {
+        foreach ($nodes as $node) {
+            $nodeId = $node['id'] ?? null;
+            if ($nodeId === null) continue;
+            $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+            if ($nodeId === $targetId) {
+                return $curFolder;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $found = self::resolveCategoryFolder($node['items'], $targetId, $curFolder);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Detect MIME type safely based on file extension
      */
     public static function detectMimeType(string $path): string {
@@ -401,8 +422,10 @@ class Envelope {
         $existingCategory = $findCategory($config['books'] ?? [], $targetBookId);
         $categoryExists = ($existingCategory !== null);
 
-        // Ensure category physical directory exists in content/
-        $catDir = $baseDir . '/content/' . $targetBookId;
+        // Resolve hierarchical directory path for destination category
+        $targetRelDir = self::resolveCategoryFolder($config['books'] ?? [], $targetBookId) ?: ('content/' . $targetBookId);
+        $targetRelDir = trim($targetRelDir, '/\\');
+        $catDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($catDir)) {
             @mkdir($catDir, 0755, true);
         }
@@ -443,7 +466,7 @@ class Envelope {
             $counter++;
         }
 
-        $targetRelFile = 'content/' . $targetBookId . '/' . $slug . '.' . $ext;
+        $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
 
         // 3. Extract and remap referenced assets
         $content = $doc['content'] ?? '';

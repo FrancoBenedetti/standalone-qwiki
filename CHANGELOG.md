@@ -11,6 +11,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.16.0] - MathFlow - 2026-10-04
+
+### 📐 LaTeX / KaTeX Mathematical Formula & Symbol Rendering Architecture
+- **Markdown Math Shielding (`QwikiParsedown`)**: Extended backend Markdown parser with dedicated inline math (`$...$`) and display math (`$$...$$`) parsers. Bypasses Markdown emphasis formatting, preventing subscripts (`$x_1 + x_2$`) and asterisks (`$a * b$`) from being mangled into `<em>` tags.
+- **Publication-Grade KaTeX Display**: Integrated KaTeX v0.16.11 stylesheet and client-side rendering pipeline (`renderMathExpressions`), rendering both inline formulas and centered multi-line block equations with responsive horizontal scrolling (`overflow-x: auto`) and dark/light theme awareness.
+- **Seamless Mermaid Diagram Math Integration**:
+  - Pre-processes diagram code (`normalizeLatexSymbols`) before `mermaid.run()`, converting shorthand symbols (like `$to$`, `\to`, `\approx`, `\alpha`, `\le`) into native Unicode glyphs. This eliminates Mermaid parser crashes when users write `A --> |$to$| B` or `[x \to y]`.
+  - Preserves complex `$$...$$` blocks intact so Mermaid 10's native KaTeX engine can render equations inside node labels (e.g. `["$$\frac{a}{b}$$"]`).
+- **Comprehensive Symbol Shorthand Normalizer**: Built-in support for converting standard LaTeX commands and dollar shorthands to Unicode across arrows (`to`, `gets`, `implies`, `iff`), comparison operators (`approx`, `le`, `ge`, `ne`, `equiv`), operators/sets (`pm`, `times`, `div`, `infty`, `in`, `sum`, `partial`), and Greek alphabet (`alpha` through `Omega`).
+- **Strict Currency Protection**: Automatically distinguishes real math from standard prices and currency amounts (`$50`, `$1,000`, `$4.99`), preserving them as literal text.
+
+### 🧪 Automated Test Coverage
+- `tests/test_latex_rendering.php`: Automated PHP test suite verifying `QwikiParsedown` math block parsing, inline math shielding, symbol normalization, prose macros, and currency protection.
+- `tests/test_mermaid_latex.js`: JSDOM test suite verifying Mermaid diagram pre-processing, flowchart edge/node symbol conversion, and `$$...$$` formula preservation.
+
+---
+
+## [1.15.0] - DiagramFlow - 2026-10-03
+
+### 📊 Mermaid & Visual Diagram Scaling Architecture
+- **Natural Dimension Preservation**: Configured `useMaxWidth: false` across all Mermaid diagram types (`flowchart`, `sequence`, `gantt`, `journey`, `class`, `state`, `er`, `pie`, `quadrantChart`, `xyChart`, `requirement`, `mindmap`, `timeline`, `gitGraph`, `c4`, `sankey`, `block`), preventing wide diagrams from being squished down to the article column width.
+- **Responsive Horizontal Scrolling (`overflow-x: auto`)**: Diagrams wider than the viewport or article container now retain their full, sharp readability and allow smooth touch- and mouse-driven horizontal scrolling with start-aligned positioning (`scrollLeft = 0`), eliminating left-edge clipping.
+- **Dynamic Dimension Normalization (`normalizeMermaidSvgs`)**: Added automatic post-render SVG normalization that extracts intrinsic `viewBox` width and removes restrictive `max-width` inline constraints during both initial page render and live theme toggling (`reRenderMermaidDiagrams`).
+- **Flexible Container Centering**: Redesigned `.mermaid-diagram-container` as a block element with `text-align: center` and `.mermaid` as an `inline-flex` wrapper (`min-width: 100%`, `width: max-content`), allowing narrow diagrams to center naturally without distortion while removing the previous arbitrary `min-width: 680px` constraint.
+- **Dark & Light Mode Adaptation**: Ensured seamless live re-rendering on theme switches, maintaining full scaling and scrolling consistency.
+
+### 📬 Editorial Postbox CLI Proxy Enhancements
+- **Proxy Compatibility**: Added `james` proxy integration for `sani` across `qwiki-postbox.py` and installation scripts.
+
+### 🧪 Automated Test Coverage
+- `tests/test_mermaid_scaling.js`: Automated test suite verifying `qwiki.css` rules, Mermaid initialization options, and DOM SVG dimension normalization.
+
+---
+
+## [1.14.0] - IntegrityFlow - 2026-09-30
+
+### 🛡️ Category Hierarchy Integrity & Drag-and-Drop Safety Guards
+- **Automated Book Normalization (`Config::normalizeBooks`)**: Prevents navigation tree corruption by auto-rescuing stranded non-link documents dropped at root level into their appropriate parent categories based on content paths or the first available category folder. Prunes empty phantom categories that lack both an ID and document items.
+- **Root Reorder Interception**: Updated `api/admin.php` tree merge logic to prevent documents from being mistakenly dropped as top-level categories, maintaining clean folder structures during drag-and-drop operations.
+- **Corrupt & Phantom Category Deletion**: Added fallback in `delete_book` to allow administrators to remove corrupt or phantom categories lacking an ID by title.
+- **Sidebar Node Guard**: Hardened `Navigation::renderSidebarNode` to silently skip un-categorized non-link documents, preventing them from rendering as broken folder nodes in the sidebar.
+
+### ✉️ Form Page Extension: RFC-Compliant Email Deliverability & Anti-Spam Hardening
+- **RFC 2822 Anti-Spam Headers**: Added RFC-compliant headers to form notification emails, including `Date:` (`date('r')`), unique `Message-ID: <timestamp.random@domain>`, `MIME-Version: 1.0`, `Content-Transfer-Encoding: 8bit`, `X-Mailer: Qwiki Form Notifications`, and `Auto-Submitted: auto-generated` (preventing auto-responder loops and classifying automated alerts correctly).
+- **Envelope Sender (`-f`) Alignment**: Injected the envelope sender parameter `-f <senderEmail>` in PHP `mail()` calls to eliminate the mismatch between the `From:` header and the MTA's `Return-Path` (which previously defaulted to `www-data` or `apache` and triggered spam bucket routing).
+- **Dynamic `Reply-To:` Detection**: Automatically extracts the submitter's email address from submitted form fields and sets it as the `Reply-To` header, enabling administrators to directly reply to respondents from their email clients.
+- **Configurable Sender Email**: Added support for `"systemEmail"` or `"senderEmail"` in `qwiki.json`, cleanly falling back to `noreply@<clean-host>`.
+- **Delivery Error Diagnostics & Resilient Fallback**: Replaced silent error suppression with automated parameter fallback and error logging (`error_log`) when server MTA dispatch encounters issues.
+- **UI Label Clarification**: Updated the Form Builder modal to explicitly denote `Notification Email (optional, alerts on new response)`.
+
+### 🌐 Open Graph & Social Sharing Metadata Enhancements
+- **HTML Document OG Metadata Extraction**: Added automatic extraction of `<meta name="description">` or `<meta property="og:description">` and `<meta property="og:image">` from interactive HTML documents (`.html`), falling back to clean visible body text without scripts or styling.
+- **Markdown Snippet Cleaning**: Strips markdown code blocks/fences (```` ``` ````) from auto-generated social share summaries, preventing raw code syntax from leaking into link previews.
+- **Chapter Property Preservation**: Fixed `update_chapter_in_node` during share-key generation to preserve chapter descriptions, themes, and images.
+
+### 🔐 Security & Form Autofill Hardening
+- **Explicit Autocomplete Attributes**: Added appropriate `autocomplete` attributes (`username`, `current-password`, `new-password`, `off`) across the main login dialog, user management creation modal, and subwiki creation form to prevent browser password managers from auto-filling administrator credentials into administrative creation inputs.
+- **Viewer / Admin Modal Guard**: Restricts the login modal markup from rendering in the DOM when a user is already authenticated.
+
+### 🧪 Automated Test Coverage
+- `tests/test_og_metadata.php`: Unit and integration tests for chapter property preservation, HTML document Open Graph description/image extraction, and share-key generation safety.
+- `tests/tree_drag_root_protection_test.php`: Complete test suite covering document rescuing, phantom category pruning, root reorder interception, and phantom deletion.
+- `tests/test_form_page_extension.php`: Added Test 8 verifying form submission notifications with anti-spam headers and envelope sender dispatch.
+
+---
+
 ## [1.13.1] - AssistFlow - 2026-09-23
 
 ### 🤖 Gemini AI Assistant: Dynamic Model Discovery & Fallback
@@ -22,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dialog Modal Display & State Fixes**: Resolved CSS modal display issues with explicit `.open` and `.active` flex styling, backdrop click closing, and improved active chapter detection across toolbar edit states.
 
 ### 📬 Editorial Postbox & Desktop Transfer Hardening
+- **Document, Category & Bulk Selection Architecture**: Fixed broken DOM scraping in outbound transfers by migrating document and category population to authoritative API payloads (`ext_postbox_peers`). Outbound transfers now support grouped `<optgroup>` single document selection, interactive bulk checklist selection with category section headers, "Select All" / "Clear All" convenience toggles, and live selection counters.
+- **Hierarchical Sub-Category Navigation & Resolution**: Enhanced both outbound package creation and inbound staging/ingestion dialogs with full multi-level category hierarchies (`Navigation::getCategoriesHierarchy()`) displaying `↳` visual depth indentation and live document counts. Implemented `Envelope::resolveCategoryFolder()` to resolve nested sub-directory filesystem paths (e.g. `content/parent/sub/`) and insert ingested documents into their corresponding nested JSON hierarchy.
+- **Recursive Category Packaging & Disambiguation**: Added recursive document collection for parent categories in category transfer mode and unambiguous category identification (`bookId`) in single and bulk transfer modes.
 - **HTML Document Integrity in Staging & Ingestion**: Preserved full HTML document structures (including `<script>`, `<meta>`, `<form>`, and inline event handlers) during Postbox ingestion, ensuring interactive HTML applications and dashboards remain fully intact within their isolated sandboxed iframes.
 - **Automatic `<base href>` Injection**: Injects depth-aware `<base href="...">` tags into imported HTML documents so relative assets (`uploads/images/...`) resolve cleanly within iframe contexts.
 - **Media Asset Link Remapping**: Upgraded asset replacement logic to support trimmed and relative path formats (`./img/...` and `img/...`).
@@ -33,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Automated Test Coverage
 - `tests/test_gemini_dialog_open.js`: Comprehensive JSDOM functional suite verifying modal open/close lifecycle, settings modal transitions, LLM modal switches, backdrop clicks, and Escape key dismissal.
 - `tests/gemini_assistant_test.php`: Added test cases for `ext_gemini_list_models`, demo mode model synthesis, and clean configuration restoration.
-- `tests/postbox_test.php`: Added Test 6 verifying HTML document preservation, script retention, and base href injection.
+- `tests/postbox_test.php`: Added Test 6 (HTML document preservation, script retention, base href injection), Test 7 (nested sub-category folder resolution and ingestion), Test 8 (recursive category packaging), and Test 9 (bulk selection with category disambiguation).
 - `tests/cli_postbox_test.php`: Added Test 6 verifying HTML title extraction, media asset parsing, and BOM handling in desktop CLI transfers.
 
 ---

@@ -30,7 +30,8 @@ SUPPORTED_DOC_EXTS = {
     ".markdown": "markdown",
     ".html": "html",
     ".htm": "html",
-    ".pdf": "pdf"
+    ".pdf": "pdf",
+    ".json": "form"
 }
 
 SUPPORTED_ASSET_EXTS = {
@@ -287,6 +288,15 @@ def package_single_file(file_path: Path, title: str = None, category_hint: str =
                     clean_t = m.group(1).strip()
                     if clean_t:
                         doc_title = clean_t
+            elif doc_type == "form":
+                try:
+                    data = json.loads(content)
+                    if "title" in data and isinstance(data["title"], str):
+                        clean_t = data["title"].strip()
+                        if clean_t:
+                            doc_title = clean_t
+                except Exception:
+                    pass
 
         assets = extract_referenced_assets(file_path, content)
 
