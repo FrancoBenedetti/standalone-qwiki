@@ -51,7 +51,7 @@ Admins can control whether documentation is publicly readable or requires authen
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks & custom styles). Supports direct image uploading, importing existing local Markdown files, auto-embedded playable videos, and native Mermaid diagram flowcharts with uncompressed scaling and responsive horizontal scrolling.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks & custom styles). Supports mathematical formulas and LaTeX/KaTeX equations (`$...$`, `$$...$$`), automatic symbol shorthand normalization (`$to$`, `\to`, `\approx`, `\alpha`), direct image uploading, importing existing local Markdown files, auto-embedded playable videos, and native Mermaid diagram flowcharts with uncompressed scaling and responsive horizontal scrolling.
   - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with built-in **SunEditor WYSIWYG visual editor** and raw code view toggle for creating and in-place editing of `.html` pages.
   - **Interactive Forms (`.form.json`)**: Native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email alerts, webhooks, anti-spam honeypots, and CSV submission exports.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
@@ -219,4 +219,4 @@ standalone-qwiki/
 
 ## 📄 License & Credits
 
-Built with Parsedown, simple_html_dom, and Toast UI Editor. Free and open-source software under the MIT License.
+Built with Parsedown, KaTeX, simple_html_dom, and Toast UI Editor. Free and open-source software under the MIT License.

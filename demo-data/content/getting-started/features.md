@@ -17,6 +17,7 @@
   - **HTML5 Direct Video**: Native player for `.mp4`, `.webm`, `.ogg`, and `.mov` files with controls and download links.
   - **Subtitles & Captions**: Add a custom title using Markdown link syntax `[Video Title](https://...)` or image syntax `![Video Title](video.mp4)` to display an italicized caption below the player.
 - **Native Mermaid & Diagram Flowcharts**: Embed responsive flowcharts, sequence diagrams, state machines, class diagrams, entity-relationship diagrams, mindmaps, and timelines directly using standard fenced code blocks (` ```mermaid `). Wide diagrams automatically preserve full natural legibility with responsive horizontal scrolling without shrinking into unreadable miniatures.
+- **📐 Mathematical Formulas & LaTeX/KaTeX Rendering**: Natively format inline math (`$x_1 + x_2$`), display equation blocks (`$$...$$`), and convert LaTeX shorthand symbols (`$to$`, `\to`, `\approx`, `\alpha`, `\le`) seamlessly across both Markdown content and Mermaid diagrams with dark/light mode adaptation and responsive horizontal scrolling.
 - **Protected Markdown + HTML Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, and custom badges. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization and style loss (with refined detection allowing benign line breaks like `<br>`).
 
 ### B. HTML Documents (`.html`)

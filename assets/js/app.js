@@ -2424,6 +2424,293 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // ----------------------------------------------------
+  // LaTeX / KaTeX Mathematical Symbols & Normalization
+  // ----------------------------------------------------
+  const LATEX_SYMBOL_MAP = {
+    // Arrows
+    'to': '→',
+    '\\to': '→',
+    'rightarrow': '→',
+    '\\rightarrow': '→',
+    'longrightarrow': '→',
+    '\\longrightarrow': '→',
+    'gets': '←',
+    '\\gets': '←',
+    'leftarrow': '←',
+    '\\leftarrow': '←',
+    'longleftarrow': '←',
+    '\\longleftarrow': '←',
+    'uparrow': '↑',
+    '\\uparrow': '↑',
+    'downarrow': '↓',
+    '\\downarrow': '↓',
+    'updownarrow': '↕',
+    '\\updownarrow': '↕',
+    'leftrightarrow': '↔',
+    '\\leftrightarrow': '↔',
+    'longleftrightarrow': '↔',
+    '\\longleftrightarrow': '↔',
+    'implies': '⇒',
+    '\\implies': '⇒',
+    'Rightarrow': '⇒',
+    '\\Rightarrow': '⇒',
+    'Leftarrow': '⇐',
+    '\\Leftarrow': '⇐',
+    'iff': '⇔',
+    '\\iff': '⇔',
+    'Leftrightarrow': '⇔',
+    '\\Leftrightarrow': '⇔',
+    'mapsto': '↦',
+    '\\mapsto': '↦',
+
+    // Comparison & Relations
+    'le': '≤',
+    '\\le': '≤',
+    'leq': '≤',
+    '\\leq': '≤',
+    'ge': '≥',
+    '\\ge': '≥',
+    'geq': '≥',
+    '\\geq': '≥',
+    'ne': '≠',
+    '\\ne': '≠',
+    'neq': '≠',
+    '\\neq': '≠',
+    'approx': '≈',
+    '\\approx': '≈',
+    'equiv': '≡',
+    '\\equiv': '≡',
+    'sim': '∼',
+    '\\sim': '∼',
+    'simeq': '≃',
+    '\\simeq': '≃',
+    'propto': '∝',
+    '\\propto': '∝',
+
+    // Operators & Sets
+    'pm': '±',
+    '\\pm': '±',
+    'mp': '∓',
+    '\\mp': '∓',
+    'times': '×',
+    '\\times': '×',
+    'div': '÷',
+    '\\div': '÷',
+    'cdot': '·',
+    '\\cdot': '·',
+    'circ': '∘',
+    '\\circ': '∘',
+    'bullet': '•',
+    '\\bullet': '•',
+    'infty': '∞',
+    '\\infty': '∞',
+    'in': '∈',
+    '\\in': '∈',
+    'notin': '∉',
+    '\\notin': '∉',
+    'subset': '⊂',
+    '\\subset': '⊂',
+    'supset': '⊃',
+    '\\supset': '⊃',
+    'subseteq': '⊆',
+    '\\subseteq': '⊆',
+    'supseteq': '⊇',
+    '\\supseteq': '⊇',
+    'cup': '∪',
+    '\\cup': '∪',
+    'cap': '∩',
+    '\\cap': '∩',
+    'empty': '∅',
+    '\\empty': '∅',
+    'emptyset': '∅',
+    '\\emptyset': '∅',
+    'forall': '∀',
+    '\\forall': '∀',
+    'exists': '∃',
+    '\\exists': '∃',
+    'nexists': '∄',
+    '\\nexists': '∄',
+    'partial': '∂',
+    '\\partial': '∂',
+    'nabla': '∇',
+    '\\nabla': '∇',
+    'sum': '∑',
+    '\\sum': '∑',
+    'prod': '∏',
+    '\\prod': '∏',
+    'int': '∫',
+    '\\int': '∫',
+    'sqrt': '√',
+    '\\sqrt': '√',
+    'therefore': '∴',
+    '\\therefore': '∴',
+    'because': '∵',
+    '\\because': '∵',
+
+    // Greek Alphabet (lowercase)
+    'alpha': 'α',
+    '\\alpha': 'α',
+    'beta': 'β',
+    '\\beta': 'β',
+    'gamma': 'γ',
+    '\\gamma': 'γ',
+    'delta': 'δ',
+    '\\delta': 'δ',
+    'epsilon': 'ε',
+    '\\epsilon': 'ε',
+    'zeta': 'ζ',
+    '\\zeta': 'ζ',
+    'eta': 'η',
+    '\\eta': 'η',
+    'theta': 'θ',
+    '\\theta': 'θ',
+    'iota': 'ι',
+    '\\iota': 'ι',
+    'kappa': 'κ',
+    '\\kappa': 'κ',
+    'lambda': 'λ',
+    '\\lambda': 'λ',
+    'mu': 'μ',
+    '\\mu': 'μ',
+    'nu': 'ν',
+    '\\nu': 'ν',
+    'xi': 'ξ',
+    '\\xi': 'ξ',
+    'pi': 'π',
+    '\\pi': 'π',
+    'rho': 'ρ',
+    '\\rho': 'ρ',
+    'sigma': 'σ',
+    '\\sigma': 'σ',
+    'tau': 'τ',
+    '\\tau': 'τ',
+    'upsilon': 'υ',
+    '\\upsilon': 'υ',
+    'phi': 'φ',
+    '\\phi': 'φ',
+    'chi': 'χ',
+    '\\chi': 'χ',
+    'psi': 'ψ',
+    '\\psi': 'ψ',
+    'omega': 'ω',
+    '\\omega': 'ω',
+
+    // Greek Alphabet (uppercase)
+    'Gamma': 'Γ',
+    '\\Gamma': 'Γ',
+    'Delta': 'Δ',
+    '\\Delta': 'Δ',
+    'Theta': 'Θ',
+    '\\Theta': 'Θ',
+    'Lambda': 'Λ',
+    '\\Lambda': 'Λ',
+    'Xi': 'Ξ',
+    '\\Xi': 'Ξ',
+    'Pi': 'Π',
+    '\\Pi': 'Π',
+    'Sigma': 'Σ',
+    '\\Sigma': 'Σ',
+    'Upsilon': 'Υ',
+    '\\Upsilon': 'Υ',
+    'Phi': 'Φ',
+    '\\Phi': 'Φ',
+    'Psi': 'Ψ',
+    '\\Psi': 'Ψ',
+    'Omega': 'Ω',
+    '\\Omega': 'Ω',
+
+    // Miscellaneous
+    'checkmark': '✓',
+    '\\checkmark': '✓',
+    'dag': '†',
+    '\\dag': '†',
+    'ddag': '‡',
+    '\\ddag': '‡',
+    'star': '★',
+    '\\star': '★',
+    'degree': '°',
+    '\\degree': '°'
+  };
+
+  function normalizeLatexSymbols(code) {
+    if (!code || typeof code !== 'string') return code;
+
+    // Split by $$...$$ blocks to avoid replacing inside complex math formulas
+    const parts = code.split(/(\$\$[\s\S]*?\$\$)/g);
+    for (let i = 0; i < parts.length; i += 2) {
+      let seg = parts[i];
+      // 1. Replace $symbol$ or $\symbol$
+      seg = seg.replace(/\$(?:\\)?([a-zA-Z]+)\$/g, (match, sym) => {
+        return LATEX_SYMBOL_MAP[sym] || LATEX_SYMBOL_MAP['\\' + sym] || match;
+      });
+      // 2. Replace \symbol when followed by boundary or non-letter
+      seg = seg.replace(/\\([a-zA-Z]+)(?![a-zA-Z])/g, (match, sym) => {
+        return LATEX_SYMBOL_MAP['\\' + sym] || LATEX_SYMBOL_MAP[sym] || match;
+      });
+      parts[i] = seg;
+    }
+    return parts.join('');
+  }
+
+  function renderMathExpressions(container) {
+    const root = container || document.getElementById('content-body') || document.body;
+    if (typeof katex === 'undefined') return;
+
+    // 1. Render protected block equations
+    const blockMaths = root.querySelectorAll('.katex-display-block[data-tex]');
+    for (const el of blockMaths) {
+      if (el.dataset.katexRendered === 'true') continue;
+      const tex = el.getAttribute('data-tex');
+      try {
+        katex.render(tex, el, {
+          displayMode: true,
+          throwOnError: false
+        });
+        el.dataset.katexRendered = 'true';
+      } catch (err) {
+        console.warn('KaTeX block render error:', err);
+      }
+    }
+
+    // 2. Render protected inline equations
+    const inlineMaths = root.querySelectorAll('.katex-inline[data-tex], .katex-display-inline[data-tex]');
+    for (const el of inlineMaths) {
+      if (el.dataset.katexRendered === 'true') continue;
+      const tex = el.getAttribute('data-tex');
+      const isDisplay = el.classList.contains('katex-display-inline');
+      try {
+        katex.render(tex, el, {
+          displayMode: isDisplay,
+          throwOnError: false
+        });
+        el.dataset.katexRendered = 'true';
+      } catch (err) {
+        console.warn('KaTeX inline render error:', err);
+      }
+    }
+
+    // 3. Fallback: Run auto-render on unhandled text if renderMathInElement is loaded
+    if (typeof renderMathInElement === 'function') {
+      try {
+        renderMathInElement(root, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false }
+          ],
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+          throwOnError: false
+        });
+      } catch (e) {
+        // Fallback catch
+      }
+    }
+  }
+
+  window.renderMathExpressions = renderMathExpressions;
+  window.normalizeLatexSymbols = normalizeLatexSymbols;
+
   async function renderMermaidDiagrams(theme) {
     if (typeof mermaid === 'undefined') return;
 
@@ -2436,14 +2723,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pre || pre.dataset.rendered === 'true') continue;
 
         const rawCode = codeEl.textContent.trim();
+        const processedCode = normalizeLatexSymbols(rawCode);
         const container = document.createElement('div');
         container.className = 'mermaid-diagram-container';
-        container.dataset.mermaidSrc = rawCode;
+        container.dataset.mermaidSrc = processedCode;
         container.dataset.rendered = 'true';
 
         const diagramEl = document.createElement('div');
         diagramEl.className = 'mermaid';
-        diagramEl.textContent = rawCode;
+        diagramEl.textContent = processedCode;
 
         container.appendChild(diagramEl);
         pre.replaceWith(container);
@@ -2469,9 +2757,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       for (const container of containers) {
         const src = container.dataset.mermaidSrc;
+        const processedCode = normalizeLatexSymbols(src);
         const newDiv = document.createElement('div');
         newDiv.className = 'mermaid';
-        newDiv.textContent = src;
+        newDiv.textContent = processedCode;
         container.innerHTML = '';
         container.appendChild(newDiv);
       }
@@ -3045,6 +3334,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Run on page load
   initVideoEmbeds();
+  renderMathExpressions();
   renderVisualDiagrams();
   initAnchorLinks();
   generateTableOfContents();

@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.15.0';
+    const VERSION = '1.16.0';
 
     private static $baseDir = null;
     private static $configFile = null;

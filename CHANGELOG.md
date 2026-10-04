@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.16.0] - MathFlow - 2026-10-04
+
+### 📐 LaTeX / KaTeX Mathematical Formula & Symbol Rendering Architecture
+- **Markdown Math Shielding (`QwikiParsedown`)**: Extended backend Markdown parser with dedicated inline math (`$...$`) and display math (`$$...$$`) parsers. Bypasses Markdown emphasis formatting, preventing subscripts (`$x_1 + x_2$`) and asterisks (`$a * b$`) from being mangled into `<em>` tags.
+- **Publication-Grade KaTeX Display**: Integrated KaTeX v0.16.11 stylesheet and client-side rendering pipeline (`renderMathExpressions`), rendering both inline formulas and centered multi-line block equations with responsive horizontal scrolling (`overflow-x: auto`) and dark/light theme awareness.
+- **Seamless Mermaid Diagram Math Integration**:
+  - Pre-processes diagram code (`normalizeLatexSymbols`) before `mermaid.run()`, converting shorthand symbols (like `$to$`, `\to`, `\approx`, `\alpha`, `\le`) into native Unicode glyphs. This eliminates Mermaid parser crashes when users write `A --> |$to$| B` or `[x \to y]`.
+  - Preserves complex `$$...$$` blocks intact so Mermaid 10's native KaTeX engine can render equations inside node labels (e.g. `["$$\frac{a}{b}$$"]`).
+- **Comprehensive Symbol Shorthand Normalizer**: Built-in support for converting standard LaTeX commands and dollar shorthands to Unicode across arrows (`to`, `gets`, `implies`, `iff`), comparison operators (`approx`, `le`, `ge`, `ne`, `equiv`), operators/sets (`pm`, `times`, `div`, `infty`, `in`, `sum`, `partial`), and Greek alphabet (`alpha` through `Omega`).
+- **Strict Currency Protection**: Automatically distinguishes real math from standard prices and currency amounts (`$50`, `$1,000`, `$4.99`), preserving them as literal text.
+
+### 🧪 Automated Test Coverage
+- `tests/test_latex_rendering.php`: Automated PHP test suite verifying `QwikiParsedown` math block parsing, inline math shielding, symbol normalization, prose macros, and currency protection.
+- `tests/test_mermaid_latex.js`: JSDOM test suite verifying Mermaid diagram pre-processing, flowchart edge/node symbol conversion, and `$$...$$` formula preservation.
+
+---
+
 ## [1.15.0] - DiagramFlow - 2026-10-03
 
 ### 📊 Mermaid & Visual Diagram Scaling Architecture

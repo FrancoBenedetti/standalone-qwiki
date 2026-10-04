@@ -1114,6 +1114,40 @@ body {
   stroke: none !important;
 }
 
+/* LaTeX / KaTeX Mathematical Expressions */
+.katex-display-block {
+  margin: 1.25rem 0;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+  max-width: 100%;
+}
+
+.katex-display-block .katex-display {
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex-inline,
+.katex-display-inline,
+.math-symbol-unicode {
+  display: inline;
+}
+
+.content-body .katex {
+  color: inherit;
+  font-size: 1.05em;
+}
+
+.content-body .katex-display {
+  margin: 1rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
 .pdf-viewer-container {
   width: 100%;
   height: 800px;

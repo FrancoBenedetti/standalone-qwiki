@@ -101,6 +101,32 @@ Standalone Qwiki natively renders Mermaid diagrams directly from standard fenced
 
 ---
 
+## 📐 Mathematical Formulas & LaTeX/KaTeX Notation
+
+Standalone Qwiki natively renders mathematical notation, equations, and LaTeX symbols across both Markdown content and Mermaid diagrams:
+
+1. **Inline Math (`$...$`)**: Wrap formulas in single dollar signs (e.g. `$x_1 + x_2 = y_k$`). Underscores and asterisks are protected and will never be mangled into Markdown italics.
+2. **Display Equations (`$$...$$`)**: Write centered block equations on their own lines or in multi-line blocks:
+```
+$$
+\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
+$$
+```
+   Wide equations automatically support responsive horizontal scrolling to prevent overflowing columns on mobile and desktop viewports.
+3. **Shorthand & Symbol Normalization**: Common LaTeX symbols and shorthands are automatically converted into crisp Unicode characters:
+   - **Arrows**: `$to$`, `$\to$`, or `\to` render as `→`; `\gets` or `\leftarrow` as `←`; `\implies` as `⇒`; `\iff` as `⇔`.
+   - **Comparisons**: `\approx` as `≈`, `\le` as `≤`, `\ge` as `≥`, `\ne` as `≠`, `\equiv` as `≡`.
+   - **Operators & Sets**: `\pm` as `±`, `\times` as `×`, `\infty` as `∞`, `\in` as `∈`, `\sum` as `∑`, `\partial` as `∂`.
+   - **Greek Alphabet**: `\alpha` as `α`, `\beta` as `β`, `\theta` as `θ`, `\pi` as `π`, `\Delta` as `Δ`, `\Omega` as `Ω`.
+4. **Seamless Mermaid Diagram Support**:
+   - Write shorthands directly inside diagram edge labels and node descriptions without syntax crashes (e.g. `A --> |$to$| B` renders cleanly as `A --> |→| B`).
+   - Use `$$...$$` blocks inside node labels (e.g. `A["$$\frac{a}{b}$$"]`) to render publication-grade KaTeX typography directly inside your diagrams.
+5. **Theme & Currency Awareness**:
+   - Math equations inherit active theme colors in both dark and light modes.
+   - Standard currency amounts (e.g. `$50 and $100`) are protected and remain literal text.
+
+---
+
 ## 🤖 Gemini AI Assistant & Social Meta Generation
 
 Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API:
