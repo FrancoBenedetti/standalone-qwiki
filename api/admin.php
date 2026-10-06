@@ -7,6 +7,7 @@ require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
 require_once __DIR__ . '/../lib/Core/LlmAccess.php';
+require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -15,6 +16,7 @@ use Qwiki\Core\ExtensionManager;
 use Qwiki\Core\LockManager;
 use Qwiki\Core\SubwikiManager;
 use Qwiki\Core\LlmAccess;
+use Qwiki\Core\RemoteContentManager;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -1001,6 +1003,14 @@ switch ($action) {
             exit;
         }
         $relFile = $_POST['file'] ?? '';
+        $slug = $_POST['slug'] ?? '';
+        if (!empty($slug)) {
+            $ch = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+            if ($ch && ($ch['type'] ?? '') === 'remote') {
+                echo json_encode(['success' => false, 'error' => 'Remote documents cannot be edited locally (Single Source of Truth).']);
+                exit;
+            }
+        }
         if (Config::isChapterProtected($relFile, $config['books'] ?? [])) {
             echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited.']);
             exit;
@@ -1336,6 +1346,104 @@ switch ($action) {
         }
         Config::save($config);
         echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
+    case 'add_remote':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $cacheTtl = !empty($_POST['cacheTtl']) ? max(60, (int)$_POST['cacheTtl']) : 3600;
+
+        if (empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Remote sharelink URL is required']);
+            exit;
+        }
+
+        // Validate URL protocol and SSRF safety
+        if (!RemoteContentManager::validateUrlSafety($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe remote URL']);
+            exit;
+        }
+
+        // Auto-fetch title if title was not provided
+        if (empty($title)) {
+            $fetched = RemoteContentManager::fetchRemoteDocument($url, $cacheTtl, true);
+            if (!empty($fetched['title'])) {
+                $title = $fetched['title'];
+            } else {
+                $title = 'Remote Document';
+            }
+        } else {
+            // Eagerly warm the cache
+            RemoteContentManager::fetchRemoteDocument($url, $cacheTtl, true);
+        }
+
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
+
+        $remoteData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'remote',
+            'url' => $url,
+            'readOnly' => true,
+            'editable' => false,
+            'cacheTtl' => $cacheTtl
+        ];
+        if (!empty($description)) {
+            $remoteData['description'] = $description;
+        }
+
+        if (empty($bookId)) {
+            $config['books'][] = $remoteData;
+        } else {
+            $added = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $bookId, $remoteData)) {
+                    $added = true;
+                    break;
+                }
+            }
+            if (!$added) {
+                $config['books'][] = $remoteData;
+            }
+        }
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
+    case 'refresh_remote_cache':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? $_GET['slug'] ?? '');
+        $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
+
+        if (empty($url) && !empty($slug)) {
+            $ch = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+            if ($ch && !empty($ch['url'])) {
+                $url = $ch['url'];
+            }
+        }
+
+        if (empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Target document URL or slug not found']);
+            exit;
+        }
+
+        $res = RemoteContentManager::fetchRemoteDocument($url, 3600, true);
+        echo json_encode([
+            'success' => !empty($res['success']),
+            'is_stale' => !empty($res['is_stale']),
+            'cached_at' => $res['cached_at'] ?? time(),
+            'error' => $res['error'] ?? null
+        ]);
         break;
 
     case 'delete_chapter':

@@ -5,6 +5,21 @@
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
 use Qwiki\Core\LockManager;
+use Qwiki\Core\Navigation;
+
+if (!class_exists('Qwiki\Core\Navigation')) {
+    $navCandidates = [
+        Config::getBaseDir() . '/lib/Core/Navigation.php',
+        dirname(__DIR__, 3) . '/lib/Core/Navigation.php',
+        __DIR__ . '/../../../lib/Core/Navigation.php'
+    ];
+    foreach ($navCandidates as $candidate) {
+        if (file_exists($candidate)) {
+            require_once $candidate;
+            break;
+        }
+    }
+}
 
 if (!Auth::isAdmin()) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -13,27 +28,15 @@ if (!Auth::isAdmin()) {
 
 if (!function_exists('ensure_html_base_href')) {
     function ensure_html_base_href($content, $filePath) {
-        if (empty($content) || preg_match('/<base\s+[^>]*href=/i', $content)) {
-            return $content;
-        }
-
-        $dir = dirname(str_replace('\\', '/', $filePath));
-        $segments = array_filter(explode('/', $dir), function($s) { return $s !== '' && $s !== '.'; });
-        $depth = count($segments);
-        $relativeBase = $depth > 0 ? str_repeat('../', $depth) : './';
-
-        if (preg_match('/<head[^>]*>/i', $content)) {
-            return preg_replace('/(<head[^>]*>)/i', "$1\n    <base href=\"{$relativeBase}\">", $content, 1);
-        }
-
-        return "<base href=\"{$relativeBase}\">\n" . $content;
+        return Config::ensureHtmlBaseHref($content, $filePath);
     }
 }
 
 if (!function_exists('find_target_folder')) {
     function find_target_folder(&$node, $targetId) {
         if (($node['id'] ?? '') === $targetId) {
-            return $node['folder'] ?? $node['id'];
+            $folder = $node['folder'] ?? $node['id'];
+            return ltrim(preg_replace('#^content/#i', '', $folder), '/');
         }
         if (!empty($node['items'])) {
             foreach ($node['items'] as &$child) {
@@ -41,6 +44,10 @@ if (!function_exists('find_target_folder')) {
                     $found = find_target_folder($child, $targetId);
                     if ($found !== null) {
                         $parentFolder = $node['folder'] ?? $node['id'];
+                        $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
+                        if (strpos($found, $parentFolder . '/') === 0) {
+                            return $found;
+                        }
                         return $parentFolder . '/' . $found;
                     }
                 }
@@ -264,17 +271,41 @@ if (file_put_contents($absolutePath, $content) === false) {
     return;
 }
 
+$shareKey = !empty($_POST['shareKey']) ? trim($_POST['shareKey']) : Navigation::generateShareKey();
+while (Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey) !== null) {
+    $shareKey = Navigation::generateShareKey();
+}
+
 $chapterData = [
     'title' => $title,
     'slug' => $slug,
     'type' => 'html',
-    'file' => $filePath
+    'file' => $filePath,
+    'shareKey' => $shareKey
 ];
 if (!empty($description)) {
     $chapterData['description'] = $description;
 }
 if (!empty($image)) {
     $chapterData['image'] = $image;
+}
+if (!empty($_POST['translations'])) {
+    $translations = $_POST['translations'];
+    if (is_string($translations)) {
+        $decoded = json_decode($translations, true);
+        if (is_array($decoded)) $translations = $decoded;
+    }
+    if (is_array($translations)) {
+        $cleanTranslations = [];
+        foreach ($translations as $lang => $transSlug) {
+            if (is_string($lang) && is_string($transSlug) && preg_match('/^[a-zA-Z0-9\-_]{2,10}$/', $lang) && preg_match('/^[a-zA-Z0-9\-_]+$/', $transSlug)) {
+                $cleanTranslations[$lang] = $transSlug;
+            }
+        }
+        if (!empty($cleanTranslations)) {
+            $chapterData['translations'] = $cleanTranslations;
+        }
+    }
 }
 
 $inserted = false;
@@ -286,11 +317,14 @@ foreach ($config['books'] as &$book) {
 }
 
 if ($inserted && Config::save($config)) {
+    $baseUrl = Config::getBaseUrl();
     echo json_encode([
         'success' => true,
         'slug' => $slug,
         'bookId' => $bookId,
-        'file' => $filePath
+        'file' => $filePath,
+        'shareKey' => $shareKey,
+        'shareUrl' => $baseUrl . '?share=' . urlencode($shareKey)
     ]);
 } else {
     echo json_encode(['success' => false, 'error' => 'Failed to save configuration']);

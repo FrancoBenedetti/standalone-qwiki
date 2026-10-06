@@ -9,6 +9,8 @@ test_*                  export-ignore
 # Developer / Agent Guidelines & Tooling
 /AGENTS.md              export-ignore
 /demo-reload.php        export-ignore
+/docs                   export-ignore
+docs/**                 export-ignore
 /.gitignore             export-ignore
 /.gitattributes         export-ignore
 /.github                export-ignore

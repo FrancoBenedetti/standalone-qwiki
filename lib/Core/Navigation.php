@@ -279,7 +279,7 @@ class Navigation {
                     $chTheme = htmlspecialchars($ch['theme'] ?? '');
                     $chDesc = htmlspecialchars($ch['description'] ?? '');
                     $chImg = htmlspecialchars($ch['image'] ?? '');
-                    $isChReadOnly = !empty($ch['readOnly']) || (isset($ch['editable']) && $ch['editable'] === false);
+                    $isChReadOnly = !empty($ch['readOnly']) || (isset($ch['editable']) && $ch['editable'] === false) || $docType === 'remote';
                     $readOnlyAttr = $isChReadOnly ? "data-doc-readonly='1'" : "";
                     $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title'] ?? '') . "' data-doc-slug='" . htmlspecialchars($ch['slug'] ?? '') . "' data-doc-type='" . htmlspecialchars($docType) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}' {$readOnlyAttr}" : "";
 
@@ -303,6 +303,8 @@ class Navigation {
                                 $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 8.5c0 .8-.7 1.5-1.5 1.5H7v2H5.5V9H8c.8 0 1.5.7 1.5 1.5v1zm5 2c0 .8-.7 1.5-1.5 1.5h-2.5V9H13c.8 0 1.5.7 1.5 1.5v3zm3.5-3.5h-2.5v1.5H17V13h-1.5v2H14V9h4v1.5zM7 10.5h1v1H7v-1zm5.5 0h1v3h-1v-3z"/></svg>';
                             } elseif ($docType === 'gdoc') {
                                 $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M14.5 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zM14 8V3.5L18.5 8H14zm-6 3h8v1.5H8V11zm0 3h8v1.5H8V14zm0 3h5v1.5H8V17z"/></svg>';
+                            } elseif ($docType === 'remote') {
+                                $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>';
                             } else {
                                 $iconSvg = htmlspecialchars($docType);
                             }

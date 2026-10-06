@@ -11,6 +11,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.17.0] - FederaFlow - 2026-10-06
+
+### 🌐 Federated Remote Documents & Cross-Wiki Transclusion
+- **Single Source of Truth Architecture**: Link and transclude documents hosted on other Qwiki instances using public `?share=...` sharelinks (`type: "remote"`). Remote documents render natively with standard wiki typography while remaining locked against local modifications to prevent content divergence.
+- **JSON Content Negotiation for Sharelinks**: Enhanced reader route (`index.php`) with automated content negotiation (`?format=json` or `Accept: application/json`), serving structured document JSON (`title`, `slug`, `type`, `description`, `content`, `origin`, `lastModified`, `readOnly: true`).
+- **Resilient Caching Engine & Offline Fallback**: Real-time fetching paired with filesystem caching (`RemoteContentManager::fetchRemoteDocument`), configurable cache TTL (default 1 hour), stale cache fallback with advisory warning banners when the origin wiki is unreachable, and a 1-click admin **`🔄 Refresh`** button in the document header.
+- **Enterprise SSRF Protection**: `RemoteContentManager::validateUrlSafety` guards against Server-Side Request Forgery by blocking IPv4 loopback (`127.0.0.1`), link-local and cloud metadata endpoints (`169.254.169.254`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), local domains (`.local`), and unauthorized protocols.
+- **Dynamic Relative Asset & Image URL Rewriting**: Automatically rewrites relative image paths in Markdown (`![alt](images/...)`) and HTML (`<img src="...">`) to point to the origin wiki's canonical base URL.
+- **Provenance & Status Banners**: Displays origin wiki links, live sync timestamps, and Single Source of Truth indicators directly in the reading interface.
+- **Unified Search Integration & Eager Cache Warming**: Search indexer (`api/search.php`) warms remote document caches and extracts plain text for full-text search discovery.
+- **Dedicated Admin UI Tab**: Added **`🌐 Remote Sharelink`** tab to the **New Document** modal for 1-click document federation.
+
+### 🚀 Headless HTML & Markdown Publishing API with Automated Share Keys
+- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY`.
+- **HTML Sanitization & Style Preservation**: Added `Config::sanitizeHtml` to safely allow `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
+- **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
+- **Automatic `<base href>` Path Resolution**: Injected `Config::ensureHtmlBaseHref` automatically resolves relative paths based on document folder depth.
+- **Multilingual Companion Metadata**: Supports `translations` dictionary in document nodes, enabling localized companion document resolution.
+- **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
+
+### 🧪 Automated Test Coverage
+- `tests/test_remote_sharelink.php`: 39 automated assertions validating SSRF protection, relative asset rewriting, cache management, offline fallback, search extraction, JSON content negotiation, and save guards.
+- `tests/test_headless_html_publish.php`: 41 automated assertions verifying API authentication, Markdown compatibility, headless HTML publishing, XSS neutralization, nested category targeting, and share link resolution.
+- `tests/test_html_page_extension.php`: 20 assertions covering HTML extension actions and automated share key generation.
+
+---
+
 ## [1.16.0] - MathFlow - 2026-10-04
 
 ### 📐 LaTeX / KaTeX Mathematical Formula & Symbol Rendering Architecture

@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.16.0';
+    const VERSION = '1.17.0';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -519,5 +519,63 @@ class Config {
         $config['postboxPeers'] = array_values($peers);
         return self::save($config);
     }
+
+    /**
+     * Ensures an HTML document has an appropriate <base href="..."> tag
+     * resolving relative paths based on document depth.
+     *
+     * @param string $content HTML file content
+     * @param string $filePath Relative document path (e.g. content/category/slug.html)
+     * @return string Modified HTML content
+     */
+    public static function ensureHtmlBaseHref(string $content, string $filePath): string {
+        if (empty($content) || preg_match('/<base\s+[^>]*href=/i', $content)) {
+            return $content;
+        }
+
+        $dir = dirname(str_replace('\\', '/', $filePath));
+        $segments = array_filter(explode('/', $dir), function($s) { return $s !== '' && $s !== '.'; });
+        $depth = count($segments);
+        $relativeBase = $depth > 0 ? str_repeat('../', $depth) : './';
+
+        if (preg_match('/<head[^>]*>/i', $content)) {
+            return preg_replace('/(<head[^>]*>)/i', "$1\n    <base href=\"{$relativeBase}\">", $content, 1);
+        }
+
+        return "<base href=\"{$relativeBase}\">\n" . $content;
+    }
+
+    /**
+     * Sanitizes raw HTML for self-contained documents (dossiers, reports).
+     * Preserves <style>, @media print, <meta>, SVG, tables, and styling,
+     * while stripping active execution vectors (<script>, inline event handlers, javascript: URIs).
+     *
+     * @param string $html Raw HTML content
+     * @return string Sanitized HTML content
+     */
+    public static function sanitizeHtml(string $html): string {
+        if (empty($html)) {
+            return '';
+        }
+
+        // 1. Remove dangerous executable tags with content
+        $dangerousTags = ['script', 'object', 'embed', 'applet', 'iframe', 'form'];
+        foreach ($dangerousTags as $tag) {
+            $html = preg_replace('/<\s*' . $tag . '\b[^>]*>[\s\S]*?<\s*\/\s*' . $tag . '\s*>/is', '', $html);
+            // Clean up any unclosed or stray tags
+            $html = preg_replace('/<\s*\/?\s*' . $tag . '\b[^>]*>/is', '', $html);
+        }
+
+        // 2. Remove inline event handlers (e.g. onload=..., onerror=..., onclick=...)
+        $html = preg_replace('/\s+on[a-zA-Z]+\s*=\s*(["\']).*?\1/is', '', $html);
+        $html = preg_replace('/\s+on[a-zA-Z]+\s*=\s*[^>\s]+/is', '', $html);
+
+        // 3. Neutralize javascript: and data:text/html pseudo-protocols
+        $html = preg_replace('/href\s*=\s*(["\']?)\s*(?:javascript:|data:text\/html)[^"\'\s>]*\1?/is', 'href="#"', $html);
+        $html = preg_replace('/src\s*=\s*(["\']?)\s*(?:javascript:|data:text\/html)[^"\'\s>]*\1?/is', 'src=""', $html);
+
+        return $html;
+    }
 }
+
 

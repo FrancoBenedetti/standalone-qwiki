@@ -16,11 +16,16 @@ $baseDir = Config::getBaseDir();
 $isAdmin = Auth::isAdmin();
 $isViewer = Auth::isViewer();
 
+require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
+
 $query = strtolower(trim($_GET['q'] ?? ''));
 if (empty($query)) {
     echo json_encode(['success' => true, 'results' => []]);
     exit;
 }
+
+// Ensure all remote documents have cached content for comprehensive search coverage
+\Qwiki\Core\RemoteContentManager::warmAllRemoteCaches($config['books'] ?? []);
 
 $results = [];
 $extManager = ExtensionManager::getInstance();

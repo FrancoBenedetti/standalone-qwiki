@@ -1337,6 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
   submitAdminForm('tab-upload', 'upload_file');
   submitAdminForm('tab-gdoc', 'add_gdoc');
   submitAdminForm('tab-link', 'add_link');
+  submitAdminForm('tab-remote', 'add_remote');
   submitAdminForm('edit-chapter-form', 'edit_chapter');
   submitAdminForm('edit-link-form', 'edit_chapter');
   submitAdminForm('replace-document-form', 'replace_document_file');
@@ -1405,6 +1406,35 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.reload();
     });
   }
+
+  // Refresh Remote Document Cache handler
+  document.addEventListener('click', async (e) => {
+    const btnRefresh = e.target.closest('.btn-refresh-remote-cache');
+    if (!btnRefresh) return;
+    const slug = btnRefresh.getAttribute('data-slug') || '';
+    const origText = btnRefresh.textContent;
+    btnRefresh.disabled = true;
+    btnRefresh.textContent = '🔄 Syncing...';
+    try {
+      const formData = new FormData();
+      formData.append('action', 'refresh_remote_cache');
+      formData.append('slug', slug);
+      const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('❌ Failed to refresh cache: ' + (data.error || 'Unknown error'));
+        btnRefresh.disabled = false;
+        btnRefresh.textContent = origText;
+      }
+    } catch (err) {
+      console.error('Refresh remote cache failed:', err);
+      alert('❌ Network error while refreshing remote cache.');
+      btnRefresh.disabled = false;
+      btnRefresh.textContent = origText;
+    }
+  });
 
   // ----------------------------------------------------
   // Inline Markdown Editor (Toast UI)

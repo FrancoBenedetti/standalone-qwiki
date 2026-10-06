@@ -221,3 +221,31 @@ Intelligent conflict detection and in-place replacement safeguards streamline do
 - **Option 2: Upload as Copy (Auto-Incremented Slug)**: Automatically increments numeric suffixes (`my-doc-1`, `my-doc-2`) or accepts a custom slug, verifying uniqueness against both the navigation tree and physical files on disk before saving.
 - **Direct "Replace File" Action**: In the document toolbar (`btn-replace-document`) and document properties modal (`⚙️ Edit Details`), administrators can upload a new file directly to replace the active document without deleting or recreating the navigation node.
 
+---
+
+## 🌐 18. Federated Remote Documents & Cross-Wiki Transclusion
+
+Standalone Qwiki enables multiple independent wikis to federate and transclude documents across separate domains and instances while maintaining strict Single Source of Truth authority:
+
+- **Single Source of Truth Architecture**: Link and transclude documents hosted on other Qwiki instances using public `?share=...` sharelinks (`type: "remote"`). Remote documents are rendered natively with standard wiki typography while remaining locked against local modifications to prevent content divergence.
+- **Machine-Readable Content Negotiation**: Sharelinks support clean JSON content negotiation (`?format=json` or `Accept: application/json`), serving structured document JSON (`title`, `slug`, `type`, `description`, `content`, `origin`, `lastModified`, `readOnly: true`).
+- **Resilient Caching Engine & Offline Fallback**: Real-time fetching paired with filesystem caching (`RemoteContentManager::fetchRemoteDocument`), configurable cache TTL (default 1 hour), stale cache fallback with advisory warning banners when the origin wiki is unreachable, and a 1-click admin **`🔄 Refresh`** button in the document header.
+- **Enterprise SSRF Protection**: `RemoteContentManager::validateUrlSafety` guards against Server-Side Request Forgery by blocking IPv4 loopback (`127.0.0.1`), link-local and cloud metadata endpoints (`169.254.169.254`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), local domains (`.local`), and unauthorized protocols.
+- **Dynamic Relative Asset & Image URL Rewriting**: Automatically rewrites relative image paths in Markdown (`![alt](images/...)`) and HTML (`<img src="...">`) to point to the origin wiki's canonical base URL.
+- **Provenance & Status Banners**: Displays origin wiki links, live sync timestamps, and Single Source of Truth indicators directly in the reading interface.
+- **Unified Search Integration & Eager Cache Warming**: Search indexer warms remote document caches and extracts plain text for full-text search discovery.
+- **Dedicated Admin UI Tab**: Added **`🌐 Remote Sharelink`** tab to the **New Document** modal for 1-click document federation.
+
+---
+
+## 🚀 19. Headless HTML & Markdown Publishing API with Automated Share Keys
+
+External automation pipelines, CI/CD runners, and reporting systems can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
+
+- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY`.
+- **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
+- **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
+- **Automatic `<base href>` Path Resolution**: `Config::ensureHtmlBaseHref` automatically resolves relative paths based on document folder depth.
+- **Multilingual Companion Metadata**: Supports `translations` dictionary in document nodes, enabling localized companion document resolution across language switchers.
+- **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
+

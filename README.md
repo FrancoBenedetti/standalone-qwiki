@@ -82,6 +82,8 @@ Admins can control whether documentation is publicly readable or requires authen
 - **🤖 Controlled LLM & AI Agent Access Pipeline**: Dedicated, key-authenticated REST API (`/api/llm.php`) tailored for Large Language Models, autonomous coding agents (Claude Desktop, Cursor, Gemini CLI), and local RAG pipelines. Features category branch scoping, permitted format filtering, token estimation, live search, standard `llms.txt` Markdown export, and OpenAPI 3.0 tool schemas.
 - **✨ Native Gemini AI Assistant**: Built-in utility extension (`tool-gemini-assistant`) leveraging Google's Gemini models (with automated model discovery & API version fallback) to analyze active document content, synthesize concise descriptions, generate discovery tags, and preview interactive OpenGraph / Social Share cards with 1-click application to `qwiki.json`.
 - **🔄 Smart Upload Conflict Resolution & In-Place Replacement**: Automatically intercepts filename and slug collisions during file uploads, providing 1-click options to either replace document content in-place (preserving URLs, categories, custom themes, and share tokens) or upload as a copy with auto-incremented slugs. Features a dedicated "Replace Document Content" toolbar button.
+- **🌐 Federated Remote Documents & Cross-Wiki Transclusion**: Transclude and render documents hosted on external Qwiki instances via public sharelinks (`type: "remote"`). Enforces Single Source of Truth read-only protection against local divergence, provides enterprise SSRF defense, automatically rewrites relative asset paths to origin canonical URLs, caches payloads locally with offline stale fallback, and features an instant admin sync button.
+- **🚀 Headless Publishing API & Automated Share Keys**: External automation pipelines can programmatically publish self-contained HTML reports and Markdown articles headlessly via `api/publish.php` using `X-API-Key` authentication. Safely preserves `<style>`, `@media print`, SVG, and meta tags while neutralizing XSS vectors, automatically generates cryptographic 16-character share keys with ready-to-use share URLs, resolves `<base href>` path depths, and binds multilingual companion translations.
 - **🛡️ Security Hardening**:
   - `.htaccess` blocks direct browser downloads of `.json` configuration and user store files.
   - Strict path traversal prevention (`realpath` + project root boundary checks).
@@ -202,6 +204,7 @@ standalone-qwiki/
 │   │   ├── Config.php         # Config persistence and path validation
 │   │   ├── LlmAccess.php      # LLM tree indexing, token estimation, and scope guard
 │   │   ├── Navigation.php     # Tree traversal, breadcrumbs, next/prev links
+│   │   ├── RemoteContentManager.php # Federated cross-wiki document caching & SSRF guard
 │   │   └── ExtensionManager.php # Dynamic discovery and hook registry
 │   ├── Parsedown.php          # Markdown parser
 │   └── simple_html_dom.php    # HTML DOM cleaner for Google Docs
