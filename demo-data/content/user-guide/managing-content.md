@@ -13,6 +13,7 @@ Click the **`New Document`** button at the top of the sidebar navigation (or **`
 4. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree. If a file with the same identifier already exists, an interactive conflict resolution modal lets you either replace the existing document in-place or upload as a copy with an auto-incremented slug.
 5. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
 6. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
+7. **Remote Sharelinks (`remote`)**: Transclude a document from another Qwiki instance using its public `?share=...` link. The document is rendered natively, cached locally, and locked as read-only (Single Source of Truth).
 
 ---
 
@@ -217,3 +218,48 @@ The **Postbox** extension provides an asynchronous document transfer pipeline to
   - **Windows (File Explorer)**: Right-click any document or folder ➔ `Send to` ➔ `Send to Qwiki`.
   - **macOS (Finder)**: Right-click any document or folder ➔ `Quick Actions` ➔ `Send to Qwiki`.
   - **Terminal / CI/CD**: Run `python3 qwiki-postbox.py send path/to/file.md --category "Guides"`.
+
+---
+
+## 🌐 Federated Remote Documents (Single Source of Truth)
+
+To embed authoritative documentation from another Qwiki installation without duplicating files or risking content drift:
+
+1. Click **`New Document`** in the left sidebar and choose the **`🌐 Remote Sharelink`** tab.
+2. Select the target category/folder.
+3. Paste the full share URL from the origin wiki (e.g. `https://origin-wiki.example.com/?share=7c8e2a1d9f4b3e6c`).
+4. Enter an optional title (or leave blank to auto-detect the title directly from the origin wiki).
+5. Click **Link Remote Document**.
+
+### Key Behaviors:
+- **Single Source of Truth**: The remote document is rendered natively in your wiki's theme but is locked against local edits (`data-doc-readonly='1'`). Changes must be made on the origin wiki.
+- **Resilient Caching & Offline Fallback**: Content is cached locally for 1 hour. If the origin wiki is temporarily unreachable, your wiki continues to display the cached version with an advisory warning notice.
+- **Admin Refresh**: Authenticated administrators can click the **`🔄 Refresh`** button on the document banner to fetch and cache updates from the origin immediately.
+- **Automated Asset Rewriting**: Images referenced in the remote article are rewritten on the fly to load from the canonical origin server without broken links.
+- **SSRF Hardening**: Requests to private subnets, cloud metadata services, loopback, or non-HTTP protocols are blocked by default.
+
+---
+
+## 🚀 Headless Document Publishing API
+
+External automation scripts, CI/CD pipelines, and internal tools can publish documents directly into Standalone Qwiki via HTTP POST requests:
+
+- **Endpoint**: `POST /api/publish.php`
+- **Authentication**: Pass your API key via header `X-API-Key: <your-key>` or query string `?apiKey=<your-key>`.
+- **Supported Formats**:
+  - `type: "markdown"` (Default): Plain GitHub-Flavored Markdown.
+  - `type: "html"`: Self-contained HTML documents (dossiers, reports). Automatically preserves `<style>`, `@media print`, `<meta>`, and SVG tags while sanitizing executable vectors.
+- **Response Payload**: The API returns a JSON response containing the document slug, file path, and an auto-generated cryptographic `shareKey` and `shareUrl`:
+```json
+{
+  "success": true,
+  "bookId": "guides",
+  "slug": "technical-dossier-2026",
+  "file": "content/guides/technical-dossier-2026.html",
+  "type": "html",
+  "shareKey": "7c8e2a1d9f4b3e6c",
+  "shareUrl": "https://wiki.example.com/?share=7c8e2a1d9f4b3e6c",
+  "url": "https://wiki.example.com/guides/technical-dossier-2026"
+}
+```
+- **Companion Translations**: Include a `translations` object (e.g. `{"af": "technical-dossier-2026-af"}`) to link multilingual versions together.

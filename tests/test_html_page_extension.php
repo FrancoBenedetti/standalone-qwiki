@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Auth.php';
+require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 
@@ -118,8 +119,12 @@ foreach ($updatedConfig['books'][0]['items'] as $item) {
         break;
     }
 }
+assertTest(!empty($response['shareKey']), 'create_html response includes shareKey');
+assertTest(!empty($response['shareUrl']), 'create_html response includes shareUrl');
 assertTest($foundItem !== null, 'New HTML chapter inserted into qwiki.json');
 assertTest(($foundItem['type'] ?? '') === 'html', 'Chapter type is html');
+assertTest(!empty($foundItem['shareKey']), 'Inserted chapter node contains shareKey');
+assertTest($foundItem['shareKey'] === $response['shareKey'], 'Chapter shareKey matches response shareKey');
 
 // ----------------------------------------------------
 // 3. Test save_html action via ExtensionManager

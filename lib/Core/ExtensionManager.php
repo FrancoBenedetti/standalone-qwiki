@@ -165,6 +165,12 @@ class ExtensionManager {
             return "<p>No Google Doc URL provided.</p>";
         }
 
+        // 4. Built-in: Remote Federated Document
+        if ($type === 'remote') {
+            require_once __DIR__ . '/RemoteContentManager.php';
+            return RemoteContentManager::renderRemotePage($activeChapter, $config);
+        }
+
         // 4. Custom Extension Page Types
         if (isset($this->pageTypes[$type])) {
             $ext = $this->pageTypes[$type];
@@ -196,6 +202,11 @@ class ExtensionManager {
                 }
             }
             return '';
+        }
+
+        if ($type === 'remote') {
+            require_once __DIR__ . '/RemoteContentManager.php';
+            return RemoteContentManager::extractSearchableText($item);
         }
 
         if (isset($this->pageTypes[$type])) {

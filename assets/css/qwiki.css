@@ -706,6 +706,7 @@ body {
 .badge-pdf { background: rgba(239, 68, 68, 0.18); color: #f87171; }
 .badge-link { background: rgba(147, 51, 234, 0.18); color: #c084fc; }
 .badge-internal-link { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+.badge-remote { background: rgba(20, 184, 166, 0.18); color: #2dd4bf; }
 
 .btn-edit-link-icon {
   background: none;

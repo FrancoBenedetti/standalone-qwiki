@@ -537,6 +537,62 @@ if (!empty($shareKey)) {
     }
 }
 
+// Support JSON API content negotiation for share links (federated transclusion)
+$isJsonRequested = (($_GET['format'] ?? '') === 'json') ||
+    (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+if (!empty($shareKey) && $isJsonRequested) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Accept');
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+        exit;
+    }
+
+    if ($shareError === 'not_found' || empty($matchedChapter)) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Share link not found'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($shareError === 'restricted') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Share link is restricted'], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $chapterType = $matchedChapter['type'] ?? 'markdown';
+    $rawContent = '';
+    $lastModified = time();
+    $filePath = $baseDir . '/' . ($matchedChapter['file'] ?? '');
+
+    if (!empty($matchedChapter['file']) && file_exists($filePath)) {
+        $rawContent = file_get_contents($filePath);
+        $lastModified = filemtime($filePath);
+    } elseif ($chapterType === 'remote' && !empty($matchedChapter['url'])) {
+        require_once __DIR__ . '/lib/Core/RemoteContentManager.php';
+        $remoteRes = \Qwiki\Core\RemoteContentManager::fetchRemoteDocument($matchedChapter['url']);
+        $rawContent = $remoteRes['content'] ?? '';
+    } elseif (!empty($matchedChapter['content'])) {
+        $rawContent = $matchedChapter['content'];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'title' => $matchedChapter['title'] ?? '',
+        'slug' => $matchedChapter['slug'] ?? '',
+        'type' => $chapterType,
+        'description' => $matchedChapter['description'] ?? '',
+        'content' => $rawContent,
+        'origin' => $baseUrl,
+        'lastModified' => $lastModified,
+        'readOnly' => true
+    ], JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 $activeChapter = $activeChapter ?? null;
 $breadcrumbsTrail = $breadcrumbsTrail ?? [];
 $activePathIds = $activePathIds ?? (!empty($activeBook['id']) ? [$activeBook['id']] : []);
@@ -730,7 +786,10 @@ if ($activeChapter && !$shareError) {
 
 $isPageReadOnly = false;
 if ($activeChapter) {
-    $isPageReadOnly = Config::isChapterProtected($activeChapter['slug'] ?? '', $config['books'] ?? [])
+    $isPageReadOnly = !empty($activeChapter['readOnly'])
+        || (isset($activeChapter['editable']) && $activeChapter['editable'] === false)
+        || (($activeChapter['type'] ?? '') === 'remote')
+        || Config::isChapterProtected($activeChapter['slug'] ?? '', $config['books'] ?? [])
         || Config::isChapterProtected($activeChapter['file'] ?? '', $config['books'] ?? []);
 }
 
@@ -1618,6 +1677,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <button class="tab-btn" data-tab="tab-upload">📁 Upload File (MD/PDF)</button>
                 <button class="tab-btn" data-tab="tab-gdoc">🌐 Google Doc</button>
                 <button class="tab-btn" data-tab="tab-link">🔗 Web Link</button>
+                <button class="tab-btn" data-tab="tab-remote">🌐 Remote Sharelink</button>
                 <?php $extManager->renderAddDocumentTabs(); ?>
             </div>
 
@@ -1722,6 +1782,34 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <input type="text" name="description" class="form-control" placeholder="Short description for search">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Add Web Link</button>
+            </form>
+
+            <!-- Tab 5: Remote Sharelink Document -->
+            <form id="tab-remote" class="tab-content">
+                <div class="form-group">
+                    <label class="form-label">Target Category / Folder</label>
+                    <select name="bookId" class="form-control" required>
+                        <?php foreach ($categoryHierarchy as $cat): ?>
+                            <option value="<?= htmlspecialchars($cat['id']) ?>" <?= ($currentCategoryId === $cat['id']) ? 'selected' : '' ?>>
+                                <?= str_repeat('&nbsp;&nbsp;', $cat['depth']) ?><?= $cat['depth'] > 0 ? '↳ ' : '' ?><?= htmlspecialchars($cat['path']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Document Title (Auto-detected from source if left blank)</label>
+                    <input type="text" name="title" class="form-control" placeholder="e.g. Shared Engineering Guidelines">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Remote Sharelink URL</label>
+                    <input type="url" name="url" class="form-control" placeholder="https://origin-wiki.example.com/?share=7c8e2a1d..." required>
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Enter the full ?share= URL from another Qwiki. The content will be rendered natively and locked as read-only.</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description (Optional)</label>
+                    <input type="text" name="description" class="form-control" placeholder="Short description for search">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Link Remote Document</button>
             </form>
 
             <!-- Dynamic Extension Tabs -->
