@@ -68,16 +68,118 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Category Accordion Toggle
+  // Category Accordion State Persistence & Scroll Position Management
+  function getCategoryId(catItem) {
+    if (!catItem) return null;
+    return catItem.getAttribute('data-category-id') 
+      || catItem.getAttribute('data-node-id')
+      || catItem.querySelector('.nav-document-list')?.getAttribute('data-parent-node-id')
+      || (catItem.classList.contains('nav-subwikis-group') ? 'subwikis' : null);
+  }
+
+  function getSavedCategoryStates() {
+    try {
+      return JSON.parse(sessionStorage.getItem('qwiki_category_states') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveCategoryState(catId, isCollapsed) {
+    if (!catId) return;
+    const states = getSavedCategoryStates();
+    states[catId] = isCollapsed ? 'collapsed' : 'expanded';
+    try {
+      sessionStorage.setItem('qwiki_category_states', JSON.stringify(states));
+    } catch (e) {}
+  }
+
+  // Restore saved category accordion states
+  const savedCatStates = getSavedCategoryStates();
+  document.querySelectorAll('.nav-category-item').forEach(catItem => {
+    const hasActiveLink = !!catItem.querySelector('.nav-link.active');
+    if (hasActiveLink) {
+      catItem.classList.remove('collapsed');
+      return;
+    }
+    const catId = getCategoryId(catItem);
+    if (catId && savedCatStates[catId] !== undefined) {
+      if (savedCatStates[catId] === 'expanded') {
+        catItem.classList.remove('collapsed');
+      } else if (savedCatStates[catId] === 'collapsed') {
+        catItem.classList.add('collapsed');
+      }
+    }
+  });
+
+  // Category Accordion Toggle Listener
   document.querySelectorAll('.nav-category-header').forEach(header => {
     header.addEventListener('click', (e) => {
       if (e.target.closest('.btn-edit-cat-icon') || e.target.closest('.drag-handle')) return;
       const catItem = header.closest('.nav-category-item');
       if (catItem) {
         catItem.classList.toggle('collapsed');
+        const catId = getCategoryId(catItem);
+        if (catId) {
+          saveCategoryState(catId, catItem.classList.contains('collapsed'));
+        }
       }
     });
   });
+
+  // Sidebar Scroll Position Persistence
+  const sidebarNav = document.querySelector('.sidebar-nav');
+  if (sidebarNav) {
+    const rawSavedScroll = sessionStorage.getItem('qwiki_sidebar_scroll');
+    const hasSavedScroll = rawSavedScroll !== null && !isNaN(parseInt(rawSavedScroll, 10));
+
+    if (hasSavedScroll) {
+      const targetScroll = parseInt(rawSavedScroll, 10);
+      sidebarNav.scrollTop = targetScroll;
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          sidebarNav.scrollTop = targetScroll;
+        });
+      }
+    }
+
+    const activeLink = sidebarNav.querySelector('.nav-link.active');
+    if (activeLink) {
+      if (!hasSavedScroll) {
+        // First visit or fresh tab: ensure active link is visible in sidebar
+        if (typeof activeLink.scrollIntoView === 'function') {
+          activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+      } else {
+        // If active link is outside visible area (e.g. navigated via content breadcrumb / next link), align it
+        if (typeof activeLink.getBoundingClientRect === 'function' && typeof sidebarNav.getBoundingClientRect === 'function') {
+          const linkRect = activeLink.getBoundingClientRect();
+          const navRect = sidebarNav.getBoundingClientRect();
+          const isVisible = (linkRect.top >= navRect.top && linkRect.bottom <= navRect.bottom);
+          if (!isVisible && typeof activeLink.scrollIntoView === 'function') {
+            activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+          }
+        }
+      }
+    }
+
+    // Persist scroll position when a sidebar link is clicked
+    sidebarNav.addEventListener('click', (e) => {
+      const link = e.target.closest('a');
+      if (link && (!link.target || link.target === '_self')) {
+        try {
+          sessionStorage.setItem('qwiki_sidebar_scroll', sidebarNav.scrollTop);
+        } catch (e) {}
+      }
+    });
+
+    // Also persist scroll position on beforeunload (browser reload or tab refresh)
+    window.addEventListener('beforeunload', () => {
+      try {
+        sessionStorage.setItem('qwiki_sidebar_scroll', sidebarNav.scrollTop);
+      } catch (e) {}
+    });
+  }
 
   // Sidebar Filter Search (with Auto-Expand)
   const searchInput = document.getElementById('search-input');
@@ -496,20 +598,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let html = '<table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9rem;">';
         html += '<thead style="border-bottom:1px solid var(--border-color); color:var(--text-muted);">';
-        html += '<tr><th style="padding:0.5rem;">Username</th><th style="padding:0.5rem;">Role</th><th style="padding:0.5rem; text-align:right;">Actions</th></tr>';
+        html += '<tr><th style="padding:0.5rem;">Username</th><th style="padding:0.5rem;">Role</th><th style="padding:0.5rem;">Email</th><th style="padding:0.5rem;">2FA</th><th style="padding:0.5rem; text-align:right;">Actions</th></tr>';
         html += '</thead><tbody>';
 
         data.users.forEach(u => {
           const isPrimaryAdmin = (u.username.toLowerCase() === 'admin');
           const badgeClass = (u.role === 'admin') ? 'badge-md' : 'badge-pdf';
+          const emailDisplay = u.email ? `${escapeHtml(u.email)} ${u.emailVerified ? '<span style="color:#10b981; font-weight:bold;" title="Verified">✓</span>' : '<span style="color:#f59e0b; font-size:0.75rem;" title="Unverified">(unverified)</span>'}` : '<span style="color:var(--text-muted);">-</span>';
+          const twoFactorDisplay = u.has2fa ? '<span class="doc-badge badge-md" style="font-size:0.75rem; padding:0.1rem 0.35rem;">🔒 Active</span>' : '<span style="color:var(--text-muted); font-size:0.8rem;">Off</span>';
           
           html += `<tr style="border-bottom:1px solid var(--border-color);">`;
           html += `<td style="padding:0.6rem; font-weight:600; color:var(--text-primary);">${escapeHtml(u.username)}</td>`;
           html += `<td style="padding:0.6rem;"><span class="doc-badge ${badgeClass}">${escapeHtml(u.role)}</span></td>`;
+          html += `<td style="padding:0.6rem; font-size:0.85rem;">${emailDisplay}</td>`;
+          html += `<td style="padding:0.6rem;">${twoFactorDisplay}</td>`;
           html += `<td style="padding:0.6rem; text-align:right; white-space:nowrap;">`;
-          html += `<button class="btn btn-outline btn-sm btn-change-user-pwd" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.5rem; margin-right:0.35rem;">🔑 Password</button>`;
+          html += `<button class="btn btn-outline btn-sm btn-change-user-pwd" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.45rem; margin-right:0.25rem;" title="Change Password">🔑 Password</button>`;
+          html += `<button class="btn btn-outline btn-sm btn-admin-copy-reset" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.45rem; margin-right:0.25rem;" title="Generate one-time reset link">🔗 Reset Link</button>`;
+          if (u.has2fa) {
+            html += `<button class="btn btn-outline btn-sm btn-admin-reset-2fa" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.45rem; margin-right:0.25rem; color:#f59e0b;" title="Disable 2FA for this user">🛡️ Reset 2FA</button>`;
+          }
           if (!isPrimaryAdmin) {
-            html += `<button class="btn btn-outline btn-sm btn-delete-user" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.5rem; color:#f87171;">Delete</button>`;
+            html += `<button class="btn btn-outline btn-sm btn-delete-user" data-username="${escapeHtml(u.username)}" style="padding:0.2rem 0.45rem; color:#f87171;">Delete</button>`;
           }
           html += `</td></tr>`;
         });
@@ -539,6 +649,57 @@ document.addEventListener('DOMContentLoaded', () => {
               alert(`Password for user "${targetUser}" updated successfully.`);
             } else {
               alert('Password update failed: ' + (pwdData.error || 'Unknown error'));
+            }
+          });
+        });
+
+        // Bind admin copy reset link triggers
+        container.querySelectorAll('.btn-admin-copy-reset').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const targetUser = btn.getAttribute('data-username');
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+            try {
+              const formData = new FormData();
+              formData.append('action', 'generate_admin_reset_link');
+              formData.append('username', targetUser);
+              const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+              const data = await res.json();
+              if (data.success && data.resetUrl) {
+                if (navigator.clipboard) {
+                  await navigator.clipboard.writeText(data.resetUrl);
+                  alert(`✅ One-time reset link copied to clipboard for user "${targetUser}":\n\n${data.resetUrl}\n\n(Link is valid for 24 hours)`);
+                } else {
+                  prompt(`One-time reset link for "${targetUser}" (valid for 24 hours):`, data.resetUrl);
+                }
+              } else {
+                alert('Failed to generate reset link: ' + (data.error || 'Unknown error'));
+              }
+            } catch (err) {
+              alert('Network request failed');
+            } finally {
+              btn.disabled = false;
+              btn.textContent = '🔗 Reset Link';
+            }
+          });
+        });
+
+        // Bind admin reset 2FA triggers
+        container.querySelectorAll('.btn-admin-reset-2fa').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const targetUser = btn.getAttribute('data-username');
+            if (!confirm(`Are you sure you want to disable Two-Factor Authentication for user "${targetUser}"?\n\nThey will be able to log in using their password directly.`)) return;
+
+            const formData = new FormData();
+            formData.append('action', 'disable_2fa');
+            formData.append('username', targetUser);
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+              alert(`Two-Factor Authentication disabled for user "${targetUser}".`);
+              loadUsersList();
+            } else {
+              alert('Failed to disable 2FA: ' + (data.error || 'Unknown error'));
             }
           });
         });
@@ -1329,8 +1490,609 @@ document.addEventListener('DOMContentLoaded', () => {
     conflictModal.classList.add('open');
   }
 
+  // --- Two-Step Login & 2FA Flow ---
+  const loginForm = document.getElementById('login-form');
+  const login2faForm = document.getElementById('login-2fa-form');
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(loginForm);
+      formData.append('action', 'login');
+      const submitBtn = document.getElementById('btn-login-submit');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in...'; }
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          if (data.require2fa) {
+            // Smoothly switch view to 2FA challenge
+            loginForm.style.display = 'none';
+            if (login2faForm) {
+              login2faForm.style.display = 'block';
+              const codeInput = document.getElementById('login-2fa-code');
+              if (codeInput) {
+                codeInput.value = '';
+                codeInput.focus();
+              }
+            }
+            const modalTitle = document.getElementById('login-modal-title');
+            if (modalTitle) modalTitle.textContent = 'Two-Factor Challenge';
+          } else if (data.require2fa_setup) {
+            alert('Two-Factor Authentication is enforced for your account policy. Please complete setup.');
+            window.location.reload();
+          } else {
+            window.location.reload();
+          }
+        } else {
+          alert('Login failed: ' + (data.error || 'Invalid credentials'));
+        }
+      } catch (err) {
+        alert('Server request failed');
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Log In'; }
+      }
+    });
+  }
+
+  if (login2faForm) {
+    login2faForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeInput = document.getElementById('login-2fa-code');
+      const codeVal = codeInput ? codeInput.value.trim() : '';
+      if (!codeVal) return;
+
+      const submitBtn = document.getElementById('btn-2fa-submit');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+
+      const formData = new FormData();
+      formData.append('action', 'verify_2fa');
+      formData.append('code', codeVal);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert('Verification failed: ' + (data.error || 'Invalid code'));
+          if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
+          }
+        }
+      } catch (err) {
+        alert('Server request failed');
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify & Continue'; }
+      }
+    });
+
+    const btnBackToLogin = document.getElementById('btn-back-to-login');
+    if (btnBackToLogin) {
+      btnBackToLogin.addEventListener('click', () => {
+        login2faForm.style.display = 'none';
+        if (loginForm) loginForm.style.display = 'block';
+        const modalTitle = document.getElementById('login-modal-title');
+        if (modalTitle) modalTitle.textContent = 'Account Authentication';
+      });
+    }
+
+    const btnToggleRecovery = document.getElementById('btn-toggle-recovery-code');
+    let usingRecoveryCode = false;
+    if (btnToggleRecovery) {
+      btnToggleRecovery.addEventListener('click', () => {
+        usingRecoveryCode = !usingRecoveryCode;
+        const codeInput = document.getElementById('login-2fa-code');
+        const codeLabel = document.getElementById('login-2fa-label');
+        const heading = document.getElementById('login-2fa-heading');
+        const desc = document.getElementById('login-2fa-desc');
+
+        if (usingRecoveryCode) {
+          btnToggleRecovery.textContent = 'Use authenticator code';
+          if (codeLabel) codeLabel.textContent = 'Emergency Recovery Code';
+          if (codeInput) {
+            codeInput.placeholder = 'xxxx-xxxx';
+            codeInput.maxLength = 12;
+            codeInput.value = '';
+            codeInput.focus();
+          }
+          if (heading) heading.textContent = 'Recovery Code Login';
+          if (desc) desc.textContent = 'Enter one of your 8 emergency backup codes.';
+        } else {
+          btnToggleRecovery.textContent = 'Use recovery code';
+          if (codeLabel) codeLabel.textContent = 'Verification Code';
+          if (codeInput) {
+            codeInput.placeholder = '000000';
+            codeInput.maxLength = 10;
+            codeInput.value = '';
+            codeInput.focus();
+          }
+          if (heading) heading.textContent = 'Two-Factor Authentication';
+          if (desc) desc.textContent = 'Enter the 6-digit verification code from your authenticator app.';
+        }
+      });
+    }
+  }
+
+  // --- Forgot Password Flow ---
+  const btnOpenForgotPwd = document.getElementById('btn-open-forgot-pwd');
+  const forgotModal = document.getElementById('forgot-password-modal');
+  const loginModal = document.getElementById('login-modal');
+  if (btnOpenForgotPwd && forgotModal) {
+    btnOpenForgotPwd.addEventListener('click', () => {
+      if (loginModal) loginModal.classList.remove('open');
+      forgotModal.classList.add('open');
+      const forgotInput = document.getElementById('forgot-identifier');
+      if (forgotInput) {
+        forgotInput.value = '';
+        forgotInput.focus();
+      }
+      const alertBox = document.getElementById('forgot-password-alert');
+      if (alertBox) alertBox.style.display = 'none';
+    });
+  }
+
+  const btnBackFromForgot = document.getElementById('btn-back-from-forgot');
+  if (btnBackFromForgot && forgotModal && loginModal) {
+    btnBackFromForgot.addEventListener('click', () => {
+      forgotModal.classList.remove('open');
+      loginModal.classList.add('open');
+    });
+  }
+
+  const forgotForm = document.getElementById('forgot-password-form');
+  if (forgotForm) {
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const identifier = document.getElementById('forgot-identifier').value.trim();
+      if (!identifier) return;
+
+      const submitBtn = document.getElementById('btn-submit-forgot');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
+
+      const formData = new FormData();
+      formData.append('action', 'forgot_password');
+      formData.append('identifier', identifier);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        const alertBox = document.getElementById('forgot-password-alert');
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertBox.style.background = 'rgba(16,185,129,0.1)';
+          alertBox.style.border = '1px solid #10b981';
+          alertBox.style.color = '#047857';
+          alertBox.textContent = data.message || 'If an account with that verified email exists, a reset link has been dispatched.';
+        }
+      } catch (err) {
+        alert('Server request failed');
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Reset Link'; }
+      }
+    });
+  }
+
+  // --- Standalone Password Reset Submission ---
+  const standaloneResetForm = document.getElementById('standalone-reset-password-form');
+  if (standaloneResetForm) {
+    standaloneResetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPwd = document.getElementById('reset-new-password').value;
+      const confirmPwd = document.getElementById('reset-confirm-password').value;
+      const statusBox = document.getElementById('reset-password-status');
+
+      if (newPwd.length < 4) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239,68,68,0.1)';
+          statusBox.style.border = '1px solid #ef4444';
+          statusBox.style.color = '#b91c1c';
+          statusBox.textContent = 'Password must be at least 4 characters long.';
+        }
+        return;
+      }
+
+      if (newPwd !== confirmPwd) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239,68,68,0.1)';
+          statusBox.style.border = '1px solid #ef4444';
+          statusBox.style.color = '#b91c1c';
+          statusBox.textContent = 'Passwords do not match.';
+        }
+        return;
+      }
+
+      const submitBtn = document.getElementById('btn-submit-reset-password');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+
+      const formData = new FormData(standaloneResetForm);
+      formData.append('action', 'reset_password_submit');
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          if (statusBox) {
+            statusBox.style.display = 'block';
+            statusBox.style.background = 'rgba(16,185,129,0.1)';
+            statusBox.style.border = '1px solid #10b981';
+            statusBox.style.color = '#047857';
+            statusBox.textContent = '✅ Password updated successfully! Redirecting...';
+          }
+          setTimeout(() => {
+            window.location.href = window.location.pathname;
+          }, 1200);
+        } else {
+          if (statusBox) {
+            statusBox.style.display = 'block';
+            statusBox.style.background = 'rgba(239,68,68,0.1)';
+            statusBox.style.border = '1px solid #ef4444';
+            statusBox.style.color = '#b91c1c';
+            statusBox.textContent = data.error || 'Password reset failed.';
+          }
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+        }
+      } catch (err) {
+        alert('Server request failed');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+      }
+    });
+  }
+
+  // --- Account & Security / User Profile Modal ---
+  const btnUserProfile = document.getElementById('btn-user-profile');
+  const userProfileModal = document.getElementById('user-profile-modal');
+  let currentEnrollingSecret = null;
+  let currentEnrollingCodes = [];
+
+  async function loadUserProfile() {
+    try {
+      const res = await fetch('api/admin.php?action=list_users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        const currentUserEl = document.querySelector('#user-profile-modal strong');
+        const username = currentUserEl ? currentUserEl.textContent.trim().toLowerCase() : '';
+        const user = data.users.find(u => u.username.toLowerCase() === username);
+
+        if (user) {
+          const emailInput = document.getElementById('profile-user-email');
+          const emailBadge = document.getElementById('profile-email-badge');
+          const btnResend = document.getElementById('btn-resend-verification');
+          if (emailInput) emailInput.value = user.email || '';
+          if (emailBadge) {
+            if (user.email && user.emailVerified) {
+              emailBadge.innerHTML = '<span style="color:#10b981; font-weight:600;">✓ Email Verified</span>';
+              if (btnResend) btnResend.style.display = 'none';
+            } else if (user.email) {
+              emailBadge.innerHTML = '<span style="color:#f59e0b; font-weight:600;">⚠️ Unverified</span>';
+              if (btnResend) btnResend.style.display = 'inline-block';
+            } else {
+              emailBadge.innerHTML = '<span style="color:var(--text-muted);">No email configured</span>';
+              if (btnResend) btnResend.style.display = 'none';
+            }
+          }
+
+          const disabledView = document.getElementById('profile-2fa-disabled-view');
+          const setupView = document.getElementById('profile-2fa-setup-view');
+          const activeView = document.getElementById('profile-2fa-active-view');
+          const codesCard = document.getElementById('profile-2fa-recovery-codes-card');
+
+          if (setupView) setupView.style.display = 'none';
+          if (codesCard) codesCard.style.display = 'none';
+
+          if (user.has2fa) {
+            if (disabledView) disabledView.style.display = 'none';
+            if (activeView) activeView.style.display = 'block';
+          } else {
+            if (disabledView) disabledView.style.display = 'block';
+            if (activeView) activeView.style.display = 'none';
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load profile data:', err);
+    }
+  }
+
+  if (btnUserProfile && userProfileModal) {
+    btnUserProfile.addEventListener('click', () => {
+      userProfileModal.classList.add('open');
+      loadUserProfile();
+    });
+  }
+
+  // Save profile email
+  const profileEmailForm = document.getElementById('profile-email-form');
+  if (profileEmailForm) {
+    profileEmailForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emailVal = document.getElementById('profile-user-email').value.trim();
+      const saveBtn = document.getElementById('btn-save-profile-email');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+      const formData = new FormData();
+      formData.append('action', 'update_user_email');
+      formData.append('email', emailVal);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert('Email address updated! A verification email has been dispatched.');
+          loadUserProfile();
+        } else {
+          alert('Failed to update email: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Email'; }
+      }
+    });
+  }
+
+  // Resend verification email
+  const btnResendVerify = document.getElementById('btn-resend-verification');
+  if (btnResendVerify) {
+    btnResendVerify.addEventListener('click', async () => {
+      btnResendVerify.disabled = true;
+      btnResendVerify.textContent = 'Sending...';
+      const formData = new FormData();
+      formData.append('action', 'resend_email_verification');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert('Verification email dispatched!');
+        } else {
+          alert('Failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      } finally {
+        btnResendVerify.disabled = false;
+        btnResendVerify.textContent = 'Resend Verification Link';
+      }
+    });
+  }
+
+  // Start 2FA setup
+  const btnStart2faSetup = document.getElementById('btn-start-2fa-setup');
+  if (btnStart2faSetup) {
+    btnStart2faSetup.addEventListener('click', async () => {
+      btnStart2faSetup.disabled = true;
+      btnStart2faSetup.textContent = 'Generating keys...';
+
+      try {
+        const res = await fetch('api/admin.php?action=initiate_2fa');
+        const data = await res.json();
+        if (data.success && data.secret && data.otpUri) {
+          currentEnrollingSecret = data.secret;
+          currentEnrollingCodes = data.recoveryCodes || [];
+
+          const disabledView = document.getElementById('profile-2fa-disabled-view');
+          const setupView = document.getElementById('profile-2fa-setup-view');
+          if (disabledView) disabledView.style.display = 'none';
+          if (setupView) setupView.style.display = 'block';
+
+          const qrContainer = document.getElementById('profile-2fa-qr-container');
+          if (qrContainer) {
+            if (window.QRCode && window.QRCode.generateSvg) {
+              qrContainer.innerHTML = window.QRCode.generateSvg(data.otpUri, 180);
+            } else {
+              qrContainer.innerHTML = '<p style="color:var(--text-muted); font-size:0.8rem;">Enter the secret key manually below.</p>';
+            }
+          }
+
+          const secretFormatted = data.secret.match(/.{1,4}/g).join(' ');
+          const secretEl = document.getElementById('profile-2fa-secret-text');
+          if (secretEl) secretEl.textContent = secretFormatted;
+
+          const copyBtn = document.getElementById('btn-copy-2fa-secret');
+          if (copyBtn) {
+            copyBtn.onclick = () => {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(data.secret);
+                copyBtn.textContent = '✅ Copied!';
+                setTimeout(() => { copyBtn.textContent = '📋 Copy Secret Key'; }, 2000);
+              }
+            };
+          }
+
+          const codeInput = document.getElementById('profile-2fa-confirm-code');
+          if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
+          }
+        } else {
+          alert('Failed to initiate 2FA setup: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      } finally {
+        btnStart2faSetup.disabled = false;
+        btnStart2faSetup.textContent = '🔐 Enable 2FA';
+      }
+    });
+  }
+
+  // Cancel 2FA setup
+  const btnCancel2faSetup = document.getElementById('btn-cancel-2fa-setup');
+  if (btnCancel2faSetup) {
+    btnCancel2faSetup.addEventListener('click', () => {
+      const disabledView = document.getElementById('profile-2fa-disabled-view');
+      const setupView = document.getElementById('profile-2fa-setup-view');
+      if (setupView) setupView.style.display = 'none';
+      if (disabledView) disabledView.style.display = 'block';
+    });
+  }
+
+  // Confirm 2FA setup
+  const profile2faConfirmForm = document.getElementById('profile-2fa-confirm-form');
+  if (profile2faConfirmForm) {
+    profile2faConfirmForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const codeVal = document.getElementById('profile-2fa-confirm-code').value.trim();
+      if (!codeVal) return;
+
+      const confirmBtn = document.getElementById('btn-confirm-2fa');
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Activating...'; }
+
+      const formData = new FormData();
+      formData.append('action', 'confirm_2fa');
+      formData.append('code', codeVal);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          const setupView = document.getElementById('profile-2fa-setup-view');
+          const activeView = document.getElementById('profile-2fa-active-view');
+          const codesCard = document.getElementById('profile-2fa-recovery-codes-card');
+
+          if (setupView) setupView.style.display = 'none';
+          if (activeView) activeView.style.display = 'block';
+          if (codesCard) {
+            codesCard.style.display = 'block';
+            const listEl = document.getElementById('profile-2fa-codes-list');
+            if (listEl) {
+              listEl.innerHTML = currentEnrollingCodes.map(c => `<div style="padding:0.25rem 0.5rem; background:rgba(0,0,0,0.03); border-radius:4px;">${escapeHtml(c)}</div>`).join('');
+            }
+          }
+        } else {
+          alert('Confirmation failed: ' + (data.error || 'Invalid code'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Activate 2FA'; }
+      }
+    });
+  }
+
+  // Copy recovery codes
+  const btnCopyRecovery = document.getElementById('btn-copy-recovery-codes');
+  if (btnCopyRecovery) {
+    btnCopyRecovery.addEventListener('click', () => {
+      if (currentEnrollingCodes.length > 0 && navigator.clipboard) {
+        navigator.clipboard.writeText(currentEnrollingCodes.join('\n'));
+        btnCopyRecovery.textContent = '✅ Copied!';
+        setTimeout(() => { btnCopyRecovery.textContent = '📋 Copy All Codes'; }, 2000);
+      }
+    });
+  }
+
+  const btnDoneRecovery = document.getElementById('btn-done-recovery-codes');
+  if (btnDoneRecovery) {
+    btnDoneRecovery.addEventListener('click', () => {
+      const codesCard = document.getElementById('profile-2fa-recovery-codes-card');
+      if (codesCard) codesCard.style.display = 'none';
+      loadUserProfile();
+    });
+  }
+
+  // Disable 2FA for current user
+  const btnDisableMy2fa = document.getElementById('btn-disable-my-2fa');
+  if (btnDisableMy2fa) {
+    btnDisableMy2fa.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to disable Two-Factor Authentication on your account?')) return;
+      btnDisableMy2fa.disabled = true;
+      btnDisableMy2fa.textContent = 'Disabling...';
+
+      const formData = new FormData();
+      formData.append('action', 'disable_2fa');
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert('Two-Factor Authentication has been disabled.');
+          loadUserProfile();
+        } else {
+          alert('Failed to disable 2FA: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Network request failed');
+      } finally {
+        btnDisableMy2fa.disabled = false;
+        btnDisableMy2fa.textContent = 'Disable 2FA';
+      }
+    });
+  }
+
+  // --- SMTP Settings Controls ---
+  const chkSmtpEnabled = document.getElementById('setting-smtp-enabled');
+  const smtpFieldsContainer = document.getElementById('smtp-settings-fields');
+  if (chkSmtpEnabled && smtpFieldsContainer) {
+    chkSmtpEnabled.addEventListener('change', () => {
+      smtpFieldsContainer.style.display = chkSmtpEnabled.checked ? 'block' : 'none';
+    });
+  }
+
+  const btnTestSmtp = document.getElementById('btn-test-smtp');
+  if (btnTestSmtp) {
+    btnTestSmtp.addEventListener('click', async () => {
+      const host = document.getElementById('setting-smtp-host')?.value || '';
+      const port = document.getElementById('setting-smtp-port')?.value || '587';
+      const enc = document.getElementById('setting-smtp-encryption')?.value || 'tls';
+      const user = document.getElementById('setting-smtp-username')?.value || '';
+      const pass = document.getElementById('setting-smtp-password')?.value || '';
+      const fromEmail = document.getElementById('setting-smtp-fromemail')?.value || '';
+      const fromName = document.getElementById('setting-smtp-fromname')?.value || '';
+      const statusEl = document.getElementById('smtp-test-status');
+
+      if (!host) {
+        alert('Please enter an SMTP Host first.');
+        return;
+      }
+
+      btnTestSmtp.disabled = true;
+      btnTestSmtp.textContent = 'Testing connection...';
+      if (statusEl) {
+        statusEl.style.color = 'var(--text-muted)';
+        statusEl.textContent = 'Connecting to ' + host + ':' + port + '...';
+      }
+
+      const formData = new FormData();
+      formData.append('action', 'test_smtp');
+      formData.append('host', host);
+      formData.append('port', port);
+      formData.append('encryption', enc);
+      formData.append('username', user);
+      formData.append('password', pass);
+      formData.append('fromEmail', fromEmail);
+      formData.append('fromName', fromName);
+
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          if (statusEl) {
+            statusEl.style.color = '#10b981';
+            statusEl.textContent = '✅ SMTP Connection & Test Email dispatched successfully!';
+          }
+        } else {
+          if (statusEl) {
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = '❌ Failed: ' + (data.error || 'Connection rejected');
+          }
+        }
+      } catch (err) {
+        if (statusEl) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = '❌ Network request failed.';
+        }
+      } finally {
+        btnTestSmtp.disabled = false;
+        btnTestSmtp.textContent = '📨 Test Connection & Send Test Email';
+      }
+    });
+  }
+
   // Bind Form Submissions
-  submitAdminForm('login-form', 'login');
   submitAdminForm('add-book-form', 'add_book');
   submitAdminForm('edit-book-form', 'edit_book');
   submitAdminForm('tab-create-md', 'create_markdown');
@@ -2136,6 +2898,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (targetDocList) {
             targetDocList.appendChild(draggedElement);
             el.classList.remove('collapsed');
+            saveCategoryState(getCategoryId(el), false);
           }
           await saveTreeStructureToBackend();
         }
@@ -2147,6 +2910,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (targetDocList) {
           targetDocList.appendChild(draggedElement);
           el.classList.remove('collapsed');
+          saveCategoryState(getCategoryId(el), false);
         }
       } else if (isAbove) {
         el.parentNode.insertBefore(draggedElement, el);
@@ -2166,6 +2930,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (list) {
             list.appendChild(draggedElement);
             nearbyCat.classList.remove('collapsed');
+            saveCategoryState(getCategoryId(nearbyCat), false);
           }
         }
       }

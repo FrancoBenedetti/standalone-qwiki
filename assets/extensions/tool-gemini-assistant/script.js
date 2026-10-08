@@ -96,49 +96,153 @@
         fetch('api/admin.php?action=ext_gemini_get_settings')
             .then(function(res) { return res.json(); })
             .then(function(data) {
-                if (data.success) {
-                    var inputKey = document.getElementById('gemini-input-apikey');
-                    var modelSelect = document.getElementById('gemini-select-model');
-                    var envNotice = document.getElementById('gemini-env-notice');
-                    var statusBadge = document.getElementById('gemini-status-badge');
+                if (!data.success) return;
 
-                    if (inputKey) {
-                        inputKey.value = data.maskedKey || '';
-                        if (data.isEnvKey) {
-                            inputKey.disabled = true;
-                            if (envNotice) envNotice.style.display = 'block';
-                        }
+                // 1. User Personal Key Tier
+                var inputUserKey = document.getElementById('gemini-input-user-apikey');
+                var selectUserModel = document.getElementById('gemini-select-user-model');
+                var btnClearUserKey = document.getElementById('gemini-btn-clear-user-key');
+                var badgeUser = document.getElementById('gemini-badge-user');
+                var cardUser = document.getElementById('gemini-tier-card-user');
+
+                if (inputUserKey) {
+                    inputUserKey.value = data.maskedUserKey || '';
+                }
+                if (btnClearUserKey) {
+                    btnClearUserKey.style.display = data.hasUserKey ? 'inline-block' : 'none';
+                }
+                if (selectUserModel && data.userModel !== undefined) {
+                    selectUserModel.value = data.userModel || '';
+                }
+                if (cardUser) {
+                    if (data.keySource === 'user') {
+                        cardUser.classList.add('tier-active');
+                    } else {
+                        cardUser.classList.remove('tier-active');
                     }
-
-                    if (modelSelect && data.model) {
-                        var foundOpt = false;
-                        for (var i = 0; i < modelSelect.options.length; i++) {
-                            if (modelSelect.options[i].value === data.model) {
-                                foundOpt = true;
-                                break;
-                            }
-                        }
-                        if (!foundOpt) {
-                            var extra = document.createElement('option');
-                            extra.value = data.model;
-                            extra.textContent = data.model;
-                            modelSelect.appendChild(extra);
-                        }
-                        modelSelect.value = data.model;
+                }
+                if (badgeUser) {
+                    if (data.keySource === 'user') {
+                        badgeUser.textContent = 'Active (Overriding Site)';
+                        badgeUser.className = 'gemini-tier-badge badge-active';
+                    } else if (data.hasUserKey) {
+                        badgeUser.textContent = 'User Key Saved';
+                        badgeUser.className = 'gemini-tier-badge badge-active';
+                    } else {
+                        badgeUser.textContent = 'Optional Override';
+                        badgeUser.className = 'gemini-tier-badge badge-inactive';
                     }
+                }
 
-                    if (statusBadge) {
-                        if (data.hasKey) {
-                            statusBadge.textContent = data.model;
-                            statusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
-                            statusBadge.style.color = '#10b981';
-                            statusBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-                        } else {
-                            statusBadge.textContent = 'API Key Needed';
-                            statusBadge.style.background = 'rgba(239, 68, 68, 0.15)';
-                            statusBadge.style.color = '#ef4444';
-                            statusBadge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                        }
+                // 2. Site Default Key Tier
+                var inputSiteKey = document.getElementById('gemini-input-site-apikey');
+                var selectSiteModel = document.getElementById('gemini-select-site-model');
+                var envNotice = document.getElementById('gemini-site-env-notice');
+                var badgeSite = document.getElementById('gemini-badge-site');
+                var cardSite = document.getElementById('gemini-tier-card-site');
+                var viewerSiteStatus = document.getElementById('gemini-viewer-site-status');
+                var viewerSiteModel = document.getElementById('gemini-viewer-site-model');
+
+                if (inputSiteKey) {
+                    inputSiteKey.value = data.maskedSiteKey || '';
+                    if (data.isEnvKey) {
+                        inputSiteKey.disabled = true;
+                        if (envNotice) envNotice.style.display = 'block';
+                    } else {
+                        inputSiteKey.disabled = false;
+                        if (envNotice) envNotice.style.display = 'none';
+                    }
+                }
+                if (selectSiteModel && data.siteModel) {
+                    selectSiteModel.value = data.siteModel;
+                }
+                if (viewerSiteStatus) {
+                    viewerSiteStatus.textContent = data.hasSiteKey ? ('Active (' + (data.maskedSiteKey || 'Configured') + ')') : 'Not Configured';
+                    viewerSiteStatus.style.color = data.hasSiteKey ? '#10b981' : 'var(--text-muted)';
+                }
+                if (viewerSiteModel) {
+                    viewerSiteModel.textContent = data.siteModel || 'gemini-2.5-flash';
+                }
+                if (cardSite) {
+                    if (data.keySource === 'site' || data.keySource === 'env') {
+                        cardSite.classList.add('tier-active');
+                    } else {
+                        cardSite.classList.remove('tier-active');
+                    }
+                }
+                if (badgeSite) {
+                    if (data.keySource === 'user') {
+                        badgeSite.textContent = data.hasSiteKey ? 'Standby (Fallback)' : 'Inactive';
+                        badgeSite.className = 'gemini-tier-badge badge-fallback';
+                    } else if (data.keySource === 'site' || data.keySource === 'env') {
+                        badgeSite.textContent = 'Active (Default)';
+                        badgeSite.className = 'gemini-tier-badge badge-active';
+                    } else {
+                        badgeSite.textContent = 'Not Configured';
+                        badgeSite.className = 'gemini-tier-badge badge-inactive';
+                    }
+                }
+
+                // 3. Active Key Status Banner
+                var sourceBadge = document.getElementById('gemini-active-source-badge');
+                var activeKeyText = document.getElementById('gemini-active-key-text');
+                var statusDesc = document.getElementById('gemini-active-status-desc');
+
+                if (sourceBadge) {
+                    if (data.keySource === 'user') {
+                        sourceBadge.textContent = '👤 Personal Key Override';
+                        sourceBadge.className = 'gemini-tier-badge badge-active';
+                    } else if (data.keySource === 'site') {
+                        sourceBadge.textContent = '🌐 Site Default Key';
+                        sourceBadge.className = 'gemini-tier-badge badge-fallback';
+                    } else if (data.keySource === 'env') {
+                        sourceBadge.textContent = '🔒 Environment Variable';
+                        sourceBadge.className = 'gemini-tier-badge badge-fallback';
+                    } else {
+                        sourceBadge.textContent = '⚠️ No Key Configured';
+                        sourceBadge.className = 'gemini-tier-badge badge-inactive';
+                    }
+                }
+
+                if (activeKeyText) {
+                    activeKeyText.textContent = data.maskedKey || 'None';
+                }
+
+                if (statusDesc) {
+                    if (data.keySource === 'user') {
+                        statusDesc.textContent = 'AI requests powered by personal key for ' + (data.username || 'your user') + ' (' + data.model + ')';
+                    } else if (data.keySource === 'site') {
+                        statusDesc.textContent = 'AI requests using global fallback key (' + data.model + ')';
+                    } else if (data.keySource === 'env') {
+                        statusDesc.textContent = 'AI requests using GEMINI_API_KEY env key (' + data.model + ')';
+                    } else {
+                        statusDesc.textContent = 'Add a personal key or site key to activate AI tools';
+                    }
+                }
+
+                // 4. Header Status Badge & Legacy Aliases
+                var legacyInputKey = document.getElementById('gemini-input-apikey');
+                var legacyModelSelect = document.getElementById('gemini-select-model');
+                var statusBadge = document.getElementById('gemini-status-badge');
+
+                if (legacyInputKey) {
+                    legacyInputKey.value = data.maskedKey || '';
+                }
+                if (legacyModelSelect && data.model) {
+                    legacyModelSelect.value = data.model;
+                }
+
+                if (statusBadge) {
+                    if (data.hasKey) {
+                        statusBadge.textContent = (data.keySource === 'user' ? '👤 ' : '') + data.model;
+                        statusBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                        statusBadge.style.color = '#10b981';
+                        statusBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                    } else {
+                        statusBadge.textContent = 'API Key Needed';
+                        statusBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+                        statusBadge.style.color = '#ef4444';
+                        statusBadge.style.borderColor = 'rgba(239, 68, 68, 0.3)';
                     }
                 }
             })
@@ -551,20 +655,59 @@
 
         // 9. Settings Form
         var settingsForm = document.getElementById('gemini-settings-form');
-        var btnToggleKey = document.getElementById('gemini-btn-toggle-key');
-        var inputApiKey = document.getElementById('gemini-input-apikey');
-        if (btnToggleKey && inputApiKey) {
-            btnToggleKey.addEventListener('click', function() {
-                inputApiKey.type = (inputApiKey.type === 'password') ? 'text' : 'password';
+
+        // Toggle Key Visibility Helpers
+        function setupKeyToggle(btnId, inputId) {
+            var btn = document.getElementById(btnId);
+            var input = document.getElementById(inputId);
+            if (btn && input) {
+                btn.addEventListener('click', function() {
+                    input.type = (input.type === 'password') ? 'text' : 'password';
+                });
+            }
+        }
+        setupKeyToggle('gemini-btn-toggle-user-key', 'gemini-input-user-apikey');
+        setupKeyToggle('gemini-btn-toggle-site-key', 'gemini-input-site-apikey');
+        setupKeyToggle('gemini-btn-toggle-key', 'gemini-input-apikey');
+
+        // Revert / Clear Personal Key Override
+        var btnClearUserKey = document.getElementById('gemini-btn-clear-user-key');
+        if (btnClearUserKey) {
+            btnClearUserKey.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (!confirm('Revert to the site default API key? Your personal key override will be removed.')) return;
+                var formData = new FormData();
+                formData.append('clearUserKey', '1');
+                fetch('api/admin.php?action=ext_gemini_save_settings', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showBanner('Personal key cleared. Reverted to site default key.', 'success');
+                        fetchSettings();
+                    } else {
+                        showBanner(data.error || 'Failed to clear personal key.', 'error');
+                    }
+                })
+                .catch(function(err) {
+                    showBanner('Network error: ' + err.message, 'error');
+                });
             });
         }
 
-        function updateModelDropdown(availableModels, currentSelected) {
-            var modelSelect = document.getElementById('gemini-select-model');
-            if (!modelSelect || !Array.isArray(availableModels) || availableModels.length === 0) return;
+        function populateSelectWithOptions(selectEl, availableModels, currentSelected, includeInherit) {
+            if (!selectEl || !Array.isArray(availableModels) || availableModels.length === 0) return;
+            var chosen = currentSelected || selectEl.value;
+            selectEl.innerHTML = '';
 
-            var chosen = currentSelected || modelSelect.value;
-            modelSelect.innerHTML = '';
+            if (includeInherit) {
+                var inheritOpt = document.createElement('option');
+                inheritOpt.value = '';
+                inheritOpt.textContent = '(Inherit Site Default Model)';
+                selectEl.appendChild(inheritOpt);
+            }
 
             availableModels.forEach(function(m) {
                 var opt = document.createElement('option');
@@ -572,38 +715,60 @@
                 var displayName = typeof m === 'object' ? (m.name || m.id) : m;
                 opt.value = id;
                 opt.textContent = displayName + (displayName !== id ? ' (' + id + ')' : '');
-                modelSelect.appendChild(opt);
+                selectEl.appendChild(opt);
             });
 
-            // Ensure current or chosen model is selected or added if missing
-            var exists = false;
-            for (var i = 0; i < modelSelect.options.length; i++) {
-                if (modelSelect.options[i].value === chosen) {
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists && chosen) {
-                var extraOpt = document.createElement('option');
-                extraOpt.value = chosen;
-                extraOpt.textContent = chosen;
-                modelSelect.appendChild(extraOpt);
-            }
             if (chosen) {
-                modelSelect.value = chosen;
+                var exists = false;
+                for (var i = 0; i < selectEl.options.length; i++) {
+                    if (selectEl.options[i].value === chosen) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    var extraOpt = document.createElement('option');
+                    extraOpt.value = chosen;
+                    extraOpt.textContent = chosen;
+                    selectEl.appendChild(extraOpt);
+                }
+                selectEl.value = chosen;
+            }
+        }
+
+        function updateModelDropdown(availableModels, currentSelected) {
+            var userModelSelect = document.getElementById('gemini-select-user-model');
+            var siteModelSelect = document.getElementById('gemini-select-site-model');
+            var legacyModelSelect = document.getElementById('gemini-select-model');
+
+            if (userModelSelect) {
+                populateSelectWithOptions(userModelSelect, availableModels, currentSelected, true);
+            }
+            if (siteModelSelect) {
+                populateSelectWithOptions(siteModelSelect, availableModels, currentSelected, false);
+            }
+            if (legacyModelSelect) {
+                populateSelectWithOptions(legacyModelSelect, availableModels, currentSelected, false);
             }
         }
 
         var btnDetectModels = document.getElementById('gemini-btn-detect-models');
         if (btnDetectModels) {
             btnDetectModels.addEventListener('click', function() {
-                var apiKey = inputApiKey ? inputApiKey.value : '';
+                var inputUserKey = document.getElementById('gemini-input-user-apikey');
+                var inputSiteKey = document.getElementById('gemini-input-site-apikey');
+                var apiKey = (inputUserKey && inputUserKey.value.trim() && inputUserKey.value.indexOf('••••') === -1)
+                    ? inputUserKey.value.trim()
+                    : ((inputSiteKey && inputSiteKey.value.trim() && inputSiteKey.value.indexOf('••••') === -1) ? inputSiteKey.value.trim() : '');
+
                 var originalText = btnDetectModels.textContent;
                 btnDetectModels.disabled = true;
                 btnDetectModels.textContent = '⏳ Detecting...';
 
                 var formData = new FormData();
-                formData.append('apiKey', apiKey);
+                if (apiKey) {
+                    formData.append('apiKey', apiKey);
+                }
 
                 fetch('api/admin.php?action=ext_gemini_list_models', {
                     method: 'POST',
@@ -638,8 +803,16 @@
         if (btnTestConn) {
             btnTestConn.addEventListener('click', function() {
                 var testResult = document.getElementById('gemini-test-result');
-                var apiKey = inputApiKey ? inputApiKey.value : '';
-                var model = document.getElementById('gemini-select-model') ? document.getElementById('gemini-select-model').value : '';
+                var inputUserKey = document.getElementById('gemini-input-user-apikey');
+                var inputSiteKey = document.getElementById('gemini-input-site-apikey');
+                var userModelSelect = document.getElementById('gemini-select-user-model');
+                var siteModelSelect = document.getElementById('gemini-select-site-model');
+
+                var apiKey = (inputUserKey && inputUserKey.value.trim() && inputUserKey.value.indexOf('••••') === -1)
+                    ? inputUserKey.value.trim()
+                    : ((inputSiteKey && inputSiteKey.value.trim() && inputSiteKey.value.indexOf('••••') === -1) ? inputSiteKey.value.trim() : '');
+
+                var model = (userModelSelect && userModelSelect.value) ? userModelSelect.value : ((siteModelSelect && siteModelSelect.value) ? siteModelSelect.value : '');
 
                 if (testResult) {
                     testResult.textContent = 'Connecting...';
@@ -647,8 +820,12 @@
                 }
 
                 var formData = new FormData();
-                formData.append('apiKey', apiKey);
-                formData.append('model', model);
+                if (apiKey) {
+                    formData.append('apiKey', apiKey);
+                }
+                if (model) {
+                    formData.append('model', model);
+                }
 
                 fetch('api/admin.php?action=ext_gemini_test_connection', {
                     method: 'POST',
@@ -668,9 +845,6 @@
 
                     if (data.available_models && Array.isArray(data.available_models) && data.available_models.length > 0) {
                         updateModelDropdown(data.available_models, data.model || model);
-                    } else if (data.model) {
-                        var modelSelect = document.getElementById('gemini-select-model');
-                        if (modelSelect) modelSelect.value = data.model;
                     }
                 })
                 .catch(function(err) {
@@ -685,8 +859,6 @@
         if (settingsForm) {
             settingsForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                var apiKey = inputApiKey ? inputApiKey.value : '';
-                var model = document.getElementById('gemini-select-model') ? document.getElementById('gemini-select-model').value : '';
                 var btnSave = document.getElementById('gemini-btn-save-settings');
 
                 if (btnSave) {
@@ -695,8 +867,30 @@
                 }
 
                 var formData = new FormData();
-                formData.append('apiKey', apiKey);
-                formData.append('model', model);
+
+                var inputUserKey = document.getElementById('gemini-input-user-apikey');
+                var selectUserModel = document.getElementById('gemini-select-user-model');
+                if (inputUserKey) {
+                    formData.append('userApiKey', inputUserKey.value.trim());
+                }
+                if (selectUserModel) {
+                    formData.append('userModel', selectUserModel.value.trim());
+                }
+
+                var inputSiteKey = document.getElementById('gemini-input-site-apikey');
+                var selectSiteModel = document.getElementById('gemini-select-site-model');
+                if (inputSiteKey) {
+                    formData.append('siteApiKey', inputSiteKey.value.trim());
+                }
+                if (selectSiteModel) {
+                    formData.append('siteModel', selectSiteModel.value.trim());
+                }
+
+                // Fallback fields for backward compatibility
+                var effectiveKey = (inputUserKey && inputUserKey.value.trim()) ? inputUserKey.value.trim() : (inputSiteKey ? inputSiteKey.value.trim() : '');
+                formData.append('apiKey', effectiveKey);
+                var effectiveModel = (selectUserModel && selectUserModel.value.trim()) ? selectUserModel.value.trim() : (selectSiteModel ? selectSiteModel.value.trim() : '');
+                formData.append('model', effectiveModel);
 
                 fetch('api/admin.php?action=ext_gemini_save_settings', {
                     method: 'POST',
@@ -714,7 +908,7 @@
                         return;
                     }
 
-                    showBanner('Gemini settings saved successfully!', 'success');
+                    showBanner('Gemini API settings saved successfully!', 'success');
                     fetchSettings();
                 })
                 .catch(function(err) {

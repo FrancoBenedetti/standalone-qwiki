@@ -27,6 +27,16 @@ function assert_true($cond, $msg) {
 
 echo "=== Testing Gemini AI Assistant Extension ===\n\n";
 
+// Set up isolated temp directory for test configuration & users to avoid sandbox ro restrictions
+$testDir = sys_get_temp_dir() . '/qwiki_gemini_test_' . uniqid();
+@mkdir($testDir . '/assets', 0755, true);
+@symlink(dirname(__DIR__) . '/assets/extensions', $testDir . '/assets/extensions');
+@copy(dirname(__DIR__) . '/qwiki.json', $testDir . '/qwiki.json');
+if (file_exists(dirname(__DIR__) . '/users.json')) {
+    @copy(dirname(__DIR__) . '/users.json', $testDir . '/users.json');
+}
+Config::init($testDir);
+
 // 1. Discovery & Manifest
 $extManager = ExtensionManager::getInstance();
 $extManager->discover();
@@ -72,9 +82,9 @@ assert_true(strpos($headerButtons, 'btn-util-gemini_assistant') !== false, "Head
 // 5. Backend Handler - Security Check (Unauthenticated)
 // Ensure no active session
 Auth::startSession();
-$_SESSION['qwiki_logged_in'] = false;
-$_SESSION['qwiki_admin'] = false;
-$_SESSION['qwiki_user'] = ['username' => 'guest', 'role' => 'viewer'];
+unset($_SESSION['qwiki_user']);
+unset($_SESSION['qwiki_admin']);
+unset($_SESSION['qwiki_logged_in']);
 $_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
 
 ob_start();
@@ -222,6 +232,134 @@ if ($origGeminiConfig !== null) {
 Config::save($cfgAfter);
 echo "PASS: Cleanup restored original introduction metadata and removed test gemini config\n";
 $testsPassed++;
+
+// 8b. Two-Tier Hierarchical BYOK API Key Tests
+echo "\n--- Two-Tier BYOK Hierarchy & Role Tests ---\n";
+
+// Ensure clean state: configure a Site Default Key
+$siteKeyTest = 'AIzaSySiteWideDefaultKey99999999999';
+$userKeyTest = 'AIzaSyUserPersonalKeyOverride11111';
+
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_save_settings', [
+    'action' => 'ext_gemini_save_settings',
+    'siteApiKey' => $siteKeyTest,
+    'siteModel' => 'gemini-2.5-flash'
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']), "Admin can save site-wide default key");
+assert_true(($resp['keySource'] ?? '') === 'site', "Effective keySource is 'site' when no user key is set");
+assert_true(!empty($resp['hasSiteKey']), "Reports hasSiteKey true");
+assert_true(empty($resp['hasUserKey']), "Reports hasUserKey false when personal key not yet set");
+
+// Admin sets a personal key override
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_save_settings', [
+    'action' => 'ext_gemini_save_settings',
+    'userApiKey' => $userKeyTest,
+    'userModel' => 'gemini-2.5-pro'
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']), "Admin can set personal user key override");
+assert_true(($resp['keySource'] ?? '') === 'user', "keySource switches to 'user' when personal key is set");
+assert_true(!empty($resp['hasUserKey']), "Reports hasUserKey true");
+assert_true(($resp['model'] ?? '') === 'gemini-2.5-pro', "Effective model reflects userModel override");
+
+// Admin clears personal key override to revert to site default key
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_save_settings', [
+    'action' => 'ext_gemini_save_settings',
+    'clearUserKey' => '1'
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']), "Clearing personal key succeeds");
+assert_true(($resp['keySource'] ?? '') === 'site', "keySource reverts to 'site' after clearing user key");
+assert_true(empty($resp['hasUserKey']), "hasUserKey is false after clearing user key");
+assert_true(($resp['model'] ?? '') === 'gemini-2.5-flash', "Effective model reverts to siteModel");
+
+// Viewer Role Tests
+Auth::addUser('viewer_test_user', 'password123', 'viewer');
+$_SESSION['qwiki_logged_in'] = true;
+$_SESSION['qwiki_admin'] = false;
+$_SESSION['qwiki_user'] = ['username' => 'viewer_test_user', 'role' => 'viewer'];
+
+// Viewer reads settings
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_get_settings', ['action' => 'ext_gemini_get_settings']);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']), "Viewer can read Gemini settings");
+assert_true(empty($resp['isAdmin']), "Viewer isAdmin flag is false");
+assert_true(($resp['username'] ?? '') === 'viewer_test_user', "Reports viewer username");
+assert_true(($resp['keySource'] ?? '') === 'site', "Viewer inherits site default key by default");
+
+// Viewer sets their own personal key
+$viewerPersonalKey = 'AIzaSyViewerPersonalFreeKey77777';
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_save_settings', [
+    'action' => 'ext_gemini_save_settings',
+    'userApiKey' => $viewerPersonalKey
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(!empty($resp['success']), "Viewer can save personal key override");
+assert_true(($resp['keySource'] ?? '') === 'user', "Viewer effective keySource is now 'user'");
+assert_true(!empty($resp['hasUserKey']), "Viewer hasUserKey is true");
+
+// Viewer attempts to tamper with site default key
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_save_settings', [
+    'action' => 'ext_gemini_save_settings',
+    'siteApiKey' => 'HackedSiteKey'
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(empty($resp['success']) && strpos($resp['error'] ?? '', 'Administrator') !== false, "Viewer blocked from modifying site default key");
+
+// Viewer attempts to apply metadata directly to documents
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_apply_meta', [
+    'action' => 'ext_gemini_apply_meta',
+    'slug' => 'introduction',
+    'description' => 'Viewer trying to alter doc meta',
+    'tags' => ['hacked']
+]);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(empty($resp['success']) && strpos($resp['error'] ?? '', 'Administrator') !== false, "Viewer blocked from applying metadata to documents");
+
+// Multi-User Independence: Another user does not have viewer_test_user's personal key
+$_SESSION['qwiki_user'] = ['username' => 'second_user', 'role' => 'viewer'];
+ob_start();
+$handled = $extManager->handleAction('ext_gemini_get_settings', ['action' => 'ext_gemini_get_settings']);
+$output = ob_get_clean();
+$resp = json_decode($output, true);
+assert_true(($resp['keySource'] ?? '') === 'site', "Second user uses site default key, independent from first user's key");
+assert_true(empty($resp['hasUserKey']), "Second user has no user key set");
+
+// Test Header Utilities Filtering for Viewers vs Admins
+ob_start();
+$extManager->renderHeaderUtilityButtons(false); // viewer mode
+$viewerHeaderHtml = ob_get_clean();
+assert_true(strpos($viewerHeaderHtml, 'btn-util-gemini_assistant') !== false, "Viewer sees Gemini assistant in header utilities");
+assert_true(strpos($viewerHeaderHtml, 'btn-util-backup') === false, "Viewer does not see admin-only Backup utility");
+assert_true(strpos($viewerHeaderHtml, 'btn-util-postbox') === false, "Viewer does not see admin-only Postbox utility");
+
+ob_start();
+$extManager->renderHeaderUtilityButtons(true); // admin mode
+$adminHeaderHtml = ob_get_clean();
+assert_true(strpos($adminHeaderHtml, 'btn-util-gemini_assistant') !== false, "Admin sees Gemini assistant");
+assert_true(strpos($adminHeaderHtml, 'btn-util-backup') !== false, "Admin sees Backup utility");
+assert_true(strpos($adminHeaderHtml, 'btn-util-postbox') !== false, "Admin sees Postbox utility");
+
+// Restore admin session and cleanup viewer_test_user
+$_SESSION['qwiki_admin'] = true;
+$_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+Auth::deleteUser('viewer_test_user');
+Auth::updateUserGeminiSettings('admin', ''); // clear admin test key
 
 // 9. Test Demo Mode Safeguards
 putenv('QWIKI_DEMO_MODE=1');

@@ -1,6 +1,7 @@
 {
   "id": "postbox",
   "type": "utility",
+  "adminOnly": true,
   "title": "Document Postbox",
   "icon": "📬",
   "placement": "header_menu",

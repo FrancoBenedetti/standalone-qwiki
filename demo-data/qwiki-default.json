@@ -179,5 +179,16 @@
     ],
     "feedAccessToken": "",
     "feedItemCount": 10,
-    "llmKeys": []
+    "llmKeys": [],
+    "twoFactorPolicy": "optional",
+    "smtp": {
+        "enabled": false,
+        "host": "",
+        "port": 587,
+        "encryption": "tls",
+        "username": "",
+        "password": "",
+        "fromEmail": "",
+        "fromName": "Standalone Qwiki"
+    }
 }

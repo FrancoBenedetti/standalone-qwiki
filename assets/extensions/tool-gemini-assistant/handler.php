@@ -13,7 +13,7 @@
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
 
-if (!Auth::isAdmin()) {
+if (!Auth::isViewer() && !Auth::isAdmin()) {
     if (!headers_sent()) {
         http_response_code(401);
         header('Content-Type: application/json; charset=utf-8');
@@ -41,25 +41,66 @@ if (!function_exists('gemini_json_reply')) {
 }
 
 if (!function_exists('gemini_get_resolved_config')) {
-    function gemini_get_resolved_config(): array {
+    function gemini_get_resolved_config(?string $username = null): array {
         $config = Config::load();
         $geminiConfig = $config['gemini'] ?? [];
 
-        // Check environment variable overrides first
+        $currentUser = Auth::getCurrentUser();
+        if ($username === null && !empty($currentUser['username'])) {
+            $username = $currentUser['username'];
+        }
+
+        // 1. Site default key and model (from env var or qwiki.json)
         $envKey = getenv('GEMINI_API_KEY') ?: getenv('QWIKI_GEMINI_API_KEY');
         $isEnvKey = !empty($envKey);
-        $apiKey = $isEnvKey ? trim($envKey) : trim($geminiConfig['apiKey'] ?? '');
-        $model = trim($geminiConfig['model'] ?? 'gemini-2.5-flash');
-        if (empty($model)) {
-            $model = 'gemini-2.5-flash';
+        $siteKey = $isEnvKey ? trim($envKey) : trim($geminiConfig['apiKey'] ?? '');
+        $siteModel = trim($geminiConfig['model'] ?? 'gemini-2.5-flash');
+        if (empty($siteModel)) {
+            $siteModel = 'gemini-2.5-flash';
+        }
+
+        // 2. User personal key and model (from users.json)
+        $userRecord = !empty($username) ? Auth::getUser($username) : null;
+        $userKey = trim($userRecord['geminiApiKey'] ?? '');
+        $userModel = trim($userRecord['geminiModel'] ?? '');
+
+        $hasUserKey = !empty($userKey);
+        $hasSiteKey = !empty($siteKey);
+
+        // 3. Precedence: User Key Override > Site Default Key
+        $effectiveKey = $hasUserKey ? $userKey : $siteKey;
+        $effectiveModel = ($hasUserKey && !empty($userModel)) ? $userModel : $siteModel;
+
+        $keySource = 'none';
+        if ($hasUserKey) {
+            $keySource = 'user';
+        } elseif ($isEnvKey) {
+            $keySource = 'env';
+        } elseif ($hasSiteKey) {
+            $keySource = 'site';
         }
 
         return [
-            'apiKey' => $apiKey,
+            // Effective resolved values for outbound LLM calls (backward compatible):
+            'apiKey' => $effectiveKey,
+            'model' => $effectiveModel,
+            'hasKey' => !empty($effectiveKey),
+            'maskedKey' => !empty($effectiveKey) ? (substr($effectiveKey, 0, 6) . '••••••••••••' . substr($effectiveKey, -4)) : '',
+            'keySource' => $keySource, // 'user' | 'site' | 'env' | 'none'
+
+            // User-specific details:
+            'username' => $username,
+            'hasUserKey' => $hasUserKey,
+            'maskedUserKey' => $hasUserKey ? (substr($userKey, 0, 6) . '••••••••••••' . substr($userKey, -4)) : '',
+            'userModel' => $userModel,
+
+            // Site default details:
+            'hasSiteKey' => $hasSiteKey,
+            'maskedSiteKey' => $hasSiteKey ? (substr($siteKey, 0, 6) . '••••••••••••' . substr($siteKey, -4)) : '',
+            'siteModel' => $siteModel,
             'isEnvKey' => $isEnvKey,
-            'model' => $model,
-            'hasKey' => !empty($apiKey),
-            'maskedKey' => !empty($apiKey) ? (substr($apiKey, 0, 6) . '••••••••••••' . substr($apiKey, -4)) : ''
+            'isAdmin' => Auth::isAdmin(),
+            'isDemo' => Config::isDemoMode()
         ];
     }
 }
@@ -317,11 +358,24 @@ if ($action === 'ext_gemini_get_settings') {
     $cfg = gemini_get_resolved_config();
     gemini_json_reply([
         'success' => true,
+        // Backward-compatible fields
         'hasKey' => $cfg['hasKey'],
         'maskedKey' => $cfg['maskedKey'],
         'isEnvKey' => $cfg['isEnvKey'],
         'model' => $cfg['model'],
-        'isDemo' => $isDemo
+        'isDemo' => $isDemo,
+
+        // Hierarchical key metadata
+        'keySource' => $cfg['keySource'], // 'user' | 'site' | 'env' | 'none'
+        'username' => $cfg['username'],
+        'hasUserKey' => $cfg['hasUserKey'],
+        'maskedUserKey' => $cfg['maskedUserKey'],
+        'userModel' => $cfg['userModel'],
+
+        'hasSiteKey' => $cfg['hasSiteKey'],
+        'maskedSiteKey' => $cfg['maskedSiteKey'],
+        'siteModel' => $cfg['siteModel'],
+        'isAdmin' => $cfg['isAdmin']
     ]);
     return;
 }
@@ -335,34 +389,88 @@ if ($action === 'ext_gemini_save_settings') {
         return;
     }
 
-    $rawKey = trim($params['apiKey'] ?? '');
-    $model = trim($params['model'] ?? 'gemini-2.5-flash');
-    if (empty($model)) {
-        $model = 'gemini-2.5-flash';
+    $currentUser = Auth::getCurrentUser();
+    $username = $currentUser['username'] ?? '';
+    $isAdmin = Auth::isAdmin();
+
+    // 1. Handle User Personal Key & Model (Allowed for any signed-in user)
+    $hasUserKeyParam = array_key_exists('userApiKey', $params);
+    $hasUserModelParam = array_key_exists('userModel', $params);
+    $clearUserKey = !empty($params['clearUserKey']);
+    $target = $params['target'] ?? '';
+
+    if ($clearUserKey && !empty($username)) {
+        Auth::updateUserGeminiSettings($username, '', '');
+    } elseif ($hasUserKeyParam && !empty($username)) {
+        $rawUserKey = trim($params['userApiKey']);
+        $userModel = $hasUserModelParam ? trim($params['userModel']) : null;
+        Auth::updateUserGeminiSettings($username, $rawUserKey, $userModel);
+    } elseif ($target === 'user' && !empty($username) && isset($params['apiKey'])) {
+        $rawUserKey = trim($params['apiKey']);
+        $userModel = isset($params['model']) ? trim($params['model']) : null;
+        Auth::updateUserGeminiSettings($username, $rawUserKey, $userModel);
+    } elseif (!$isAdmin && !empty($username) && isset($params['apiKey'])) {
+        // Non-admin sending legacy apiKey parameter: save as personal key override
+        $rawUserKey = trim($params['apiKey']);
+        $userModel = isset($params['model']) ? trim($params['model']) : null;
+        Auth::updateUserGeminiSettings($username, $rawUserKey, $userModel);
     }
 
-    $config = Config::load();
-    if (!isset($config['gemini']) || !is_array($config['gemini'])) {
-        $config['gemini'] = [];
-    }
+    // 2. Handle Site Default Key & Model (Admin only)
+    $hasSiteKeyParam = array_key_exists('siteApiKey', $params);
+    $hasSiteModelParam = array_key_exists('siteModel', $params);
+    $hasLegacyKeyParam = array_key_exists('apiKey', $params) && $target !== 'user';
+    $hasLegacyModelParam = array_key_exists('model', $params) && $target !== 'user';
 
-    // Preserve existing key if placeholder was sent
-    if ($rawKey !== '' && strpos($rawKey, '••••') === false) {
-        $config['gemini']['apiKey'] = $rawKey;
-    } elseif ($rawKey === '') {
-        $config['gemini']['apiKey'] = '';
-    }
+    if ($hasSiteKeyParam || $hasSiteModelParam || ($isAdmin && ($hasLegacyKeyParam || $hasLegacyModelParam))) {
+        if (!$isAdmin) {
+            gemini_json_reply(['success' => false, 'error' => 'Administrator permission required to change site default settings.'], 403);
+            return;
+        }
 
-    $config['gemini']['model'] = $model;
-    Config::save($config);
+        $config = Config::load();
+        if (!isset($config['gemini']) || !is_array($config['gemini'])) {
+            $config['gemini'] = [];
+        }
+
+        $rawSiteKey = $hasSiteKeyParam ? trim($params['siteApiKey']) : ($hasLegacyKeyParam ? trim($params['apiKey']) : null);
+        $rawSiteModel = $hasSiteModelParam ? trim($params['siteModel']) : ($hasLegacyModelParam ? trim($params['model']) : null);
+
+        if ($rawSiteKey !== null) {
+            if ($rawSiteKey !== '' && strpos($rawSiteKey, '••••') === false) {
+                $config['gemini']['apiKey'] = $rawSiteKey;
+            } elseif ($rawSiteKey === '') {
+                $config['gemini']['apiKey'] = '';
+            }
+        }
+
+        if ($rawSiteModel !== null) {
+            $config['gemini']['model'] = !empty($rawSiteModel) ? $rawSiteModel : 'gemini-2.5-flash';
+        }
+
+        Config::save($config);
+    }
 
     $cfg = gemini_get_resolved_config();
     gemini_json_reply([
         'success' => true,
+        // Backward-compatible fields
         'hasKey' => $cfg['hasKey'],
         'maskedKey' => $cfg['maskedKey'],
         'isEnvKey' => $cfg['isEnvKey'],
-        'model' => $cfg['model']
+        'model' => $cfg['model'],
+        'keySource' => $cfg['keySource'],
+
+        // Hierarchical key metadata
+        'username' => $cfg['username'],
+        'hasUserKey' => $cfg['hasUserKey'],
+        'maskedUserKey' => $cfg['maskedUserKey'],
+        'userModel' => $cfg['userModel'],
+
+        'hasSiteKey' => $cfg['hasSiteKey'],
+        'maskedSiteKey' => $cfg['maskedSiteKey'],
+        'siteModel' => $cfg['siteModel'],
+        'isAdmin' => $cfg['isAdmin']
     ]);
     return;
 }
@@ -371,7 +479,7 @@ if ($action === 'ext_gemini_save_settings') {
 // 3. TEST CONNECTION
 // -------------------------------------------------------------
 if ($action === 'ext_gemini_test_connection') {
-    $testKey = trim($params['apiKey'] ?? '');
+    $testKey = trim($params['apiKey'] ?? ($params['userApiKey'] ?? ($params['siteApiKey'] ?? '')));
     $cfg = gemini_get_resolved_config();
     
     // If not a new key, use configured key
@@ -379,7 +487,7 @@ if ($action === 'ext_gemini_test_connection') {
         $testKey = $cfg['apiKey'];
     }
 
-    $testModel = trim($params['model'] ?? $cfg['model']);
+    $testModel = trim($params['model'] ?? ($params['userModel'] ?? ($params['siteModel'] ?? $cfg['model'])));
     if (empty($testModel)) {
         $testModel = 'gemini-2.5-flash';
     }
@@ -456,7 +564,7 @@ if ($action === 'ext_gemini_list_models') {
         return;
     }
 
-    $testKey = trim($params['apiKey'] ?? '');
+    $testKey = trim($params['apiKey'] ?? ($params['userApiKey'] ?? ($params['siteApiKey'] ?? '')));
     $cfg = gemini_get_resolved_config();
     if (empty($testKey) || strpos($testKey, '••••') !== false) {
         $testKey = $cfg['apiKey'];
@@ -657,6 +765,10 @@ if ($action === 'ext_gemini_summarize') {
 // 6. APPLY METADATA DIRECTLY TO DOCUMENT IN QWIKI.JSON
 // -------------------------------------------------------------
 if ($action === 'ext_gemini_apply_meta') {
+    if (!Auth::isAdmin()) {
+        gemini_json_reply(['success' => false, 'error' => 'Administrator privileges are required to apply metadata changes directly to document definitions.'], 403);
+        return;
+    }
     if ($isDemo) {
         gemini_json_reply(['success' => false, 'error' => 'Modifying documents is restricted in Demo Mode.'], 403);
         return;

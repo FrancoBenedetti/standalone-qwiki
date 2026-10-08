@@ -18,10 +18,45 @@ To change site visibility:
 ## 👥 Managing Users (RBAC)
 
 1. Click **`👥 Users`** in the header menu.
-2. **Add User**: Enter a username, password, and select a role:
+2. **Add User**: Enter a username, optional email address, password, and select a role:
    - **Admin**: Full rights to create, edit, upload, reorder navigation, and manage users.
    - **Viewer**: Read-only documentation access.
-3. **Delete User**: Click the trash icon next to an account to remove it. (Note: You cannot delete your own active account).
+3. **Offline Reset Link**: In air-gapped setups or environments without SMTP, click the **`🔗 Reset Link`** icon next to any user account to copy a 24-hour single-use password reset link directly to your clipboard.
+4. **Delete User**: Click the trash icon next to an account to remove it. (Note: You cannot delete your own active account).
+
+---
+
+## 🔒 Account & Security (Self-Service)
+
+Any signed-in user (Viewers and Admins) can manage their personal security profile:
+1. Click your username in the upper-right corner and select **`👤 Account & Security`**.
+2. **Email Address**: Set or update your notification email. Standalone Qwiki dispatches a verification link to ensure address validity.
+3. **Change Password**: Update your login credentials at any time.
+4. **Two-Factor Authentication (2FA)**:
+   - Click **Enable 2FA** to launch the interactive setup wizard.
+   - Scan the client-side SVG QR code with Google Authenticator, Bitwarden, 1Password, or Aegis, or manually copy the Base32 secret key.
+   - Enter the 6-digit verification code from your authenticator app to activate protection.
+   - Securely save the eight single-use 10-character emergency recovery codes provided.
+
+---
+
+## 🛡️ Wiki 2FA Policy & Outbound SMTP
+
+Administrators can configure global authentication security and email delivery in **`⚙️ Site Settings`**:
+
+### Two-Factor Authentication Policy
+- **Optional**: Users can decide individually whether to activate 2FA on their profile.
+- **Required for Admins**: All administrators must enroll in 2FA before accessing site configuration or editorial features.
+- **Required for All**: Enforces 2FA for all registered accounts across the wiki.
+- **Disabled**: Turns off 2FA enforcement site-wide.
+
+### Outbound SMTP Email Configuration
+Configure outgoing mail for automated password resets and email verification links:
+- **Enable SMTP**: Check to route email via dedicated mail server instead of local PHP `mail()`.
+- **Host & Port**: Supports standard submission ports (`587` with STARTTLS or `465` with SSL/TLS).
+- **Authentication**: Enter your SMTP username and password.
+- **Sender Profile**: Customize the "From Email" address and "From Name".
+- **Test Connection**: Click **`🧪 Test SMTP Connection`** to dispatch a live test message and verify handshake and credentials immediately.
 
 ---
 

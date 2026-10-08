@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.17.0';
+    const VERSION = '1.18.0';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -88,6 +88,21 @@ class Config {
                 if (self::normalizeBooks($data['books'])) {
                     self::save($data);
                 }
+            }
+            if (!isset($data['twoFactorPolicy'])) {
+                $data['twoFactorPolicy'] = 'optional';
+            }
+            if (!isset($data['smtp']) || !is_array($data['smtp'])) {
+                $data['smtp'] = [
+                    'enabled' => false,
+                    'host' => '',
+                    'port' => 587,
+                    'encryption' => 'tls',
+                    'username' => '',
+                    'password' => '',
+                    'fromEmail' => '',
+                    'fromName' => 'Standalone Qwiki'
+                ];
             }
             return $data;
         }
@@ -240,7 +255,27 @@ class Config {
             return $initialUsers;
         }
         $data = json_decode(file_get_contents($usersFile), true);
-        return is_array($data) ? $data : ['users' => []];
+        if (!is_array($data) || !isset($data['users']) || !is_array($data['users'])) {
+            return ['users' => []];
+        }
+
+        foreach ($data['users'] as &$u) {
+            if (!isset($u['email'])) {
+                $u['email'] = null;
+            }
+            if (!isset($u['emailVerified'])) {
+                $u['emailVerified'] = false;
+            }
+            if (!isset($u['emailVerifiedAt'])) {
+                $u['emailVerifiedAt'] = null;
+            }
+            if (!isset($u['twoFactor']) || !is_array($u['twoFactor'])) {
+                $u['twoFactor'] = null;
+            }
+        }
+        unset($u);
+
+        return $data;
     }
 
     public static function saveUsers(array $userData) {

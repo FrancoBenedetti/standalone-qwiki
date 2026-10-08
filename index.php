@@ -511,6 +511,20 @@ $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
 $assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
 
+// Check for action triggers: reset_password or verify_email
+$routeAction = $_GET['action'] ?? '';
+$resetPasswordToken = null;
+$resetPasswordValidation = null;
+$emailVerificationResult = null;
+
+if ($routeAction === 'reset_password') {
+    $resetPasswordToken = trim($_GET['token'] ?? '');
+    $resetPasswordValidation = Auth::validateResetToken($resetPasswordToken);
+} elseif ($routeAction === 'verify_email') {
+    $verifyToken = trim($_GET['token'] ?? '');
+    $emailVerificationResult = Auth::verifyEmail($verifyToken);
+}
+
 // Share link routing
 $shareKey = trim($_GET['share'] ?? '');
 $isShareMode = false;
@@ -1001,10 +1015,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             </div>
                             <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.4rem;"><?= $isAdmin ? 'admin' : 'viewer' ?></span>
                         </div>
+                        <div class="dropdown-header">Tools & Utilities</div>
+                        <?php $extManager->renderHeaderUtilityButtons($isAdmin); ?>
+                        <div class="dropdown-divider"></div>
                         <?php if ($isAdmin): ?>
-                            <div class="dropdown-header">Tools & Utilities</div>
-                            <?php $extManager->renderHeaderUtilityButtons(); ?>
-                            <div class="dropdown-divider"></div>
                             <div class="dropdown-header">Administration</div>
                             <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">
                                 <span class="dropdown-item-icon">⚙️</span>
@@ -1030,6 +1044,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <?php endif; ?>
                             <div class="dropdown-divider"></div>
                         <?php endif; ?>
+                        <button class="dropdown-item" id="btn-user-profile">
+                            <span class="dropdown-item-icon">👤</span>
+                            <span class="dropdown-item-text">Account &amp; Security</span>
+                        </button>
+                        <div class="dropdown-divider"></div>
                         <button class="dropdown-item text-danger" id="btn-logout">
                             <span class="dropdown-item-icon">🚪</span>
                             <span class="dropdown-item-text">Logout</span>
@@ -1137,7 +1156,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
                 <?php if ($showSubwikisInSidebar && !empty($sidebarSubwikis)): ?>
-                <div class="nav-category-item depth-0 nav-subwikis-group collapsed">
+                <div class="nav-category-item depth-0 nav-subwikis-group collapsed" data-category-id="subwikis">
                     <div class="nav-category-header">
                         <span>🌐 Subwikis</span>
                         <span class="header-actions-inline">
@@ -1172,7 +1191,57 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
         <!-- Main Content Area -->
         <main class="app-content">
-            <?php if ($shareError === 'not_found'): ?>
+            <?php if ($routeAction === 'reset_password'): ?>
+                <div class="content-body" style="max-width: 480px; margin: 3rem auto; padding: 2.5rem; background: var(--bg-surface, #fff); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+                    <div style="text-align: center; margin-bottom: 1.5rem;">
+                        <div style="font-size: 2.75rem; margin-bottom: 0.5rem;">🔑</div>
+                        <h2 style="margin: 0 0 0.5rem 0;">Reset Account Password</h2>
+                        <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Set a new password for account <strong><?= htmlspecialchars($resetPasswordValidation['username']) ?></strong>.</p>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
+                        <form id="standalone-reset-password-form">
+                            <input type="hidden" name="token" value="<?= htmlspecialchars($resetPasswordToken) ?>">
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <label class="form-label" for="reset-new-password">New Password (min 4 characters)</label>
+                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="Enter new password" required autocomplete="new-password">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.5rem;">
+                                <label class="form-label" for="reset-confirm-password">Confirm New Password</label>
+                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="Confirm new password" required autocomplete="new-password">
+                            </div>
+                            <div id="reset-password-status" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%;">Save New Password &amp; Log In</button>
+                        </form>
+                    <?php else: ?>
+                        <div style="padding: 1rem; background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 6px; color: #b91c1c; font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem;">
+                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? 'This password reset link is invalid or has expired.') ?>
+                        </div>
+                        <div style="text-align: center;">
+                            <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Homepage</a>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php elseif ($routeAction === 'verify_email'): ?>
+                <div class="content-body" style="max-width: 480px; margin: 3rem auto; padding: 2.5rem; text-align: center; background: var(--bg-surface, #fff); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+                    <?php if ($emailVerificationResult && $emailVerificationResult['success']): ?>
+                        <div style="font-size: 3rem; margin-bottom: 0.75rem;">✅</div>
+                        <h2 style="margin: 0 0 0.75rem 0;">Email Verified!</h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.75rem;">
+                            Your email address <strong><?= htmlspecialchars($emailVerificationResult['email']) ?></strong> has been verified successfully.
+                        </p>
+                    <?php else: ?>
+                        <div style="font-size: 3rem; margin-bottom: 0.75rem;">⚠️</div>
+                        <h2 style="margin: 0 0 0.75rem 0;">Verification Failed</h2>
+                        <p style="color: #ef4444; font-size: 0.9rem; margin-bottom: 1.75rem;">
+                            <?= htmlspecialchars($emailVerificationResult['error'] ?? 'This email verification link is invalid or has expired.') ?>
+                        </p>
+                    <?php endif; ?>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Continue to Documentation</a>
+                </div>
+            <?php elseif ($shareError === 'not_found'): ?>
                 <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
                     <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
                     <h2>Document Not Found</h2>
@@ -1347,7 +1416,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <div class="modal-overlay" id="login-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Account Authentication</h3>
+                <h3 id="login-modal-title">Account Authentication</h3>
                 <button class="modal-close" data-close="login-modal">&times;</button>
             </div>
             <form id="login-form">
@@ -1355,11 +1424,55 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <label class="form-label" for="login-username">Username</label>
                     <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" autocomplete="username" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="margin-bottom: 0.5rem;">
                     <label class="form-label" for="login-password">Password</label>
                     <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password (default: admin)" autocomplete="current-password" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Log In</button>
+                <div style="text-align: right; margin-bottom: 1.25rem;">
+                    <button type="button" class="btn-link" id="btn-open-forgot-pwd" style="background: none; border: none; font-size: 0.8rem; color: var(--primary-color, #2563eb); cursor: pointer; text-decoration: underline; padding: 0;">Forgot Password?</button>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%;">Log In</button>
+            </form>
+
+            <form id="login-2fa-form" style="display: none;">
+                <div style="text-align: center; margin-bottom: 1.25rem;">
+                    <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔒</div>
+                    <h4 style="margin: 0 0 0.25rem 0;" id="login-2fa-heading">Two-Factor Authentication</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" id="login-2fa-desc">Enter the 6-digit verification code from your authenticator app.</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="login-2fa-code" id="login-2fa-label" style="text-align: center; display: block;">Verification Code</label>
+                    <input type="text" id="login-2fa-code" name="code" class="form-control" placeholder="000000" maxlength="10" autocomplete="one-time-code" style="text-align: center; font-size: 1.25rem; letter-spacing: 0.2rem; font-family: monospace;" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-2fa-submit" style="width: 100%; margin-bottom: 0.75rem;">Verify &amp; Continue</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-top: 0.5rem;">
+                    <button type="button" class="btn-link" id="btn-toggle-recovery-code" style="background: none; border: none; color: var(--primary-color, #2563eb); cursor: pointer; text-decoration: underline; padding: 0;">Use recovery code</button>
+                    <button type="button" class="btn-link" id="btn-back-to-login" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0;">← Back to login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div class="modal-overlay" id="forgot-password-modal">
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3>🔑 Reset Password</h3>
+                <button class="modal-close" data-close="forgot-password-modal">&times;</button>
+            </div>
+            <form id="forgot-password-form">
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.25rem;">
+                    Enter your username or verified email address. We will dispatch a secure, one-time link to reset your password.
+                </p>
+                <div id="forgot-password-alert" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+                <div class="form-group">
+                    <label class="form-label" for="forgot-identifier">Username or Email</label>
+                    <input type="text" id="forgot-identifier" name="identifier" class="form-control" placeholder="Enter username or email" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-submit-forgot" style="width: 100%;">Send Reset Link</button>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <button type="button" class="btn-link" id="btn-back-from-forgot" style="background: none; border: none; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; text-decoration: underline;">← Return to Login</button>
+                </div>
             </form>
         </div>
     </div>
@@ -1419,7 +1532,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             
             <form id="add-user-form" autocomplete="off" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
                 <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Add New User</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
                     <div>
                         <label class="form-label">Username</label>
                         <input type="text" name="username" class="form-control" placeholder="e.g. john_viewer" autocomplete="off" required>
@@ -1427,6 +1540,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <div>
                         <label class="form-label">Password</label>
                         <input type="password" name="password" class="form-control" placeholder="Set password" autocomplete="new-password" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Email (Optional)</label>
+                        <input type="email" name="email" class="form-control" placeholder="user@example.com" autocomplete="off">
                     </div>
                     <div>
                         <label class="form-label">Role</label>
@@ -2062,6 +2179,73 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <option value="1" <?= !empty($config['requireLoginToView']) ? 'selected' : '' ?>>Private Portal (Login required to view documentation)</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="setting-2fa-policy">Two-Factor Authentication (2FA) Policy</label>
+                    <select name="twoFactorPolicy" id="setting-2fa-policy" class="form-control">
+                        <option value="optional" <?= (($config['twoFactorPolicy'] ?? 'optional') === 'optional') ? 'selected' : '' ?>>Optional (Users can choose to enable 2FA)</option>
+                        <option value="required_admins" <?= (($config['twoFactorPolicy'] ?? '') === 'required_admins') ? 'selected' : '' ?>>Enforced for Admins Only</option>
+                        <option value="required_all" <?= (($config['twoFactorPolicy'] ?? '') === 'required_all') ? 'selected' : '' ?>>Enforced for All Users</option>
+                        <option value="disabled" <?= (($config['twoFactorPolicy'] ?? '') === 'disabled') ? 'selected' : '' ?>>Disabled</option>
+                    </select>
+                    <small style="color: var(--text-muted); font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+                        Control whether users can or must use TOTP authenticator apps.
+                    </small>
+                </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+                <div style="margin-bottom: 0.75rem;">
+                    <strong style="color: var(--text-primary); font-size: 0.95rem;">📧 Email &amp; SMTP Configuration</strong>
+                    <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0.25rem 0 0.5rem 0;">Configure outbound email dispatch for password resets and verification. If disabled or unconfigured, system PHP <code>mail()</code> is used.</p>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="smtp[enabled]" value="1" id="setting-smtp-enabled" <?= !empty($config['smtp']['enabled']) ? 'checked' : '' ?>>
+                        <span>Enable Custom Socket SMTP Dispatch</span>
+                    </label>
+                </div>
+                <div id="smtp-settings-fields" style="<?= empty($config['smtp']['enabled']) ? 'display: none;' : '' ?> margin-top: 0.75rem; padding: 1rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 6px;">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label class="form-label" for="setting-smtp-host">SMTP Host</label>
+                            <input type="text" name="smtp[host]" id="setting-smtp-host" class="form-control" value="<?= htmlspecialchars($config['smtp']['host'] ?? '') ?>" placeholder="e.g. smtp.example.com">
+                        </div>
+                        <div>
+                            <label class="form-label" for="setting-smtp-port">Port</label>
+                            <input type="number" name="smtp[port]" id="setting-smtp-port" class="form-control" value="<?= htmlspecialchars((string)($config['smtp']['port'] ?? 587)) ?>" placeholder="587">
+                        </div>
+                        <div>
+                            <label class="form-label" for="setting-smtp-encryption">Encryption</label>
+                            <select name="smtp[encryption]" id="setting-smtp-encryption" class="form-control">
+                                <option value="tls" <?= (($config['smtp']['encryption'] ?? 'tls') === 'tls') ? 'selected' : '' ?>>TLS / STARTTLS</option>
+                                <option value="ssl" <?= (($config['smtp']['encryption'] ?? '') === 'ssl') ? 'selected' : '' ?>>SSL (Port 465)</option>
+                                <option value="none" <?= (($config['smtp']['encryption'] ?? '') === 'none') ? 'selected' : '' ?>>None (Plain)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label class="form-label" for="setting-smtp-username">SMTP Username</label>
+                            <input type="text" name="smtp[username]" id="setting-smtp-username" class="form-control" value="<?= htmlspecialchars($config['smtp']['username'] ?? '') ?>" placeholder="user@example.com" autocomplete="off">
+                        </div>
+                        <div>
+                            <label class="form-label" for="setting-smtp-password">SMTP Password</label>
+                            <input type="password" name="smtp[password]" id="setting-smtp-password" class="form-control" placeholder="<?= !empty($config['smtp']['password']) ? '•••••••• (leave blank to keep unchanged)' : 'Enter SMTP password' ?>" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div>
+                            <label class="form-label" for="setting-smtp-fromemail">Sender Email</label>
+                            <input type="email" name="smtp[fromEmail]" id="setting-smtp-fromemail" class="form-control" value="<?= htmlspecialchars($config['smtp']['fromEmail'] ?? '') ?>" placeholder="noreply@yourdomain.com">
+                        </div>
+                        <div>
+                            <label class="form-label" for="setting-smtp-fromname">Sender Name</label>
+                            <input type="text" name="smtp[fromName]" id="setting-smtp-fromname" class="form-control" value="<?= htmlspecialchars($config['smtp']['fromName'] ?? 'Standalone Qwiki') ?>" placeholder="Standalone Qwiki">
+                        </div>
+                    </div>
+                    <div style="margin-top: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-test-smtp">📨 Test Connection &amp; Send Test Email</button>
+                        <span id="smtp-test-status" style="font-size: 0.82rem; color: var(--text-muted);"></span>
+                    </div>
+                </div>
                 <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
                 <div class="form-group">
                     <label class="form-label" for="setting-feed-item-count">RSS Feed Item Count</label>
@@ -2194,6 +2378,112 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     </div>
     <?php endif; ?>
 
+    <?php if ($isAdmin || $isViewer): ?>
+    <!-- User Profile & Security Modal -->
+    <div class="modal-overlay" id="user-profile-modal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3>👤 Account &amp; Security</h3>
+                <button class="modal-close" data-close="user-profile-modal">&times;</button>
+            </div>
+            
+            <div class="modal-body" style="padding: 1rem 0;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+                    <div>
+                        <strong style="font-size: 1.1rem; color: var(--text-primary);"><?= htmlspecialchars($currentUser['username'] ?? '') ?></strong>
+                        <span class="doc-badge <?= $isAdmin ? 'badge-md' : 'badge-pdf' ?>" style="margin-left: 0.5rem; text-transform: uppercase;"><?= htmlspecialchars($currentUser['role'] ?? 'viewer') ?></span>
+                    </div>
+                </div>
+
+                <!-- Email Management Section -->
+                <div style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary);">Email Address</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 1rem 0;">
+                        Required for self-service password resets. A verification email will be dispatched when saving a new address.
+                    </p>
+                    <form id="profile-email-form">
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="email" id="profile-user-email" class="form-control" placeholder="name@yourdomain.com" value="" required>
+                                <button type="submit" class="btn btn-primary" id="btn-save-profile-email" style="white-space: nowrap;">Save Email</button>
+                            </div>
+                        </div>
+                        <div id="profile-email-status-container" style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem;">
+                            <span id="profile-email-badge"></span>
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-resend-verification" style="display: none; padding: 0.2rem 0.5rem;">Resend Verification Link</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Two-Factor Authentication Section -->
+                <div>
+                    <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary);">Two-Factor Authentication (2FA)</h4>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0 0 1rem 0;">
+                        Protect your account with Time-Based One-Time Passwords (TOTP) using authenticator apps like Google Authenticator, Bitwarden, or 1Password.
+                    </p>
+
+                    <!-- State 1: 2FA Disabled -->
+                    <div id="profile-2fa-disabled-view">
+                        <div style="padding: 1rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-size: 0.9rem; font-weight: 600;">Status: </span>
+                                <span style="color: var(--text-muted); font-size: 0.88rem;">Disabled</span>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-start-2fa-setup">🔐 Enable 2FA</button>
+                        </div>
+                    </div>
+
+                    <!-- State 2: 2FA Enrollment Wizard -->
+                    <div id="profile-2fa-setup-view" style="display: none; padding: 1.25rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 1rem;">
+                        <h5 style="margin: 0 0 0.5rem 0;">Step 1: Scan QR Code or Enter Key</h5>
+                        <p style="font-size: 0.83rem; color: var(--text-muted); margin: 0 0 1rem 0;">Scan this QR code in your authenticator app, or enter the secret key manually.</p>
+                        
+                        <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 1rem; text-align: center;">
+                            <div id="profile-2fa-qr-container" style="background: #fff; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); display: inline-block; margin-bottom: 0.75rem;"></div>
+                            <div style="font-size: 0.85rem; font-family: monospace; background: var(--bg-surface, #f3f4f6); padding: 0.4rem 0.8rem; border-radius: 4px; border: 1px solid var(--border-color); margin-bottom: 0.5rem; word-break: break-all;" id="profile-2fa-secret-text"></div>
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-copy-2fa-secret" style="font-size: 0.8rem; padding: 0.2rem 0.5rem;">📋 Copy Secret Key</button>
+                        </div>
+
+                        <h5 style="margin: 1.25rem 0 0.5rem 0;">Step 2: Enter 6-Digit Code to Confirm</h5>
+                        <form id="profile-2fa-confirm-form">
+                            <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                                <input type="text" id="profile-2fa-confirm-code" class="form-control" placeholder="000000" maxlength="6" style="text-align: center; font-family: monospace; font-size: 1.1rem; letter-spacing: 0.2rem;" required autocomplete="one-time-code">
+                                <button type="submit" class="btn btn-primary" id="btn-confirm-2fa" style="white-space: nowrap;">Activate 2FA</button>
+                            </div>
+                        </form>
+
+                        <div style="text-align: right;">
+                            <button type="button" class="btn-link" id="btn-cancel-2fa-setup" style="background: none; border: none; font-size: 0.8rem; color: var(--text-muted); cursor: pointer;">Cancel Setup</button>
+                        </div>
+                    </div>
+
+                    <!-- State 3: 2FA Active View -->
+                    <div id="profile-2fa-active-view" style="display: none;">
+                        <div style="padding: 1rem; background: rgba(16,185,129,0.08); border: 1px solid #10b981; border-radius: 6px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-size: 0.9rem; font-weight: 600; color: #047857;">🔒 Status: Active</span>
+                                <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">Two-Factor Authentication is currently protecting this account.</p>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-disable-my-2fa">Disable 2FA</button>
+                        </div>
+                    </div>
+
+                    <!-- Recovery Codes Display Card -->
+                    <div id="profile-2fa-recovery-codes-card" style="display: none; padding: 1.25rem; background: rgba(245,158,11,0.08); border: 1px solid #f59e0b; border-radius: 8px;">
+                        <h5 style="margin: 0 0 0.25rem 0; color: #b45309;">⚠️ Save Your Emergency Recovery Codes</h5>
+                        <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.75rem 0;">If you ever lose access to your authenticator app, each of these 8 codes can be used once to log in. Save them in a secure place.</p>
+                        <div id="profile-2fa-codes-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-family: monospace; font-size: 0.9rem; background: var(--bg-surface, #fff); padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 0.75rem;"></div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-copy-recovery-codes">📋 Copy All Codes</button>
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-done-recovery-codes">Done</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Theme Editor Modal -->
     <div class="modal-overlay" id="theme-editor-modal">
         <div class="modal-card" style="max-width: 800px;">
@@ -2253,6 +2543,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/qrcode.min.js?v=<?= @filemtime(__DIR__ . '/assets/js/qrcode.min.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/app.js?v=<?= @filemtime(__DIR__ . '/assets/js/app.js') ?: time() ?>"></script>
 
     <!-- Extension Scripts -->

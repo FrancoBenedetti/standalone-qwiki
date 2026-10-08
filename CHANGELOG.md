@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.18.0] - AuthFlow - 2026-10-08
+
+### 🛡️ Native RFC 6238 Two-Factor Authentication (2FA / TOTP)
+- **Zero-Dependency Pure PHP Implementation**: Full RFC 6238 TOTP engine (`lib/Core/Totp.php`) implemented natively in pure PHP with RFC 4226 HMAC counter math and Base32 encoding/decoding.
+- **Broad Authenticator App Compatibility**: Works out of the box with Google Authenticator, Bitwarden, 1Password, Microsoft Authenticator, Aegis, Raivo, and Apple Passwords.
+- **Offline Client-Side QR Codes**: Generates standard `otpauth://` QR codes directly in the browser as crisp SVG vectors (`assets/js/qrcode.min.js`), ensuring zero data leaks to third-party image generation APIs.
+- **8 Emergency Recovery Codes**: Users receive eight 10-character single-use recovery codes upon 2FA enrollment. Codes are BCrypt-hashed in `users.json` and consumed on first use.
+- **Wiki-Wide 2FA Enforcement Policies**: Configurable in **`⚙️ Site Settings`** (`Optional`, `Required for Admins`, `Required for All`, or `Disabled`).
+- **Emergency CLI Recovery Tool**: Administrators who lose access to both their authenticator device and recovery codes can instantly reset 2FA via the server terminal (`php bin/reset-2fa.php <username>`).
+
+### 🔑 Stateless Self-Service Password Reset & Outbound SMTP Client
+- **Stateless HMAC-SHA256 Token Design**: Password reset links utilize mathematically signed stateless tokens (`action=reset_password&token=...`) incorporating a cryptographic slice of the user's current password hash. Guarantees **0 disk writes** during request generation and **immediate, automatic invalidation** once a password is changed.
+- **Air-Gapped & Offline Admin Reset Links**: For environments without outbound email or SMTP, administrators can click **`🔗 Reset Link`** next to any user in the **`👥 Users`** modal to copy a 24-hour offline reset link directly to their clipboard.
+- **Pure Socket Outbound SMTP Client**: Lightweight socket client (`lib/Core/Mailer.php`) supporting STARTTLS (port 587) and SSL (port 465) with `AUTH LOGIN` authentication, an interactive "Test Connection" tool in Site Settings, and native PHP `mail()` fallback with `-f` envelope sender alignment.
+- **Self-Service Account & Security Portal**: Added **`👤 Account & Security`** modal accessible to all signed-in users for managing verified email addresses, password updates, and 2FA enrollment.
+
+### 🤖 Two-Tier Bring Your Own Key (BYOK) for Gemini AI Assistant
+- **Hierarchical Key Resolution**: Implemented a flexible two-tier API key resolution hierarchy: Tier 1 Personal User Key Override (`users.json`) > Tier 2 Site Default Key (`qwiki.json` or `GEMINI_API_KEY` environment variable).
+- **Free Tier & Shared Key Flexibility**: Experimental and hobbyist wiki installations can now permit users to bring their own free Gemini API keys without exhausting the site's shared quota or budget, while professional deployments can provide a single paid site-wide key.
+- **Role-Based Assistant Access**:
+  - Signed-in Viewers can now access the Gemini Assistant modal from the header utility bar (`renderHeaderUtilityButtons`), test models, chat, summarize content, and preview OpenGraph cards using either the site key or their personal key override.
+  - Document metadata application (`ext_gemini_apply_meta`) and site default configuration changes (`siteApiKey`, `siteModel`) are strictly restricted to administrators with 403 Forbidden enforcement.
+- **Header Utility Filtering by Role**: Added `adminOnly` attribute to extension manifests (such as `tool-backup` and `tool-postbox`), allowing ExtensionManager to selectively display user-safe utilities to viewers while keeping administrative maintenance tools restricted to admins.
+- **Redesigned Settings Tab in AI Assistant UI**:
+  - Live **Active Key Status Banner** showing the currently active key source (Personal User Override vs. Site Default Key), active model, and quota tier status.
+  - **Tier 1: Personal Key Override Card** for all signed-in users with show/hide password toggle, personal model selector, and 1-click **"Revert to Site Key"** action.
+  - **Tier 2: Site Default Key Card** displaying editable inputs for administrators and a masked read-only status box for viewers.
+
+### 📌 Sidebar Scroll & Category State Persistence
+- **Stateful Navigation**: Seamlessly preserves left sidebar expanded/collapsed folder states (`data-category-id`) and exact vertical scroll position across document navigation and page refreshes.
+- **Active Document Preservation**: Automatically expands parent categories for the active document while restoring previously opened folders.
+
+### 🧪 Automated Test Coverage
+- `tests/totp_test.php`: 5 test suites validating Base32 encoding/decoding, RFC 6238 test vectors, time-drift tolerance windows, recovery code consumption, and `otpauth://` URI generation.
+- `tests/password_reset_test.php`: 8 test suites validating user record schema normalization, stateless HMAC token lifecycle, offline admin links, password reset invalidation, email verification, 2FA challenge flows, recovery codes, and administrative resets.
+- `tests/gemini_assistant_test.php`: 63 automated assertions testing personal key overrides, site key inheritance, key clearing, multi-user independence, viewer role protections, admin-only tool filtering, and demo mode safeguards.
+- `tests/test_sidebar_scroll_persistence.js`: 5 headless tests verifying accordion persistence, storage keys, and scroll retention.
+- `tests/clean_release_test.php`: 30 automated assertions ensuring release archives exclude test suites, developer configs, and internal tooling.
 
 ---
 
