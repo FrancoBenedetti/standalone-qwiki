@@ -201,13 +201,18 @@ Standalone Qwiki provides a dedicated, key-authenticated API endpoint (`api/llm.
 
 ---
 
-## ✨ 16. Native Gemini AI Assistant Extension
+## ✨ 16. Native Gemini AI Assistant Extension & Two-Tier BYOK
 
-Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-assistant`) powered by Google's Gemini models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, or custom models) with real-time model auto-detection:
+Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-assistant`) powered by Google's Gemini models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-3.5-flash`, or custom models) with real-time model auto-detection and a flexible two-tier Bring-Your-Own-Key (BYOK) architecture:
 
 - **Automated Metadata & SEO Synthesis**: Analyzes active document content with 1 click to generate concise meta descriptions and relevant topic tags.
 - **Live OpenGraph / Social Share Simulator**: Renders an interactive social preview card showing how the title, generated description, URL, and tag pills will unfurl when shared on social networks or messaging apps.
-- **1-Click Metadata Application**: Apply generated descriptions and tags directly to the active document in `qwiki.json` without leaving the viewer.
+- **1-Click Metadata Application**: Apply generated descriptions and tags directly to the active document in `qwiki.json` without leaving the viewer (restricted to administrators).
+- **Two-Tier BYOK Key Architecture**:
+  - **Tier 2: Site Default Key**: Site administrators can configure a shared Gemini API key (via `qwiki.json` or server environment variable `GEMINI_API_KEY`) and default model for immediate site-wide team access.
+  - **Tier 1: Personal User Key Override**: Any signed-in user (Viewers and Admins) can provide their own personal Gemini API key and preferred model in the Assistant settings, stored securely in `users.json`. When set, personal keys take immediate precedence over the site default. Users can revert to the site key at any time with 1 click.
+  - **Free & Paid Tier Coexistence**: Allows experimental, hobbyist, or community installations to let users bring their own free-tier API keys without overburdening the shared site key, while professional installations can provide a single paid site-wide key.
+- **Role-Based Permissions & Safeguards**: Signed-in viewers can launch the assistant from the header utility bar to summarize content, test models, and inspect social preview cards using either the site key or their personal key. Direct document updates and site configuration changes remain strictly restricted to administrators.
 - **Interactive Model Discovery & Key Management**: Query Google's API to auto-detect active models supported by your API key, or choose from high-performance presets with automated version fallback and connection testing. Keys are securely stored and masked in the UI; in demo mode, simulated responses are provided safely.
 
 ---
@@ -245,7 +250,22 @@ External automation pipelines, CI/CD runners, and reporting systems can publish 
 - **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY`.
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
-- **Automatic `<base href>` Path Resolution**: `Config::ensureHtmlBaseHref` automatically resolves relative paths based on document folder depth.
-- **Multilingual Companion Metadata**: Supports `translations` dictionary in document nodes, enabling localized companion document resolution across language switchers.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
+
+---
+
+## 🔒 20. Self-Service Password Reset & Two-Factor Authentication (2FA)
+
+Comprehensive account security and self-service recovery engineered without external databases or third-party Composer dependencies:
+
+- **Self-Service Password Reset**: Users with a verified email address can request secure password reset links directly from the login dialog.
+- **Stateless HMAC-SHA256 Token Design**: Password reset links use mathematically signed stateless HMAC tokens that incorporate a cryptographic slice of the user's password hash. This ensures **0 disk writes** during request generation and **immediate, automatic invalidation** once a password is changed.
+- **Air-Gapped & Offline Fallback**: In environments without outbound email or SMTP, administrators can click **`🔗 Reset Link`** next to any user in the **`👥 Users`** management modal to copy a 24-hour offline reset link directly to their clipboard.
+- **Native RFC 6238 TOTP (Two-Factor Authentication)**: Full standard Time-Based One-Time Password support compatible with Google Authenticator, Bitwarden, 1Password, Microsoft Authenticator, and Aegis.
+- **Offline Client-Side QR Codes**: Secret keys render as pure SVG vector graphics generated locally in the browser (`assets/js/qrcode.min.js`), ensuring zero data leaks to third-party image generation APIs.
+- **8 Emergency Recovery Codes**: Users receive eight single-use 10-character recovery codes upon enrollment. Codes are BCrypt-hashed in `users.json` and consumed on first use.
+- **Wiki-Wide 2FA Policies**: Configurable in **`⚙️ Site Settings`** (`Optional`, `Required for Admins`, `Required for All`, or `Disabled`).
+- **Emergency CLI Recovery Tool**: Administrators who lose access to both their authenticator device and recovery codes can instantly reset 2FA via the server terminal (`php bin/reset-2fa.php <username>`).
+- **Pure Socket Outbound SMTP Client**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with a built-in connection testing tool and native PHP `mail()` fallback.
+
 

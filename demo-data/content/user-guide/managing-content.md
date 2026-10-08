@@ -128,15 +128,20 @@ $$
 
 ---
 
-## 🤖 Gemini AI Assistant & Social Meta Generation
+## 🤖 Gemini AI Assistant & Two-Tier BYOK
 
-Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API:
+Standalone Qwiki includes a built-in AI Assistant utility (`tool-gemini-assistant`) powered by Google's Gemini API with a flexible two-tier Bring-Your-Own-Key (BYOK) architecture:
 
 - **Launch Assistant**: Click the **`✨ AI Assistant`** button in the header utility bar when viewing any document, or access AI Settings directly from the **Settings** or **LLM Keys** modals.
 - **Generate Descriptions & Tags**: Click **`Generate Description & Tags`** to analyze the active document. The assistant produces a concise summary description and semantic topic tags.
 - **Interactive Social Card Simulator**: Preview in real time how your document will look when shared on social networks (𝕏, LinkedIn, Facebook, Slack, Telegram), complete with title, URL, description, and tag pills.
-- **1-Click Apply**: Click **`Apply to Document`** to save the generated description and tags directly into `qwiki.json`.
-- **Configurable Model & API Key**: In the assistant modal, switch to the **Settings** tab to enter your Google Gemini API key, click **Auto-Detect Models** to discover supported models for your key, or select preferred models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, or custom models) with 1-click connection testing.
+- **1-Click Apply**: Click **`Apply to Document`** to save the generated description and tags directly into `qwiki.json` (restricted to Administrators).
+- **Two-Tier Key Hierarchy**:
+  - **Tier 1: Personal User Key Override**: Any signed-in user (Viewers and Admins) can supply their own Google Gemini API key and select their preferred model in the Settings tab. This personal key is stored securely in `users.json` and overrides the site key. If you wish to switch back to the site default key, click **Revert to Site Key**.
+  - **Tier 2: Site Default Key**: Site administrators can configure a shared default API key and model in the Settings tab or via the `GEMINI_API_KEY` server environment variable.
+  - **Free & Paid Key Flexibility**: Experimental and community wikis can allow users to bring their own free Gemini keys without exhausting the site's shared quota, while professional deployments can provide a single paid site-wide key.
+- **Viewer Role Access**: Signed-in viewers can launch the assistant from the header utility bar to generate summaries, test models, and inspect preview cards. Modifying document metadata and changing site-wide settings are strictly restricted to administrators.
+- **Interactive Model Discovery**: Click **Auto-Detect Models** to discover active models supported by your key, or select from recommended presets (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-3.5-flash`, or custom models) with 1-click connection testing.
 
 ---
 

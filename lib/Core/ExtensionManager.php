@@ -351,9 +351,12 @@ class ExtensionManager {
         }
     }
 
-    public function renderHeaderUtilityButtons() {
+    public function renderHeaderUtilityButtons($isAdmin = true) {
         $this->discover();
         foreach ($this->utilities as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
             $placement = $util['placement'] ?? 'dropdown';
             $icon = $util['icon'] ?? '⚡';
             $title = htmlspecialchars($util['title'] ?? ucfirst($id));

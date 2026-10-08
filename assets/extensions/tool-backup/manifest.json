@@ -1,6 +1,7 @@
 {
   "id": "backup",
   "type": "utility",
+  "adminOnly": true,
   "title": "Backup & Export",
   "icon": "📦",
   "placement": "header_menu",

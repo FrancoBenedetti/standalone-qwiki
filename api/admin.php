@@ -362,6 +362,95 @@ switch ($action) {
         echo json_encode(Auth::login($username, $password, $config));
         break;
 
+    case 'verify_2fa':
+        $code = trim($_POST['code'] ?? '');
+        echo json_encode(Auth::verify2faLogin($code));
+        break;
+
+    case 'forgot_password':
+        $identifier = trim($_POST['identifier'] ?? $_POST['email'] ?? $_POST['username'] ?? '');
+        echo json_encode(Auth::requestPasswordReset($identifier));
+        break;
+
+    case 'reset_password_submit':
+        $token = trim($_POST['token'] ?? '');
+        $newPassword = $_POST['newPassword'] ?? $_POST['password'] ?? '';
+        echo json_encode(Auth::resetPasswordWithToken($token, $newPassword));
+        break;
+
+    case 'initiate_2fa':
+        echo json_encode(Auth::initiate2faSetup());
+        break;
+
+    case 'confirm_2fa':
+        $code = trim($_POST['code'] ?? '');
+        echo json_encode(Auth::confirm2faSetup($code));
+        break;
+
+    case 'disable_2fa':
+        $targetUsername = trim($_POST['username'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        echo json_encode(Auth::disable2fa($targetUsername));
+        break;
+
+    case 'generate_admin_reset_link':
+        $targetUsername = trim($_POST['username'] ?? '');
+        echo json_encode(Auth::generateAdminResetLink($targetUsername));
+        break;
+
+    case 'update_user_email':
+        $targetUsername = trim($_POST['username'] ?? '');
+        $newEmail = trim($_POST['email'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        $markVerified = Auth::isAdmin() && isset($_POST['markVerified']) && $_POST['markVerified'] === '1';
+        echo json_encode(Auth::setUserEmail($targetUsername, $newEmail, $markVerified));
+        break;
+
+    case 'resend_email_verification':
+        $targetUsername = trim($_POST['username'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        echo json_encode(Auth::sendEmailVerification($targetUsername));
+        break;
+
+    case 'test_smtp':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $smtpConfig = [
+            'host'       => trim($_POST['host'] ?? ''),
+            'port'       => (int)($_POST['port'] ?? 587),
+            'encryption' => trim($_POST['encryption'] ?? 'tls'),
+            'username'   => trim($_POST['username'] ?? ''),
+            'password'   => (string)($_POST['password'] ?? ''),
+            'fromEmail'  => trim($_POST['fromEmail'] ?? ''),
+            'fromName'   => trim($_POST['fromName'] ?? 'Standalone Qwiki')
+        ];
+        $testRecipient = trim($_POST['testRecipient'] ?? '');
+        if (empty($testRecipient)) {
+            $users = Config::loadUsers();
+            foreach ($users['users'] as $u) {
+                if ($u['role'] === 'admin' && !empty($u['email'])) {
+                    $testRecipient = $u['email'];
+                    break;
+                }
+            }
+        }
+        if (empty($testRecipient)) {
+            $testRecipient = $smtpConfig['fromEmail'];
+        }
+        echo json_encode(\Qwiki\Core\Mailer::testConnection($smtpConfig, $testRecipient));
+        break;
+
     case 'logout':
         echo json_encode(Auth::logout());
         break;
@@ -374,7 +463,8 @@ switch ($action) {
         $newUsername = trim($_POST['username'] ?? '');
         $newPassword = $_POST['password'] ?? '';
         $newRole     = $_POST['role'] ?? 'viewer';
-        echo json_encode(Auth::addUser($newUsername, $newPassword, $newRole));
+        $newEmail    = trim($_POST['email'] ?? '');
+        echo json_encode(Auth::addUser($newUsername, $newPassword, $newRole, $newEmail ?: null));
         break;
 
     case 'delete_user':
@@ -1511,6 +1601,29 @@ switch ($action) {
         if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
         $config['feedItemCount'] = $feedItemCount;
         $config['feedAccessToken'] = $feedAccessToken;
+
+        if (isset($_POST['twoFactorPolicy'])) {
+            $twoFactorPolicy = trim($_POST['twoFactorPolicy']);
+            if (in_array($twoFactorPolicy, ['disabled', 'optional', 'required_admins', 'required_all'])) {
+                $config['twoFactorPolicy'] = $twoFactorPolicy;
+            }
+        }
+
+        if (isset($_POST['smtp']) && is_array($_POST['smtp'])) {
+            $smtpPost = $_POST['smtp'];
+            $existingSmtp = $config['smtp'] ?? [];
+            $password = (isset($smtpPost['password']) && $smtpPost['password'] !== '') ? (string)$smtpPost['password'] : ($existingSmtp['password'] ?? '');
+            $config['smtp'] = [
+                'enabled'    => !empty($smtpPost['enabled']) && ($smtpPost['enabled'] === '1' || $smtpPost['enabled'] === true),
+                'host'       => trim($smtpPost['host'] ?? ''),
+                'port'       => (int)($smtpPost['port'] ?? 587),
+                'encryption' => in_array(strtolower(trim($smtpPost['encryption'] ?? 'tls')), ['none', 'tls', 'ssl']) ? strtolower(trim($smtpPost['encryption'])) : 'tls',
+                'username'   => trim($smtpPost['username'] ?? ''),
+                'password'   => $password,
+                'fromEmail'  => trim($smtpPost['fromEmail'] ?? ''),
+                'fromName'   => trim($smtpPost['fromName'] ?? 'Standalone Qwiki')
+            ];
+        }
 
         if (Config::isSubwiki()) {
             if (isset($_POST['parentTitle'])) {

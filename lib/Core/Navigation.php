@@ -238,7 +238,8 @@ class Navigation {
 
         $headerTitleAttr = ($nodeDesc !== '') ? " title='{$nodeDesc}'" : "";
 
-        echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' {$draggableAttr}>";
+        $safeNodeId = htmlspecialchars($nodeId);
+        echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' data-category-id='{$safeNodeId}' {$draggableAttr}>";
         echo "<div class='nav-category-header'{$headerTitleAttr}>";
         echo "<span>";
         if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
