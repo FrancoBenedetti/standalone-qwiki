@@ -3,60 +3,51 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
+require_once __DIR__ . '/../lib/Core/LlmAccess.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Navigation;
+use Qwiki\Core\LlmAccess;
 
 $config = Config::load();
 
-// 1. Authenticate via API Key (constant-time check against timing attacks)
+// 1. Authenticate via API Key (publishApiKey or active llmKey)
 $publishApiKey = $config['publishApiKey'] ?? '';
-if (empty($publishApiKey)) {
+$llmKeys = $config['llmKeys'] ?? [];
+if (empty($publishApiKey) && empty($llmKeys)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Publishing via API is disabled (no API key configured)']);
     exit;
 }
 
-// Get API Key from header or POST body
-$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? '');
-if (empty($providedKey) || !hash_equals((string)$publishApiKey, $providedKey)) {
+// Get API Key from header, POST body, or query param
+$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? $_POST['key'] ?? $_GET['key'] ?? '');
+if (empty($providedKey)) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Invalid API key']);
     exit;
 }
 
-// 2. Extract and Validate Inputs
-$bookId = trim($_POST['bookId'] ?? '');
-$title = trim($_POST['title'] ?? '');
-$content = $_POST['content'] ?? '';
-$type = strtolower(trim($_POST['type'] ?? 'markdown'));
-if (!in_array($type, ['markdown', 'html'], true)) {
-    $type = 'markdown';
-}
-
-$description = trim($_POST['description'] ?? '');
-$providedShareKey = trim($_POST['shareKey'] ?? '');
-$publicShareable = true;
-if (isset($_POST['publicShareable'])) {
-    $val = $_POST['publicShareable'];
-    if ($val === false || $val === 'false' || $val === '0' || $val === 0) {
-        $publicShareable = false;
+$isAuthorized = false;
+if (!empty($publishApiKey) && hash_equals((string)$publishApiKey, $providedKey)) {
+    $isAuthorized = true;
+} elseif (!empty($llmKeys)) {
+    $llmVal = LlmAccess::validateKey($providedKey);
+    if (!empty($llmVal['valid'])) {
+        $isAuthorized = true;
+        if (!empty($llmVal['key']['id'])) {
+            LlmAccess::updateLastUsed($llmVal['key']['id']);
+        }
     }
 }
 
-if (empty($bookId) || empty($title) || empty($content)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'bookId, title, and content are required']);
+if (!$isAuthorized) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Invalid API key']);
     exit;
 }
 
-// Sanitize bookId to prevent path traversal (allow alphanumeric, hyphens, underscores, slashes)
-if (!preg_match('/^[a-zA-Z0-9\-_]+(\/[a-zA-Z0-9\-_]+)*$/', $bookId) || strpos($bookId, '..') !== false) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Invalid bookId format']);
-    exit;
-}
-
+// Helper functions for category and chapter resolution
 function find_target_folder(&$node, $targetId) {
     if (($node['id'] ?? '') === $targetId) {
         $folder = $node['folder'] ?? $node['id'];
@@ -98,6 +89,164 @@ function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
         }
     }
     return false;
+}
+
+// 2. Dispatch Action
+$action = trim($_POST['action'] ?? $_GET['action'] ?? 'publish_doc');
+
+if ($action === 'create_category' || $action === 'add_book') {
+    $catId = Config::makeSlug($_POST['id'] ?? $_POST['bookId'] ?? $_POST['title'] ?? '');
+    $catTitle = trim($_POST['title'] ?? '');
+    $catDesc = trim($_POST['description'] ?? '');
+    $parentId = trim($_POST['parentId'] ?? '');
+
+    if (empty($catTitle) || empty($catId)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Category title and ID are required']);
+        exit;
+    }
+
+    if (Navigation::isSlugTaken($catId, $config['books'] ?? [])) {
+        echo json_encode([
+            'success' => true,
+            'bookId' => $catId,
+            'title' => $catTitle,
+            'message' => 'Category already exists'
+        ]);
+        exit;
+    }
+
+    $baseDir = Config::getBaseDir();
+    if (!empty($parentId)) {
+        $parentFolder = null;
+        foreach ($config['books'] as $b) {
+            $resolved = find_target_folder($b, $parentId);
+            if ($resolved !== null) {
+                $parentFolder = $resolved;
+                break;
+            }
+        }
+        if ($parentFolder === null) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Parent category not found']);
+            exit;
+        }
+
+        $targetRelFolder = 'content/' . ltrim(preg_replace('#^content/#i', '', $parentFolder), '/') . '/' . $catId;
+        $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+        if (!is_dir($targetAbsFolder)) {
+            @mkdir($targetAbsFolder, 0755, true);
+        }
+
+        $newNode = [
+            'id' => $catId,
+            'title' => $catTitle,
+            'type' => 'folder',
+            'folder' => $targetRelFolder,
+            'items' => []
+        ];
+        if ($catDesc !== '') {
+            $newNode['description'] = $catDesc;
+        }
+
+        $inserted = false;
+        foreach ($config['books'] as &$book) {
+            if (insert_chapter_into_node($book, $parentId, $newNode)) {
+                $inserted = true;
+                break;
+            }
+        }
+        if (!$inserted) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to nest category in parent']);
+            exit;
+        }
+    } else {
+        $targetRelFolder = 'content/' . $catId;
+        $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+        if (!is_dir($targetAbsFolder)) {
+            @mkdir($targetAbsFolder, 0755, true);
+        }
+
+        $newNode = [
+            'id' => $catId,
+            'title' => $catTitle,
+            'type' => 'folder',
+            'folder' => $targetRelFolder,
+            'items' => []
+        ];
+        if ($catDesc !== '') {
+            $newNode['description'] = $catDesc;
+        }
+
+        if (!isset($config['books']) || !is_array($config['books'])) {
+            $config['books'] = [];
+        }
+        $config['books'][] = $newNode;
+    }
+
+    if (Config::save($config)) {
+        echo json_encode([
+            'success' => true,
+            'bookId' => $catId,
+            'title' => $catTitle,
+            'description' => $catDesc,
+            'folder' => $targetRelFolder
+        ]);
+        exit;
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        exit;
+    }
+}
+
+if ($action === 'list_categories' || $action === 'get_books') {
+    $categories = [];
+    foreach ($config['books'] ?? [] as $book) {
+        if (($book['type'] ?? '') === 'folder') {
+            $categories[] = [
+                'id' => $book['id'] ?? '',
+                'title' => $book['title'] ?? '',
+                'description' => $book['description'] ?? '',
+                'folder' => $book['folder'] ?? ('content/' . ($book['id'] ?? ''))
+            ];
+        }
+    }
+    echo json_encode(['success' => true, 'categories' => $categories]);
+    exit;
+}
+
+// 3. Extract and Validate Document Inputs
+$bookId = trim($_POST['bookId'] ?? '');
+$title = trim($_POST['title'] ?? '');
+$content = $_POST['content'] ?? '';
+$type = strtolower(trim($_POST['type'] ?? 'markdown'));
+if (!in_array($type, ['markdown', 'html'], true)) {
+    $type = 'markdown';
+}
+
+$description = trim($_POST['description'] ?? '');
+$providedShareKey = trim($_POST['shareKey'] ?? '');
+$publicShareable = true;
+if (isset($_POST['publicShareable'])) {
+    $val = $_POST['publicShareable'];
+    if ($val === false || $val === 'false' || $val === '0' || $val === 0) {
+        $publicShareable = false;
+    }
+}
+
+if (empty($bookId) || empty($title) || empty($content)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'bookId, title, and content are required']);
+    exit;
+}
+
+// Sanitize bookId to prevent path traversal (allow alphanumeric, hyphens, underscores, slashes)
+if (!preg_match('/^[a-zA-Z0-9\-_]+(\/[a-zA-Z0-9\-_]+)*$/', $bookId) || strpos($bookId, '..') !== false) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Invalid bookId format']);
+    exit;
 }
 
 // 3. Resolve Target Category / Subfolder

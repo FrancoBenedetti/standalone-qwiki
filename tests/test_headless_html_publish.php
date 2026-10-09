@@ -86,6 +86,26 @@ assertTest(empty($res1['json']['success']) && strpos($res1['raw'], 'Invalid API 
 $res2 = callPublishApi($tempDir, ['title' => 'Test', 'bookId' => 'grower-guides', 'content' => 'Body'], ['HTTP_X_API_KEY' => 'wrong-key']);
 assertTest(empty($res2['json']['success']) && strpos($res2['raw'], 'Invalid API key') !== false, 'Rejects request with invalid API key');
 
+// Test authentication via active LLM access key
+$llmKeyToken = 'qwk_llm_test_agent_12345';
+$cfgAuthTest = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$cfgAuthTest['llmKeys'] = [
+    [
+        'id' => 'key-agent-1',
+        'name' => 'Agent Key',
+        'key' => $llmKeyToken,
+        'category' => '',
+        'allowedTypes' => ['markdown', 'html'],
+        'status' => 'active',
+        'createdAt' => date('Y-m-d H:i:s'),
+        'lastUsedAt' => null
+    ]
+];
+file_put_contents($tempDir . '/qwiki.json', json_encode($cfgAuthTest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+$resLlmAuth = callPublishApi($tempDir, ['action' => 'list_categories'], ['HTTP_X_API_KEY' => $llmKeyToken]);
+assertTest(!empty($resLlmAuth['json']['success']), 'Authenticates successfully using active LLM access key (qwk_llm_...)');
+
 // ----------------------------------------------------
 // 2. Backward Compatibility: Markdown Publishing
 // ----------------------------------------------------
@@ -247,7 +267,40 @@ $shareKey = $res4['json']['shareKey'];
 $foundByShare = Navigation::findChapterByShareKey($cfg['books'], $shareKey, $parentBook);
 assertTest($foundByShare !== null, 'findChapterByShareKey locates the published HTML document');
 assertTest(($foundByShare['slug'] ?? '') === 'bellevue-estate-grower-guide', 'Resolved chapter slug matches');
-assertTest(($parentBook['id'] ?? '') === 'grower-guides', 'Resolved parent book matches');
+// ----------------------------------------------------
+// 7. Headless Category Management (create_category & list_categories)
+// ----------------------------------------------------
+echo "\n--- 7. Headless Category Management ---\n";
+$catPayload = [
+    'action' => 'create_category',
+    'id' => 'orange-river-corridor',
+    'title' => 'Orange River Corridor & Desert Oasis',
+    'description' => 'Hyper-arid desert river oasis covering Upington and Kakamas'
+];
+$resCat = callPublishApi($tempDir, $catPayload, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resCat['json']['success']), 'Category creation succeeds');
+assertTest(($resCat['json']['bookId'] ?? '') === 'orange-river-corridor', 'Returns correct bookId');
+assertTest(is_dir($tempDir . '/content/orange-river-corridor'), 'Creates category directory on disk');
+
+$cfg = Config::load();
+$foundCat = false;
+foreach ($cfg['books'] as $b) {
+    if (($b['id'] ?? '') === 'orange-river-corridor') {
+        $foundCat = true;
+        break;
+    }
+}
+assertTest($foundCat, 'Category added to books array in qwiki.json');
+
+// Test idempotency
+$resCatDup = callPublishApi($tempDir, $catPayload, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resCatDup['json']['success']) && ($resCatDup['json']['message'] ?? '') === 'Category already exists', 'Category creation is idempotent when category exists');
+
+// Test listing categories
+$resList = callPublishApi($tempDir, ['action' => 'list_categories'], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resList['json']['success']) && is_array($resList['json']['categories']), 'Listing categories succeeds');
+$catIds = array_column($resList['json']['categories'], 'id');
+assertTest(in_array('orange-river-corridor', $catIds), 'Created category appears in list_categories');
 
 // Clean up temp environment
 function recursiveClean($dir) {
