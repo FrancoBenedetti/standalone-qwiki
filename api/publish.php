@@ -107,11 +107,31 @@ if ($action === 'create_category' || $action === 'add_book') {
     }
 
     if (Navigation::isSlugTaken($catId, $config['books'] ?? [])) {
+        $updated = false;
+        $updateFn = function(&$nodes) use (&$updateFn, $catId, $catTitle, $catDesc, &$updated) {
+            foreach ($nodes as &$node) {
+                if (($node['id'] ?? '') === $catId) {
+                    if (!empty($catTitle)) $node['title'] = $catTitle;
+                    if ($catDesc !== '') $node['description'] = $catDesc;
+                    $updated = true;
+                    return;
+                }
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $updateFn($node['items']);
+                    if ($updated) return;
+                }
+            }
+        };
+        $updateFn($config['books']);
+        if ($updated) {
+            Config::save($config);
+        }
         echo json_encode([
             'success' => true,
             'bookId' => $catId,
             'title' => $catTitle,
-            'message' => 'Category already exists'
+            'description' => $catDesc,
+            'message' => ($action === 'update_category' || $action === 'edit_category') ? 'Category updated' : 'Category already exists'
         ]);
         exit;
     }
