@@ -187,16 +187,17 @@ if (!function_exists('update_chapter_in_node')) {
 
 // Helper for chapter deletion from tree
 if (!function_exists('delete_chapter_from_node')) {
-    function delete_chapter_from_node(&$node, $slug, &$deleted = false) {
+    function delete_chapter_from_node(&$node, $slug, &$deleted = false, &$deletedFile = null) {
         if ($deleted || empty($node['items'])) return;
         $newItems = [];
         foreach ($node['items'] as &$item) {
             if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
                 $deleted = true;
+                $deletedFile = $item['file'] ?? null;
                 continue;
             }
             if (isset($item['type']) && $item['type'] === 'folder') {
-                delete_chapter_from_node($item, $slug, $deleted);
+                delete_chapter_from_node($item, $slug, $deleted, $deletedFile);
             }
             $newItems[] = $item;
         }
@@ -1552,17 +1553,27 @@ switch ($action) {
             exit;
         }
         $deleted = false;
+        $deletedFile = null;
         $filteredBooks = [];
         foreach ($config['books'] as &$book) {
             if (!$deleted && ($book['slug'] ?? '') === $slug) {
                 $deleted = true;
+                $deletedFile = $book['file'] ?? null;
                 continue;
             }
-            delete_chapter_from_node($book, $slug, $deleted);
+            delete_chapter_from_node($book, $slug, $deleted, $deletedFile);
             $filteredBooks[] = $book;
         }
         $config['books'] = $filteredBooks;
         Config::save($config);
+
+        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+            $baseDir = Config::getBaseDir();
+            $filePath = Config::safePath($baseDir, $deletedFile);
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
         echo json_encode(['success' => true]);
         break;
 

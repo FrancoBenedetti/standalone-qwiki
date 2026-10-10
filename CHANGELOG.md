@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.2] - DocUpdateFlow - 2026-10-10
+
+### 🔄 Idempotent Document Publishing & Slug Stability
+- **In-Place Document Updates (`update=true` / `overwrite=true`)**: External automation pipelines and CLI publishing tools can now update existing documents in place without incrementing numeric suffixes (`-1`, `-2`). Reuses and preserves existing `shareKey` so external references and bookmarks never break.
+- **Explicit Document Slug Parameter (`slug`)**: `api/publish.php` now accepts an explicit `slug` parameter in POST payloads, honoring caller-provided slugs directly instead of strictly deriving them from document titles.
+- **Automated Orphaned File Deletion on Chapter Removal**: In `api/admin.php`, deleting a document chapter now purges the corresponding file from disk under `content/`, preventing orphaned file collisions during subsequent publishing.
+
+### 🧪 Automated Test Coverage
+- `tests/test_headless_html_publish.php`: Extended test suite with 9 new automated assertions verifying document update idempotency, slug preservation, share key stability, and disk content synchronization (57/57 passing).
+
+---
+
 ## [1.18.1] - PublishFlow - 2026-10-10
 
 ### 🚀 Headless Publishing Category Management & Dual Authentication

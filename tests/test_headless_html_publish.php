@@ -302,6 +302,62 @@ assertTest(!empty($resList['json']['success']) && is_array($resList['json']['cat
 $catIds = array_column($resList['json']['categories'], 'id');
 assertTest(in_array('orange-river-corridor', $catIds), 'Created category appears in list_categories');
 
+// ----------------------------------------------------
+// 8. Document Update & Idempotent Publishing (No Slug Incrementation)
+// ----------------------------------------------------
+echo "\n--- 8. Document Updates & Slug Idempotency ---\n";
+// Publish a document with explicit slug
+$docPayload1 = [
+    'bookId' => 'western-cape',
+    'title' => 'Stellenbosch Estate Dossier',
+    'slug' => 'stellenbosch-estate-dossier',
+    'type' => 'html',
+    'content' => '<h1>Version 1</h1><p>Initial content</p>'
+];
+$resDoc1 = callPublishApi($tempDir, $docPayload1, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resDoc1['json']['success']), 'Initial document with explicit slug published successfully');
+assertTest(($resDoc1['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'Slug matches explicit slug without incrementation');
+$initialShareKey = $resDoc1['json']['shareKey'] ?? '';
+assertTest(!empty($initialShareKey), 'Generated initial share key');
+
+// Update the exact same document in place with update=true
+$docPayload2 = [
+    'bookId' => 'western-cape',
+    'title' => 'Stellenbosch Estate Dossier Revised',
+    'slug' => 'stellenbosch-estate-dossier',
+    'type' => 'html',
+    'update' => 'true',
+    'content' => '<h1>Version 2</h1><p>Updated content</p>'
+];
+$resDoc2 = callPublishApi($tempDir, $docPayload2, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resDoc2['json']['success']), 'Document update with update=true succeeds');
+assertTest(($resDoc2['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'Slug is preserved exactly without auto-incrementing suffix (-1)');
+assertTest(!empty($resDoc2['json']['updated']), 'Response reports updated: true');
+assertTest(($resDoc2['json']['shareKey'] ?? '') === $initialShareKey, 'Existing shareKey preserved across updates');
+
+// Verify updated file content on disk
+$updatedFileDisk = $tempDir . '/' . ($resDoc2['json']['file'] ?? '');
+$diskContent = file_exists($updatedFileDisk) ? file_get_contents($updatedFileDisk) : '';
+assertTest(strpos($diskContent, 'Version 2') !== false, 'Disk file contains updated content');
+
+// Verify only one entry in qwiki.json (no duplicate items)
+$cfgUpdated = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$wcNode = null;
+foreach ($cfgUpdated['books'] as $b) {
+    if ($b['id'] === 'grower-guides') {
+        foreach ($b['items'] as $sub) {
+            if ($sub['id'] === 'western-cape') {
+                $wcNode = $sub;
+                break 2;
+            }
+        }
+    }
+}
+$matchingItems = array_filter($wcNode['items'] ?? [], function($it) {
+    return ($it['slug'] ?? '') === 'stellenbosch-estate-dossier';
+});
+assertTest(count($matchingItems) === 1, 'Only one chapter node exists in qwiki.json (no duplicate items created)');
+
 // Clean up temp environment
 function recursiveClean($dir) {
     if (!is_dir($dir)) return;
