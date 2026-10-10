@@ -250,7 +250,10 @@ To embed authoritative documentation from another Qwiki installation without dup
 External automation scripts, CI/CD pipelines, and internal tools can publish documents directly into Standalone Qwiki via HTTP POST requests:
 
 - **Endpoint**: `POST /api/publish.php`
-- **Authentication**: Pass your API key via header `X-API-Key: <your-key>` or query string `?apiKey=<your-key>`.
+- **Authentication**: Pass your API key via header `X-API-Key: <your-key>` or query string `?apiKey=<your-key>`. Supports either site `publishApiKey` or any active LLM access key (`qwk_llm_...`).
+- **Category Management Actions**:
+  - `action=create_category` (or `add_book`): Dynamically provisions a new top-level or nested category (`id`, `title`, optional `description`, optional `parentId`). If the category already exists, safely updates title and description idempotently.
+  - `action=list_categories` (or `get_books`): Returns an array of existing categories with their identifiers, titles, descriptions, and relative folder paths.
 - **Supported Formats**:
   - `type: "markdown"` (Default): Plain GitHub-Flavored Markdown.
   - `type: "html"`: Self-contained HTML documents (dossiers, reports). Automatically preserves `<style>`, `@media print`, `<meta>`, and SVG tags while sanitizing executable vectors.

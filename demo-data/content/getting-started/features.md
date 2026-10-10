@@ -243,11 +243,12 @@ Standalone Qwiki enables multiple independent wikis to federate and transclude d
 
 ---
 
-## 🚀 19. Headless HTML & Markdown Publishing API with Automated Share Keys
+## 🚀 19. Headless HTML & Markdown Publishing API, Category Management & Dual Auth
 
-External automation pipelines, CI/CD runners, and reporting systems can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
+External automation pipelines, CI/CD runners, and AI agents can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
 
-- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY`.
+- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY` or active LLM access keys (`qwk_llm_...`).
+- **Dynamic Category Provisioning & Management**: Dynamically create categories and nested sub-folders (`action=create_category`), update metadata idempotently, and list available categories (`action=list_categories`) directly through the API.
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.

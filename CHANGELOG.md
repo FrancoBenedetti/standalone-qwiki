@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.18.1] - PublishFlow - 2026-10-10
+
+### 🚀 Headless Publishing Category Management & Dual Authentication
+- **Multi-Token Authorization Pipeline**: `api/publish.php` now accepts requests authenticated either with the site-wide `publishApiKey` or any active LLM access key (`qwk_llm_...`) configured in `qwiki.json`. Automatically tracks usage via `LlmAccess::updateLastUsed()`.
+- **Dynamic Category Provisioning (`action=create_category` / `add_book`)**: External automation pipelines, AI agents, and CI/CD tools can programmatically create top-level or nested documentation categories on the fly, automatically generating directories on disk and registering nodes in `qwiki.json`.
+- **Idempotent Category Metadata Synchronization**: When creating a category whose slug is already taken, or updating an existing category (`action=update_category` / `edit_category`), category titles and descriptions are dynamically updated in `qwiki.json` without duplicating tree nodes or filesystem paths.
+- **Category Discovery Endpoint (`action=list_categories` / `get_books`)**: Headless callers can discover available categories, titles, descriptions, and relative folder paths.
+- **Parent Category Resolution**: Safely resolves nested folder paths via `parentId` with path-traversal validation and automatic recursive directory provisioning.
+
+### 🧪 Automated Test Coverage
+- `tests/test_headless_html_publish.php`: Extended test suite with 7 new automated assertions verifying LLM key authentication, automated category provisioning, nested folder creation, category listing, and idempotency guarantees.
+
+---
+
 ## [1.18.0] - AuthFlow - 2026-10-08
 
 ### 🛡️ Native RFC 6238 Two-Factor Authentication (2FA / TOTP)
