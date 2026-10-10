@@ -252,6 +252,120 @@ if ($action === 'list_categories' || $action === 'get_books') {
     exit;
 }
 
+if ($action === 'delete_chapter' || $action === 'delete_doc') {
+    $slug = trim($_POST['slug'] ?? $_GET['slug'] ?? '');
+    $bookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
+
+    if (empty($slug)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'slug is required for chapter deletion']);
+        exit;
+    }
+
+    if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
+        exit;
+    }
+
+    $deleted = false;
+    $deletedFile = null;
+
+    $deleteChapterFromNode = function(&$node, $targetSlug) use (&$deleteChapterFromNode, &$deleted, &$deletedFile) {
+        if ($deleted || empty($node['items']) || !is_array($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $targetSlug) {
+                $deleted = true;
+                $deletedFile = $item['file'] ?? null;
+                continue;
+            }
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                $deleteChapterFromNode($item, $targetSlug);
+            }
+            $newItems[] = $item;
+        }
+        $node['items'] = $newItems;
+    };
+
+    $filteredBooks = [];
+    foreach ($config['books'] as &$book) {
+        if (!$deleted && ($book['slug'] ?? '') === $slug) {
+            $deleted = true;
+            $deletedFile = $book['file'] ?? null;
+            continue;
+        }
+        $deleteChapterFromNode($book, $slug);
+        $filteredBooks[] = $book;
+    }
+    $config['books'] = $filteredBooks;
+
+    if ($deleted) {
+        Config::save($config);
+        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+            $baseDir = Config::getBaseDir();
+            $filePath = Config::safePath($baseDir, $deletedFile);
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
+        echo json_encode([
+            'success' => true,
+            'deleted' => true,
+            'slug' => $slug,
+            'file' => $deletedFile
+        ]);
+        exit;
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found']);
+        exit;
+    }
+}
+
+if ($action === 'list_chapters' || $action === 'get_chapters') {
+    $targetBookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
+    $baseUrl = Config::getBaseUrl();
+    $chapters = [];
+
+    $collectChapters = function($node, $catId) use (&$collectChapters, &$chapters, $targetBookId, $baseUrl) {
+        $curCatId = $node['id'] ?? $catId;
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    $collectChapters($item, $item['id'] ?? $curCatId);
+                } else {
+                    if (empty($targetBookId) || $curCatId === $targetBookId) {
+                        $sKey = $item['shareKey'] ?? '';
+                        $slug = $item['slug'] ?? '';
+                        $chapters[] = [
+                            'bookId' => $curCatId,
+                            'title' => $item['title'] ?? '',
+                            'slug' => $slug,
+                            'type' => $item['type'] ?? 'markdown',
+                            'file' => $item['file'] ?? '',
+                            'shareKey' => $sKey,
+                            'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
+                            'url' => $baseUrl . urlencode($curCatId) . '/' . urlencode($slug)
+                        ];
+                    }
+                }
+            }
+        }
+    };
+
+    foreach ($config['books'] ?? [] as $book) {
+        $collectChapters($book, $book['id'] ?? '');
+    }
+
+    echo json_encode([
+        'success' => true,
+        'total' => count($chapters),
+        'chapters' => $chapters
+    ]);
+    exit;
+}
+
 // 3. Extract and Validate Document Inputs
 $bookId = trim($_POST['bookId'] ?? '');
 $title = trim($_POST['title'] ?? '');

@@ -358,6 +358,57 @@ $matchingItems = array_filter($wcNode['items'] ?? [], function($it) {
 });
 assertTest(count($matchingItems) === 1, 'Only one chapter node exists in qwiki.json (no duplicate items created)');
 
+// --- 9. Chapter Listing and Deletion ---
+echo "\n--- 9. Chapter Listing and Deletion ---\n";
+// Test list_chapters
+$listResp = callPublishApi($tempDir, [
+    'action' => 'list_chapters'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($listResp['json']['success']), 'Listing chapters succeeds with success: true');
+assertTest(($listResp['json']['total'] ?? 0) >= 2, 'list_chapters returns all published chapters');
+
+$foundListing = false;
+foreach ($listResp['json']['chapters'] ?? [] as $ch) {
+    if (($ch['slug'] ?? '') === 'stellenbosch-estate-dossier') {
+        $foundListing = true;
+        break;
+    }
+}
+assertTest($foundListing, 'Target chapter found in list_chapters output');
+
+// Test delete_chapter
+$delResp = callPublishApi($tempDir, [
+    'action' => 'delete_chapter',
+    'slug' => 'stellenbosch-estate-dossier'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($delResp['json']['deleted']), 'delete_chapter reports deleted: true');
+assertTest(!file_exists($updatedFileDisk), 'Associated file was purged from disk');
+
+// Verify node removed from qwiki.json
+$cfgAfterDel = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$wcNodeAfter = null;
+foreach ($cfgAfterDel['books'] as $b) {
+    if ($b['id'] === 'grower-guides') {
+        foreach ($b['items'] as $sub) {
+            if ($sub['id'] === 'western-cape') {
+                $wcNodeAfter = $sub;
+                break 2;
+            }
+        }
+    }
+}
+$matchingAfter = array_filter($wcNodeAfter['items'] ?? [], function($it) {
+    return ($it['slug'] ?? '') === 'stellenbosch-estate-dossier';
+});
+assertTest(count($matchingAfter) === 0, 'Chapter node successfully removed from qwiki.json');
+
+// Deleting non-existent chapter returns 404
+$delNonExistent = callPublishApi($tempDir, [
+    'action' => 'delete_chapter',
+    'slug' => 'stellenbosch-estate-dossier'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(empty($delNonExistent['json']['success']) && strpos($delNonExistent['raw'], 'Chapter not found') !== false, 'Deleting non-existent chapter fails with Chapter not found');
+
 // Clean up temp environment
 function recursiveClean($dir) {
     if (!is_dir($dir)) return;
