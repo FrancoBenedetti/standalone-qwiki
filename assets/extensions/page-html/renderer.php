@@ -16,11 +16,15 @@ if (!file_exists($filePath)) {
 
 $fileUrl = htmlspecialchars($chapter['file'] ?? '');
 $isAdmin = Auth::isAdmin();
+$status = strtolower($chapter['status'] ?? 'published');
 ?>
 <div class="html-page-container">
     <div class="html-viewer-toolbar">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="badge badge-html">HTML</span>
+            <span class="badge badge-status badge-status-<?= htmlspecialchars($status) ?>" id="qwiki-current-status-badge">
+                <?= htmlspecialchars(ucfirst($status)) ?>
+            </span>
             <span class="text-muted" style="font-size: 0.85rem;"><?= htmlspecialchars($chapter['title'] ?? 'HTML Document') ?></span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -28,6 +32,30 @@ $isAdmin = Auth::isAdmin();
                 🖨️ Print / Save as PDF
             </button>
             <?php if ($isAdmin): ?>
+                <div class="dropdown status-dropdown" style="position: relative; display: inline-block;">
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-status-dropdown-toggle" 
+                            data-file="<?= htmlspecialchars($chapter['file'] ?? '') ?>" 
+                            data-slug="<?= htmlspecialchars($chapter['slug'] ?? '') ?>" 
+                            data-sharekey="<?= htmlspecialchars($chapter['shareKey'] ?? '') ?>" 
+                            data-status="<?= htmlspecialchars($status) ?>"
+                            title="Change Document Lifecycle Status">
+                        Status: <strong id="status-current-label"><?= htmlspecialchars(ucfirst($status)) ?></strong> ▾
+                    </button>
+                    <div class="dropdown-menu" id="status-dropdown-menu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 1050; min-width: 190px; background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0;">
+                        <button type="button" class="dropdown-item status-action-item" data-set-status="draft" style="width: 100%; text-align: left; padding: 6px 12px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-color, #334155);">
+                            <span style="color: #d97706;">📝</span> Set to Draft
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item" data-set-status="review" style="width: 100%; text-align: left; padding: 6px 12px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-color, #334155);">
+                            <span style="color: #4f46e5;">🔍</span> Set to In Review
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item" data-set-status="published" style="width: 100%; text-align: left; padding: 6px 12px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-color, #334155);">
+                            <span style="color: #059669;">🚀</span> Set to Published (Release)
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item" data-set-status="archived" style="width: 100%; text-align: left; padding: 6px 12px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-color, #334155);">
+                            <span style="color: #64748b;">📦</span> Set to Archived
+                        </button>
+                    </div>
+                </div>
                 <button type="button" class="btn btn-primary btn-sm" id="btn-edit-html-doc" 
                         data-file="<?= htmlspecialchars($chapter['file'] ?? '') ?>" 
                         data-title="<?= htmlspecialchars($chapter['title'] ?? '') ?>">

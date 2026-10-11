@@ -708,6 +708,15 @@ body {
 .badge-internal-link { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
 .badge-remote { background: rgba(20, 184, 166, 0.18); color: #2dd4bf; }
 
+.nav-status-pill {
+  font-size: 0.65rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+.nav-status-pill.status-draft { color: #f59e0b; }
+.nav-status-pill.status-review { color: #6366f1; }
+.nav-status-pill.status-archived { color: #64748b; }
+
 .btn-edit-link-icon {
   background: none;
   border: none;

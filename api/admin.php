@@ -859,6 +859,14 @@ switch ($action) {
             } else {
                 unset($foundChapter['image']);
             }
+            if (isset($_POST['status'])) {
+                $statusInput = strtolower(trim($_POST['status']));
+                if (in_array($statusInput, Navigation::VALID_STATUSES, true)) {
+                    $foundChapter['status'] = $statusInput;
+                    $foundChapter['statusUpdatedAt'] = date('c');
+                    $foundChapter['statusUpdatedBy'] = Auth::getCurrentUser()['username'] ?? 'admin';
+                }
+            }
             if (!empty($_POST['regenerateShareKey'])) {
                 $foundChapter['shareKey'] = Navigation::generateShareKey();
             }
@@ -944,6 +952,76 @@ switch ($action) {
             ]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to save qwiki.json']);
+        }
+        break;
+
+    case 'set_chapter_status':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $identifier = trim($_POST['slug'] ?? $_POST['shareKey'] ?? $_POST['file'] ?? '');
+        $status = strtolower(trim($_POST['status'] ?? ''));
+        $cleanSource = false;
+        if (isset($_POST['clean_source'])) {
+            $val = $_POST['clean_source'];
+            if ($val === true || $val === 'true' || $val === '1' || $val === 1) {
+                $cleanSource = true;
+            }
+        }
+        $note = trim($_POST['note'] ?? '');
+
+        if (empty($identifier) || empty($status)) {
+            echo json_encode(['success' => false, 'error' => 'Document identifier and status are required']);
+            exit;
+        }
+
+        if (!in_array($status, Navigation::VALID_STATUSES, true)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid status. Allowed: ' . implode(', ', Navigation::VALID_STATUSES)]);
+            exit;
+        }
+
+        if (Config::isChapterProtected($identifier, $config['books'] ?? []) || Config::isChapterAncestorProtected($identifier, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and its status cannot be modified.']);
+            exit;
+        }
+
+        $curUser = Auth::getCurrentUser();
+        $username = $curUser['username'] ?? 'admin';
+
+        $updatedChapter = Navigation::updateChapterStatus($config['books'], $identifier, $status, [
+            'updatedBy' => $username,
+            'approver' => $username,
+            'note' => $note
+        ]);
+
+        if (!$updatedChapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+
+        // If HTML document, update file on disk as well
+        $baseDir = Config::getBaseDir();
+        $relFile = $updatedChapter['file'] ?? '';
+        if (!empty($relFile) && preg_match('/\.(html|htm)$/i', $relFile)) {
+            $absFile = Config::safePath($baseDir, $relFile);
+            if ($absFile && file_exists($absFile)) {
+                Navigation::sanitizeHtmlDocumentStatus($absFile, $status, $cleanSource);
+            }
+        }
+
+        if (Config::save($config)) {
+            echo json_encode([
+                'success' => true,
+                'slug' => $updatedChapter['slug'] ?? '',
+                'shareKey' => $updatedChapter['shareKey'] ?? '',
+                'file' => $relFile,
+                'status' => $status,
+                'statusUpdatedAt' => $updatedChapter['statusUpdatedAt'] ?? date('c'),
+                'updatedBy' => $username
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save configuration']);
         }
         break;
 

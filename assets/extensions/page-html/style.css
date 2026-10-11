@@ -174,3 +174,43 @@
 [data-theme="light"] .sun-editor .se-color-pallet {
     background-color: #ffffff !important;
 }
+
+/* Document Lifecycle Status Badges */
+.badge-status {
+    font-weight: 600;
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-status-draft {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.badge-status-review {
+    background: rgba(99, 102, 241, 0.15);
+    color: #4f46e5;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.badge-status-published {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-status-archived {
+    background: rgba(100, 116, 139, 0.15);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+.status-dropdown .status-action-item:hover {
+    background-color: var(--bg-card-hover, rgba(0, 0, 0, 0.05)) !important;
+}

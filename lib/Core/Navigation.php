@@ -2,6 +2,9 @@
 namespace Qwiki\Core;
 
 class Navigation {
+    public const VALID_STATUSES = ['draft', 'review', 'published', 'archived'];
+    public const DEFAULT_STATUS = 'published';
+
     public static function filterBooks(array $books, $isAdmin = false, $isViewer = false) {
         $allowed = [];
         foreach ($books as $book) {
@@ -288,6 +291,10 @@ class Navigation {
                     echo "<span>";
                     if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
                     echo htmlspecialchars($ch['title'] ?? '') . "</span>";
+                    $chStatus = strtolower($ch['status'] ?? self::DEFAULT_STATUS);
+                    if ($isAdmin && $chStatus !== self::DEFAULT_STATUS) {
+                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='Status: " . htmlspecialchars(ucfirst($chStatus)) . "'>●</span>";
+                    }
 
                     if ($isAdmin || !$showDocTypesOnlyToAdmin) {
                         $badgeTitle = strtoupper($docType);
@@ -530,6 +537,106 @@ class Navigation {
         }
 
         return $slug;
+    }
+
+    /**
+     * Updates the lifecycle status of a chapter identified by shareKey, slug, or file path.
+     * Recursively traverses books and nested folders to mutate the chapter in-place.
+     *
+     * @param array $books Reference to config['books']
+     * @param string $identifier shareKey, slug, or relative file path
+     * @param string $newStatus Target lifecycle status
+     * @param array $extraMeta Optional metadata (updatedBy, approver, approverNote, etc.)
+     * @return array|null The updated chapter array, or null if not found
+     */
+    public static function updateChapterStatus(array &$books, string $identifier, string $newStatus, array $extraMeta = []): ?array {
+        $newStatus = strtolower(trim($newStatus));
+        if (!in_array($newStatus, self::VALID_STATUSES, true)) {
+            return null;
+        }
+
+        $found = null;
+        $traverse = function(&$nodes) use (&$traverse, $identifier, $newStatus, $extraMeta, &$found) {
+            if (!is_array($nodes)) return;
+            foreach ($nodes as &$node) {
+                if (isset($node['type']) && $node['type'] === 'folder') {
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $traverse($node['items']);
+                        if ($found !== null) return;
+                    }
+                } else {
+                    $isMatch = (($node['slug'] ?? '') === $identifier) ||
+                               (!empty($node['shareKey']) && ($node['shareKey'] ?? '') === $identifier) ||
+                               (!empty($node['file']) && ($node['file'] ?? '') === $identifier);
+                    if ($isMatch) {
+                        $node['status'] = $newStatus;
+                        $node['statusUpdatedAt'] = date('c');
+                        if (isset($extraMeta['updatedBy']) && $extraMeta['updatedBy'] !== '') {
+                            $node['statusUpdatedBy'] = (string)$extraMeta['updatedBy'];
+                        }
+                        if (isset($extraMeta['approver']) && $extraMeta['approver'] !== '') {
+                            $node['approver'] = (string)$extraMeta['approver'];
+                        }
+                        if (isset($extraMeta['note']) || isset($extraMeta['approverNote'])) {
+                            $note = (string)($extraMeta['note'] ?? $extraMeta['approverNote'] ?? '');
+                            if ($note !== '') {
+                                $node['approverNote'] = $note;
+                            }
+                        }
+                        $found = $node;
+                        return;
+                    }
+                }
+            }
+        };
+
+        $traverse($books);
+        return $found;
+    }
+
+    /**
+     * Updates or sets data-qwiki-status on the root <html> tag of an HTML document file on disk.
+     * If cleanSource is true and newStatus is 'published', permanently strips draft markers,
+     * review dockets, and watermarks (.qwiki-draft, [data-qwiki-draft], .qwiki-watermark, .watermark-draft).
+     *
+     * @param string $absFilePath Absolute file path
+     * @param string $newStatus Target status (draft, review, published, archived)
+     * @param bool $cleanSource Whether to permanently strip draft/review DOM nodes on release
+     * @return bool
+     */
+    public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
+        if (!file_exists($absFilePath) || !is_file($absFilePath) || !is_writable($absFilePath)) {
+            return false;
+        }
+
+        $content = file_get_contents($absFilePath);
+        if ($content === false) {
+            return false;
+        }
+
+        $cleanStatus = htmlspecialchars(strtolower(trim($newStatus)), ENT_QUOTES, 'UTF-8');
+
+        // 1. Update or inject data-qwiki-status on the <html ...> element
+        if (preg_match('/<html\b([^>]*)data-qwiki-status=["\'][^"\']*["\']([^>]*)>/i', $content)) {
+            $content = preg_replace('/(<html\b[^>]*)data-qwiki-status=["\'][^"\']*["\']([^>]*>)/i', '${1}data-qwiki-status="' . $cleanStatus . '"${2}', $content);
+        } elseif (preg_match('/<html\b([^>]*)>/i', $content)) {
+            $content = preg_replace('/<html\b([^>]*)>/i', '<html${1} data-qwiki-status="' . $cleanStatus . '">', $content);
+        }
+
+        // 2. If cleanSource is active and status is 'published', remove draft nodes & watermarks permanently
+        if ($cleanSource && $newStatus === 'published') {
+            $patterns = [
+                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bdata-qwiki-draft\b[^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
+                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bqwiki-draft\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
+                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bqwiki-watermark\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
+                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bwatermark-draft\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
+            ];
+            foreach ($patterns as $pattern) {
+                $content = preg_replace($pattern, '', $content);
+            }
+        }
+
+        return (file_put_contents($absFilePath, $content) !== false);
     }
 }
 

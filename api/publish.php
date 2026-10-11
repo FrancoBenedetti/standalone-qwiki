@@ -402,6 +402,80 @@ if ($action === 'resolve_share_key' || $action === 'get_chapter_by_share_key' ||
     }
 }
 
+if ($action === 'set_status' || $action === 'update_status') {
+    $identifier = trim($_POST['shareKey'] ?? $_POST['slug'] ?? $_POST['file'] ?? $_GET['shareKey'] ?? $_GET['slug'] ?? '');
+    $newStatus = strtolower(trim($_POST['status'] ?? $_GET['status'] ?? ''));
+    $approver = trim($_POST['approver'] ?? '');
+    $approverNote = trim($_POST['approverNote'] ?? $_POST['note'] ?? '');
+    $cleanSource = false;
+    if (isset($_POST['clean_source'])) {
+        $cleanVal = $_POST['clean_source'];
+        if ($cleanVal === true || $cleanVal === 'true' || $cleanVal === '1' || $cleanVal === 1) {
+            $cleanSource = true;
+        }
+    }
+
+    if (empty($identifier) || empty($newStatus)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'identifier (shareKey, slug, or file) and status are required']);
+        exit;
+    }
+
+    if (!in_array($newStatus, Navigation::VALID_STATUSES, true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid status. Allowed: ' . implode(', ', Navigation::VALID_STATUSES)]);
+        exit;
+    }
+
+    $updatedChapter = Navigation::updateChapterStatus($config['books'], $identifier, $newStatus, [
+        'updatedBy' => 'api',
+        'approver' => $approver,
+        'note' => $approverNote
+    ]);
+
+    if ($updatedChapter === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found for identifier']);
+        exit;
+    }
+
+    // If HTML document, update file on disk as well
+    $baseDir = Config::getBaseDir();
+    $relFile = $updatedChapter['file'] ?? '';
+    if (!empty($relFile) && preg_match('/\.(html|htm)$/i', $relFile)) {
+        $absFile = Config::safePath($baseDir, $relFile);
+        if ($absFile && file_exists($absFile)) {
+            Navigation::sanitizeHtmlDocumentStatus($absFile, $newStatus, $cleanSource);
+        }
+    }
+
+    if (Config::save($config)) {
+        $baseUrl = Config::getBaseUrl();
+        $sKey = $updatedChapter['shareKey'] ?? '';
+        $slug = $updatedChapter['slug'] ?? '';
+        $bookId = Navigation::findChapterParentId($config['books'] ?? [], $slug) ?? '';
+        $shareUrl = !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '';
+        $url = $baseUrl . urlencode($bookId) . '/' . urlencode($slug);
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'bookId' => $bookId,
+            'shareKey' => $sKey,
+            'status' => $newStatus,
+            'statusUpdatedAt' => $updatedChapter['statusUpdatedAt'] ?? date('c'),
+            'approver' => $updatedChapter['approver'] ?? $approver,
+            'shareUrl' => $shareUrl,
+            'url' => $url
+        ]);
+        exit;
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        exit;
+    }
+}
+
 // 3. Extract and Validate Document Inputs
 $bookId = trim($_POST['bookId'] ?? '');
 $title = trim($_POST['title'] ?? '');
@@ -635,6 +709,32 @@ $chapterData = [
     'shareKey' => $shareKey
 ];
 
+$docStatus = strtolower(trim($_POST['status'] ?? ''));
+if (!in_array($docStatus, Navigation::VALID_STATUSES, true)) {
+    $docStatus = Navigation::DEFAULT_STATUS;
+}
+$chapterData['status'] = $docStatus;
+$chapterData['statusUpdatedAt'] = date('c');
+$chapterData['statusUpdatedBy'] = 'api';
+
+if (!empty($_POST['approver'])) {
+    $chapterData['approver'] = trim($_POST['approver']);
+}
+if (!empty($_POST['approverNote']) || !empty($_POST['note'])) {
+    $chapterData['approverNote'] = trim($_POST['approverNote'] ?? $_POST['note'] ?? '');
+}
+
+if ($type === 'html' && file_exists($targetAbsFile)) {
+    $cleanOnPublish = false;
+    if (isset($_POST['clean_source'])) {
+        $cVal = $_POST['clean_source'];
+        if ($cVal === true || $cVal === 'true' || $cVal === '1' || $cVal === 1) {
+            $cleanOnPublish = true;
+        }
+    }
+    Navigation::sanitizeHtmlDocumentStatus($targetAbsFile, $docStatus, $cleanOnPublish);
+}
+
 if (!$publicShareable) {
     $chapterData['publicShareable'] = false;
 }
@@ -690,6 +790,8 @@ if ($saved && Config::save($config)) {
         'file' => $targetRelFile,
         'type' => $type,
         'shareKey' => $shareKey,
+        'status' => $docStatus,
+        'statusUpdatedAt' => $chapterData['statusUpdatedAt'],
         'shareUrl' => $shareUrl,
         'url' => $url
     ]);
