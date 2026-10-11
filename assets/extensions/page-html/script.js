@@ -570,12 +570,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statusToggleBtn && statusDropdownMenu) {
         statusToggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const isOpen = statusDropdownMenu.style.display === 'block';
-            statusDropdownMenu.style.display = isOpen ? 'none' : 'block';
+            const isCurrentlyOpen = statusDropdownMenu.classList.contains('show') || statusDropdownMenu.style.display === 'flex' || statusDropdownMenu.style.display === 'block';
+            if (isCurrentlyOpen) {
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+            } else {
+                statusDropdownMenu.classList.add('show');
+                statusDropdownMenu.style.display = 'flex';
+            }
         });
 
         document.addEventListener('click', (e) => {
             if (!statusToggleBtn.contains(e.target) && !statusDropdownMenu.contains(e.target)) {
+                statusDropdownMenu.classList.remove('show');
                 statusDropdownMenu.style.display = 'none';
             }
         });
@@ -583,6 +590,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDropdownMenu.querySelectorAll('.status-action-item').forEach(item => {
             item.addEventListener('click', async (e) => {
                 e.preventDefault();
+                statusDropdownMenu.classList.remove('show');
                 statusDropdownMenu.style.display = 'none';
 
                 const newStatus = item.getAttribute('data-set-status');
@@ -620,6 +628,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             badge.className = 'badge badge-status badge-status-' + newStatus;
                             badge.textContent = formattedLabel;
                         }
+
+                        // Update active indicator in dropdown menu
+                        statusDropdownMenu.querySelectorAll('.status-action-item').forEach(btn => {
+                            const btnStatus = btn.getAttribute('data-set-status');
+                            const checkSpan = btn.querySelector('.status-check-indicator');
+                            if (btnStatus === newStatus) {
+                                btn.classList.add('active');
+                                if (!checkSpan) {
+                                    const span = document.createElement('span');
+                                    span.className = 'status-check-indicator';
+                                    span.textContent = '✓';
+                                    btn.appendChild(span);
+                                }
+                            } else {
+                                btn.classList.remove('active');
+                                if (checkSpan) {
+                                    checkSpan.remove();
+                                }
+                            }
+                        });
 
                         // Hot-reload iframe content
                         const iframe = document.getElementById('current-html-frame');

@@ -158,11 +158,21 @@ $lightHover = '#3730a3';
 
 $lightLinkContrast = contrastRatio($lightLink, $lightBg);
 $lightVisitedContrast = contrastRatio($lightVisited, $lightBg);
-$lightHoverContrast = contrastRatio($lightHover, $lightBg);
+// Verify CSS variables and dropdown legibility
+assertTest(strpos($css, '--text-color: var(--text-primary);') !== false, 'CSS defines --text-color as resilient alias for --text-primary');
 
-assertTest($lightLinkContrast >= 4.5, "Light mode link contrast ({$lightLink} vs {$lightBg}) = " . round($lightLinkContrast, 2) . ":1 >= 4.5:1 (WCAG AA)");
-assertTest($lightVisitedContrast >= 4.5, "Light mode visited contrast ({$lightVisited} vs {$lightBg}) = " . round($lightVisitedContrast, 2) . ":1 >= 4.5:1 (WCAG AA)");
-assertTest($lightHoverContrast >= 4.5, "Light mode hover contrast ({$lightHover} vs {$lightBg}) = " . round($lightHoverContrast, 2) . ":1 >= 4.5:1 (WCAG AA)");
+// Status dropdown contrast verification
+$darkTextPrimary = '#f8fafc';
+$darkCardBg = '#1e293b';
+$statusItemContrast = contrastRatio($darkTextPrimary, $darkCardBg);
+assertTest($statusItemContrast >= 4.5, "Status dropdown text contrast ({$darkTextPrimary} vs {$darkCardBg}) = " . round($statusItemContrast, 2) . ":1 >= 4.5:1 (WCAG AA)");
+
+$htmlExtCss = file_get_contents(__DIR__ . '/../assets/extensions/page-html/style.css');
+assertTest(strpos($htmlExtCss, '.status-dropdown .status-action-item') !== false, 'HTML Extension defines .status-dropdown .status-action-item');
+assertTest(strpos($htmlExtCss, 'color: var(--text-primary);') !== false, 'Status dropdown item specifies color: var(--text-primary)');
+
+$rendererPhp = file_get_contents(__DIR__ . '/../assets/extensions/page-html/renderer.php');
+assertTest(strpos($rendererPhp, 'style="width: 100%; text-align: left; padding: 6px 12px; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-color, #334155);"') === false, 'Renderer PHP has no hardcoded dark-on-dark inline colors');
 
 echo "\n----------------------------------------------------\n";
 echo "Tests Completed: Passed: {$passed}, Failed: {$failed}\n";

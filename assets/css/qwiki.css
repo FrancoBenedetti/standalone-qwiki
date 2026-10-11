@@ -11,6 +11,7 @@
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  --text-color: var(--text-primary);
   --border-color: #334155;
   --sidebar-width: 280px;
   --header-height: 64px;
@@ -40,6 +41,7 @@
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
+  --text-color: var(--text-primary);
   --border-color: #e2e8f0;
   --link-color: #4f46e5;
   --link-hover: #3730a3;

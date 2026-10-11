@@ -211,6 +211,48 @@
     border: 1px solid rgba(100, 116, 139, 0.35);
 }
 
+/* Document Lifecycle Status Dropdown */
+.status-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.status-dropdown .dropdown-menu {
+    min-width: 220px;
+    z-index: 1050;
+}
+
+.status-dropdown .status-action-item {
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    transition: background var(--transition-fast), color var(--transition-fast);
+    position: relative;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+}
+
 .status-dropdown .status-action-item:hover {
-    background-color: var(--bg-card-hover, rgba(0, 0, 0, 0.05)) !important;
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.status-dropdown .status-action-item.active {
+    background-color: rgba(99, 102, 241, 0.12);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.status-dropdown .status-check-indicator {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: var(--link-color, #818cf8);
+    font-weight: 700;
+    padding-left: 0.5rem;
 }
