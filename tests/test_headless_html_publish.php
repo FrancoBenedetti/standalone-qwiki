@@ -376,6 +376,17 @@ foreach ($listResp['json']['chapters'] ?? [] as $ch) {
 }
 assertTest($foundListing, 'Target chapter found in list_chapters output');
 
+// Test resolve_share_key
+$resolveResp = callPublishApi($tempDir, [
+    'action' => 'resolve_share_key',
+    'shareKey' => $initialShareKey
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resolveResp['json']['success']), 'resolve_share_key succeeds with success: true');
+assertTest(($resolveResp['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'resolve_share_key returns correct slug');
+assertTest(($resolveResp['json']['bookId'] ?? '') === 'western-cape', 'resolve_share_key returns correct parent bookId');
+assertTest(!empty($resolveResp['json']['url']), 'resolve_share_key returns full canonical url');
+assertTest(!empty($resolveResp['json']['shareUrl']), 'resolve_share_key returns shareUrl');
+
 // Test delete_chapter
 $delResp = callPublishApi($tempDir, [
     'action' => 'delete_chapter',

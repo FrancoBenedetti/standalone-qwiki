@@ -77,7 +77,9 @@ function upsert_chapter_into_node(&$node, $targetFolderId, $chapterData, &$isUpd
             $node['items'] = [];
         }
         foreach ($node['items'] as &$it) {
-            if ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === $chapterData['slug']) {
+            $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === $chapterData['slug']);
+            $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
+            if ($isSlugMatch || $isShareMatch) {
                 if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
                     $chapterData['shareKey'] = $it['shareKey'];
                 }
@@ -366,6 +368,40 @@ if ($action === 'list_chapters' || $action === 'get_chapters') {
     exit;
 }
 
+if ($action === 'resolve_share_key' || $action === 'get_chapter_by_share_key' || $action === 'find_by_share_key') {
+    $shareKey = trim($_POST['shareKey'] ?? $_GET['shareKey'] ?? '');
+    if (empty($shareKey)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'shareKey is required']);
+        exit;
+    }
+    $matchedParent = null;
+    $chapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParent);
+    if ($chapter !== null) {
+        $baseUrl = Config::getBaseUrl();
+        $slug = $chapter['slug'] ?? '';
+        $bookId = Navigation::findChapterParentId($config['books'] ?? [], $slug) ?? ($matchedParent['id'] ?? '');
+        $fullUrl = $baseUrl . urlencode($bookId) . '/' . urlencode($slug);
+        $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
+        echo json_encode([
+            'success' => true,
+            'shareKey' => $shareKey,
+            'bookId' => $bookId,
+            'title' => $chapter['title'] ?? '',
+            'slug' => $slug,
+            'type' => $chapter['type'] ?? 'html',
+            'file' => $chapter['file'] ?? '',
+            'url' => $fullUrl,
+            'shareUrl' => $shareUrl
+        ]);
+        exit;
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found for share key']);
+        exit;
+    }
+}
+
 // 3. Extract and Validate Document Inputs
 $bookId = trim($_POST['bookId'] ?? '');
 $title = trim($_POST['title'] ?? '');
@@ -505,9 +541,25 @@ $findExistingChapterInFolder = function($node, $targetFolderId, $targetSlug) use
 };
 
 $existingChapter = null;
-foreach ($config['books'] as $b) {
-    $existingChapter = $findExistingChapterInFolder($b, $targetNodeId, $baseSlug);
-    if ($existingChapter !== null) break;
+if (!empty($providedShareKey)) {
+    $parentOfShare = null;
+    $chapterByShare = Navigation::findChapterByShareKey($config['books'] ?? [], $providedShareKey, $parentOfShare);
+    if ($chapterByShare !== null) {
+        $existingChapter = $chapterByShare;
+        if (empty($providedSlug) || $providedSlug === ($chapterByShare['slug'] ?? '')) {
+            $baseSlug = $chapterByShare['slug'] ?? $baseSlug;
+        }
+        if (!empty($parentOfShare['id'])) {
+            $targetNodeId = $parentOfShare['id'];
+        }
+    }
+}
+
+if ($existingChapter === null) {
+    foreach ($config['books'] as $b) {
+        $existingChapter = $findExistingChapterInFolder($b, $targetNodeId, $baseSlug);
+        if ($existingChapter !== null) break;
+    }
 }
 
 if ($allowOverwrite || $existingChapter !== null) {
@@ -565,9 +617,13 @@ if (file_put_contents($targetAbsFile, $sanitizedContent) === false) {
 $shareKey = !empty($providedShareKey) ? $providedShareKey : Navigation::generateShareKey();
 $collidingChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey);
 if ($collidingChapter !== null && ($collidingChapter['slug'] ?? '') !== $slug) {
-    do {
-        $shareKey = Navigation::generateShareKey();
-    } while (Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey) !== null);
+    if ($existingChapter !== null && ($existingChapter['shareKey'] ?? '') === $shareKey) {
+        // Legitimate in-place update of existing chapter: keep original shareKey!
+    } else {
+        do {
+            $shareKey = Navigation::generateShareKey();
+        } while (Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey) !== null);
+    }
 }
 
 // 8. Prepare Chapter Data for qwiki.json

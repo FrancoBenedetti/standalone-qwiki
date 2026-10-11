@@ -593,12 +593,21 @@ if (!empty($shareKey) && $isJsonRequested) {
         $rawContent = $matchedChapter['content'];
     }
 
+    $catId = $matchedParentBook['id'] ?? '';
+    $fullUrl = $baseUrl . urlencode($catId) . '/' . urlencode($matchedChapter['slug'] ?? '');
+    $shareUrl = rtrim($baseUrl, '/') . '/?share=' . urlencode($shareKey);
+
     echo json_encode([
         'success' => true,
+        'shareKey' => $shareKey,
+        'bookId' => $catId,
+        'category' => $catId,
         'title' => $matchedChapter['title'] ?? '',
         'slug' => $matchedChapter['slug'] ?? '',
         'type' => $chapterType,
         'description' => $matchedChapter['description'] ?? '',
+        'url' => $fullUrl,
+        'shareUrl' => $shareUrl,
         'content' => $rawContent,
         'origin' => $baseUrl,
         'lastModified' => $lastModified,
