@@ -254,6 +254,12 @@ External automation scripts, CI/CD pipelines, and internal tools can publish doc
 - **Category Management Actions**:
   - `action=create_category` (or `add_book`): Dynamically provisions a new top-level or nested category (`id`, `title`, optional `description`, optional `parentId`). If the category already exists, safely updates title and description idempotently.
   - `action=list_categories` (or `get_books`): Returns an array of existing categories with their identifiers, titles, descriptions, and relative folder paths.
+- **Document Management & Lifecycle Actions**:
+  - `action=set_status` (or `update_status`): Updates the lifecycle state of a document (`status: "draft" | "review" | "published" | "archived"`). Supports `approver`, `approverNote`, and `clean_source=true` (which strips draft watermarks and review dockets from disk upon publishing).
+  - `action=list_chapters` (or `get_chapters`): Lists all chapters within a given category (`bookId`) or across the entire wiki with full metadata.
+  - `action=delete_chapter` (or `remove_chapter`): Removes a chapter node from navigation and purges its file from disk.
+  - `action=resolve_share_key`: Resolves a 16-hex `shareKey` to the document's canonical slug, book, and web URLs.
+  - In-place updates: Pass `update=true` (or `overwrite=true`) and optional `slug` to update existing documents in place without breaking URLs or share keys.
 - **Supported Formats**:
   - `type: "markdown"` (Default): Plain GitHub-Flavored Markdown.
   - `type: "html"`: Self-contained HTML documents (dossiers, reports). Automatically preserves `<style>`, `@media print`, `<meta>`, and SVG tags while sanitizing executable vectors.

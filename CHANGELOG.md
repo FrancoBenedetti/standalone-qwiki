@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.19.0] - LifecycleFlow - 2026-10-11
+
+### 🏷️ Document Lifecycle Status Architecture & Release Workflow
+- **Four-Stage Document Lifecycle**: Added native workflow status management across documents (`draft`, `review`, `published`, `archived`) with schema validation (`Navigation::VALID_STATUSES`) and default `published` fallback.
+- **Interactive Document Status Controls**: Document headers feature an administrative status dropdown menu enabling instant state changes with real-time UI badge updates (`badge-status-draft`, `badge-status-review`, `badge-status-published`, `badge-status-archived`).
+- **Sidebar Status Indicators**: Administrators see subtle status indicators (`●`) on draft, in-review, and archived documents in the navigation tree for rapid discovery of pending content.
+- **Automated Source Cleaning & Watermark Removal**: Transitioning a document to `published` with `clean_source=true` automatically strips draft watermarks, review dockets, and temporary notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from HTML files on disk while updating root `<html data-qwiki-status="published">`.
+- **Administrative Lifecycle Endpoint (`action=set_chapter_status`)**: Integrated into `api/admin.php` with role enforcement, document protection safeguards, and updater tracking (`statusUpdatedAt`, `statusUpdatedBy`, `approver`, `note`).
+
+### 🚀 Extended Headless Publishing API
+- **Lifecycle Status Endpoint (`action=set_status` / `update_status`)**: Programmatically set document states with approver tracking and clean source options via `api/publish.php`.
+- **Status Payload Integration**: Standard `publish_doc` requests now accept `status`, `approver`, `approverNote`, and `clean_source`.
+- **Chapter Discovery & Listing (`action=list_chapters` / `get_chapters`)**: Discover chapters by category or globally, returning metadata, formats, share keys, and companion translations.
+- **Safe Document Deletion (`action=delete_chapter` / `remove_chapter`)**: Programmatically remove chapters from `qwiki.json` and purge associated files from disk with strict path traversal validation.
+- **Share Key Resolution Endpoint (`action=resolve_share_key`)**: Resolve 16-hex `shareKey` tokens to canonical chapter slugs, categories, and direct URLs.
+- **Share Key Stability & Idempotency**: Document updates strictly preserve existing cryptographic `shareKey` tokens unless explicitly overridden.
+
+### 🧪 Automated Test Coverage
+- `tests/test_lifecycle_status.php`: 27 automated assertions testing chapter status updates, metadata retention, HTML DOM sanitization, clean-source watermark purging, and publish API endpoints.
+- `tests/test_headless_html_publish.php`: Extended test suite with 12 new assertions covering chapter listing, chapter deletion, disk cleanup, and share key resolution (69/69 passing).
+
+---
+
 ## [1.18.2] - DocUpdateFlow - 2026-10-10
 
 ### 🔄 Idempotent Document Publishing & Slug Stability

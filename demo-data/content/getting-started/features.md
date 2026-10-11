@@ -269,4 +269,14 @@ Comprehensive account security and self-service recovery engineered without exte
 - **Emergency CLI Recovery Tool**: Administrators who lose access to both their authenticator device and recovery codes can instantly reset 2FA via the server terminal (`php bin/reset-2fa.php <username>`).
 - **Pure Socket Outbound SMTP Client**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with a built-in connection testing tool and native PHP `mail()` fallback.
 
+---
 
+## 🏷️ 21. Document Lifecycle Management & Workflow States
+
+Standalone Qwiki includes a comprehensive document lifecycle management architecture designed for editorial teams, regulatory compliance, and headless publishing pipelines:
+
+- **Four Lifecycle States**: Documents advance through `Draft` (📝), `In Review` (🔍), `Published` (🚀), and `Archived` (📦) states, tracked in `qwiki.json` with timestamp and updater audit trails.
+- **Interactive Header Controls**: Document toolbars include a status dropdown menu allowing administrators to instantly transition document states with live UI badges.
+- **Sidebar Status Indicators**: Non-published documents display distinct visual status indicators (`●`) in the left navigation menu for logged-in administrators, making draft and pending documents easy to track.
+- **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML document to `Published` can automatically and permanently strip draft watermarks, review dockets, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while setting root `<html data-qwiki-status="published">`.
+- **Headless Status Transitions**: Automation pipelines and AI agents can manage document statuses programmatically via `action=set_status` (in `api/publish.php`) or `action=set_chapter_status` (in `api/admin.php`).
