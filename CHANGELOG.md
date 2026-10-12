@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.19.2] - CleanFlow - 2026-10-12
+
+### 🧹 Multi-Stage Source Sanitization & Review Docket Cleaning
+- **Comment Boundary Stripping**: Enhanced `Navigation::sanitizeHtmlDocumentStatus` to cleanly remove explicit boundary blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`) during release publishing.
+- **Review Docket Banner & Table Removal**: Added targeted regex cleaning to permanently strip audit docket banners (`review-docket-banner`, `qwiki-review-docket`, `#gerhard-review-docket`), orphan docket tables (`docket-table`), checklist blocks, and feedback boxes when publishing with `clean_source=true`.
+- **Refined Watermark & Marker Patterns**: Broadened container tag matching across `<aside>`, `<header>`, `<footer>`, and `<article>` to eliminate nested draft watermarks while preserving valid document content.
+
+### 🧪 Automated Test Coverage
+- `tests/test_lifecycle_status.php`: Added automated assertions verifying multi-stage boundary comment, docket banner, checklist, and table purging under `cleanSource` (33/33 passing).
+
+---
+
+## [1.19.1] - 2026-10-11
+
+### 🎨 Accessible UI Contrast & Legibility
+- **WCAG AA Status Dropdown Contrast**: Enhanced typography, borders, and hover backgrounds in the document header lifecycle status dropdown to satisfy WCAG AA contrast (13.98:1 on dark mode `#1e293b`).
+- **Active Status Checkmarks**: Added active indicators (`✓`) in the status dropdown menu to reflect the currently assigned lifecycle state.
+- **Resilient CSS Variables**: Added `--text-color: var(--text-primary)` compatibility alias in `qwiki.css` to prevent unstyled text in custom theme extensions.
+
+---
+
 ## [1.19.0] - LifecycleFlow - 2026-10-11
 
 ### 🏷️ Document Lifecycle Status Architecture & Release Workflow

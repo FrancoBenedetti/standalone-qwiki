@@ -127,6 +127,14 @@ $sampleHtmlContent = '<!DOCTYPE html>
     <title>Bellevue Estate - Grower Guide</title>
 </head>
 <body>
+    <!-- QWIKI_DRAFT_START -->
+    <aside class="draft-boundary-box">Comment Boundary Box</aside>
+    <!-- QWIKI_DRAFT_END -->
+    <div id="gerhard-review-docket" class="review-docket-banner">
+        <div class="docket-header">Docket Header</div>
+        <table class="docket-table"><tr><td>Auditor</td></tr></table>
+        <div><strong>Reviewer Audit Checklist:</strong> Complete</div>
+    </div>
     <div class="watermark-draft qwiki-draft qwiki-watermark" data-qwiki-draft>
         DRAFT FOR REVIEW ONLY
     </div>
@@ -150,6 +158,8 @@ $contentAfterReview = file_get_contents($testHtmlFile);
 assertTest(strpos($contentAfterReview, 'data-qwiki-status="review"') !== false, 'Root html tag updated to data-qwiki-status="review"');
 assertTest(strpos($contentAfterReview, 'watermark-draft') !== false, 'Draft watermark preserved when cleanSource=false');
 assertTest(strpos($contentAfterReview, 'review-docket') !== false, 'Review docket preserved when cleanSource=false');
+assertTest(strpos($contentAfterReview, 'QWIKI_DRAFT_START') !== false, 'Comment boundaries preserved when cleanSource=false');
+assertTest(strpos($contentAfterReview, 'docket-table') !== false, 'Docket table preserved when cleanSource=false');
 
 // 2.2 Permanent cleaning on release (cleanSource = true and status = \'published\')
 $ok2 = Navigation::sanitizeHtmlDocumentStatus($testHtmlFile, 'published', true);
@@ -158,6 +168,10 @@ $contentAfterPublish = file_get_contents($testHtmlFile);
 assertTest(strpos($contentAfterPublish, 'data-qwiki-status="published"') !== false, 'Root html tag updated to data-qwiki-status="published"');
 assertTest(strpos($contentAfterPublish, 'watermark-draft') === false, 'Watermark DOM node stripped from file');
 assertTest(strpos($contentAfterPublish, 'review-docket') === false, 'Review docket DOM node stripped from file');
+assertTest(strpos($contentAfterPublish, 'QWIKI_DRAFT_START') === false, 'Comment boundaries stripped from file');
+assertTest(strpos($contentAfterPublish, 'gerhard-review-docket') === false, 'Review docket banner stripped from file');
+assertTest(strpos($contentAfterPublish, 'docket-table') === false, 'Docket table stripped from file');
+assertTest(strpos($contentAfterPublish, 'Reviewer Audit Checklist:') === false, 'Audit checklist stripped from file');
 assertTest(strpos($contentAfterPublish, 'Operational Guide') !== false, 'Main content intact after sanitization');
 
 
