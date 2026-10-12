@@ -625,15 +625,22 @@ class Navigation {
 
         // 2. If cleanSource is active and status is 'published', remove draft nodes & watermarks permanently
         if ($cleanSource && $newStatus === 'published') {
-            $patterns = [
-                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bdata-qwiki-draft\b[^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
-                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bqwiki-draft\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
-                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bqwiki-watermark\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
-                '/<(?:div|section|p|span|aside|header|footer|article)\b[^>]*\bclass=["\'][^"\']*\bwatermark-draft\b[^"\']*["\'][^>]*>.*?<\/(?:div|section|p|span|aside|header|footer|article)>\s*/is',
-            ];
-            foreach ($patterns as $pattern) {
-                $content = preg_replace($pattern, '', $content);
-            }
+            // A. Remove explicit comment boundary blocks first (<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->)
+            $content = preg_replace('/<!--\s*QWIKI_DRAFT_START\s*-->[\s\S]*?<!--\s*QWIKI_DRAFT_END\s*-->\s*/is', '', $content);
+
+            // B. Remove full review docket banners (including multi-div/table contents up to next major section)
+            $content = preg_replace('/<div\b[^>]*(?:id=["\']gerhard-review-docket["\']|class=["\'][^"\']*\b(?:review-docket-banner|qwiki-review-docket)\b[^"\']*["\'])[^>]*>[\s\S]*?<\/div>\s*(?=<div\b[^>]*\b(?:watermark-draft|qwiki-watermark)\b|<header\b|<main\b|<div\b[^>]*\bcontainer\b)/is', '', $content);
+
+            // C. Remove watermarks
+            $content = preg_replace('/<(?:div|section|aside|header|footer|p|span)\b[^>]*(?:\bclass=["\'][^"\']*\b(?:watermark-draft|qwiki-watermark)\b[^"\']*["\'])[^>]*>[\s\S]*?<\/(?:div|section|aside|header|footer|p|span)>\s*/is', '', $content);
+
+            // D. Remove orphan docket tables and checklists if previously partially stripped
+            $content = preg_replace('/<table\b[^>]*\b(?:docket-table)\b[^>]*>[\s\S]*?<\/table>\s*/is', '', $content);
+            $content = preg_replace('/<div\b[^>]*>(?:\s*<strong>\s*Reviewer Audit Checklist:[\s\S]*?)<\/div>\s*/is', '', $content);
+            $content = preg_replace('/<div\b[^>]*\b(?:docket-header|docket-checklist|docket-feedback-box)\b[^>]*>[\s\S]*?<\/div>\s*/is', '', $content);
+
+            // E. Remove any other elements marked with data-qwiki-draft or qwiki-draft
+            $content = preg_replace('/<(?:div|section|p|span|aside|header|footer|article|table)\b[^>]*(?:\bdata-qwiki-draft\b|\bclass=["\'][^"\']*\bqwiki-draft\b[^"\']*["\'])[^>]*>[\s\S]*?<\/(?:div|section|p|span|aside|header|footer|article|table)>\s*/is', '', $content);
         }
 
         return (file_put_contents($absFilePath, $content) !== false);
