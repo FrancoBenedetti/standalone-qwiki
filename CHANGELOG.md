@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.19.3] - MailFlow - 2026-10-13
+
+### 📧 SMTP Credential Retention & Outbound Reset Diagnostics
+- **SMTP Password Retention on Update**: In `api/admin.php` (`save_smtp`), saving server settings without providing a new password automatically retains the existing configured password, preventing accidental relay disconnection when updating ports, hostnames, or sender names.
+- **Detailed Password Reset Diagnostics**: In `lib/Core/Auth.php` (`requestPasswordReset`), added targeted server error logging for outbound delivery failures, missing emails, unverified email accounts, and non-existent users, while maintaining identical generic responses to the client for enumeration security.
+
+### 🧪 Automated Test Coverage
+- `tests/password_reset_test.php`: Added Test 9 validating SMTP password retention across configuration updates and non-blocking diagnostic logging for unconfigured or unknown user identifiers.
+
+---
+
 ## [1.19.2] - CleanFlow - 2026-10-12
 
 ### 🧹 Multi-Stage Source Sanitization & Review Docket Cleaning

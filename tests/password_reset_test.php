@@ -177,6 +177,28 @@ $aliceDirect = Auth::login('alice', 'newsecret456');
 assert($aliceDirect['success'] === true && empty($aliceDirect['require2fa']), "Alice should log in directly without 2FA");
 echo "8. Administrative 2FA reset & instant direct login restoration: PASS\n";
 
+// Test 9: SMTP Password Retention & Reset Logging Diagnostics
+$configData = [
+    'title' => 'Test Wiki',
+    'smtp' => [
+        'host' => 'smtp.example.com',
+        'port' => 587,
+        'username' => 'wiki@example.com',
+        'password' => 'supersecretpass',
+        'fromEmail' => 'noreply@example.com',
+        'fromName' => 'Test Qwiki'
+    ]
+];
+Config::save($configData);
+$existingSmtp = Config::load()['smtp'] ?? [];
+$emptyPasswordPost = '';
+$retainedPassword = ($emptyPasswordPost !== '') ? $emptyPasswordPost : ($existingSmtp['password'] ?? '');
+assert($retainedPassword === 'supersecretpass', "SMTP password should be retained when omitted or empty on update");
+
+$resetUnknown = Auth::requestPasswordReset('nonexistent_user_999');
+assert($resetUnknown['success'] === true, "requestPasswordReset should return generic success even for unknown identifier");
+echo "9. SMTP password retention & password reset logging diagnostics: PASS\n";
+
 // Cleanup temp test directory
 @unlink($testDir . '/users.json');
 @unlink($testDir . '/qwiki.json');

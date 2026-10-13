@@ -267,7 +267,7 @@ Comprehensive account security and self-service recovery engineered without exte
 - **8 Emergency Recovery Codes**: Users receive eight single-use 10-character recovery codes upon enrollment. Codes are BCrypt-hashed in `users.json` and consumed on first use.
 - **Wiki-Wide 2FA Policies**: Configurable in **`⚙️ Site Settings`** (`Optional`, `Required for Admins`, `Required for All`, or `Disabled`).
 - **Emergency CLI Recovery Tool**: Administrators who lose access to both their authenticator device and recovery codes can instantly reset 2FA via the server terminal (`php bin/reset-2fa.php <username>`).
-- **Pure Socket Outbound SMTP Client**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with a built-in connection testing tool and native PHP `mail()` fallback.
+- **Pure Socket Outbound SMTP Client & Deliverability Diagnostics**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with interactive connection testing, password retention on setting updates, detailed server diagnostic logging for password resets, and native PHP `mail()` fallback.
 
 ---
 
