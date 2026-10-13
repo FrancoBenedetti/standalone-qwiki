@@ -464,7 +464,18 @@ class Auth {
                   . "If you did not request this password reset, you can safely ignore this email.\n\n"
                   . "Best regards,\nStandalone Qwiki";
 
-            Mailer::send($targetUser['email'], $subject, $body);
+            $sendRes = Mailer::send($targetUser['email'], $subject, $body);
+            if (!($sendRes['success'] ?? false)) {
+                error_log("Standalone Qwiki password reset email dispatch failed for '{$targetUser['email']}': " . ($sendRes['error'] ?? 'Unknown error'));
+            }
+        } else {
+            if (!$targetUser) {
+                error_log("Standalone Qwiki password reset: no user account matches identifier '{$identifier}'.");
+            } elseif (empty($targetUser['email'])) {
+                error_log("Standalone Qwiki password reset: user '{$targetUser['username']}' has no email configured on their account.");
+            } elseif (empty($targetUser['emailVerified'])) {
+                error_log("Standalone Qwiki password reset: user '{$targetUser['username']}' email '{$targetUser['email']}' is unverified.");
+            }
         }
 
         return $genericResponse;

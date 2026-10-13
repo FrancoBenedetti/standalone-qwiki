@@ -427,12 +427,14 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
+        $existingSmtp = Config::load()['smtp'] ?? [];
+        $password = (isset($_POST['password']) && $_POST['password'] !== '') ? (string)$_POST['password'] : ($existingSmtp['password'] ?? '');
         $smtpConfig = [
             'host'       => trim($_POST['host'] ?? ''),
             'port'       => (int)($_POST['port'] ?? 587),
             'encryption' => trim($_POST['encryption'] ?? 'tls'),
             'username'   => trim($_POST['username'] ?? ''),
-            'password'   => (string)($_POST['password'] ?? ''),
+            'password'   => $password,
             'fromEmail'  => trim($_POST['fromEmail'] ?? ''),
             'fromName'   => trim($_POST['fromName'] ?? 'Standalone Qwiki')
         ];
