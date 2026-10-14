@@ -1001,13 +1001,26 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <header class="app-header">
         <div class="brand-container">
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
-            <a href="<?= htmlspecialchars($baseUrl) ?>" class="brand-logo">
-                <?php if (!empty($config['logoUrl'])): ?>
-                    <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
-                <?php else: ?>
-                    ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+            <div class="brand-header-group">
+                <?php 
+                $logoHref = $isSubwiki ? ($config['parentUrl'] ?? '../') : $baseUrl;
+                $logoTitle = $isSubwiki ? ('Back to ' . ($parentTitle ?: 'Parent Wiki')) : ($config['title'] ?? 'Home');
+                ?>
+                <a href="<?= htmlspecialchars($logoHref) ?>" class="brand-logo" title="<?= htmlspecialchars($logoTitle) ?>">
+                    <?php if (!empty($config['logoUrl'])): ?>
+                        <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
+                    <?php else: ?>
+                        ⚡ <?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? 'QWIKI')) ?>
+                    <?php endif; ?>
+                </a>
+                <?php if ($isSubwiki): ?>
+                    <span class="brand-separator" aria-hidden="true">/</span>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="brand-subwiki-badge" title="Current Subwiki: <?= htmlspecialchars($config['title'] ?? 'Subwiki') ?>">
+                        <span class="subwiki-badge-icon">🌐</span>
+                        <span class="subwiki-badge-title"><?= htmlspecialchars($config['title'] ?? 'Subwiki') ?></span>
+                    </a>
                 <?php endif; ?>
-            </a>
+            </div>
         </div>
         <div class="header-actions">
             <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
@@ -1077,6 +1090,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
             <?php else: ?>
                 ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
+            <?php endif; ?>
+            <?php if ($isSubwiki): ?>
+                <span class="brand-separator" style="margin: 0 0.35rem; opacity: 0.6; font-size: 0.85rem;" aria-hidden="true">/</span>
+                <span class="brand-subwiki-badge-share" style="font-weight: 600; font-size: 0.82rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <span>🌐</span>
+                    <span><?= htmlspecialchars($config['title'] ?? 'Subwiki') ?></span>
+                </span>
             <?php endif; ?>
         </div>
         <div class="share-bar-title"><?= htmlspecialchars($activeChapter['title'] ?? ($shareError ? 'Document Share' : 'Document')) ?></div>
@@ -1430,8 +1450,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             </div>
             <form id="login-form">
                 <div class="form-group">
-                    <label class="form-label" for="login-username">Username</label>
-                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username (default: admin)" autocomplete="username" required>
+                    <label class="form-label" for="login-username">Username or Email</label>
+                    <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username or email (default: admin)" autocomplete="username" required>
                 </div>
                 <div class="form-group" style="margin-bottom: 0.5rem;">
                     <label class="form-label" for="login-password">Password</label>

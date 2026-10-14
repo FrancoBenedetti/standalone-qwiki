@@ -358,7 +358,7 @@ if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
 
 switch ($action) {
     case 'login':
-        $username = trim($_POST['username'] ?? 'admin');
+        $username = trim($_POST['username'] ?? $_POST['identifier'] ?? 'admin');
         $password = $_POST['password'] ?? '';
         echo json_encode(Auth::login($username, $password, $config));
         break;

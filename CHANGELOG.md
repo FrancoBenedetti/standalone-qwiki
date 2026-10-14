@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.19.4] - BrandFlow - 2026-10-14
+
+### 🌐 Subwiki Header Breadcrumbs & Brand Wayfinding
+- **Dual-Level Brand Header Breadcrumb**: In subwikis, the top-left header brand transforms into a parent/subwiki breadcrumb group. The company logo links directly back to the parent wiki (`parentUrl` with dynamic parent title fallback), followed by a `/` separator and an interactive subwiki badge (`.brand-subwiki-badge`) linking to the subwiki's own root.
+- **Share Mode Provenance Indicators**: When viewing shared documents (`?share=...`) within a subwiki, the top reader bar displays a complementary subwiki context badge (`.brand-subwiki-badge-share`) next to the brand logo.
+- **Responsive Mobile Scaling**: Subwiki brand badges gracefully scale with text ellipsis and tooltips on mobile viewports (`max-width: 130px`, down to `max-width: 95px` on small devices).
+
+### 👥 Dual Sign-in & Administrative Email Verification
+- **Dual Sign-in (Username or Email)**: Users and administrators can now authenticate using either their account username or their configured email address with case-insensitive resolution. Seamlessly hands off to 2FA TOTP challenges and preserves the canonical username in the active session.
+- **Instant Admin Email Verification**: Administrators can now directly mark user email addresses as verified by clicking **`✓ Verify`** next to unverified accounts in the **`👥 Users`** modal, calling `action=update_user_email` with `markVerified=1` without requiring outbound SMTP tokens or manual email roundtrips.
+
+### 🧪 Automated Test Coverage
+- `tests/subwiki_header_breadcrumb_test.php`: Automated test suite verifying parent wiki logo rendering, subwiki header breadcrumb generation, parent return link, subwiki badge root link, and share mode subwiki badge.
+- `tests/password_reset_test.php`: Added Test 10 verifying dual sign-in by username and email (case-insensitive), role establishment, invalid credential rejection, and TOTP 2FA challenge handoff.
+
+---
+
 ## [1.19.3] - MailFlow - 2026-10-13
 
 ### 📧 SMTP Credential Retention & Outbound Reset Diagnostics

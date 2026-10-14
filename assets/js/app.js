@@ -604,7 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data.users.forEach(u => {
           const isPrimaryAdmin = (u.username.toLowerCase() === 'admin');
           const badgeClass = (u.role === 'admin') ? 'badge-md' : 'badge-pdf';
-          const emailDisplay = u.email ? `${escapeHtml(u.email)} ${u.emailVerified ? '<span style="color:#10b981; font-weight:bold;" title="Verified">✓</span>' : '<span style="color:#f59e0b; font-size:0.75rem;" title="Unverified">(unverified)</span>'}` : '<span style="color:var(--text-muted);">-</span>';
+          const emailDisplay = u.email ? `${escapeHtml(u.email)} ${u.emailVerified ? '<span style="color:#10b981; font-weight:bold;" title="Verified">✓</span>' : '<span style="color:#f59e0b; font-size:0.75rem;" title="Unverified">(unverified)</span> <button class="btn btn-outline btn-sm btn-admin-verify-email" data-username="' + escapeHtml(u.username) + '" data-email="' + escapeHtml(u.email) + '" style="padding:0.1rem 0.35rem; font-size:0.72rem; color:#10b981; border-color:rgba(16,185,129,0.4); margin-left:0.25rem;" title="Mark email as verified">✓ Verify</button>'}` : '<span style="color:var(--text-muted);">-</span>';
           const twoFactorDisplay = u.has2fa ? '<span class="doc-badge badge-md" style="font-size:0.75rem; padding:0.1rem 0.35rem;">🔒 Active</span>' : '<span style="color:var(--text-muted); font-size:0.8rem;">Off</span>';
           
           html += `<tr style="border-bottom:1px solid var(--border-color);">`;
@@ -680,6 +680,36 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
               btn.disabled = false;
               btn.textContent = '🔗 Reset Link';
+            }
+          });
+        });
+
+        // Bind admin verify email triggers
+        container.querySelectorAll('.btn-admin-verify-email').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const targetUser = btn.getAttribute('data-username');
+            const targetEmail = btn.getAttribute('data-email');
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+            try {
+              const formData = new FormData();
+              formData.append('action', 'update_user_email');
+              formData.append('username', targetUser);
+              formData.append('email', targetEmail);
+              formData.append('markVerified', '1');
+              const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+              const data = await res.json();
+              if (data.success) {
+                loadUsersList();
+              } else {
+                alert('Failed to verify email: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.textContent = '✓ Verify';
+              }
+            } catch (err) {
+              alert('Network request failed');
+              btn.disabled = false;
+              btn.textContent = '✓ Verify';
             }
           });
         });

@@ -99,8 +99,9 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 ## 👥 7. Multi-User Access Control (RBAC)
 
 - Lightweight user store in `users.json` with PHP Bcrypt password encryption.
-- **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, and user management.
+- **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, user management, and 1-click administrative email verification directly in the Users modal.
 - **Viewer**: Read-only documentation access.
+- **Dual Sign-in (Username or Email)**: Users and administrators can authenticate seamlessly using either their account username or their registered email address, with case-insensitive resolution and automatic 2FA TOTP handoff.
 
 ---
 
@@ -152,6 +153,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Bi-Directional Slug Collision Prevention**: Real-time validation ensures that new subwikis cannot shadow parent categories, and parent categories cannot share names with subwiki folders or reserved system directories.
 - **Logical Dashed Grouping**: Subwikis cannot deploy nested child wikis; hierarchical multi-team structures are grouped using dashed slugs (e.g. `engineering-electrical`, `engineering-mechanical`).
 - **Live Dynamic Parent Wiki Title**: Subwikis dynamically inspect the parent wiki's `qwiki.json` to reflect live parent wiki title renames on the sidebar "← Back to..." banner, eliminating stale names. Subwiki administrators can also configure custom parent titles and target URLs in Settings.
+- **Header Breadcrumbs & Brand Wayfinding**: In subwikis, the top-left header brand transforms into a dual-level breadcrumb: the company logo links directly back to the parent wiki, followed by a `/` separator and an interactive subwiki badge linking to the subwiki home. In distraction-free share mode, a complementary subwiki badge identifies content provenance.
 - **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
 - **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
 

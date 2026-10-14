@@ -101,16 +101,26 @@ class Auth {
         self::startSession();
         $username = trim($username);
         if (empty($username) || empty($password)) {
-            return ['success' => false, 'error' => 'Username and password are required'];
+            return ['success' => false, 'error' => 'Username or email and password are required'];
         }
 
         $userData = Config::loadUsers();
         $matchedUser = null;
         if (!empty($userData['users'])) {
+            // 1. Direct username match (case-insensitive)
             foreach ($userData['users'] as $u) {
                 if (strtolower($u['username']) === strtolower($username)) {
                     $matchedUser = $u;
                     break;
+                }
+            }
+            // 2. Fallback to email match (case-insensitive)
+            if (!$matchedUser) {
+                foreach ($userData['users'] as $u) {
+                    if (!empty($u['email']) && strtolower($u['email']) === strtolower($username)) {
+                        $matchedUser = $u;
+                        break;
+                    }
                 }
             }
         }
@@ -119,7 +129,7 @@ class Auth {
 
         if ($matchedUser && password_verify($password, $matchedUser['passwordHash'])) {
             $authenticated = true;
-        } elseif (strtolower($username) === 'admin' && !empty($config['adminPasswordHash'])) {
+        } elseif (($matchedUser ? strtolower($matchedUser['username']) === 'admin' : strtolower($username) === 'admin') && !empty($config['adminPasswordHash'])) {
             // Fallback & self-healing check against adminPasswordHash in config
             if (password_verify($password, $config['adminPasswordHash'])) {
                 if ($matchedUser) {
@@ -143,7 +153,7 @@ class Auth {
         }
 
         if (!$authenticated || !$matchedUser) {
-            return ['success' => false, 'error' => 'Invalid username or password'];
+            return ['success' => false, 'error' => 'Invalid credentials'];
         }
 
         $policy = $config['twoFactorPolicy'] ?? 'optional';
