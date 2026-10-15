@@ -375,6 +375,7 @@ class SubwikiManager {
             Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
             Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
             Config::copyDir($baseDir . '/api', $targetDir . '/api');
+            Config::copyDir($baseDir . '/templates', $targetDir . '/templates');
         }
 
         // Create uploads directory and protect it
@@ -527,6 +528,7 @@ class SubwikiManager {
                 Config::copyDir($sourceDir . '/lib', $targetDir . '/lib');
                 Config::copyDir($sourceDir . '/assets', $targetDir . '/assets');
                 Config::copyDir($sourceDir . '/api', $targetDir . '/api');
+                Config::copyDir($sourceDir . '/templates', $targetDir . '/templates');
 
                 // 3. Ensure .subwiki marker exists
                 if (!file_exists($targetDir . '/.subwiki')) {

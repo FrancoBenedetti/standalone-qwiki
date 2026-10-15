@@ -887,38 +887,42 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php endif; ?>
     </div>
 
+    <?php
+    $templatesDir = is_dir(__DIR__ . '/templates') ? (__DIR__ . '/templates') : (dirname(__DIR__) . '/templates');
+    ?>
+
     <?php if (!$isAdmin && !$isViewer): ?>
-        <?php require __DIR__ . '/templates/modals/login.php'; ?>
-        <?php require __DIR__ . '/templates/modals/forgot_password.php'; ?>
+        <?php require $templatesDir . '/modals/login.php'; ?>
+        <?php require $templatesDir . '/modals/forgot_password.php'; ?>
     <?php endif; ?>
 
-    <?php require __DIR__ . '/templates/modals/share.php'; ?>
+    <?php require $templatesDir . '/modals/share.php'; ?>
 
     <?php if ($isAdmin): ?>
-        <?php require __DIR__ . '/templates/modals/users.php'; ?>
-        <?php require __DIR__ . '/templates/modals/llm_keys.php'; ?>
-        <?php require __DIR__ . '/templates/modals/create_category.php'; ?>
-        <?php require __DIR__ . '/templates/modals/edit_category.php'; ?>
-        <?php require __DIR__ . '/templates/modals/edit_link.php'; ?>
-        <?php require __DIR__ . '/templates/modals/create_chapter.php'; ?>
+        <?php require $templatesDir . '/modals/users.php'; ?>
+        <?php require $templatesDir . '/modals/llm_keys.php'; ?>
+        <?php require $templatesDir . '/modals/create_category.php'; ?>
+        <?php require $templatesDir . '/modals/edit_category.php'; ?>
+        <?php require $templatesDir . '/modals/edit_link.php'; ?>
+        <?php require $templatesDir . '/modals/create_chapter.php'; ?>
         <?php if ($activeChapter): ?>
-            <?php require __DIR__ . '/templates/modals/edit_chapter.php'; ?>
-            <?php require __DIR__ . '/templates/modals/replace_document.php'; ?>
+            <?php require $templatesDir . '/modals/edit_chapter.php'; ?>
+            <?php require $templatesDir . '/modals/replace_document.php'; ?>
         <?php endif; ?>
-        <?php require __DIR__ . '/templates/modals/upload_conflict.php'; ?>
-        <?php require __DIR__ . '/templates/modals/settings.php'; ?>
+        <?php require $templatesDir . '/modals/upload_conflict.php'; ?>
+        <?php require $templatesDir . '/modals/settings.php'; ?>
         <?php if (!$isSubwiki): ?>
-            <?php require __DIR__ . '/templates/modals/subwikis.php'; ?>
+            <?php require $templatesDir . '/modals/subwikis.php'; ?>
         <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($isAdmin || $isViewer): ?>
-        <?php require __DIR__ . '/templates/modals/user_profile.php'; ?>
+        <?php require $templatesDir . '/modals/user_profile.php'; ?>
     <?php endif; ?>
 
     <?php if ($isAdmin): ?>
-        <?php require __DIR__ . '/templates/modals/theme_editor.php'; ?>
-        <?php require __DIR__ . '/templates/modals/update_available.php'; ?>
+        <?php require $templatesDir . '/modals/theme_editor.php'; ?>
+        <?php require $templatesDir . '/modals/update_available.php'; ?>
         <!-- Utility Modals Injected by Extensions -->
         <?php $extManager->renderUtilityModals(); ?>
     <?php endif; ?>
