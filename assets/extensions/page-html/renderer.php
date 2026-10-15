@@ -16,11 +16,15 @@ if (!file_exists($filePath)) {
 
 $fileUrl = htmlspecialchars($chapter['file'] ?? '');
 $isAdmin = Auth::isAdmin();
+$status = strtolower($chapter['status'] ?? 'published');
 ?>
 <div class="html-page-container">
     <div class="html-viewer-toolbar">
         <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="badge badge-html">HTML</span>
+            <span class="badge badge-status badge-status-<?= htmlspecialchars($status) ?>" id="qwiki-current-status-badge">
+                <?= htmlspecialchars(ucfirst($status)) ?>
+            </span>
             <span class="text-muted" style="font-size: 0.85rem;"><?= htmlspecialchars($chapter['title'] ?? 'HTML Document') ?></span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -28,6 +32,38 @@ $isAdmin = Auth::isAdmin();
                 🖨️ Print / Save as PDF
             </button>
             <?php if ($isAdmin): ?>
+                <div class="dropdown status-dropdown">
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-status-dropdown-toggle" 
+                            data-file="<?= htmlspecialchars($chapter['file'] ?? '') ?>" 
+                            data-slug="<?= htmlspecialchars($chapter['slug'] ?? '') ?>" 
+                            data-sharekey="<?= htmlspecialchars($chapter['shareKey'] ?? '') ?>" 
+                            data-status="<?= htmlspecialchars($status) ?>"
+                            title="Change Document Lifecycle Status">
+                        Status: <strong id="status-current-label"><?= htmlspecialchars(ucfirst($status)) ?></strong> ▾
+                    </button>
+                    <div class="dropdown-menu" id="status-dropdown-menu">
+                        <button type="button" class="dropdown-item status-action-item<?= $status === 'draft' ? ' active' : '' ?>" data-set-status="draft">
+                            <span class="dropdown-item-icon">📝</span>
+                            <span class="dropdown-item-text">Set to Draft</span>
+                            <?php if ($status === 'draft'): ?><span class="status-check-indicator">✓</span><?php endif; ?>
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item<?= $status === 'review' ? ' active' : '' ?>" data-set-status="review">
+                            <span class="dropdown-item-icon">🔍</span>
+                            <span class="dropdown-item-text">Set to In Review</span>
+                            <?php if ($status === 'review'): ?><span class="status-check-indicator">✓</span><?php endif; ?>
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item<?= $status === 'published' ? ' active' : '' ?>" data-set-status="published">
+                            <span class="dropdown-item-icon">🚀</span>
+                            <span class="dropdown-item-text">Set to Published (Release)</span>
+                            <?php if ($status === 'published'): ?><span class="status-check-indicator">✓</span><?php endif; ?>
+                        </button>
+                        <button type="button" class="dropdown-item status-action-item<?= $status === 'archived' ? ' active' : '' ?>" data-set-status="archived">
+                            <span class="dropdown-item-icon">📦</span>
+                            <span class="dropdown-item-text">Set to Archived</span>
+                            <?php if ($status === 'archived'): ?><span class="status-check-indicator">✓</span><?php endif; ?>
+                        </button>
+                    </div>
+                </div>
                 <button type="button" class="btn btn-primary btn-sm" id="btn-edit-html-doc" 
                         data-file="<?= htmlspecialchars($chapter['file'] ?? '') ?>" 
                         data-title="<?= htmlspecialchars($chapter['title'] ?? '') ?>">

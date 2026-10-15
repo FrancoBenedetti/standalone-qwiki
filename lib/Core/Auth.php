@@ -14,14 +14,7 @@ class Auth {
         if (php_sapi_name() === 'cli') {
             return 'http://localhost';
         }
-        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-        $scheme = $isHttps ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        $scriptDir = rtrim(dirname($scriptName === '/' || $scriptName === '\\' ? '' : $scriptName), '/\\');
-        $webPath = preg_replace('#/(api|assets|content).*$#i', '', $scriptDir);
-        return $scheme . '://' . $host . $webPath;
+        return rtrim(Config::getBaseUrl(), '/');
     }
 
     public static function startSession() {
@@ -101,16 +94,26 @@ class Auth {
         self::startSession();
         $username = trim($username);
         if (empty($username) || empty($password)) {
-            return ['success' => false, 'error' => 'Username and password are required'];
+            return ['success' => false, 'error' => 'Username or email and password are required'];
         }
 
         $userData = Config::loadUsers();
         $matchedUser = null;
         if (!empty($userData['users'])) {
+            // 1. Direct username match (case-insensitive)
             foreach ($userData['users'] as $u) {
                 if (strtolower($u['username']) === strtolower($username)) {
                     $matchedUser = $u;
                     break;
+                }
+            }
+            // 2. Fallback to email match (case-insensitive)
+            if (!$matchedUser) {
+                foreach ($userData['users'] as $u) {
+                    if (!empty($u['email']) && strtolower($u['email']) === strtolower($username)) {
+                        $matchedUser = $u;
+                        break;
+                    }
                 }
             }
         }
@@ -119,7 +122,7 @@ class Auth {
 
         if ($matchedUser && password_verify($password, $matchedUser['passwordHash'])) {
             $authenticated = true;
-        } elseif (strtolower($username) === 'admin' && !empty($config['adminPasswordHash'])) {
+        } elseif (($matchedUser ? strtolower($matchedUser['username']) === 'admin' : strtolower($username) === 'admin') && !empty($config['adminPasswordHash'])) {
             // Fallback & self-healing check against adminPasswordHash in config
             if (password_verify($password, $config['adminPasswordHash'])) {
                 if ($matchedUser) {
@@ -143,7 +146,7 @@ class Auth {
         }
 
         if (!$authenticated || !$matchedUser) {
-            return ['success' => false, 'error' => 'Invalid username or password'];
+            return ['success' => false, 'error' => 'Invalid credentials'];
         }
 
         $policy = $config['twoFactorPolicy'] ?? 'optional';
@@ -464,7 +467,18 @@ class Auth {
                   . "If you did not request this password reset, you can safely ignore this email.\n\n"
                   . "Best regards,\nStandalone Qwiki";
 
-            Mailer::send($targetUser['email'], $subject, $body);
+            $sendRes = Mailer::send($targetUser['email'], $subject, $body);
+            if (!($sendRes['success'] ?? false)) {
+                error_log("Standalone Qwiki password reset email dispatch failed for '{$targetUser['email']}': " . ($sendRes['error'] ?? 'Unknown error'));
+            }
+        } else {
+            if (!$targetUser) {
+                error_log("Standalone Qwiki password reset: no user account matches identifier '{$identifier}'.");
+            } elseif (empty($targetUser['email'])) {
+                error_log("Standalone Qwiki password reset: user '{$targetUser['username']}' has no email configured on their account.");
+            } elseif (empty($targetUser['emailVerified'])) {
+                error_log("Standalone Qwiki password reset: user '{$targetUser['username']}' email '{$targetUser['email']}' is unverified.");
+            }
         }
 
         return $genericResponse;

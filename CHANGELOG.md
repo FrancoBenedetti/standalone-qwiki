@@ -7,6 +7,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.0] - ModularFlow - 2026-10-15
+
+### 🏗️ Separation of Concerns & Core Decoupling
+- **Decoupled Markdown Engine (`lib/Core/QwikiParsedown.php`)**: Extracted the 450-line inline Parsedown extension out of `index.php` into `\Qwiki\Core\QwikiParsedown` (with backward-compatible root alias `QwikiParsedown`). Cleanly encapsulates LaTeX inline math (`$...$`), KaTeX display math (`$$...$$`), Unicode symbol replacements (`\to`, `\alpha`, `\degree`, etc.), and anchor heading IDs.
+- **Dedicated SEO & Metadata Manager (`lib/Core/MetadataManager.php`)**: Extracted OpenGraph, Twitter Cards, canonical URL derivation, and metadata parsing into `MetadataManager::resolveArticleMetadata()` and `renderTags()`.
+- **Dedicated Document Lifecycle Service (`lib/Core/DocumentService.php`)**: Extracted document status badge and review docket sanitization into `DocumentService::sanitizeHtmlDocumentStatus()`.
+- **Canonical Tree Manipulation Service (`lib/Core/Navigation.php`)**: Consolidated tree mutations (`insertChapterIntoNode`, `updateChapterInNode`, `deleteChapterFromNode`, `upsertChapterIntoNode`, `updateNodeMeta`, `deleteNodeRecursive`, `findTargetFolder`, `isSafeUrl`) into `Navigation`, eliminating duplicate recursive implementations across `api/admin.php` and `api/publish.php`.
+- **Harmonized URL & Session Bootstrapping**: Standardized `Auth::getBaseUrl()` to delegate to `rtrim(Config::getBaseUrl(), '/')` and standardized `api/feed.php` to use `Config::load()` and `Auth::startSession()`.
+
+### 🪟 View Layer Deconstruction (Modals to Partials)
+- **Extracted 17 Modal Partials (`templates/modals/*.php`)**: Modularized all inline modal dialogs from `index.php` into dedicated template partials (`login.php`, `forgot_password.php`, `share.php`, `users.php`, `llm_keys.php`, `create_category.php`, `edit_category.php`, `edit_link.php`, `create_chapter.php`, `edit_chapter.php`, `replace_document.php`, `upload_conflict.php`, `settings.php`, `subwikis.php`, `user_profile.php`, `theme_editor.php`, `update_available.php`).
+- **Dramatic Template Reduction**: Reduced `index.php` by over 56% (from 2,137 lines down to 940 lines).
+- **Viewer Profile & 2FA Access Bug Fix**: Fixed conditional nesting logic so non-admin viewer users can now open and manage their user profile, email verification, and 2FA TOTP authentication.
+
+### ⚡ Modular Frontend Subsystems (`assets/js/core/`)
+- **Theme Subsystem (`assets/js/core/theme.js`)**: Isolated theme toggling, cookie/localStorage persistence, and Mermaid/Toast UI synchronizers into `window.QwikiApp.theme`.
+- **Sidebar Subsystem (`assets/js/core/sidebar.js`)**: Isolated mobile drawer toggle, draggable resize engine, accordion state collapse/expand persistence, and scroll position restoration into `window.QwikiApp.sidebar`.
+- **Search Subsystem (`assets/js/core/search.js`)**: Isolated debounced sidebar search, dynamic document filtering, and category auto-expansion into `window.QwikiApp.search`.
+- **Modals Subsystem (`assets/js/core/modals.js`)**: Isolated modal open/close lifecycles, backdrop click dismissals, escape key dismissal, and user dropdown toggling into `window.QwikiApp.modals`.
+- **Zero-Build Vanilla Architecture**: All frontend modules operate cleanly in the browser without build steps, bundlers, or transpilations while preserving global helper aliases.
+
+### 🧪 Automated Test Suite Enhancements
+- **Clean Release Verification**: Added new modular core classes (`QwikiParsedown.php`, `MetadataManager.php`, `DocumentService.php`), frontend modules (`assets/js/core/theme.js`), and modal partials (`templates/modals/*.php`) to `tests/clean_release_test.php`.
+- **Direct Test Imports**: Updated `tests/test_latex_rendering.php` to directly import `lib/Core/QwikiParsedown.php` rather than executing regex `eval()` extractions from `index.php`.
+- **Full Suite Green**: 100% pass rate maintained across all 25+ unit and integration test suites.
+
+---
+
+## [1.19.4] - BrandFlow - 2026-10-14
+
+### 🌐 Subwiki Header Breadcrumbs & Brand Wayfinding
+- **Dual-Level Brand Header Breadcrumb**: In subwikis, the top-left header brand transforms into a parent/subwiki breadcrumb group. The company logo links directly back to the parent wiki (`parentUrl` with dynamic parent title fallback), followed by a `/` separator and an interactive subwiki badge (`.brand-subwiki-badge`) linking to the subwiki's own root.
+- **Share Mode Provenance Indicators**: When viewing shared documents (`?share=...`) within a subwiki, the top reader bar displays a complementary subwiki context badge (`.brand-subwiki-badge-share`) next to the brand logo.
+- **Responsive Mobile Scaling**: Subwiki brand badges gracefully scale with text ellipsis and tooltips on mobile viewports (`max-width: 130px`, down to `max-width: 95px` on small devices).
+
+### 👥 Dual Sign-in & Administrative Email Verification
+- **Dual Sign-in (Username or Email)**: Users and administrators can now authenticate using either their account username or their configured email address with case-insensitive resolution. Seamlessly hands off to 2FA TOTP challenges and preserves the canonical username in the active session.
+- **Instant Admin Email Verification**: Administrators can now directly mark user email addresses as verified by clicking **`✓ Verify`** next to unverified accounts in the **`👥 Users`** modal, calling `action=update_user_email` with `markVerified=1` without requiring outbound SMTP tokens or manual email roundtrips.
+
+### 🧪 Automated Test Coverage
+- `tests/subwiki_header_breadcrumb_test.php`: Automated test suite verifying parent wiki logo rendering, subwiki header breadcrumb generation, parent return link, subwiki badge root link, and share mode subwiki badge.
+- `tests/password_reset_test.php`: Added Test 10 verifying dual sign-in by username and email (case-insensitive), role establishment, invalid credential rejection, and TOTP 2FA challenge handoff.
+
+---
+
+## [1.19.3] - MailFlow - 2026-10-13
+
+### 📧 SMTP Credential Retention & Outbound Reset Diagnostics
+- **SMTP Password Retention on Update**: In `api/admin.php` (`save_smtp`), saving server settings without providing a new password automatically retains the existing configured password, preventing accidental relay disconnection when updating ports, hostnames, or sender names.
+- **Detailed Password Reset Diagnostics**: In `lib/Core/Auth.php` (`requestPasswordReset`), added targeted server error logging for outbound delivery failures, missing emails, unverified email accounts, and non-existent users, while maintaining identical generic responses to the client for enumeration security.
+
+### 🧪 Automated Test Coverage
+- `tests/password_reset_test.php`: Added Test 9 validating SMTP password retention across configuration updates and non-blocking diagnostic logging for unconfigured or unknown user identifiers.
+
+---
+
+## [1.19.2] - CleanFlow - 2026-10-12
+
+### 🧹 Multi-Stage Source Sanitization & Review Docket Cleaning
+- **Comment Boundary Stripping**: Enhanced `Navigation::sanitizeHtmlDocumentStatus` to cleanly remove explicit boundary blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`) during release publishing.
+- **Review Docket Banner & Table Removal**: Added targeted regex cleaning to permanently strip audit docket banners (`review-docket-banner`, `qwiki-review-docket`, `#gerhard-review-docket`), orphan docket tables (`docket-table`), checklist blocks, and feedback boxes when publishing with `clean_source=true`.
+- **Refined Watermark & Marker Patterns**: Broadened container tag matching across `<aside>`, `<header>`, `<footer>`, and `<article>` to eliminate nested draft watermarks while preserving valid document content.
+
+### 🧪 Automated Test Coverage
+- `tests/test_lifecycle_status.php`: Added automated assertions verifying multi-stage boundary comment, docket banner, checklist, and table purging under `cleanSource` (33/33 passing).
+
+---
+
+## [1.19.1] - 2026-10-11
+
+### 🎨 Accessible UI Contrast & Legibility
+- **WCAG AA Status Dropdown Contrast**: Enhanced typography, borders, and hover backgrounds in the document header lifecycle status dropdown to satisfy WCAG AA contrast (13.98:1 on dark mode `#1e293b`).
+- **Active Status Checkmarks**: Added active indicators (`✓`) in the status dropdown menu to reflect the currently assigned lifecycle state.
+- **Resilient CSS Variables**: Added `--text-color: var(--text-primary)` compatibility alias in `qwiki.css` to prevent unstyled text in custom theme extensions.
+
+---
+
+## [1.19.0] - LifecycleFlow - 2026-10-11
+
+### 🏷️ Document Lifecycle Status Architecture & Release Workflow
+- **Four-Stage Document Lifecycle**: Added native workflow status management across documents (`draft`, `review`, `published`, `archived`) with schema validation (`Navigation::VALID_STATUSES`) and default `published` fallback.
+- **Interactive Document Status Controls**: Document headers feature an administrative status dropdown menu enabling instant state changes with real-time UI badge updates (`badge-status-draft`, `badge-status-review`, `badge-status-published`, `badge-status-archived`).
+- **Accessible Dropdown Contrast & Legibility**: Polished lifecycle dropdown typography, hover states, and theme variable inheritance to satisfy WCAG AA contrast (13.98:1 on dark mode `#1e293b`), adding dynamic active indicators (`✓`).
+- **Sidebar Status Indicators**: Administrators see subtle status indicators (`●`) on draft, in-review, and archived documents in the navigation tree for rapid discovery of pending content.
+- **Automated Source Cleaning & Watermark Removal**: Transitioning a document to `published` with `clean_source=true` automatically strips draft watermarks, review dockets, and temporary notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from HTML files on disk while updating root `<html data-qwiki-status="published">`.
+- **Administrative Lifecycle Endpoint (`action=set_chapter_status`)**: Integrated into `api/admin.php` with role enforcement, document protection safeguards, and updater tracking (`statusUpdatedAt`, `statusUpdatedBy`, `approver`, `note`).
+
+### 🚀 Extended Headless Publishing API
+- **Lifecycle Status Endpoint (`action=set_status` / `update_status`)**: Programmatically set document states with approver tracking and clean source options via `api/publish.php`.
+- **Status Payload Integration**: Standard `publish_doc` requests now accept `status`, `approver`, `approverNote`, and `clean_source`.
+- **Chapter Discovery & Listing (`action=list_chapters` / `get_chapters`)**: Discover chapters by category or globally, returning metadata, formats, share keys, and companion translations.
+- **Safe Document Deletion (`action=delete_chapter` / `remove_chapter`)**: Programmatically remove chapters from `qwiki.json` and purge associated files from disk with strict path traversal validation.
+- **Share Key Resolution Endpoint (`action=resolve_share_key`)**: Resolve 16-hex `shareKey` tokens to canonical chapter slugs, categories, and direct URLs.
+- **Share Key Stability & Idempotency**: Document updates strictly preserve existing cryptographic `shareKey` tokens unless explicitly overridden.
+
+### 🧪 Automated Test Coverage
+- `tests/test_lifecycle_status.php`: 27 automated assertions testing chapter status updates, metadata retention, HTML DOM sanitization, clean-source watermark purging, and publish API endpoints.
+- `tests/test_headless_html_publish.php`: Extended test suite with 12 new assertions covering chapter listing, chapter deletion, disk cleanup, and share key resolution (69/69 passing).
+
+---
+
+## [1.18.2] - DocUpdateFlow - 2026-10-10
+
+### 🔄 Idempotent Document Publishing & Slug Stability
+- **In-Place Document Updates (`update=true` / `overwrite=true`)**: External automation pipelines and CLI publishing tools can now update existing documents in place without incrementing numeric suffixes (`-1`, `-2`). Reuses and preserves existing `shareKey` so external references and bookmarks never break.
+- **Explicit Document Slug Parameter (`slug`)**: `api/publish.php` now accepts an explicit `slug` parameter in POST payloads, honoring caller-provided slugs directly instead of strictly deriving them from document titles.
+- **Automated Orphaned File Deletion on Chapter Removal**: In `api/admin.php`, deleting a document chapter now purges the corresponding file from disk under `content/`, preventing orphaned file collisions during subsequent publishing.
+
+### 🧪 Automated Test Coverage
+- `tests/test_headless_html_publish.php`: Extended test suite with 9 new automated assertions verifying document update idempotency, slug preservation, share key stability, and disk content synchronization (57/57 passing).
+
+---
+
+## [1.18.1] - PublishFlow - 2026-10-10
+
+### 🚀 Headless Publishing Category Management & Dual Authentication
+- **Multi-Token Authorization Pipeline**: `api/publish.php` now accepts requests authenticated either with the site-wide `publishApiKey` or any active LLM access key (`qwk_llm_...`) configured in `qwiki.json`. Automatically tracks usage via `LlmAccess::updateLastUsed()`.
+- **Dynamic Category Provisioning (`action=create_category` / `add_book`)**: External automation pipelines, AI agents, and CI/CD tools can programmatically create top-level or nested documentation categories on the fly, automatically generating directories on disk and registering nodes in `qwiki.json`.
+- **Idempotent Category Metadata Synchronization**: When creating a category whose slug is already taken, or updating an existing category (`action=update_category` / `edit_category`), category titles and descriptions are dynamically updated in `qwiki.json` without duplicating tree nodes or filesystem paths.
+- **Category Discovery Endpoint (`action=list_categories` / `get_books`)**: Headless callers can discover available categories, titles, descriptions, and relative folder paths.
+- **Parent Category Resolution**: Safely resolves nested folder paths via `parentId` with path-traversal validation and automatic recursive directory provisioning.
+
+### 🧪 Automated Test Coverage
+- `tests/test_headless_html_publish.php`: Extended test suite with 7 new automated assertions verifying LLM key authentication, automated category provisioning, nested folder creation, category listing, and idempotency guarantees.
+
+---
+
 ## [1.18.0] - AuthFlow - 2026-10-08
 
 ### 🛡️ Native RFC 6238 Two-Factor Authentication (2FA / TOTP)

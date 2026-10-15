@@ -2,6 +2,9 @@
 namespace Qwiki\Core;
 
 class Navigation {
+    public const VALID_STATUSES = ['draft', 'review', 'published', 'archived'];
+    public const DEFAULT_STATUS = 'published';
+
     public static function filterBooks(array $books, $isAdmin = false, $isViewer = false) {
         $allowed = [];
         foreach ($books as $book) {
@@ -288,6 +291,10 @@ class Navigation {
                     echo "<span>";
                     if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
                     echo htmlspecialchars($ch['title'] ?? '') . "</span>";
+                    $chStatus = strtolower($ch['status'] ?? self::DEFAULT_STATUS);
+                    if ($isAdmin && $chStatus !== self::DEFAULT_STATUS) {
+                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='Status: " . htmlspecialchars(ucfirst($chStatus)) . "'>●</span>";
+                    }
 
                     if ($isAdmin || !$showDocTypesOnlyToAdmin) {
                         $badgeTitle = strtoupper($docType);
@@ -530,6 +537,313 @@ class Navigation {
         }
 
         return $slug;
+    }
+
+    /**
+     * Updates the lifecycle status of a chapter identified by shareKey, slug, or file path.
+     * Recursively traverses books and nested folders to mutate the chapter in-place.
+     *
+     * @param array $books Reference to config['books']
+     * @param string $identifier shareKey, slug, or relative file path
+     * @param string $newStatus Target lifecycle status
+     * @param array $extraMeta Optional metadata (updatedBy, approver, approverNote, etc.)
+     * @return array|null The updated chapter array, or null if not found
+     */
+    public static function updateChapterStatus(array &$books, string $identifier, string $newStatus, array $extraMeta = []): ?array {
+        $newStatus = strtolower(trim($newStatus));
+        if (!in_array($newStatus, self::VALID_STATUSES, true)) {
+            return null;
+        }
+
+        $found = null;
+        $traverse = function(&$nodes) use (&$traverse, $identifier, $newStatus, $extraMeta, &$found) {
+            if (!is_array($nodes)) return;
+            foreach ($nodes as &$node) {
+                if (isset($node['type']) && $node['type'] === 'folder') {
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $traverse($node['items']);
+                        if ($found !== null) return;
+                    }
+                } else {
+                    $isMatch = (($node['slug'] ?? '') === $identifier) ||
+                               (!empty($node['shareKey']) && ($node['shareKey'] ?? '') === $identifier) ||
+                               (!empty($node['file']) && ($node['file'] ?? '') === $identifier);
+                    if ($isMatch) {
+                        $node['status'] = $newStatus;
+                        $node['statusUpdatedAt'] = date('c');
+                        if (isset($extraMeta['updatedBy']) && $extraMeta['updatedBy'] !== '') {
+                            $node['statusUpdatedBy'] = (string)$extraMeta['updatedBy'];
+                        }
+                        if (isset($extraMeta['approver']) && $extraMeta['approver'] !== '') {
+                            $node['approver'] = (string)$extraMeta['approver'];
+                        }
+                        if (isset($extraMeta['note']) || isset($extraMeta['approverNote'])) {
+                            $note = (string)($extraMeta['note'] ?? $extraMeta['approverNote'] ?? '');
+                            if ($note !== '') {
+                                $node['approverNote'] = $note;
+                            }
+                        }
+                        $found = $node;
+                        return;
+                    }
+                }
+            }
+        };
+
+        $traverse($books);
+        return $found;
+    }
+
+    /**
+     * Updates or sets data-qwiki-status on the root <html> tag of an HTML document file on disk.
+     * If cleanSource is true and newStatus is 'published', permanently strips draft markers,
+     * review dockets, and watermarks (.qwiki-draft, [data-qwiki-draft], .qwiki-watermark, .watermark-draft).
+     *
+     * @param string $absFilePath Absolute file path
+     * @param string $newStatus Target status (draft, review, published, archived)
+     * @param bool $cleanSource Whether to permanently strip draft/review DOM nodes on release
+     * @return bool
+     */
+    public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
+        require_once __DIR__ . '/DocumentService.php';
+        return DocumentService::sanitizeHtmlDocumentStatus($absFilePath, $newStatus, $cleanSource);
+    }
+
+    /**
+     * Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+     */
+    public static function isSafeUrl($url): bool {
+        $trimmed = trim((string)$url);
+        if (empty($trimmed)) return false;
+        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
+            return false;
+        }
+        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Recursively updates category or folder node metadata in navigation tree
+     */
+    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null): bool {
+        if (($node['id'] ?? '') === $targetId) {
+            $node['title'] = $newTitle;
+            if ($newTheme !== '') {
+                $node['theme'] = $newTheme;
+            } else {
+                unset($node['theme']);
+            }
+            $node['visibility'] = $newVisibility;
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $node['readOnly'] = true;
+                    $node['editable'] = false;
+                } else {
+                    unset($node['readOnly']);
+                    unset($node['editable']);
+                    unset($node['locked']);
+                }
+            }
+            if ($newDescription !== null) {
+                if ($newDescription !== '') {
+                    $node['description'] = $newDescription;
+                } else {
+                    unset($node['description']);
+                }
+            }
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Recursively deletes a category/folder node from the navigation list, respecting protected status
+     */
+    public static function deleteNodeRecursive(&$list, $targetId): bool {
+        $filtered = [];
+        $deleted = false;
+        foreach ($list as &$b) {
+            if (($b['id'] ?? '') === $targetId) {
+                if (Config::isCategoryProtected($targetId, [$b])) {
+                    $filtered[] = $b;
+                    continue;
+                }
+                $deleted = true;
+                continue;
+            }
+            if (!empty($b['items']) && is_array($b['items'])) {
+                if (self::deleteNodeRecursive($b['items'], $targetId)) {
+                    $deleted = true;
+                }
+            }
+            $filtered[] = $b;
+        }
+        $list = $filtered;
+        return $deleted;
+    }
+
+    /**
+     * Inserts a chapter item into a target folder node in the tree
+     */
+    public static function insertChapterIntoNode(&$node, $targetFolderId, $chapterData): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::insertChapterIntoNode($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Updates an existing chapter node by slug in the navigation tree
+     */
+    public static function updateChapterInNode(&$node, $slug, array $updatedData): bool {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$ch) {
+                if (!isset($ch['type']) || $ch['type'] !== 'folder') {
+                    if (($ch['slug'] ?? '') === $slug) {
+                        if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                        if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                        if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                        if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                        if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                        if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
+                            $ch['theme'] = $updatedData['theme'];
+                        } elseif (array_key_exists('theme', $updatedData)) {
+                            unset($ch['theme']);
+                        }
+                        if (isset($updatedData['description']) && $updatedData['description'] !== '') {
+                            $ch['description'] = $updatedData['description'];
+                        } elseif (array_key_exists('description', $updatedData)) {
+                            unset($ch['description']);
+                        }
+                        if (isset($updatedData['image']) && $updatedData['image'] !== '') {
+                            $ch['image'] = $updatedData['image'];
+                        } elseif (array_key_exists('image', $updatedData)) {
+                            unset($ch['image']);
+                        }
+                        if (isset($updatedData['publicShareable'])) {
+                            $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
+                        }
+                        if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
+                            $ch['shareKey'] = $updatedData['shareKey'];
+                        }
+                        return true;
+                    }
+                } else {
+                    if (self::updateChapterInNode($ch, $slug, $updatedData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Deletes a chapter node by slug from the tree and returns its file path
+     */
+    public static function deleteChapterFromNode(&$node, $slug, &$deleted = false, &$deletedFile = null): void {
+        if ($deleted || empty($node['items']) || !is_array($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
+                $deleted = true;
+                $deletedFile = $item['file'] ?? null;
+                continue;
+            }
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                self::deleteChapterFromNode($item, $slug, $deleted, $deletedFile);
+            }
+            $newItems[] = $item;
+        }
+        $node['items'] = $newItems;
+    }
+
+    /**
+     * Resolves relative target content folder path for a given category ID
+     */
+    public static function findTargetFolder(&$node, $targetId): ?string {
+        if (($node['id'] ?? '') === $targetId) {
+            $folder = $node['folder'] ?? $node['id'];
+            return ltrim(preg_replace('#^content/#i', '', $folder), '/');
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    $found = self::findTargetFolder($child, $targetId);
+                    if ($found !== null) {
+                        $parentFolder = $node['folder'] ?? $node['id'];
+                        $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
+                        if (strpos($found, $parentFolder . '/') === 0) {
+                            return $found;
+                        }
+                        return $parentFolder . '/' . $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Inserts or updates a chapter in a target folder node
+     */
+    public static function upsertChapterIntoNode(&$node, $targetFolderId, $chapterData, &$isUpdated = false): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            foreach ($node['items'] as &$it) {
+                $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === ($chapterData['slug'] ?? ''));
+                $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
+                if ($isSlugMatch || $isShareMatch) {
+                    if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
+                        $chapterData['shareKey'] = $it['shareKey'];
+                    }
+                    $it = array_merge($it, $chapterData);
+                    $isUpdated = true;
+                    return true;
+                }
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::upsertChapterIntoNode($sub, $targetFolderId, $chapterData, $isUpdated)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
 

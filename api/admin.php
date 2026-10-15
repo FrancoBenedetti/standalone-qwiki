@@ -32,175 +32,45 @@ $baseDir = Config::getBaseDir();
 $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Helper for tree category updates
+// Helper for tree category updates (delegates to Navigation::updateNodeMeta)
 if (!function_exists('update_node_meta')) {
     function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null) {
-        if (($node['id'] ?? '') === $targetId) {
-            $node['title'] = $newTitle;
-            if ($newTheme !== '') {
-                $node['theme'] = $newTheme;
-            } else {
-                unset($node['theme']);
-            }
-            $node['visibility'] = $newVisibility;
-            if ($readOnly !== null) {
-                if ($readOnly) {
-                    $node['readOnly'] = true;
-                    $node['editable'] = false;
-                } else {
-                    unset($node['readOnly']);
-                    unset($node['editable']);
-                    unset($node['locked']);
-                }
-            }
-            if ($newDescription !== null) {
-                if ($newDescription !== '') {
-                    $node['description'] = $newDescription;
-                } else {
-                    unset($node['description']);
-                }
-            }
-            return true;
-        }
-        if (!empty($node['items'])) {
-            foreach ($node['items'] as &$sub) {
-                if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription);
     }
 }
 
-// Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+// Helper to validate URL protocol safety (delegates to Navigation::isSafeUrl)
 if (!function_exists('is_safe_url')) {
     function is_safe_url($url) {
-        $trimmed = trim($url);
-        if (empty($trimmed)) return false;
-        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
-            return false;
-        }
-        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
-            $scheme = strtolower($matches[1]);
-            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
-                return false;
-            }
-        }
-        return true;
+        return Navigation::isSafeUrl($url);
     }
 }
 
-// Helper for tree node deletions
+// Helper for tree node deletions (delegates to Navigation::deleteNodeRecursive)
 if (!function_exists('delete_node_recursive')) {
     function delete_node_recursive(&$list, $targetId) {
-        $filtered = [];
-        $deleted = false;
-        foreach ($list as &$b) {
-            if (($b['id'] ?? '') === $targetId) {
-                if (\Qwiki\Core\Config::isCategoryProtected($targetId, [$b])) {
-                    $filtered[] = $b;
-                    continue;
-                }
-                $deleted = true;
-                continue;
-            }
-            if (!empty($b['items'])) {
-                if (delete_node_recursive($b['items'], $targetId)) {
-                    $deleted = true;
-                }
-            }
-            $filtered[] = $b;
-        }
-        $list = $filtered;
-        return $deleted;
+        return Navigation::deleteNodeRecursive($list, $targetId);
     }
 }
 
-// Helper for chapter insertion into tree
+// Helper for chapter insertion into tree (delegates to Navigation::insertChapterIntoNode)
 if (!function_exists('insert_chapter_into_node')) {
     function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-        if (($node['id'] ?? '') === $targetFolderId) {
-            if (!isset($node['items'])) $node['items'] = [];
-            $node['items'][] = $chapterData;
-            return true;
-        }
-        if (!empty($node['items'])) {
-            foreach ($node['items'] as &$sub) {
-                if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
     }
 }
 
-// Helper for chapter update in tree
+// Helper for chapter update in tree (delegates to Navigation::updateChapterInNode)
 if (!function_exists('update_chapter_in_node')) {
     function update_chapter_in_node(&$node, $slug, $updatedData) {
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$ch) {
-            if (!isset($ch['type']) || $ch['type'] !== 'folder') {
-                if (($ch['slug'] ?? '') === $slug) {
-                    if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
-                    if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
-                    if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
-                    if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
-                    if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
-                    if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
-                        $ch['theme'] = $updatedData['theme'];
-                    } elseif (array_key_exists('theme', $updatedData)) {
-                        unset($ch['theme']);
-                    }
-                    if (isset($updatedData['description']) && $updatedData['description'] !== '') {
-                        $ch['description'] = $updatedData['description'];
-                    } elseif (array_key_exists('description', $updatedData)) {
-                        unset($ch['description']);
-                    }
-                    if (isset($updatedData['image']) && $updatedData['image'] !== '') {
-                        $ch['image'] = $updatedData['image'];
-                    } elseif (array_key_exists('image', $updatedData)) {
-                        unset($ch['image']);
-                    }
-                    if (isset($updatedData['publicShareable'])) {
-                        $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
-                    }
-                    if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
-                        $ch['shareKey'] = $updatedData['shareKey'];
-                    }
-                    return true;
-                }
-            } else {
-                if (update_chapter_in_node($ch, $slug, $updatedData)) {
-                    return true;
-                }
-            }
-        }
+        return Navigation::updateChapterInNode($node, $slug, $updatedData);
     }
-    return false;
-}
 }
 
-// Helper for chapter deletion from tree
+// Helper for chapter deletion from tree (delegates to Navigation::deleteChapterFromNode)
 if (!function_exists('delete_chapter_from_node')) {
-    function delete_chapter_from_node(&$node, $slug, &$deleted = false) {
-        if ($deleted || empty($node['items'])) return;
-        $newItems = [];
-        foreach ($node['items'] as &$item) {
-            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
-                $deleted = true;
-                continue;
-            }
-            if (isset($item['type']) && $item['type'] === 'folder') {
-                delete_chapter_from_node($item, $slug, $deleted);
-            }
-            $newItems[] = $item;
-        }
-        $node['items'] = $newItems;
+    function delete_chapter_from_node(&$node, $slug, &$deleted = false, &$deletedFile = null) {
+        Navigation::deleteChapterFromNode($node, $slug, $deleted, $deletedFile);
     }
 }
 
@@ -357,7 +227,7 @@ if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
 
 switch ($action) {
     case 'login':
-        $username = trim($_POST['username'] ?? 'admin');
+        $username = trim($_POST['username'] ?? $_POST['identifier'] ?? 'admin');
         $password = $_POST['password'] ?? '';
         echo json_encode(Auth::login($username, $password, $config));
         break;
@@ -426,12 +296,14 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Unauthorized']);
             exit;
         }
+        $existingSmtp = Config::load()['smtp'] ?? [];
+        $password = (isset($_POST['password']) && $_POST['password'] !== '') ? (string)$_POST['password'] : ($existingSmtp['password'] ?? '');
         $smtpConfig = [
             'host'       => trim($_POST['host'] ?? ''),
             'port'       => (int)($_POST['port'] ?? 587),
             'encryption' => trim($_POST['encryption'] ?? 'tls'),
             'username'   => trim($_POST['username'] ?? ''),
-            'password'   => (string)($_POST['password'] ?? ''),
+            'password'   => $password,
             'fromEmail'  => trim($_POST['fromEmail'] ?? ''),
             'fromName'   => trim($_POST['fromName'] ?? 'Standalone Qwiki')
         ];
@@ -858,6 +730,14 @@ switch ($action) {
             } else {
                 unset($foundChapter['image']);
             }
+            if (isset($_POST['status'])) {
+                $statusInput = strtolower(trim($_POST['status']));
+                if (in_array($statusInput, Navigation::VALID_STATUSES, true)) {
+                    $foundChapter['status'] = $statusInput;
+                    $foundChapter['statusUpdatedAt'] = date('c');
+                    $foundChapter['statusUpdatedBy'] = Auth::getCurrentUser()['username'] ?? 'admin';
+                }
+            }
             if (!empty($_POST['regenerateShareKey'])) {
                 $foundChapter['shareKey'] = Navigation::generateShareKey();
             }
@@ -943,6 +823,76 @@ switch ($action) {
             ]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to save qwiki.json']);
+        }
+        break;
+
+    case 'set_chapter_status':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $identifier = trim($_POST['slug'] ?? $_POST['shareKey'] ?? $_POST['file'] ?? '');
+        $status = strtolower(trim($_POST['status'] ?? ''));
+        $cleanSource = false;
+        if (isset($_POST['clean_source'])) {
+            $val = $_POST['clean_source'];
+            if ($val === true || $val === 'true' || $val === '1' || $val === 1) {
+                $cleanSource = true;
+            }
+        }
+        $note = trim($_POST['note'] ?? '');
+
+        if (empty($identifier) || empty($status)) {
+            echo json_encode(['success' => false, 'error' => 'Document identifier and status are required']);
+            exit;
+        }
+
+        if (!in_array($status, Navigation::VALID_STATUSES, true)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid status. Allowed: ' . implode(', ', Navigation::VALID_STATUSES)]);
+            exit;
+        }
+
+        if (Config::isChapterProtected($identifier, $config['books'] ?? []) || Config::isChapterAncestorProtected($identifier, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and its status cannot be modified.']);
+            exit;
+        }
+
+        $curUser = Auth::getCurrentUser();
+        $username = $curUser['username'] ?? 'admin';
+
+        $updatedChapter = Navigation::updateChapterStatus($config['books'], $identifier, $status, [
+            'updatedBy' => $username,
+            'approver' => $username,
+            'note' => $note
+        ]);
+
+        if (!$updatedChapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+
+        // If HTML document, update file on disk as well
+        $baseDir = Config::getBaseDir();
+        $relFile = $updatedChapter['file'] ?? '';
+        if (!empty($relFile) && preg_match('/\.(html|htm)$/i', $relFile)) {
+            $absFile = Config::safePath($baseDir, $relFile);
+            if ($absFile && file_exists($absFile)) {
+                Navigation::sanitizeHtmlDocumentStatus($absFile, $status, $cleanSource);
+            }
+        }
+
+        if (Config::save($config)) {
+            echo json_encode([
+                'success' => true,
+                'slug' => $updatedChapter['slug'] ?? '',
+                'shareKey' => $updatedChapter['shareKey'] ?? '',
+                'file' => $relFile,
+                'status' => $status,
+                'statusUpdatedAt' => $updatedChapter['statusUpdatedAt'] ?? date('c'),
+                'updatedBy' => $username
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save configuration']);
         }
         break;
 
@@ -1552,17 +1502,27 @@ switch ($action) {
             exit;
         }
         $deleted = false;
+        $deletedFile = null;
         $filteredBooks = [];
         foreach ($config['books'] as &$book) {
             if (!$deleted && ($book['slug'] ?? '') === $slug) {
                 $deleted = true;
+                $deletedFile = $book['file'] ?? null;
                 continue;
             }
-            delete_chapter_from_node($book, $slug, $deleted);
+            delete_chapter_from_node($book, $slug, $deleted, $deletedFile);
             $filteredBooks[] = $book;
         }
         $config['books'] = $filteredBooks;
         Config::save($config);
+
+        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+            $baseDir = Config::getBaseDir();
+            $filePath = Config::safePath($baseDir, $deletedFile);
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
         echo json_encode(['success' => true]);
         break;
 

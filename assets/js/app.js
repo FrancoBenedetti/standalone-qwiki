@@ -1,345 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Theme Switcher
-  const themeToggleBtn = document.getElementById('theme-toggle');
-
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener('click', () => {
-      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem('qwiki_theme', newTheme);
-      document.cookie = 'qwiki_theme=' + encodeURIComponent(newTheme) + '; path=/; max-age=31536000; SameSite=Lax';
-      
-      if (typeof window.syncTuiEditorTheme === 'function') {
-        window.syncTuiEditorTheme(newTheme);
-      }
-      if (typeof window.reRenderMermaidDiagrams === 'function') {
-        window.reRenderMermaidDiagrams(newTheme);
-      }
-    });
-  }
-
-  // Restore saved sidebar width
-  const savedWidth = localStorage.getItem('qwiki_sidebar_width');
-  if (savedWidth) {
-    document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
-  }
-
-  // Mobile Sidebar Toggle
-  const mobileToggle = document.getElementById('mobile-toggle');
-  const sidebar = document.getElementById('app-sidebar');
-  const resizer = document.getElementById('sidebar-resizer');
-
-  if (mobileToggle && sidebar) {
-    mobileToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('open');
-    });
-  }
-
-  // Sidebar Drag Resizing Engine
-  if (resizer && sidebar) {
-    let isResizing = false;
-
-    resizer.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      isResizing = true;
-      resizer.classList.add('resizing');
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!isResizing) return;
-      let newWidth = e.clientX;
-      if (newWidth < 200) newWidth = 200;
-      if (newWidth > 550) newWidth = 550;
-
-      document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
-      localStorage.setItem('qwiki_sidebar_width', newWidth);
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (isResizing) {
-        isResizing = false;
-        resizer.classList.remove('resizing');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      }
-    });
-  }
-
-  // Category Accordion State Persistence & Scroll Position Management
-  function getCategoryId(catItem) {
-    if (!catItem) return null;
-    return catItem.getAttribute('data-category-id') 
-      || catItem.getAttribute('data-node-id')
-      || catItem.querySelector('.nav-document-list')?.getAttribute('data-parent-node-id')
-      || (catItem.classList.contains('nav-subwikis-group') ? 'subwikis' : null);
-  }
-
-  function getSavedCategoryStates() {
-    try {
-      return JSON.parse(sessionStorage.getItem('qwiki_category_states') || '{}');
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function saveCategoryState(catId, isCollapsed) {
-    if (!catId) return;
-    const states = getSavedCategoryStates();
-    states[catId] = isCollapsed ? 'collapsed' : 'expanded';
-    try {
-      sessionStorage.setItem('qwiki_category_states', JSON.stringify(states));
-    } catch (e) {}
-  }
-
-  // Restore saved category accordion states
-  const savedCatStates = getSavedCategoryStates();
-  document.querySelectorAll('.nav-category-item').forEach(catItem => {
-    const hasActiveLink = !!catItem.querySelector('.nav-link.active');
-    if (hasActiveLink) {
-      catItem.classList.remove('collapsed');
-      return;
-    }
-    const catId = getCategoryId(catItem);
-    if (catId && savedCatStates[catId] !== undefined) {
-      if (savedCatStates[catId] === 'expanded') {
-        catItem.classList.remove('collapsed');
-      } else if (savedCatStates[catId] === 'collapsed') {
-        catItem.classList.add('collapsed');
-      }
-    }
-  });
-
-  // Category Accordion Toggle Listener
-  document.querySelectorAll('.nav-category-header').forEach(header => {
-    header.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-edit-cat-icon') || e.target.closest('.drag-handle')) return;
-      const catItem = header.closest('.nav-category-item');
-      if (catItem) {
-        catItem.classList.toggle('collapsed');
-        const catId = getCategoryId(catItem);
-        if (catId) {
-          saveCategoryState(catId, catItem.classList.contains('collapsed'));
-        }
-      }
-    });
-  });
-
-  // Sidebar Scroll Position Persistence
-  const sidebarNav = document.querySelector('.sidebar-nav');
-  if (sidebarNav) {
-    const rawSavedScroll = sessionStorage.getItem('qwiki_sidebar_scroll');
-    const hasSavedScroll = rawSavedScroll !== null && !isNaN(parseInt(rawSavedScroll, 10));
-
-    if (hasSavedScroll) {
-      const targetScroll = parseInt(rawSavedScroll, 10);
-      sidebarNav.scrollTop = targetScroll;
-      if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => {
-          sidebarNav.scrollTop = targetScroll;
-        });
-      }
-    }
-
-    const activeLink = sidebarNav.querySelector('.nav-link.active');
-    if (activeLink) {
-      if (!hasSavedScroll) {
-        // First visit or fresh tab: ensure active link is visible in sidebar
-        if (typeof activeLink.scrollIntoView === 'function') {
-          activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-        }
-      } else {
-        // If active link is outside visible area (e.g. navigated via content breadcrumb / next link), align it
-        if (typeof activeLink.getBoundingClientRect === 'function' && typeof sidebarNav.getBoundingClientRect === 'function') {
-          const linkRect = activeLink.getBoundingClientRect();
-          const navRect = sidebarNav.getBoundingClientRect();
-          const isVisible = (linkRect.top >= navRect.top && linkRect.bottom <= navRect.bottom);
-          if (!isVisible && typeof activeLink.scrollIntoView === 'function') {
-            activeLink.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-          }
-        }
-      }
-    }
-
-    // Persist scroll position when a sidebar link is clicked
-    sidebarNav.addEventListener('click', (e) => {
-      const link = e.target.closest('a');
-      if (link && (!link.target || link.target === '_self')) {
-        try {
-          sessionStorage.setItem('qwiki_sidebar_scroll', sidebarNav.scrollTop);
-        } catch (e) {}
-      }
-    });
-
-    // Also persist scroll position on beforeunload (browser reload or tab refresh)
-    window.addEventListener('beforeunload', () => {
-      try {
-        sessionStorage.setItem('qwiki_sidebar_scroll', sidebarNav.scrollTop);
-      } catch (e) {}
-    });
-  }
-
-  // Sidebar Filter Search (with Auto-Expand)
-  const searchInput = document.getElementById('search-input');
-  const sidebarSearchClear = document.getElementById('sidebar-search-clear');
-  if (searchInput) {
-    let searchTimeout = null;
-    let abortController = null;
-    let preSearchCollapsedState = null;
-
-    if (sidebarSearchClear && searchInput.value.length > 0) {
-      sidebarSearchClear.style.display = 'flex';
-    }
-
-    function clearSearch() {
-      searchInput.value = '';
-      if (sidebarSearchClear) sidebarSearchClear.style.display = 'none';
-      clearTimeout(searchTimeout);
-      if (abortController) abortController.abort();
-
-      document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
-        link.style.display = '';
-      });
-
-      if (preSearchCollapsedState) {
-        document.querySelectorAll('.nav-category-item').forEach(catItem => {
-          if (preSearchCollapsedState.has(catItem)) {
-            catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
-          }
-        });
-        preSearchCollapsedState = null;
-      }
-      searchInput.focus();
-    }
-
-    if (sidebarSearchClear) {
-      sidebarSearchClear.addEventListener('click', clearSearch);
-    }
-
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && searchInput.value) {
-        e.preventDefault();
-        clearSearch();
-      }
-    });
-
-    searchInput.addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase().trim();
-      if (sidebarSearchClear) {
-        sidebarSearchClear.style.display = e.target.value.length > 0 ? 'flex' : 'none';
-      }
-      clearTimeout(searchTimeout);
-      if (abortController) abortController.abort();
-
-      if (term === '') {
-        document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
-          link.style.display = '';
-        });
-        if (preSearchCollapsedState) {
-          document.querySelectorAll('.nav-category-item').forEach(catItem => {
-            if (preSearchCollapsedState.has(catItem)) {
-              catItem.classList.toggle('collapsed', preSearchCollapsedState.get(catItem));
-            }
-          });
-          preSearchCollapsedState = null;
-        }
-        return;
-      }
-
-      if (!preSearchCollapsedState) {
-        preSearchCollapsedState = new Map();
-        document.querySelectorAll('.nav-category-item').forEach(catItem => {
-          preSearchCollapsedState.set(catItem, catItem.classList.contains('collapsed'));
-        });
-      }
-
-      searchTimeout = setTimeout(async () => {
-        abortController = new AbortController();
-        try {
-          const res = await fetch(`api/search.php?q=${encodeURIComponent(term)}`, { signal: abortController.signal });
-          const data = await res.json();
-          if (data.success) {
-            const matchedSlugs = data.results;
-            
-            document.querySelectorAll('.sidebar-nav > .nav-link').forEach(topLink => {
-              const topSlug = topLink.getAttribute('data-doc-slug') || '';
-              const text = topLink.textContent.toLowerCase();
-              if (matchedSlugs.includes(topSlug) || text.includes(term)) {
-                topLink.style.display = 'flex';
-              } else {
-                topLink.style.display = 'none';
-              }
-            });
-
-            document.querySelectorAll('.nav-category-item').forEach(catItem => {
-              let catMatch = false;
-              const catTitle = (catItem.getAttribute('data-node-title') || '').toLowerCase();
-              const catDesc = (catItem.getAttribute('data-node-description') || '').toLowerCase();
-              const catSelfMatches = catTitle.includes(term) || catDesc.includes(term);
-
-              catItem.querySelectorAll('.nav-link').forEach(link => {
-                const linkSlug = link.getAttribute('data-doc-slug');
-                const url = new URL(link.href, window.location.origin);
-                const pathnameParts = url.pathname.split('/').filter(Boolean);
-                const chapterSlug = linkSlug || url.searchParams.get('chapter') || url.searchParams.get('doc') || pathnameParts[pathnameParts.length - 1];
-                const text = link.textContent.toLowerCase();
-                
-                if (catSelfMatches || matchedSlugs.includes(chapterSlug) || text.includes(term)) {
-                  link.style.display = 'flex';
-                  catMatch = true;
-                } else {
-                  link.style.display = 'none';
-                }
-              });
-              
-              if (catMatch || catSelfMatches) {
-                catItem.classList.remove('collapsed');
-              } else {
-                catItem.classList.add('collapsed');
-              }
-            });
-          }
-        } catch (err) {
-          if (err.name !== 'AbortError') {
-             console.error('Search failed', err);
-          }
-        }
-      }, 300);
-    });
-  }
-
-  // Generic Modal Close handler
-  document.querySelectorAll('[data-close]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const modalId = btn.getAttribute('data-close');
-      const modal = document.getElementById(modalId);
-      if (modal) modal.classList.remove('open');
-    });
-  });
-
-  // User Dropdown Toggle
-  const userDropdownToggle = document.getElementById('user-dropdown-toggle');
-  if (userDropdownToggle) {
-    const dropdownMenu = userDropdownToggle.nextElementSibling;
-    userDropdownToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdownMenu.classList.toggle('show');
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!userDropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
-        dropdownMenu.classList.remove('show');
-      }
-    });
-
-    // Close user dropdown when any dropdown item is clicked
-    dropdownMenu.addEventListener('click', (e) => {
-      if (e.target.closest('.dropdown-item')) {
-        dropdownMenu.classList.remove('show');
-      }
-    });
+  // Initialize Core Subsystems
+  if (window.QwikiApp) {
+    if (window.QwikiApp.theme) window.QwikiApp.theme.init();
+    if (window.QwikiApp.sidebar) window.QwikiApp.sidebar.init();
+    if (window.QwikiApp.search) window.QwikiApp.search.init();
+    if (window.QwikiApp.modals) window.QwikiApp.modals.init();
   }
 
   // Trigger buttons
@@ -361,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn && modal) {
       btn.addEventListener('click', () => {
         modal.classList.add('open');
+        const userDropdownToggle = document.getElementById('user-dropdown-toggle');
         if (userDropdownToggle && userDropdownToggle.nextElementSibling) {
           userDropdownToggle.nextElementSibling.classList.remove('show');
         }
@@ -604,7 +270,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data.users.forEach(u => {
           const isPrimaryAdmin = (u.username.toLowerCase() === 'admin');
           const badgeClass = (u.role === 'admin') ? 'badge-md' : 'badge-pdf';
-          const emailDisplay = u.email ? `${escapeHtml(u.email)} ${u.emailVerified ? '<span style="color:#10b981; font-weight:bold;" title="Verified">✓</span>' : '<span style="color:#f59e0b; font-size:0.75rem;" title="Unverified">(unverified)</span>'}` : '<span style="color:var(--text-muted);">-</span>';
+          const emailDisplay = u.email ? `${escapeHtml(u.email)} ${u.emailVerified ? '<span style="color:#10b981; font-weight:bold;" title="Verified">✓</span>' : '<span style="color:#f59e0b; font-size:0.75rem;" title="Unverified">(unverified)</span> <button class="btn btn-outline btn-sm btn-admin-verify-email" data-username="' + escapeHtml(u.username) + '" data-email="' + escapeHtml(u.email) + '" style="padding:0.1rem 0.35rem; font-size:0.72rem; color:#10b981; border-color:rgba(16,185,129,0.4); margin-left:0.25rem;" title="Mark email as verified">✓ Verify</button>'}` : '<span style="color:var(--text-muted);">-</span>';
           const twoFactorDisplay = u.has2fa ? '<span class="doc-badge badge-md" style="font-size:0.75rem; padding:0.1rem 0.35rem;">🔒 Active</span>' : '<span style="color:var(--text-muted); font-size:0.8rem;">Off</span>';
           
           html += `<tr style="border-bottom:1px solid var(--border-color);">`;
@@ -680,6 +346,36 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
               btn.disabled = false;
               btn.textContent = '🔗 Reset Link';
+            }
+          });
+        });
+
+        // Bind admin verify email triggers
+        container.querySelectorAll('.btn-admin-verify-email').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const targetUser = btn.getAttribute('data-username');
+            const targetEmail = btn.getAttribute('data-email');
+            btn.disabled = true;
+            btn.textContent = 'Verifying...';
+            try {
+              const formData = new FormData();
+              formData.append('action', 'update_user_email');
+              formData.append('username', targetUser);
+              formData.append('email', targetEmail);
+              formData.append('markVerified', '1');
+              const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+              const data = await res.json();
+              if (data.success) {
+                loadUsersList();
+              } else {
+                alert('Failed to verify email: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.textContent = '✓ Verify';
+              }
+            } catch (err) {
+              alert('Network request failed');
+              btn.disabled = false;
+              btn.textContent = '✓ Verify';
             }
           });
         });

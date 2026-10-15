@@ -99,8 +99,9 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 ## 👥 7. Multi-User Access Control (RBAC)
 
 - Lightweight user store in `users.json` with PHP Bcrypt password encryption.
-- **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, and user management.
+- **Admin**: Full creation, editing, file uploading, drag-and-drop menu reordering, user management, and 1-click administrative email verification directly in the Users modal.
 - **Viewer**: Read-only documentation access.
+- **Dual Sign-in (Username or Email)**: Users and administrators can authenticate seamlessly using either their account username or their registered email address, with case-insensitive resolution and automatic 2FA TOTP handoff.
 
 ---
 
@@ -152,6 +153,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Bi-Directional Slug Collision Prevention**: Real-time validation ensures that new subwikis cannot shadow parent categories, and parent categories cannot share names with subwiki folders or reserved system directories.
 - **Logical Dashed Grouping**: Subwikis cannot deploy nested child wikis; hierarchical multi-team structures are grouped using dashed slugs (e.g. `engineering-electrical`, `engineering-mechanical`).
 - **Live Dynamic Parent Wiki Title**: Subwikis dynamically inspect the parent wiki's `qwiki.json` to reflect live parent wiki title renames on the sidebar "← Back to..." banner, eliminating stale names. Subwiki administrators can also configure custom parent titles and target URLs in Settings.
+- **Header Breadcrumbs & Brand Wayfinding**: In subwikis, the top-left header brand transforms into a dual-level breadcrumb: the company logo links directly back to the parent wiki, followed by a `/` separator and an interactive subwiki badge linking to the subwiki home. In distraction-free share mode, a complementary subwiki badge identifies content provenance.
 - **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
 - **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
 
@@ -243,11 +245,12 @@ Standalone Qwiki enables multiple independent wikis to federate and transclude d
 
 ---
 
-## 🚀 19. Headless HTML & Markdown Publishing API with Automated Share Keys
+## 🚀 19. Headless HTML & Markdown Publishing API, Category Management & Dual Auth
 
-External automation pipelines, CI/CD runners, and reporting systems can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
+External automation pipelines, CI/CD runners, and AI agents can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
 
-- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY`.
+- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY` or active LLM access keys (`qwk_llm_...`).
+- **Dynamic Category Provisioning & Management**: Dynamically create categories and nested sub-folders (`action=create_category`), update metadata idempotently, and list available categories (`action=list_categories`) directly through the API.
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
@@ -266,6 +269,16 @@ Comprehensive account security and self-service recovery engineered without exte
 - **8 Emergency Recovery Codes**: Users receive eight single-use 10-character recovery codes upon enrollment. Codes are BCrypt-hashed in `users.json` and consumed on first use.
 - **Wiki-Wide 2FA Policies**: Configurable in **`⚙️ Site Settings`** (`Optional`, `Required for Admins`, `Required for All`, or `Disabled`).
 - **Emergency CLI Recovery Tool**: Administrators who lose access to both their authenticator device and recovery codes can instantly reset 2FA via the server terminal (`php bin/reset-2fa.php <username>`).
-- **Pure Socket Outbound SMTP Client**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with a built-in connection testing tool and native PHP `mail()` fallback.
+- **Pure Socket Outbound SMTP Client & Deliverability Diagnostics**: Standalone Qwiki includes a lightweight socket SMTP client supporting STARTTLS (port 587) and SSL (port 465) with interactive connection testing, password retention on setting updates, detailed server diagnostic logging for password resets, and native PHP `mail()` fallback.
 
+---
 
+## 🏷️ 21. Document Lifecycle Management & Workflow States
+
+Standalone Qwiki includes a comprehensive document lifecycle management architecture designed for editorial teams, regulatory compliance, and headless publishing pipelines:
+
+- **Four Lifecycle States**: Documents advance through `Draft` (📝), `In Review` (🔍), `Published` (🚀), and `Archived` (📦) states, tracked in `qwiki.json` with timestamp and updater audit trails.
+- **Interactive Header Controls**: Document toolbars include a status dropdown menu allowing administrators to instantly transition document states with live UI badges.
+- **Sidebar Status Indicators**: Non-published documents display distinct visual status indicators (`●`) in the left navigation menu for logged-in administrators, making draft and pending documents easy to track.
+- **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML document to `Published` can automatically and permanently strip draft watermarks, review dockets, boundary comment blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`), checklists, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while setting root `<html data-qwiki-status="published">`.
+- **Headless Status Transitions**: Automation pipelines and AI agents can manage document statuses programmatically via `action=set_status` (in `api/publish.php`) or `action=set_chapter_status` (in `api/admin.php`).

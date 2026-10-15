@@ -3,29 +3,432 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
+require_once __DIR__ . '/../lib/Core/LlmAccess.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Navigation;
+use Qwiki\Core\LlmAccess;
 
 $config = Config::load();
 
-// 1. Authenticate via API Key (constant-time check against timing attacks)
+// 1. Authenticate via API Key (publishApiKey or active llmKey)
 $publishApiKey = $config['publishApiKey'] ?? '';
-if (empty($publishApiKey)) {
+$llmKeys = $config['llmKeys'] ?? [];
+if (empty($publishApiKey) && empty($llmKeys)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'error' => 'Publishing via API is disabled (no API key configured)']);
     exit;
 }
 
-// Get API Key from header or POST body
-$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? '');
-if (empty($providedKey) || !hash_equals((string)$publishApiKey, $providedKey)) {
+// Get API Key from header, POST body, or query param
+$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? $_POST['apiKey'] ?? $_POST['key'] ?? $_GET['apiKey'] ?? $_GET['key'] ?? '');
+if (empty($providedKey)) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Invalid API key']);
     exit;
 }
 
-// 2. Extract and Validate Inputs
+$isAuthorized = false;
+if (!empty($publishApiKey) && hash_equals((string)$publishApiKey, $providedKey)) {
+    $isAuthorized = true;
+} elseif (!empty($llmKeys)) {
+    $llmVal = LlmAccess::validateKey($providedKey);
+    if (!empty($llmVal['valid'])) {
+        $isAuthorized = true;
+        if (!empty($llmVal['key']['id'])) {
+            LlmAccess::updateLastUsed($llmVal['key']['id']);
+        }
+    }
+}
+
+if (!$isAuthorized) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Invalid API key']);
+    exit;
+}
+
+// Helper functions for category and chapter resolution (delegating to Navigation)
+function find_target_folder(&$node, $targetId) {
+    return Navigation::findTargetFolder($node, $targetId);
+}
+
+function upsert_chapter_into_node(&$node, $targetFolderId, $chapterData, &$isUpdated = false) {
+    return Navigation::upsertChapterIntoNode($node, $targetFolderId, $chapterData, $isUpdated);
+}
+
+function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
+    return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
+}
+
+// 2. Dispatch Action
+$action = trim($_POST['action'] ?? $_GET['action'] ?? 'publish_doc');
+
+if ($action === 'create_category' || $action === 'add_book') {
+    $catId = Config::makeSlug($_POST['id'] ?? $_POST['bookId'] ?? $_POST['title'] ?? '');
+    $catTitle = trim($_POST['title'] ?? '');
+    $catDesc = trim($_POST['description'] ?? '');
+    $parentId = trim($_POST['parentId'] ?? '');
+
+    if (empty($catTitle) || empty($catId)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Category title and ID are required']);
+        exit;
+    }
+
+    if (Navigation::isSlugTaken($catId, $config['books'] ?? [])) {
+        $updated = false;
+        $updateFn = function(&$nodes) use (&$updateFn, $catId, $catTitle, $catDesc, &$updated) {
+            foreach ($nodes as &$node) {
+                if (($node['id'] ?? '') === $catId) {
+                    if (!empty($catTitle)) $node['title'] = $catTitle;
+                    if ($catDesc !== '') $node['description'] = $catDesc;
+                    $updated = true;
+                    return;
+                }
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $updateFn($node['items']);
+                    if ($updated) return;
+                }
+            }
+        };
+        $updateFn($config['books']);
+        if ($updated) {
+            Config::save($config);
+        }
+        echo json_encode([
+            'success' => true,
+            'bookId' => $catId,
+            'title' => $catTitle,
+            'description' => $catDesc,
+            'message' => ($action === 'update_category' || $action === 'edit_category') ? 'Category updated' : 'Category already exists'
+        ]);
+        exit;
+    }
+
+    $baseDir = Config::getBaseDir();
+    if (!empty($parentId)) {
+        $parentFolder = null;
+        foreach ($config['books'] as $b) {
+            $resolved = find_target_folder($b, $parentId);
+            if ($resolved !== null) {
+                $parentFolder = $resolved;
+                break;
+            }
+        }
+        if ($parentFolder === null) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Parent category not found']);
+            exit;
+        }
+
+        $targetRelFolder = 'content/' . ltrim(preg_replace('#^content/#i', '', $parentFolder), '/') . '/' . $catId;
+        $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+        if (!is_dir($targetAbsFolder)) {
+            @mkdir($targetAbsFolder, 0755, true);
+        }
+
+        $newNode = [
+            'id' => $catId,
+            'title' => $catTitle,
+            'type' => 'folder',
+            'folder' => $targetRelFolder,
+            'items' => []
+        ];
+        if ($catDesc !== '') {
+            $newNode['description'] = $catDesc;
+        }
+
+        $inserted = false;
+        foreach ($config['books'] as &$book) {
+            if (insert_chapter_into_node($book, $parentId, $newNode)) {
+                $inserted = true;
+                break;
+            }
+        }
+        if (!$inserted) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Failed to nest category in parent']);
+            exit;
+        }
+    } else {
+        $targetRelFolder = 'content/' . $catId;
+        $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+        if (!is_dir($targetAbsFolder)) {
+            @mkdir($targetAbsFolder, 0755, true);
+        }
+
+        $newNode = [
+            'id' => $catId,
+            'title' => $catTitle,
+            'type' => 'folder',
+            'folder' => $targetRelFolder,
+            'items' => []
+        ];
+        if ($catDesc !== '') {
+            $newNode['description'] = $catDesc;
+        }
+
+        if (!isset($config['books']) || !is_array($config['books'])) {
+            $config['books'] = [];
+        }
+        $config['books'][] = $newNode;
+    }
+
+    if (Config::save($config)) {
+        echo json_encode([
+            'success' => true,
+            'bookId' => $catId,
+            'title' => $catTitle,
+            'description' => $catDesc,
+            'folder' => $targetRelFolder
+        ]);
+        exit;
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        exit;
+    }
+}
+
+if ($action === 'list_categories' || $action === 'get_books') {
+    $categories = [];
+    foreach ($config['books'] ?? [] as $book) {
+        if (($book['type'] ?? '') === 'folder') {
+            $categories[] = [
+                'id' => $book['id'] ?? '',
+                'title' => $book['title'] ?? '',
+                'description' => $book['description'] ?? '',
+                'folder' => $book['folder'] ?? ('content/' . ($book['id'] ?? ''))
+            ];
+        }
+    }
+    echo json_encode(['success' => true, 'categories' => $categories]);
+    exit;
+}
+
+if ($action === 'delete_chapter' || $action === 'delete_doc') {
+    $slug = trim($_POST['slug'] ?? $_GET['slug'] ?? '');
+    $bookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
+
+    if (empty($slug)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'slug is required for chapter deletion']);
+        exit;
+    }
+
+    if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
+        exit;
+    }
+
+    $deleted = false;
+    $deletedFile = null;
+
+    $deleteChapterFromNode = function(&$node, $targetSlug) use (&$deleteChapterFromNode, &$deleted, &$deletedFile) {
+        if ($deleted || empty($node['items']) || !is_array($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $targetSlug) {
+                $deleted = true;
+                $deletedFile = $item['file'] ?? null;
+                continue;
+            }
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                $deleteChapterFromNode($item, $targetSlug);
+            }
+            $newItems[] = $item;
+        }
+        $node['items'] = $newItems;
+    };
+
+    $filteredBooks = [];
+    foreach ($config['books'] as &$book) {
+        if (!$deleted && ($book['slug'] ?? '') === $slug) {
+            $deleted = true;
+            $deletedFile = $book['file'] ?? null;
+            continue;
+        }
+        $deleteChapterFromNode($book, $slug);
+        $filteredBooks[] = $book;
+    }
+    $config['books'] = $filteredBooks;
+
+    if ($deleted) {
+        Config::save($config);
+        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+            $baseDir = Config::getBaseDir();
+            $filePath = Config::safePath($baseDir, $deletedFile);
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
+        echo json_encode([
+            'success' => true,
+            'deleted' => true,
+            'slug' => $slug,
+            'file' => $deletedFile
+        ]);
+        exit;
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found']);
+        exit;
+    }
+}
+
+if ($action === 'list_chapters' || $action === 'get_chapters') {
+    $targetBookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
+    $baseUrl = Config::getBaseUrl();
+    $chapters = [];
+
+    $collectChapters = function($node, $catId) use (&$collectChapters, &$chapters, $targetBookId, $baseUrl) {
+        $curCatId = $node['id'] ?? $catId;
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    $collectChapters($item, $item['id'] ?? $curCatId);
+                } else {
+                    if (empty($targetBookId) || $curCatId === $targetBookId) {
+                        $sKey = $item['shareKey'] ?? '';
+                        $slug = $item['slug'] ?? '';
+                        $chapters[] = [
+                            'bookId' => $curCatId,
+                            'title' => $item['title'] ?? '',
+                            'slug' => $slug,
+                            'type' => $item['type'] ?? 'markdown',
+                            'file' => $item['file'] ?? '',
+                            'shareKey' => $sKey,
+                            'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
+                            'url' => $baseUrl . urlencode($curCatId) . '/' . urlencode($slug)
+                        ];
+                    }
+                }
+            }
+        }
+    };
+
+    foreach ($config['books'] ?? [] as $book) {
+        $collectChapters($book, $book['id'] ?? '');
+    }
+
+    echo json_encode([
+        'success' => true,
+        'total' => count($chapters),
+        'chapters' => $chapters
+    ]);
+    exit;
+}
+
+if ($action === 'resolve_share_key' || $action === 'get_chapter_by_share_key' || $action === 'find_by_share_key') {
+    $shareKey = trim($_POST['shareKey'] ?? $_GET['shareKey'] ?? '');
+    if (empty($shareKey)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'shareKey is required']);
+        exit;
+    }
+    $matchedParent = null;
+    $chapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParent);
+    if ($chapter !== null) {
+        $baseUrl = Config::getBaseUrl();
+        $slug = $chapter['slug'] ?? '';
+        $bookId = Navigation::findChapterParentId($config['books'] ?? [], $slug) ?? ($matchedParent['id'] ?? '');
+        $fullUrl = $baseUrl . urlencode($bookId) . '/' . urlencode($slug);
+        $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
+        echo json_encode([
+            'success' => true,
+            'shareKey' => $shareKey,
+            'bookId' => $bookId,
+            'title' => $chapter['title'] ?? '',
+            'slug' => $slug,
+            'type' => $chapter['type'] ?? 'html',
+            'file' => $chapter['file'] ?? '',
+            'url' => $fullUrl,
+            'shareUrl' => $shareUrl
+        ]);
+        exit;
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found for share key']);
+        exit;
+    }
+}
+
+if ($action === 'set_status' || $action === 'update_status') {
+    $identifier = trim($_POST['shareKey'] ?? $_POST['slug'] ?? $_POST['file'] ?? $_GET['shareKey'] ?? $_GET['slug'] ?? '');
+    $newStatus = strtolower(trim($_POST['status'] ?? $_GET['status'] ?? ''));
+    $approver = trim($_POST['approver'] ?? '');
+    $approverNote = trim($_POST['approverNote'] ?? $_POST['note'] ?? '');
+    $cleanSource = false;
+    if (isset($_POST['clean_source'])) {
+        $cleanVal = $_POST['clean_source'];
+        if ($cleanVal === true || $cleanVal === 'true' || $cleanVal === '1' || $cleanVal === 1) {
+            $cleanSource = true;
+        }
+    }
+
+    if (empty($identifier) || empty($newStatus)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'identifier (shareKey, slug, or file) and status are required']);
+        exit;
+    }
+
+    if (!in_array($newStatus, Navigation::VALID_STATUSES, true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid status. Allowed: ' . implode(', ', Navigation::VALID_STATUSES)]);
+        exit;
+    }
+
+    $updatedChapter = Navigation::updateChapterStatus($config['books'], $identifier, $newStatus, [
+        'updatedBy' => 'api',
+        'approver' => $approver,
+        'note' => $approverNote
+    ]);
+
+    if ($updatedChapter === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found for identifier']);
+        exit;
+    }
+
+    // If HTML document, update file on disk as well
+    $baseDir = Config::getBaseDir();
+    $relFile = $updatedChapter['file'] ?? '';
+    if (!empty($relFile) && preg_match('/\.(html|htm)$/i', $relFile)) {
+        $absFile = Config::safePath($baseDir, $relFile);
+        if ($absFile && file_exists($absFile)) {
+            Navigation::sanitizeHtmlDocumentStatus($absFile, $newStatus, $cleanSource);
+        }
+    }
+
+    if (Config::save($config)) {
+        $baseUrl = Config::getBaseUrl();
+        $sKey = $updatedChapter['shareKey'] ?? '';
+        $slug = $updatedChapter['slug'] ?? '';
+        $bookId = Navigation::findChapterParentId($config['books'] ?? [], $slug) ?? '';
+        $shareUrl = !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '';
+        $url = $baseUrl . urlencode($bookId) . '/' . urlencode($slug);
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'bookId' => $bookId,
+            'shareKey' => $sKey,
+            'status' => $newStatus,
+            'statusUpdatedAt' => $updatedChapter['statusUpdatedAt'] ?? date('c'),
+            'approver' => $updatedChapter['approver'] ?? $approver,
+            'shareUrl' => $shareUrl,
+            'url' => $url
+        ]);
+        exit;
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        exit;
+    }
+}
+
+// 3. Extract and Validate Document Inputs
 $bookId = trim($_POST['bookId'] ?? '');
 $title = trim($_POST['title'] ?? '');
 $content = $_POST['content'] ?? '';
@@ -44,6 +447,15 @@ if (isset($_POST['publicShareable'])) {
     }
 }
 
+$providedSlug = trim($_POST['slug'] ?? '');
+$allowOverwrite = false;
+if (isset($_POST['update']) || isset($_POST['overwrite']) || in_array($action, ['update_doc', 'edit_doc'], true)) {
+    $rawUp = $_POST['update'] ?? $_POST['overwrite'] ?? true;
+    if ($rawUp === true || $rawUp === 'true' || $rawUp === '1' || $rawUp === 1 || in_array($action, ['update_doc', 'edit_doc'], true)) {
+        $allowOverwrite = true;
+    }
+}
+
 if (empty($bookId) || empty($title) || empty($content)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'bookId, title, and content are required']);
@@ -55,49 +467,6 @@ if (!preg_match('/^[a-zA-Z0-9\-_]+(\/[a-zA-Z0-9\-_]+)*$/', $bookId) || strpos($b
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid bookId format']);
     exit;
-}
-
-function find_target_folder(&$node, $targetId) {
-    if (($node['id'] ?? '') === $targetId) {
-        $folder = $node['folder'] ?? $node['id'];
-        return ltrim(preg_replace('#^content/#i', '', $folder), '/');
-    }
-    if (!empty($node['items']) && is_array($node['items'])) {
-        foreach ($node['items'] as &$child) {
-            if (isset($child['type']) && $child['type'] === 'folder') {
-                $found = find_target_folder($child, $targetId);
-                if ($found !== null) {
-                    $parentFolder = $node['folder'] ?? $node['id'];
-                    $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
-                    if (strpos($found, $parentFolder . '/') === 0) {
-                        return $found;
-                    }
-                    return $parentFolder . '/' . $found;
-                }
-            }
-        }
-    }
-    return null;
-}
-
-function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-    if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
-        if (!isset($node['items']) || !is_array($node['items'])) {
-            $node['items'] = [];
-        }
-        $node['items'][] = $chapterData;
-        return true;
-    }
-    if (!empty($node['items']) && is_array($node['items'])) {
-        foreach ($node['items'] as &$sub) {
-            if (isset($sub['type']) && $sub['type'] === 'folder') {
-                if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
 }
 
 // 3. Resolve Target Category / Subfolder
@@ -162,21 +531,80 @@ function sanitize_markdown($markdown) {
     return $markdown;
 }
 
-// 5. Generate Unique Filename & Path
-$baseSlug = Config::makeSlug($title);
+// 5. Generate or Resolve Slug & Unique Filename & Path
+if (!empty($providedSlug)) {
+    $baseSlug = Config::makeSlug($providedSlug);
+} else {
+    $baseSlug = Config::makeSlug($title);
+}
 if (empty($baseSlug)) {
     $baseSlug = 'doc-' . time();
 }
 
 $ext = ($type === 'html') ? '.html' : '.md';
-$slug = $baseSlug;
-$counter = 1;
-$targetAbsFile = $targetAbsDir . '/' . $slug . $ext;
 
-while (file_exists($targetAbsFile)) {
-    $slug = $baseSlug . '-' . $counter;
+// Helper to find an existing chapter with this slug in target category
+$findExistingChapterInFolder = function($node, $targetFolderId, $targetSlug) use (&$findExistingChapterInFolder) {
+    if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (($item['slug'] ?? '') === $targetSlug && (!isset($item['type']) || $item['type'] !== 'folder')) {
+                    return $item;
+                }
+            }
+        }
+        return null;
+    }
+    if (!empty($node['items']) && is_array($node['items'])) {
+        foreach ($node['items'] as $child) {
+            if (isset($child['type']) && $child['type'] === 'folder') {
+                $found = $findExistingChapterInFolder($child, $targetFolderId, $targetSlug);
+                if ($found !== null) return $found;
+            }
+        }
+    }
+    return null;
+};
+
+$existingChapter = null;
+if (!empty($providedShareKey)) {
+    $parentOfShare = null;
+    $chapterByShare = Navigation::findChapterByShareKey($config['books'] ?? [], $providedShareKey, $parentOfShare);
+    if ($chapterByShare !== null) {
+        $existingChapter = $chapterByShare;
+        if (empty($providedSlug) || $providedSlug === ($chapterByShare['slug'] ?? '')) {
+            $baseSlug = $chapterByShare['slug'] ?? $baseSlug;
+        }
+        if (!empty($parentOfShare['id'])) {
+            $targetNodeId = $parentOfShare['id'];
+        }
+    }
+}
+
+if ($existingChapter === null) {
+    foreach ($config['books'] as $b) {
+        $existingChapter = $findExistingChapterInFolder($b, $targetNodeId, $baseSlug);
+        if ($existingChapter !== null) break;
+    }
+}
+
+if ($allowOverwrite || $existingChapter !== null) {
+    // Preserve slug exactly, do not increment!
+    $slug = $baseSlug;
     $targetAbsFile = $targetAbsDir . '/' . $slug . $ext;
-    $counter++;
+    if ($existingChapter !== null && empty($providedShareKey) && !empty($existingChapter['shareKey'])) {
+        $providedShareKey = $existingChapter['shareKey'];
+    }
+} else {
+    // Only increment if a document with this slug is actively registered in qwiki.json
+    $slug = $baseSlug;
+    $counter = 1;
+    $targetAbsFile = $targetAbsDir . '/' . $slug . $ext;
+    while (Navigation::isSlugTaken($slug, $config['books'] ?? [])) {
+        $slug = $baseSlug . '-' . $counter;
+        $targetAbsFile = $targetAbsDir . '/' . $slug . $ext;
+        $counter++;
+    }
 }
 
 $targetRelFile = 'content/' . trim($targetFolder, '/') . '/' . $slug . $ext;
@@ -213,8 +641,15 @@ if (file_put_contents($targetAbsFile, $sanitizedContent) === false) {
 
 // 7. Auto-Generate Share Key with Collision Check
 $shareKey = !empty($providedShareKey) ? $providedShareKey : Navigation::generateShareKey();
-while (Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey) !== null) {
-    $shareKey = Navigation::generateShareKey();
+$collidingChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey);
+if ($collidingChapter !== null && ($collidingChapter['slug'] ?? '') !== $slug) {
+    if ($existingChapter !== null && ($existingChapter['shareKey'] ?? '') === $shareKey) {
+        // Legitimate in-place update of existing chapter: keep original shareKey!
+    } else {
+        do {
+            $shareKey = Navigation::generateShareKey();
+        } while (Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey) !== null);
+    }
 }
 
 // 8. Prepare Chapter Data for qwiki.json
@@ -225,6 +660,32 @@ $chapterData = [
     'file' => $targetRelFile,
     'shareKey' => $shareKey
 ];
+
+$docStatus = strtolower(trim($_POST['status'] ?? ''));
+if (!in_array($docStatus, Navigation::VALID_STATUSES, true)) {
+    $docStatus = Navigation::DEFAULT_STATUS;
+}
+$chapterData['status'] = $docStatus;
+$chapterData['statusUpdatedAt'] = date('c');
+$chapterData['statusUpdatedBy'] = 'api';
+
+if (!empty($_POST['approver'])) {
+    $chapterData['approver'] = trim($_POST['approver']);
+}
+if (!empty($_POST['approverNote']) || !empty($_POST['note'])) {
+    $chapterData['approverNote'] = trim($_POST['approverNote'] ?? $_POST['note'] ?? '');
+}
+
+if ($type === 'html' && file_exists($targetAbsFile)) {
+    $cleanOnPublish = false;
+    if (isset($_POST['clean_source'])) {
+        $cVal = $_POST['clean_source'];
+        if ($cVal === true || $cVal === 'true' || $cVal === '1' || $cVal === 1) {
+            $cleanOnPublish = true;
+        }
+    }
+    Navigation::sanitizeHtmlDocumentStatus($targetAbsFile, $docStatus, $cleanOnPublish);
+}
 
 if (!$publicShareable) {
     $chapterData['publicShareable'] = false;
@@ -258,33 +719,41 @@ if (!empty($_POST['translations'])) {
     }
 }
 
-// 9. Insert Chapter Node and Atomic Save
-$added = false;
+// 9. Insert or Update Chapter Node and Atomic Save
+$isUpdated = false;
+$saved = false;
 foreach ($config['books'] as &$book) {
-    if (insert_chapter_into_node($book, $targetNodeId, $chapterData)) {
-        $added = true;
+    if (upsert_chapter_into_node($book, $targetNodeId, $chapterData, $isUpdated)) {
+        $saved = true;
         break;
     }
 }
 
-if ($added && Config::save($config)) {
+if ($saved && Config::save($config)) {
     $baseUrl = Config::getBaseUrl();
     $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
     $url = $baseUrl . urlencode($bookId) . '/' . urlencode($slug);
 
     echo json_encode([
         'success' => true,
+        'updated' => $isUpdated,
         'bookId' => $bookId,
         'slug' => $slug,
         'file' => $targetRelFile,
         'type' => $type,
         'shareKey' => $shareKey,
+        'status' => $docStatus,
+        'statusUpdatedAt' => $chapterData['statusUpdatedAt'],
         'shareUrl' => $shareUrl,
         'url' => $url
     ]);
+    exit;
 } else {
-    // Rollback file creation if config fails
-    @unlink($targetAbsFile);
+    // Rollback file creation if new file and config fails
+    if (!$isUpdated) {
+        @unlink($targetAbsFile);
+    }
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+    exit;
 }

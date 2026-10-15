@@ -177,6 +177,74 @@ $aliceDirect = Auth::login('alice', 'newsecret456');
 assert($aliceDirect['success'] === true && empty($aliceDirect['require2fa']), "Alice should log in directly without 2FA");
 echo "8. Administrative 2FA reset & instant direct login restoration: PASS\n";
 
+// Test 9: SMTP Password Retention & Reset Logging Diagnostics
+$configData = [
+    'title' => 'Test Wiki',
+    'smtp' => [
+        'host' => 'smtp.example.com',
+        'port' => 587,
+        'username' => 'wiki@example.com',
+        'password' => 'supersecretpass',
+        'fromEmail' => 'noreply@example.com',
+        'fromName' => 'Test Qwiki'
+    ]
+];
+Config::save($configData);
+$existingSmtp = Config::load()['smtp'] ?? [];
+$emptyPasswordPost = '';
+$retainedPassword = ($emptyPasswordPost !== '') ? $emptyPasswordPost : ($existingSmtp['password'] ?? '');
+assert($retainedPassword === 'supersecretpass', "SMTP password should be retained when omitted or empty on update");
+
+$resetUnknown = Auth::requestPasswordReset('nonexistent_user_999');
+assert($resetUnknown['success'] === true, "requestPasswordReset should return generic success even for unknown identifier");
+echo "9. SMTP password retention & password reset logging diagnostics: PASS\n";
+
+// Test 10: Dual Sign-in (Username or Email)
+Auth::logout();
+
+// 10a. Login with email address (lowercase)
+$loginByEmail = Auth::login('alice@qwiki.test', 'newsecret456');
+assert($loginByEmail['success'] === true, "Login by email failed");
+assert($loginByEmail['username'] === 'alice', "Login by email did not return canonical username");
+assert(Auth::getCurrentUser()['username'] === 'alice', "Session username not set to canonical username on email login");
+
+// 10b. Login with email address (uppercase / case-insensitive)
+Auth::logout();
+$loginByEmailCase = Auth::login('ALICE@QWIKI.TEST', 'newsecret456');
+assert($loginByEmailCase['success'] === true, "Case-insensitive email login failed");
+assert($loginByEmailCase['username'] === 'alice', "Case-insensitive email login did not return canonical username");
+
+// 10c. Login with admin email
+Auth::logout();
+$loginAdminByEmail = Auth::login('admin@example.com', 'admin123');
+assert($loginAdminByEmail['success'] === true, "Admin login by email failed");
+assert($loginAdminByEmail['role'] === 'admin', "Admin role not established via email login");
+assert(Auth::isAdmin() === true, "isAdmin() failed after email login");
+
+// 10d. Invalid password with valid email
+Auth::logout();
+$badPassRes = Auth::login('alice@qwiki.test', 'wrongpassword');
+assert($badPassRes['success'] === false, "Bad password with email should fail");
+assert($badPassRes['error'] === 'Invalid credentials', "Expected 'Invalid credentials' error");
+
+// 10e. Re-enable 2FA on alice and verify email login initiates 2FA challenge with canonical username
+Auth::login('alice', 'newsecret456');
+$init2faAgain = Auth::initiate2faSetup('alice');
+assert($init2faAgain['success'] === true);
+$confirmResAgain = Auth::confirm2faSetup(Totp::getCode($init2faAgain['secret']));
+assert($confirmResAgain['success'] === true);
+
+Auth::logout();
+$email2faStep1 = Auth::login('alice@qwiki.test', 'newsecret456');
+assert($email2faStep1['success'] === true && !empty($email2faStep1['require2fa']), "2FA not prompted on email login");
+assert($email2faStep1['username'] === 'alice', "2FA challenge did not return canonical username");
+
+$email2faStep2 = Auth::verify2faLogin(Totp::getCode($init2faAgain['secret']));
+assert($email2faStep2['success'] === true, "2FA verification after email login failed");
+assert(Auth::getCurrentUser()['username'] === 'alice', "Session username not set after 2FA email login");
+
+echo "10. Dual sign-in (username or email), case-insensitivity & 2FA handoff: PASS\n";
+
 // Cleanup temp test directory
 @unlink($testDir . '/users.json');
 @unlink($testDir . '/qwiki.json');

@@ -1,6 +1,8 @@
 <?php
 namespace Qwiki\Core;
 
+require_once __DIR__ . '/QwikiParsedown.php';
+
 class ExtensionManager {
     private static $instance = null;
     private $extensionsDir = null;

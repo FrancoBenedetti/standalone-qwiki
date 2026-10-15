@@ -83,7 +83,13 @@ $requiredProductionFiles = [
     'assets/js/app.js',
     'lib/Core/Config.php',
     'lib/Core/Navigation.php',
+    'lib/Core/QwikiParsedown.php',
+    'lib/Core/MetadataManager.php',
+    'lib/Core/DocumentService.php',
     'lib/Parsedown.php',
+    'assets/js/core/theme.js',
+    'templates/modals/login.php',
+    'templates/modals/settings.php',
     'demo-data/qwiki-default.json'
 ];
 

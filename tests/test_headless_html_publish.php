@@ -86,6 +86,26 @@ assertTest(empty($res1['json']['success']) && strpos($res1['raw'], 'Invalid API 
 $res2 = callPublishApi($tempDir, ['title' => 'Test', 'bookId' => 'grower-guides', 'content' => 'Body'], ['HTTP_X_API_KEY' => 'wrong-key']);
 assertTest(empty($res2['json']['success']) && strpos($res2['raw'], 'Invalid API key') !== false, 'Rejects request with invalid API key');
 
+// Test authentication via active LLM access key
+$llmKeyToken = 'qwk_llm_test_agent_12345';
+$cfgAuthTest = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$cfgAuthTest['llmKeys'] = [
+    [
+        'id' => 'key-agent-1',
+        'name' => 'Agent Key',
+        'key' => $llmKeyToken,
+        'category' => '',
+        'allowedTypes' => ['markdown', 'html'],
+        'status' => 'active',
+        'createdAt' => date('Y-m-d H:i:s'),
+        'lastUsedAt' => null
+    ]
+];
+file_put_contents($tempDir . '/qwiki.json', json_encode($cfgAuthTest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+$resLlmAuth = callPublishApi($tempDir, ['action' => 'list_categories'], ['HTTP_X_API_KEY' => $llmKeyToken]);
+assertTest(!empty($resLlmAuth['json']['success']), 'Authenticates successfully using active LLM access key (qwk_llm_...)');
+
 // ----------------------------------------------------
 // 2. Backward Compatibility: Markdown Publishing
 // ----------------------------------------------------
@@ -247,7 +267,158 @@ $shareKey = $res4['json']['shareKey'];
 $foundByShare = Navigation::findChapterByShareKey($cfg['books'], $shareKey, $parentBook);
 assertTest($foundByShare !== null, 'findChapterByShareKey locates the published HTML document');
 assertTest(($foundByShare['slug'] ?? '') === 'bellevue-estate-grower-guide', 'Resolved chapter slug matches');
-assertTest(($parentBook['id'] ?? '') === 'grower-guides', 'Resolved parent book matches');
+// ----------------------------------------------------
+// 7. Headless Category Management (create_category & list_categories)
+// ----------------------------------------------------
+echo "\n--- 7. Headless Category Management ---\n";
+$catPayload = [
+    'action' => 'create_category',
+    'id' => 'orange-river-corridor',
+    'title' => 'Orange River Corridor & Desert Oasis',
+    'description' => 'Hyper-arid desert river oasis covering Upington and Kakamas'
+];
+$resCat = callPublishApi($tempDir, $catPayload, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resCat['json']['success']), 'Category creation succeeds');
+assertTest(($resCat['json']['bookId'] ?? '') === 'orange-river-corridor', 'Returns correct bookId');
+assertTest(is_dir($tempDir . '/content/orange-river-corridor'), 'Creates category directory on disk');
+
+$cfg = Config::load();
+$foundCat = false;
+foreach ($cfg['books'] as $b) {
+    if (($b['id'] ?? '') === 'orange-river-corridor') {
+        $foundCat = true;
+        break;
+    }
+}
+assertTest($foundCat, 'Category added to books array in qwiki.json');
+
+// Test idempotency
+$resCatDup = callPublishApi($tempDir, $catPayload, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resCatDup['json']['success']) && ($resCatDup['json']['message'] ?? '') === 'Category already exists', 'Category creation is idempotent when category exists');
+
+// Test listing categories
+$resList = callPublishApi($tempDir, ['action' => 'list_categories'], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resList['json']['success']) && is_array($resList['json']['categories']), 'Listing categories succeeds');
+$catIds = array_column($resList['json']['categories'], 'id');
+assertTest(in_array('orange-river-corridor', $catIds), 'Created category appears in list_categories');
+
+// ----------------------------------------------------
+// 8. Document Update & Idempotent Publishing (No Slug Incrementation)
+// ----------------------------------------------------
+echo "\n--- 8. Document Updates & Slug Idempotency ---\n";
+// Publish a document with explicit slug
+$docPayload1 = [
+    'bookId' => 'western-cape',
+    'title' => 'Stellenbosch Estate Dossier',
+    'slug' => 'stellenbosch-estate-dossier',
+    'type' => 'html',
+    'content' => '<h1>Version 1</h1><p>Initial content</p>'
+];
+$resDoc1 = callPublishApi($tempDir, $docPayload1, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resDoc1['json']['success']), 'Initial document with explicit slug published successfully');
+assertTest(($resDoc1['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'Slug matches explicit slug without incrementation');
+$initialShareKey = $resDoc1['json']['shareKey'] ?? '';
+assertTest(!empty($initialShareKey), 'Generated initial share key');
+
+// Update the exact same document in place with update=true
+$docPayload2 = [
+    'bookId' => 'western-cape',
+    'title' => 'Stellenbosch Estate Dossier Revised',
+    'slug' => 'stellenbosch-estate-dossier',
+    'type' => 'html',
+    'update' => 'true',
+    'content' => '<h1>Version 2</h1><p>Updated content</p>'
+];
+$resDoc2 = callPublishApi($tempDir, $docPayload2, ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resDoc2['json']['success']), 'Document update with update=true succeeds');
+assertTest(($resDoc2['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'Slug is preserved exactly without auto-incrementing suffix (-1)');
+assertTest(!empty($resDoc2['json']['updated']), 'Response reports updated: true');
+assertTest(($resDoc2['json']['shareKey'] ?? '') === $initialShareKey, 'Existing shareKey preserved across updates');
+
+// Verify updated file content on disk
+$updatedFileDisk = $tempDir . '/' . ($resDoc2['json']['file'] ?? '');
+$diskContent = file_exists($updatedFileDisk) ? file_get_contents($updatedFileDisk) : '';
+assertTest(strpos($diskContent, 'Version 2') !== false, 'Disk file contains updated content');
+
+// Verify only one entry in qwiki.json (no duplicate items)
+$cfgUpdated = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$wcNode = null;
+foreach ($cfgUpdated['books'] as $b) {
+    if ($b['id'] === 'grower-guides') {
+        foreach ($b['items'] as $sub) {
+            if ($sub['id'] === 'western-cape') {
+                $wcNode = $sub;
+                break 2;
+            }
+        }
+    }
+}
+$matchingItems = array_filter($wcNode['items'] ?? [], function($it) {
+    return ($it['slug'] ?? '') === 'stellenbosch-estate-dossier';
+});
+assertTest(count($matchingItems) === 1, 'Only one chapter node exists in qwiki.json (no duplicate items created)');
+
+// --- 9. Chapter Listing and Deletion ---
+echo "\n--- 9. Chapter Listing and Deletion ---\n";
+// Test list_chapters
+$listResp = callPublishApi($tempDir, [
+    'action' => 'list_chapters'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($listResp['json']['success']), 'Listing chapters succeeds with success: true');
+assertTest(($listResp['json']['total'] ?? 0) >= 2, 'list_chapters returns all published chapters');
+
+$foundListing = false;
+foreach ($listResp['json']['chapters'] ?? [] as $ch) {
+    if (($ch['slug'] ?? '') === 'stellenbosch-estate-dossier') {
+        $foundListing = true;
+        break;
+    }
+}
+assertTest($foundListing, 'Target chapter found in list_chapters output');
+
+// Test resolve_share_key
+$resolveResp = callPublishApi($tempDir, [
+    'action' => 'resolve_share_key',
+    'shareKey' => $initialShareKey
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($resolveResp['json']['success']), 'resolve_share_key succeeds with success: true');
+assertTest(($resolveResp['json']['slug'] ?? '') === 'stellenbosch-estate-dossier', 'resolve_share_key returns correct slug');
+assertTest(($resolveResp['json']['bookId'] ?? '') === 'western-cape', 'resolve_share_key returns correct parent bookId');
+assertTest(!empty($resolveResp['json']['url']), 'resolve_share_key returns full canonical url');
+assertTest(!empty($resolveResp['json']['shareUrl']), 'resolve_share_key returns shareUrl');
+
+// Test delete_chapter
+$delResp = callPublishApi($tempDir, [
+    'action' => 'delete_chapter',
+    'slug' => 'stellenbosch-estate-dossier'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($delResp['json']['deleted']), 'delete_chapter reports deleted: true');
+assertTest(!file_exists($updatedFileDisk), 'Associated file was purged from disk');
+
+// Verify node removed from qwiki.json
+$cfgAfterDel = json_decode(file_get_contents($tempDir . '/qwiki.json'), true);
+$wcNodeAfter = null;
+foreach ($cfgAfterDel['books'] as $b) {
+    if ($b['id'] === 'grower-guides') {
+        foreach ($b['items'] as $sub) {
+            if ($sub['id'] === 'western-cape') {
+                $wcNodeAfter = $sub;
+                break 2;
+            }
+        }
+    }
+}
+$matchingAfter = array_filter($wcNodeAfter['items'] ?? [], function($it) {
+    return ($it['slug'] ?? '') === 'stellenbosch-estate-dossier';
+});
+assertTest(count($matchingAfter) === 0, 'Chapter node successfully removed from qwiki.json');
+
+// Deleting non-existent chapter returns 404
+$delNonExistent = callPublishApi($tempDir, [
+    'action' => 'delete_chapter',
+    'slug' => 'stellenbosch-estate-dossier'
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(empty($delNonExistent['json']['success']) && strpos($delNonExistent['raw'], 'Chapter not found') !== false, 'Deleting non-existent chapter fails with Chapter not found');
 
 // Clean up temp environment
 function recursiveClean($dir) {

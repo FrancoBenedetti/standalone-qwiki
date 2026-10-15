@@ -563,6 +563,113 @@ document.addEventListener('DOMContentLoaded', () => {
         setupHtmlFramePrint(currentFrame);
     }
 
+    // Status Dropdown & Lifecycle Management
+    const statusToggleBtn = document.getElementById('btn-status-dropdown-toggle');
+    const statusDropdownMenu = document.getElementById('status-dropdown-menu');
+
+    if (statusToggleBtn && statusDropdownMenu) {
+        statusToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isCurrentlyOpen = statusDropdownMenu.classList.contains('show') || statusDropdownMenu.style.display === 'flex' || statusDropdownMenu.style.display === 'block';
+            if (isCurrentlyOpen) {
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+            } else {
+                statusDropdownMenu.classList.add('show');
+                statusDropdownMenu.style.display = 'flex';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!statusToggleBtn.contains(e.target) && !statusDropdownMenu.contains(e.target)) {
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+            }
+        });
+
+        statusDropdownMenu.querySelectorAll('.status-action-item').forEach(item => {
+            item.addEventListener('click', async (e) => {
+                e.preventDefault();
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+
+                const newStatus = item.getAttribute('data-set-status');
+                const curStatus = statusToggleBtn.getAttribute('data-status');
+                if (newStatus === curStatus) return;
+
+                let cleanSource = false;
+                if (newStatus === 'published') {
+                    cleanSource = confirm('Publish Document (Release)?\n\nClick OK to permanently strip draft markers, review dockets, and watermarks from the HTML file on disk.\nClick CANCEL to apply the published state non-destructively (via CSS attribute).');
+                }
+
+                const prevLabel = document.getElementById('status-current-label')?.textContent || '';
+                const labelElem = document.getElementById('status-current-label');
+                if (labelElem) labelElem.textContent = 'Updating...';
+                statusToggleBtn.disabled = true;
+
+                const formData = new FormData();
+                formData.append('action', 'set_chapter_status');
+                formData.append('slug', statusToggleBtn.getAttribute('data-slug') || '');
+                formData.append('file', statusToggleBtn.getAttribute('data-file') || '');
+                formData.append('shareKey', statusToggleBtn.getAttribute('data-sharekey') || '');
+                formData.append('status', newStatus);
+                formData.append('clean_source', cleanSource ? '1' : '0');
+
+                try {
+                    const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.success) {
+                        statusToggleBtn.setAttribute('data-status', newStatus);
+                        const formattedLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+                        if (labelElem) labelElem.textContent = formattedLabel;
+
+                        const badge = document.getElementById('qwiki-current-status-badge');
+                        if (badge) {
+                            badge.className = 'badge badge-status badge-status-' + newStatus;
+                            badge.textContent = formattedLabel;
+                        }
+
+                        // Update active indicator in dropdown menu
+                        statusDropdownMenu.querySelectorAll('.status-action-item').forEach(btn => {
+                            const btnStatus = btn.getAttribute('data-set-status');
+                            const checkSpan = btn.querySelector('.status-check-indicator');
+                            if (btnStatus === newStatus) {
+                                btn.classList.add('active');
+                                if (!checkSpan) {
+                                    const span = document.createElement('span');
+                                    span.className = 'status-check-indicator';
+                                    span.textContent = '✓';
+                                    btn.appendChild(span);
+                                }
+                            } else {
+                                btn.classList.remove('active');
+                                if (checkSpan) {
+                                    checkSpan.remove();
+                                }
+                            }
+                        });
+
+                        // Hot-reload iframe content
+                        const iframe = document.getElementById('current-html-frame');
+                        if (iframe) {
+                            const baseSrc = iframe.src.split('?')[0];
+                            iframe.src = baseSrc + '?t=' + Date.now();
+                        }
+                    } else {
+                        alert('Failed to update status: ' + (data.error || 'Unknown error'));
+                        if (labelElem) labelElem.textContent = prevLabel;
+                    }
+                } catch (err) {
+                    console.error('Error updating status:', err);
+                    alert('Network error while updating document status');
+                    if (labelElem) labelElem.textContent = prevLabel;
+                } finally {
+                    statusToggleBtn.disabled = false;
+                }
+            });
+        });
+    }
+
     // Ctrl+S / Cmd+S shortcut inside HTML edit modal
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {

@@ -21,8 +21,10 @@ To change site visibility:
 2. **Add User**: Enter a username, optional email address, password, and select a role:
    - **Admin**: Full rights to create, edit, upload, reorder navigation, and manage users.
    - **Viewer**: Read-only documentation access.
-3. **Offline Reset Link**: In air-gapped setups or environments without SMTP, click the **`🔗 Reset Link`** icon next to any user account to copy a 24-hour single-use password reset link directly to your clipboard.
-4. **Delete User**: Click the trash icon next to an account to remove it. (Note: You cannot delete your own active account).
+   - Users can subsequently sign in using either their account username or their configured email address.
+3. **1-Click Email Verification**: Click the **`✓ Verify`** button next to any unverified user email to immediately mark it as verified without waiting for outbound SMTP confirmation links.
+4. **Offline Reset Link**: In air-gapped setups or environments without SMTP, click the **`🔗 Reset Link`** icon next to any user account to copy a 24-hour single-use password reset link directly to your clipboard.
+5. **Delete User**: Click the trash icon next to an account to remove it. (Note: You cannot delete your own active account).
 
 ---
 
@@ -112,4 +114,5 @@ Standalone Qwiki supports single-level nested wikis (subwikis) deployed and mana
 3. **Dynamic Parent Title & Navigation**: Subwikis display a prominent **`← Back to [Parent Title]`** banner in the sidebar. This title dynamically tracks renames made to the parent wiki in real-time, or can be customized along with the parent URL in the subwiki's Site Settings.
 4. **Automated Cascading Updates**: When updating the parent wiki, all deployed subwikis receive code updates automatically without requiring separate updater clicks.
 5. **Sidebar Subwiki Navigation**: In **Site Settings**, enable **"Show Subwikis in Left Sidebar Navigation"** to render a collapsible accordion of all subwikis in the left sidebar. Readers can navigate across subwikis based on their access permissions (public content remains accessible, private content remains shielded) and return seamlessly using the parent navigation banner.
+6. **Header Breadcrumbs & Brand Wayfinding**: When browsing within a subwiki, the header brand transforms into a dual-level breadcrumb: the company logo links back to the parent wiki, followed by a `/` separator and a subwiki badge linking to the subwiki home. When viewing shared documents in distraction-free share mode, a complementary subwiki provenance badge keeps readers oriented.
 
