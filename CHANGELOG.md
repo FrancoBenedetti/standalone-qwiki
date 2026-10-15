@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.1] - DeployFlow - 2026-10-15
+
+### 🩹 Subwiki Deployment & Template Resolution Fix
+- **Resilient Subwiki Template Fallback**: In `index.php`, modal template inclusion now dynamically resolves `$templatesDir = is_dir(__DIR__ . '/templates') ? (__DIR__ . '/templates') : (dirname(__DIR__) . '/templates');`. If a subwiki is deployed without a local `templates/` directory, it automatically and seamlessly falls back to the parent wiki's template partials without breaking modal dialog rendering.
+- **Subwiki Provisioning & Update Cascade Hardening**: Updated `SubwikiManager::deploySubwiki` and `SubwikiManager::cascadeUpdates` in `lib/Core/SubwikiManager.php` to include the `templates/` directory during standalone subwiki provisioning and cascading update propagation.
+- **Publish API Image Upload Action**: Added `upload_image` action handler in `api/publish.php` supporting authorized image uploads (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), canonical base URL derivation via `Config::getBaseUrl()`, and safe disk persistence in `uploads/images/`.
+
+### 🧪 Automated Test Suite Hardening
+- **Subwiki Templates Deployment Test Suite**: Added `tests/test_subwiki_templates_deployment.php` asserting standalone subwiki template deployment, parent template fallback resolution, cascading update restoration, and API image upload validation.
+- **Anchor & Contrast Test Suite**: Updated `tests/anchor_and_contrast_test.php` to directly load decoupled `lib/Core/QwikiParsedown.php`.
+
+---
+
 ## [1.20.0] - ModularFlow - 2026-10-15
 
 ### 🏗️ Separation of Concerns & Core Decoupling

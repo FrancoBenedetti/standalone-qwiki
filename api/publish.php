@@ -88,11 +88,7 @@ if ($action === 'upload_image') {
     $targetPath = $uploadDir . $newFileName;
     $relUrl = 'uploads/images/' . $newFileName;
 
-    $scheme = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'wiki.mobioplus.co.za';
-    $requestUri = $_SERVER['REQUEST_URI'] ?? '';
-    $subPath = preg_replace('#/api/publish\.php.*$#', '', $requestUri);
-    $fullUrl = $scheme . '://' . $host . $subPath . '/' . $relUrl;
+    $fullUrl = rtrim(Config::getBaseUrl(), '/') . '/' . $relUrl;
 
     if (@move_uploaded_file($_FILES['image']['tmp_name'], $targetPath) || @copy($_FILES['image']['tmp_name'], $targetPath)) {
         echo json_encode([
