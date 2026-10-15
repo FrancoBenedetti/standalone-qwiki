@@ -32,176 +32,45 @@ $baseDir = Config::getBaseDir();
 $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 
 // Helper for tree category updates
+// Helper for tree category updates (delegates to Navigation::updateNodeMeta)
 if (!function_exists('update_node_meta')) {
     function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null) {
-        if (($node['id'] ?? '') === $targetId) {
-            $node['title'] = $newTitle;
-            if ($newTheme !== '') {
-                $node['theme'] = $newTheme;
-            } else {
-                unset($node['theme']);
-            }
-            $node['visibility'] = $newVisibility;
-            if ($readOnly !== null) {
-                if ($readOnly) {
-                    $node['readOnly'] = true;
-                    $node['editable'] = false;
-                } else {
-                    unset($node['readOnly']);
-                    unset($node['editable']);
-                    unset($node['locked']);
-                }
-            }
-            if ($newDescription !== null) {
-                if ($newDescription !== '') {
-                    $node['description'] = $newDescription;
-                } else {
-                    unset($node['description']);
-                }
-            }
-            return true;
-        }
-        if (!empty($node['items'])) {
-            foreach ($node['items'] as &$sub) {
-                if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (update_node_meta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription);
     }
 }
 
-// Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+// Helper to validate URL protocol safety (delegates to Navigation::isSafeUrl)
 if (!function_exists('is_safe_url')) {
     function is_safe_url($url) {
-        $trimmed = trim($url);
-        if (empty($trimmed)) return false;
-        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
-            return false;
-        }
-        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
-            $scheme = strtolower($matches[1]);
-            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
-                return false;
-            }
-        }
-        return true;
+        return Navigation::isSafeUrl($url);
     }
 }
 
-// Helper for tree node deletions
+// Helper for tree node deletions (delegates to Navigation::deleteNodeRecursive)
 if (!function_exists('delete_node_recursive')) {
     function delete_node_recursive(&$list, $targetId) {
-        $filtered = [];
-        $deleted = false;
-        foreach ($list as &$b) {
-            if (($b['id'] ?? '') === $targetId) {
-                if (\Qwiki\Core\Config::isCategoryProtected($targetId, [$b])) {
-                    $filtered[] = $b;
-                    continue;
-                }
-                $deleted = true;
-                continue;
-            }
-            if (!empty($b['items'])) {
-                if (delete_node_recursive($b['items'], $targetId)) {
-                    $deleted = true;
-                }
-            }
-            $filtered[] = $b;
-        }
-        $list = $filtered;
-        return $deleted;
+        return Navigation::deleteNodeRecursive($list, $targetId);
     }
 }
 
-// Helper for chapter insertion into tree
+// Helper for chapter insertion into tree (delegates to Navigation::insertChapterIntoNode)
 if (!function_exists('insert_chapter_into_node')) {
     function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-        if (($node['id'] ?? '') === $targetFolderId) {
-            if (!isset($node['items'])) $node['items'] = [];
-            $node['items'][] = $chapterData;
-            return true;
-        }
-        if (!empty($node['items'])) {
-            foreach ($node['items'] as &$sub) {
-                if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (insert_chapter_into_node($sub, $targetFolderId, $chapterData)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+        return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
     }
 }
 
-// Helper for chapter update in tree
+// Helper for chapter update in tree (delegates to Navigation::updateChapterInNode)
 if (!function_exists('update_chapter_in_node')) {
     function update_chapter_in_node(&$node, $slug, $updatedData) {
-    if (!empty($node['items'])) {
-        foreach ($node['items'] as &$ch) {
-            if (!isset($ch['type']) || $ch['type'] !== 'folder') {
-                if (($ch['slug'] ?? '') === $slug) {
-                    if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
-                    if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
-                    if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
-                    if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
-                    if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
-                    if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
-                        $ch['theme'] = $updatedData['theme'];
-                    } elseif (array_key_exists('theme', $updatedData)) {
-                        unset($ch['theme']);
-                    }
-                    if (isset($updatedData['description']) && $updatedData['description'] !== '') {
-                        $ch['description'] = $updatedData['description'];
-                    } elseif (array_key_exists('description', $updatedData)) {
-                        unset($ch['description']);
-                    }
-                    if (isset($updatedData['image']) && $updatedData['image'] !== '') {
-                        $ch['image'] = $updatedData['image'];
-                    } elseif (array_key_exists('image', $updatedData)) {
-                        unset($ch['image']);
-                    }
-                    if (isset($updatedData['publicShareable'])) {
-                        $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
-                    }
-                    if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
-                        $ch['shareKey'] = $updatedData['shareKey'];
-                    }
-                    return true;
-                }
-            } else {
-                if (update_chapter_in_node($ch, $slug, $updatedData)) {
-                    return true;
-                }
-            }
-        }
+        return Navigation::updateChapterInNode($node, $slug, $updatedData);
     }
-    return false;
-}
 }
 
-// Helper for chapter deletion from tree
+// Helper for chapter deletion from tree (delegates to Navigation::deleteChapterFromNode)
 if (!function_exists('delete_chapter_from_node')) {
     function delete_chapter_from_node(&$node, $slug, &$deleted = false, &$deletedFile = null) {
-        if ($deleted || empty($node['items'])) return;
-        $newItems = [];
-        foreach ($node['items'] as &$item) {
-            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
-                $deleted = true;
-                $deletedFile = $item['file'] ?? null;
-                continue;
-            }
-            if (isset($item['type']) && $item['type'] === 'folder') {
-                delete_chapter_from_node($item, $slug, $deleted, $deletedFile);
-            }
-            $newItems[] = $item;
-        }
-        $node['items'] = $newItems;
+        Navigation::deleteChapterFromNode($node, $slug, $deleted, $deletedFile);
     }
 }
 

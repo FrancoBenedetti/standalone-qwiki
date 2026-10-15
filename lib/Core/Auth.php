@@ -14,14 +14,7 @@ class Auth {
         if (php_sapi_name() === 'cli') {
             return 'http://localhost';
         }
-        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
-        $scheme = $isHttps ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        $scriptDir = rtrim(dirname($scriptName === '/' || $scriptName === '\\' ? '' : $scriptName), '/\\');
-        $webPath = preg_replace('#/(api|assets|content).*$#i', '', $scriptDir);
-        return $scheme . '://' . $host . $webPath;
+        return rtrim(Config::getBaseUrl(), '/');
     }
 
     public static function startSession() {

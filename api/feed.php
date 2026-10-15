@@ -1,18 +1,22 @@
 <?php
 // api/feed.php
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../lib/Core/Config.php';
+require_once __DIR__ . '/../lib/Core/Auth.php';
 
-$configFile = __DIR__ . '/../qwiki.json';
-if (!file_exists($configFile)) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration file qwiki.json not found.']);
-    exit;
-}
+use Qwiki\Core\Config;
+use Qwiki\Core\Auth;
 
-$config = json_decode(file_get_contents($configFile), true);
+Auth::startSession();
+
+$config = Config::load();
+if (empty($config) || empty($config['books'])) {
+    if (!file_exists(Config::getConfigFile())) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Configuration file qwiki.json not found.']);
+        exit;
+    }
+}
 
 $feedToken = trim($_GET['token'] ?? '');
 $validToken = trim($config['feedAccessToken'] ?? '');
@@ -29,9 +33,9 @@ if (!empty($feedToken) && !$hasValidToken) {
     exit;
 }
 
-$isLoggedIn = isset($_SESSION['qwiki_user']);
+$isLoggedIn = Auth::isViewer() || Auth::isAdmin();
 $isViewer = $isLoggedIn || $hasValidToken;
-$isAdmin = ($isLoggedIn && ($_SESSION['qwiki_user']['role'] ?? '') === 'admin') || $hasValidToken;
+$isAdmin = Auth::isAdmin() || $hasValidToken;
 
 // 2. If private portal mode is enabled, require authentication or a valid token
 if (!empty($config['requireLoginToView']) && !$isViewer) {

@@ -605,45 +605,245 @@ class Navigation {
      * @return bool
      */
     public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
-        if (!file_exists($absFilePath) || !is_file($absFilePath) || !is_writable($absFilePath)) {
+        require_once __DIR__ . '/DocumentService.php';
+        return DocumentService::sanitizeHtmlDocumentStatus($absFilePath, $newStatus, $cleanSource);
+    }
+
+    /**
+     * Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+     */
+    public static function isSafeUrl($url): bool {
+        $trimmed = trim((string)$url);
+        if (empty($trimmed)) return false;
+        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
             return false;
         }
-
-        $content = file_get_contents($absFilePath);
-        if ($content === false) {
-            return false;
+        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+                return false;
+            }
         }
+        return true;
+    }
 
-        $cleanStatus = htmlspecialchars(strtolower(trim($newStatus)), ENT_QUOTES, 'UTF-8');
-
-        // 1. Update or inject data-qwiki-status on the <html ...> element
-        if (preg_match('/<html\b([^>]*)data-qwiki-status=["\'][^"\']*["\']([^>]*)>/i', $content)) {
-            $content = preg_replace('/(<html\b[^>]*)data-qwiki-status=["\'][^"\']*["\']([^>]*>)/i', '${1}data-qwiki-status="' . $cleanStatus . '"${2}', $content);
-        } elseif (preg_match('/<html\b([^>]*)>/i', $content)) {
-            $content = preg_replace('/<html\b([^>]*)>/i', '<html${1} data-qwiki-status="' . $cleanStatus . '">', $content);
+    /**
+     * Recursively updates category or folder node metadata in navigation tree
+     */
+    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null): bool {
+        if (($node['id'] ?? '') === $targetId) {
+            $node['title'] = $newTitle;
+            if ($newTheme !== '') {
+                $node['theme'] = $newTheme;
+            } else {
+                unset($node['theme']);
+            }
+            $node['visibility'] = $newVisibility;
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $node['readOnly'] = true;
+                    $node['editable'] = false;
+                } else {
+                    unset($node['readOnly']);
+                    unset($node['editable']);
+                    unset($node['locked']);
+                }
+            }
+            if ($newDescription !== null) {
+                if ($newDescription !== '') {
+                    $node['description'] = $newDescription;
+                } else {
+                    unset($node['description']);
+                }
+            }
+            return true;
         }
-
-        // 2. If cleanSource is active and status is 'published', remove draft nodes & watermarks permanently
-        if ($cleanSource && $newStatus === 'published') {
-            // A. Remove explicit comment boundary blocks first (<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->)
-            $content = preg_replace('/<!--\s*QWIKI_DRAFT_START\s*-->[\s\S]*?<!--\s*QWIKI_DRAFT_END\s*-->\s*/is', '', $content);
-
-            // B. Remove full review docket banners (including multi-div/table contents up to next major section)
-            $content = preg_replace('/<div\b[^>]*(?:id=["\']gerhard-review-docket["\']|class=["\'][^"\']*\b(?:review-docket-banner|qwiki-review-docket)\b[^"\']*["\'])[^>]*>[\s\S]*?<\/div>\s*(?=<div\b[^>]*\b(?:watermark-draft|qwiki-watermark)\b|<header\b|<main\b|<div\b[^>]*\bcontainer\b)/is', '', $content);
-
-            // C. Remove watermarks
-            $content = preg_replace('/<(?:div|section|aside|header|footer|p|span)\b[^>]*(?:\bclass=["\'][^"\']*\b(?:watermark-draft|qwiki-watermark)\b[^"\']*["\'])[^>]*>[\s\S]*?<\/(?:div|section|aside|header|footer|p|span)>\s*/is', '', $content);
-
-            // D. Remove orphan docket tables and checklists if previously partially stripped
-            $content = preg_replace('/<table\b[^>]*\b(?:docket-table)\b[^>]*>[\s\S]*?<\/table>\s*/is', '', $content);
-            $content = preg_replace('/<div\b[^>]*>(?:\s*<strong>\s*Reviewer Audit Checklist:[\s\S]*?)<\/div>\s*/is', '', $content);
-            $content = preg_replace('/<div\b[^>]*\b(?:docket-header|docket-checklist|docket-feedback-box)\b[^>]*>[\s\S]*?<\/div>\s*/is', '', $content);
-
-            // E. Remove any other elements marked with data-qwiki-draft or qwiki-draft
-            $content = preg_replace('/<(?:div|section|p|span|aside|header|footer|article|table)\b[^>]*(?:\bdata-qwiki-draft\b|\bclass=["\'][^"\']*\bqwiki-draft\b[^"\']*["\'])[^>]*>[\s\S]*?<\/(?:div|section|p|span|aside|header|footer|article|table)>\s*/is', '', $content);
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription)) {
+                        return true;
+                    }
+                }
+            }
         }
+        return false;
+    }
 
-        return (file_put_contents($absFilePath, $content) !== false);
+    /**
+     * Recursively deletes a category/folder node from the navigation list, respecting protected status
+     */
+    public static function deleteNodeRecursive(&$list, $targetId): bool {
+        $filtered = [];
+        $deleted = false;
+        foreach ($list as &$b) {
+            if (($b['id'] ?? '') === $targetId) {
+                if (Config::isCategoryProtected($targetId, [$b])) {
+                    $filtered[] = $b;
+                    continue;
+                }
+                $deleted = true;
+                continue;
+            }
+            if (!empty($b['items']) && is_array($b['items'])) {
+                if (self::deleteNodeRecursive($b['items'], $targetId)) {
+                    $deleted = true;
+                }
+            }
+            $filtered[] = $b;
+        }
+        $list = $filtered;
+        return $deleted;
+    }
+
+    /**
+     * Inserts a chapter item into a target folder node in the tree
+     */
+    public static function insertChapterIntoNode(&$node, $targetFolderId, $chapterData): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::insertChapterIntoNode($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Updates an existing chapter node by slug in the navigation tree
+     */
+    public static function updateChapterInNode(&$node, $slug, array $updatedData): bool {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$ch) {
+                if (!isset($ch['type']) || $ch['type'] !== 'folder') {
+                    if (($ch['slug'] ?? '') === $slug) {
+                        if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                        if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                        if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                        if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                        if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                        if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
+                            $ch['theme'] = $updatedData['theme'];
+                        } elseif (array_key_exists('theme', $updatedData)) {
+                            unset($ch['theme']);
+                        }
+                        if (isset($updatedData['description']) && $updatedData['description'] !== '') {
+                            $ch['description'] = $updatedData['description'];
+                        } elseif (array_key_exists('description', $updatedData)) {
+                            unset($ch['description']);
+                        }
+                        if (isset($updatedData['image']) && $updatedData['image'] !== '') {
+                            $ch['image'] = $updatedData['image'];
+                        } elseif (array_key_exists('image', $updatedData)) {
+                            unset($ch['image']);
+                        }
+                        if (isset($updatedData['publicShareable'])) {
+                            $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
+                        }
+                        if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
+                            $ch['shareKey'] = $updatedData['shareKey'];
+                        }
+                        return true;
+                    }
+                } else {
+                    if (self::updateChapterInNode($ch, $slug, $updatedData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Deletes a chapter node by slug from the tree and returns its file path
+     */
+    public static function deleteChapterFromNode(&$node, $slug, &$deleted = false, &$deletedFile = null): void {
+        if ($deleted || empty($node['items']) || !is_array($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
+                $deleted = true;
+                $deletedFile = $item['file'] ?? null;
+                continue;
+            }
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                self::deleteChapterFromNode($item, $slug, $deleted, $deletedFile);
+            }
+            $newItems[] = $item;
+        }
+        $node['items'] = $newItems;
+    }
+
+    /**
+     * Resolves relative target content folder path for a given category ID
+     */
+    public static function findTargetFolder(&$node, $targetId): ?string {
+        if (($node['id'] ?? '') === $targetId) {
+            $folder = $node['folder'] ?? $node['id'];
+            return ltrim(preg_replace('#^content/#i', '', $folder), '/');
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    $found = self::findTargetFolder($child, $targetId);
+                    if ($found !== null) {
+                        $parentFolder = $node['folder'] ?? $node['id'];
+                        $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
+                        if (strpos($found, $parentFolder . '/') === 0) {
+                            return $found;
+                        }
+                        return $parentFolder . '/' . $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Inserts or updates a chapter in a target folder node
+     */
+    public static function upsertChapterIntoNode(&$node, $targetFolderId, $chapterData, &$isUpdated = false): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            foreach ($node['items'] as &$it) {
+                $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === ($chapterData['slug'] ?? ''));
+                $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
+                if ($isSlugMatch || $isShareMatch) {
+                    if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
+                        $chapterData['shareKey'] = $it['shareKey'];
+                    }
+                    $it = array_merge($it, $chapterData);
+                    $isUpdated = true;
+                    return true;
+                }
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::upsertChapterIntoNode($sub, $targetFolderId, $chapterData, $isUpdated)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
 

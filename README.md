@@ -213,7 +213,7 @@ standalone-qwiki/
 │   │   └── ExtensionManager.php # Dynamic discovery and hook registry
 │   ├── Parsedown.php          # Markdown parser
 │   └── simple_html_dom.php    # HTML DOM cleaner for Google Docs
-├── index.php                  # Slim entry point (< 250 lines)
+├── index.php                  # Application router, front controller & layout view
 └── README.md                  # System documentation
 
 (Generated after first run)

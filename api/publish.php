@@ -21,7 +21,7 @@ if (empty($publishApiKey) && empty($llmKeys)) {
 }
 
 // Get API Key from header, POST body, or query param
-$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? $_POST['key'] ?? $_GET['key'] ?? '');
+$providedKey = (string)($_SERVER['HTTP_X_API_KEY'] ?? $_POST['api_key'] ?? $_POST['apiKey'] ?? $_POST['key'] ?? $_GET['apiKey'] ?? $_GET['key'] ?? '');
 if (empty($providedKey)) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Invalid API key']);
@@ -47,65 +47,17 @@ if (!$isAuthorized) {
     exit;
 }
 
-// Helper functions for category and chapter resolution
+// Helper functions for category and chapter resolution (delegating to Navigation)
 function find_target_folder(&$node, $targetId) {
-    if (($node['id'] ?? '') === $targetId) {
-        $folder = $node['folder'] ?? $node['id'];
-        return ltrim(preg_replace('#^content/#i', '', $folder), '/');
-    }
-    if (!empty($node['items']) && is_array($node['items'])) {
-        foreach ($node['items'] as &$child) {
-            if (isset($child['type']) && $child['type'] === 'folder') {
-                $found = find_target_folder($child, $targetId);
-                if ($found !== null) {
-                    $parentFolder = $node['folder'] ?? $node['id'];
-                    $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
-                    if (strpos($found, $parentFolder . '/') === 0) {
-                        return $found;
-                    }
-                    return $parentFolder . '/' . $found;
-                }
-            }
-        }
-    }
-    return null;
+    return Navigation::findTargetFolder($node, $targetId);
 }
 
 function upsert_chapter_into_node(&$node, $targetFolderId, $chapterData, &$isUpdated = false) {
-    if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
-        if (!isset($node['items']) || !is_array($node['items'])) {
-            $node['items'] = [];
-        }
-        foreach ($node['items'] as &$it) {
-            $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === $chapterData['slug']);
-            $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
-            if ($isSlugMatch || $isShareMatch) {
-                if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
-                    $chapterData['shareKey'] = $it['shareKey'];
-                }
-                $it = array_merge($it, $chapterData);
-                $isUpdated = true;
-                return true;
-            }
-        }
-        $node['items'][] = $chapterData;
-        return true;
-    }
-    if (!empty($node['items']) && is_array($node['items'])) {
-        foreach ($node['items'] as &$sub) {
-            if (isset($sub['type']) && $sub['type'] === 'folder') {
-                if (upsert_chapter_into_node($sub, $targetFolderId, $chapterData, $isUpdated)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    return Navigation::upsertChapterIntoNode($node, $targetFolderId, $chapterData, $isUpdated);
 }
 
 function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
-    $dummy = false;
-    return upsert_chapter_into_node($node, $targetFolderId, $chapterData, $dummy);
+    return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
 }
 
 // 2. Dispatch Action

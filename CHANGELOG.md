@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.0] - ModularFlow - 2026-10-15
+
+### 🏗️ Separation of Concerns & Core Decoupling
+- **Decoupled Markdown Engine (`lib/Core/QwikiParsedown.php`)**: Extracted the 450-line inline Parsedown extension out of `index.php` into `\Qwiki\Core\QwikiParsedown` (with backward-compatible root alias `QwikiParsedown`). Cleanly encapsulates LaTeX inline math (`$...$`), KaTeX display math (`$$...$$`), Unicode symbol replacements (`\to`, `\alpha`, `\degree`, etc.), and anchor heading IDs.
+- **Dedicated SEO & Metadata Manager (`lib/Core/MetadataManager.php`)**: Extracted OpenGraph, Twitter Cards, canonical URL derivation, and metadata parsing into `MetadataManager::resolveArticleMetadata()` and `renderTags()`.
+- **Dedicated Document Lifecycle Service (`lib/Core/DocumentService.php`)**: Extracted document status badge and review docket sanitization into `DocumentService::sanitizeHtmlDocumentStatus()`.
+- **Canonical Tree Manipulation Service (`lib/Core/Navigation.php`)**: Consolidated tree mutations (`insertChapterIntoNode`, `updateChapterInNode`, `deleteChapterFromNode`, `upsertChapterIntoNode`, `updateNodeMeta`, `deleteNodeRecursive`, `findTargetFolder`, `isSafeUrl`) into `Navigation`, eliminating duplicate recursive implementations across `api/admin.php` and `api/publish.php`.
+- **Harmonized URL & Session Bootstrapping**: Standardized `Auth::getBaseUrl()` to delegate to `rtrim(Config::getBaseUrl(), '/')` and standardized `api/feed.php` to use `Config::load()` and `Auth::startSession()`.
+
+### 🪟 View Layer Deconstruction (Modals to Partials)
+- **Extracted 17 Modal Partials (`templates/modals/*.php`)**: Modularized all inline modal dialogs from `index.php` into dedicated template partials (`login.php`, `forgot_password.php`, `share.php`, `users.php`, `llm_keys.php`, `create_category.php`, `edit_category.php`, `edit_link.php`, `create_chapter.php`, `edit_chapter.php`, `replace_document.php`, `upload_conflict.php`, `settings.php`, `subwikis.php`, `user_profile.php`, `theme_editor.php`, `update_available.php`).
+- **Dramatic Template Reduction**: Reduced `index.php` by over 56% (from 2,137 lines down to 940 lines).
+- **Viewer Profile & 2FA Access Bug Fix**: Fixed conditional nesting logic so non-admin viewer users can now open and manage their user profile, email verification, and 2FA TOTP authentication.
+
+### ⚡ Modular Frontend Subsystems (`assets/js/core/`)
+- **Theme Subsystem (`assets/js/core/theme.js`)**: Isolated theme toggling, cookie/localStorage persistence, and Mermaid/Toast UI synchronizers into `window.QwikiApp.theme`.
+- **Sidebar Subsystem (`assets/js/core/sidebar.js`)**: Isolated mobile drawer toggle, draggable resize engine, accordion state collapse/expand persistence, and scroll position restoration into `window.QwikiApp.sidebar`.
+- **Search Subsystem (`assets/js/core/search.js`)**: Isolated debounced sidebar search, dynamic document filtering, and category auto-expansion into `window.QwikiApp.search`.
+- **Modals Subsystem (`assets/js/core/modals.js`)**: Isolated modal open/close lifecycles, backdrop click dismissals, escape key dismissal, and user dropdown toggling into `window.QwikiApp.modals`.
+- **Zero-Build Vanilla Architecture**: All frontend modules operate cleanly in the browser without build steps, bundlers, or transpilations while preserving global helper aliases.
+
+### 🧪 Automated Test Suite Enhancements
+- **Clean Release Verification**: Added new modular core classes (`QwikiParsedown.php`, `MetadataManager.php`, `DocumentService.php`), frontend modules (`assets/js/core/theme.js`), and modal partials (`templates/modals/*.php`) to `tests/clean_release_test.php`.
+- **Direct Test Imports**: Updated `tests/test_latex_rendering.php` to directly import `lib/Core/QwikiParsedown.php` rather than executing regex `eval()` extractions from `index.php`.
+- **Full Suite Green**: 100% pass rate maintained across all 25+ unit and integration test suites.
+
+---
+
 ## [1.19.4] - BrandFlow - 2026-10-14
 
 ### 🌐 Subwiki Header Breadcrumbs & Brand Wayfinding
