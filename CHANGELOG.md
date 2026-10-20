@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.2] - FocusFlow - 2026-10-20
+
+### 🎯 Drag-Safe Modal Backdrop & Focus Interactions
+- **Prevent Accidental Backdrop Dismissal**: Resolved an issue where selecting text inside inputs or dragging elements inside modal dialogs and releasing the mouse outside on the backdrop triggered an unintended modal close. The core modal controller (`assets/js/core/modals.js`) now tracks mousedown origins, ensuring backdrop dismissals only fire on intentional clicks initiated directly on the backdrop.
+- **Extension Modal Hardening**: Applied the drag-safe backdrop dismissal pattern across utility extensions including Backup (`tool-backup`), Media Gallery (`tool-gallery`), and Gemini AI Assistant (`tool-gemini-assistant`).
+- **Modal Lifecycle Normalization**: Hardened `close()` and `closeAll()` in `assets/js/core/modals.js` to clear both `.open` and `.active` classes and reset inline `display: flex` styles across all core and extension dialogs.
+
+### 🧪 Automated Test Suite Enhancements
+- **Modal Backdrop Dismissal Test Suite**: Added `tests/test_modal_backdrop_dismissal.js` validating that text selection and drag-and-release outside modal cards do not dismiss dialogs, while genuine backdrop clicks, close buttons, and Escape key presses behave correctly across core and extension modals.
+- **Gemini Dialog Open Tests**: Updated `tests/test_gemini_dialog_open.js` to target extracted template partials (`templates/modals/settings.php` and `templates/modals/llm_keys.php`).
+
+---
+
 ## [1.20.1] - DeployFlow - 2026-10-15
 
 ### 🩹 Subwiki Deployment & Template Resolution Fix

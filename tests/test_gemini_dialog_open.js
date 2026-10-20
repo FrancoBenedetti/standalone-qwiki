@@ -13,13 +13,15 @@ assert(extCss.includes('#modal-gemini-assistant.open') || extCss.includes('#moda
 assert(extCss.includes('display: flex'), 'style.css must set display: flex on open/active modal');
 console.log('PASS: style.css defines display: flex for #modal-gemini-assistant.open / .active');
 
-// 2. Verify HTML markup in index.php
-const indexPath = path.join(__dirname, '..', 'index.php');
-const indexHtml = fs.readFileSync(indexPath, 'utf8');
+// 2. Verify HTML markup in settings and llm keys modals
+const settingsPath = path.join(__dirname, '..', 'templates', 'modals', 'settings.php');
+const llmPath = path.join(__dirname, '..', 'templates', 'modals', 'llm_keys.php');
+const settingsHtml = fs.readFileSync(settingsPath, 'utf8');
+const llmHtml = fs.readFileSync(llmPath, 'utf8');
 
-assert(indexHtml.includes('id="btn-open-gemini-from-settings"'), 'index.php must contain btn-open-gemini-from-settings in settings modal');
-assert(indexHtml.includes('id="btn-open-gemini-from-llm"'), 'index.php must contain btn-open-gemini-from-llm in llm keys modal');
-console.log('PASS: index.php contains AI Assistant triggers in both settings-modal and llm-keys-modal');
+assert(settingsHtml.includes('id="btn-open-gemini-from-settings"'), 'settings.php must contain btn-open-gemini-from-settings in settings modal');
+assert(llmHtml.includes('id="btn-open-gemini-from-llm"'), 'llm_keys.php must contain btn-open-gemini-from-llm in llm keys modal');
+console.log('PASS: Modal templates contain AI Assistant triggers in both settings-modal and llm-keys-modal');
 
 // 3. Functional JSDOM Test
 const modalHtmlPath = path.join(__dirname, '..', 'assets', 'extensions', 'tool-gemini-assistant', 'modal.html.php');
