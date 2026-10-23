@@ -1916,4 +1916,96 @@ body.mode-fullscreen .gdoc-container iframe {
   color: #4338ca;
 }
 
+/* Full-Page Authentication Gateway */
+.auth-gateway-wrapper {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.auth-gateway-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 16px);
+  padding: 2.25rem 2rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.auth-gateway-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-gateway-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.auth-gateway-brand:hover {
+  color: var(--accent-color);
+}
+
+.auth-gateway-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.auth-gateway-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  line-height: 1;
+}
+
+.auth-gateway-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.auth-gateway-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.auth-gateway-footer {
+  margin-top: 1.75rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.auth-gateway-footer a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.auth-gateway-footer a:hover {
+  text-decoration: underline;
+}
+
+
 

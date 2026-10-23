@@ -18,6 +18,11 @@ $isViewer = Auth::isViewer();
 
 require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
 
+if (!Auth::canView($config)) {
+    echo json_encode(['success' => true, 'results' => []]);
+    exit;
+}
+
 $query = strtolower(trim($_GET['q'] ?? ''));
 if (empty($query)) {
     echo json_encode(['success' => true, 'results' => []]);
@@ -42,6 +47,11 @@ function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extMana
             if (isset($item['type']) && $item['type'] === 'folder') {
                 search_node_tree($item, $query, $isAdmin, $isViewer, $baseDir, $extManager, $results);
             } else {
+                $itemVis = $item['visibility'] ?? 'public';
+                if (!$isAdmin) {
+                    if ($itemVis === 'admin_only') continue;
+                    if ($itemVis === 'logged_in' && !$isViewer) continue;
+                }
                 $isMatch = false;
 
                 // 1. Match title
@@ -77,6 +87,11 @@ function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extMana
 if (!empty($config['books'])) {
     foreach ($config['books'] as $book) {
         if (($book['type'] ?? 'folder') === 'link') {
+            $bookVis = $book['visibility'] ?? 'public';
+            if (!$isAdmin) {
+                if ($bookVis === 'admin_only') continue;
+                if ($bookVis === 'logged_in' && !$isViewer) continue;
+            }
             $title = strtolower($book['title'] ?? '');
             $desc = strtolower($book['description'] ?? '');
             if (strpos($title, $query) !== false || strpos($desc, $query) !== false) {

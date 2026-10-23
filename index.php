@@ -218,6 +218,9 @@ if (!$isShareMode && !$shareError) {
     // Filter books based on visibility
     $allowedBooks = Navigation::filterBooks($config['books'] ?? [], $isAdmin, $isViewer);
 
+    $hasExplicitRoute = !empty($rawPath) || !empty($_GET['book']) || !empty($_GET['chapter']) || !empty($_GET['doc']);
+    $isAccessRestricted = false;
+
     // Active tree resolution state
     $activeBook = null;
     foreach ($allowedBooks as $book) {
@@ -241,6 +244,22 @@ if (!$isShareMode && !$shareError) {
             }
         }
     }
+
+    // Check if the requested route points to a restricted book in $config['books']
+    if ($hasExplicitRoute && !$isAdmin) {
+        if (!$activeBook && !empty($requestedBookId)) {
+            foreach ($config['books'] ?? [] as $rawBook) {
+                if (($rawBook['id'] ?? '') === $requestedBookId) {
+                    $vis = $rawBook['visibility'] ?? 'public';
+                    if ($vis === 'admin_only' || ($vis === 'logged_in' && !$isViewer)) {
+                        $isAccessRestricted = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     if (!$activeBook && !empty($allowedBooks)) {
         foreach ($allowedBooks as $b) {
             if (($b['type'] ?? 'folder') === 'folder') {
@@ -257,7 +276,7 @@ if (!$isShareMode && !$shareError) {
     $breadcrumbsTrail = $breadcrumbsTrail ?? [];
     $activePathIds = $activePathIds ?? ($activeBook ? [$activeBook['id'] ?? ''] : []);
 
-    if ($activeBook && !$activeChapter) {
+    if ($activeBook && !$activeChapter && !$isAccessRestricted) {
         $dummyTrail = [];
         $dummyIds = [];
         $activeChapter = Navigation::findChapterAndPath($activeBook, $requestedFolderId, $requestedChapterSlug, $dummyTrail, $dummyIds, $isAdmin, $isViewer);
@@ -285,7 +304,30 @@ if (!$isShareMode && !$shareError) {
             }
         }
 
-        if ($activeChapter) {
+        // If not found in allowedBooks, check if it was restricted in any book
+        if (!$activeChapter && $hasExplicitRoute && !$isAdmin) {
+            foreach ($config['books'] ?? [] as $rawBook) {
+                $checkTrail = [];
+                $checkIds = [];
+                $foundCandidate = Navigation::findChapterAndPath($rawBook, $requestedFolderId, $requestedChapterSlug, $checkTrail, $checkIds, true, true);
+                if (!$foundCandidate && !empty($requestedChapterSlug)) {
+                    $foundCandidate = Navigation::findChapterAndPath($rawBook, '', $requestedChapterSlug, $checkTrail, $checkIds, true, true);
+                }
+                if ($foundCandidate) {
+                    $bVis = $rawBook['visibility'] ?? 'public';
+                    $cVis = $foundCandidate['visibility'] ?? 'public';
+                    if ($bVis === 'admin_only' || $cVis === 'admin_only' || (($bVis === 'logged_in' || $cVis === 'logged_in') && !$isViewer)) {
+                        $isAccessRestricted = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ($isAccessRestricted) {
+            $activeChapter = null;
+            $breadcrumbsTrail = [['title' => 'Access Restricted', 'id' => '']];
+        } elseif ($activeChapter) {
             $breadcrumbsTrail = $dummyTrail;
             $activePathIds = array_unique(array_merge([$activeBook['id'] ?? ''], $dummyIds));
         } else {
@@ -293,6 +335,11 @@ if (!$isShareMode && !$shareError) {
             if (!empty($activeBook['items'])) {
                 foreach ($activeBook['items'] as $item) {
                     if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                        $itemVis = $item['visibility'] ?? 'public';
+                        if (!$isAdmin) {
+                            if ($itemVis === 'admin_only') continue;
+                            if ($itemVis === 'logged_in' && !$isViewer) continue;
+                        }
                         $activeChapter = $item;
                         $breadcrumbsTrail = [['title' => $activeBook['title'] ?? '', 'id' => $activeBook['id'] ?? '']];
                         break;
@@ -300,6 +347,9 @@ if (!$isShareMode && !$shareError) {
                 }
             }
         }
+    } elseif ($isAccessRestricted) {
+        $activeChapter = null;
+        $breadcrumbsTrail = [['title' => 'Access Restricted', 'id' => '']];
     }
 }
 
@@ -316,7 +366,7 @@ if (empty($currentCategoryId) && $activeBook) {
     $currentCategoryId = $activeBook['id'] ?? '';
 }
 
-$categoryHierarchy = Navigation::getCategoriesHierarchy($config['books'] ?? []);
+$categoryHierarchy = Navigation::getCategoriesHierarchy($config['books'] ?? [], '', 0, null, $isAdmin, $isViewer);
 
 // Calculate Previous and Next Document Navigation
 $flatNavList = [];
@@ -403,23 +453,36 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     </script>
     <base href="<?= htmlspecialchars($baseUrl) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title><?= htmlspecialchars(($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki')) ?></title>
+    <?php
+        if (!$canViewContent) {
+            $pageDocTitle = ($config['title'] ?? 'Documentation') . ' — Sign In';
+        } elseif (!empty($isAccessRestricted)) {
+            $pageDocTitle = 'Access Restricted - ' . ($config['title'] ?? 'Standalone Qwiki');
+        } else {
+            $pageDocTitle = ($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki');
+        }
+    ?>
+    <title><?= htmlspecialchars($pageDocTitle) ?></title>
     
     <!-- Open Graph & Social Share Tags -->
     <?php
-        $articleMeta = MetadataManager::resolveArticleMetadata(
-            $activeChapter,
-            $activeBook,
-            $config,
-            $baseUrl,
-            $baseDir,
-            $isShareMode,
-            $shareKey,
-            $shareError,
-            $rawMarkdownContent
-        );
-        $canonicalUrl = $articleMeta['canonicalUrl'];
-        echo MetadataManager::renderTags($articleMeta);
+        if ($canViewContent && empty($isAccessRestricted)) {
+            $articleMeta = MetadataManager::resolveArticleMetadata(
+                $activeChapter,
+                $activeBook,
+                $config,
+                $baseUrl,
+                $baseDir,
+                $isShareMode,
+                $shareKey,
+                $shareError,
+                $rawMarkdownContent
+            );
+            $canonicalUrl = $articleMeta['canonicalUrl'];
+            echo MetadataManager::renderTags($articleMeta);
+        } else {
+            echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+        }
     ?>
 
     <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
@@ -443,8 +506,72 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 </head>
 <body class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 
-    <?php if (!$isShareMode): ?>
-    <!-- App Header -->
+    <?php if (!$canViewContent): ?>
+        <div class="auth-gateway-wrapper">
+            <div class="auth-gateway-card">
+                <div class="auth-gateway-topbar">
+                    <div class="auth-gateway-brand">
+                        <span>⚡</span>
+                        <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+                        <span class="theme-icon-dark">🌙</span>
+                        <span class="theme-icon-light" style="display: none;">☀️</span>
+                        <span class="theme-label" style="font-size: 0.8rem; margin-left: 0.25rem;">Theme</span>
+                    </button>
+                </div>
+                <div class="auth-gateway-header">
+                    <div class="auth-gateway-icon">🔒</div>
+                    <h2 class="auth-gateway-title"><?= htmlspecialchars($config['title'] ?? 'Private Documentation Portal') ?></h2>
+                    <p class="auth-gateway-subtitle">Authentication is required to access this documentation portal.</p>
+                </div>
+
+                <form id="login-form">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" for="login-username" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Username or Email</label>
+                        <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username or email" autocomplete="username" required style="width: 100%; box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label class="form-label" for="login-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Password</label>
+                        <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password" autocomplete="current-password" required style="width: 100%; box-sizing: border-box;">
+                    </div>
+                    <div style="text-align: right; margin-bottom: 1.25rem;">
+                        <button type="button" class="btn-link" id="btn-open-forgot-pwd" style="background: none; border: none; font-size: 0.8rem; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;">Forgot Password?</button>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;">Log In to Portal</button>
+                </form>
+
+                <form id="login-2fa-form" style="display: none;">
+                    <div style="text-align: center; margin-bottom: 1.25rem;">
+                        <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔒</div>
+                        <h4 style="margin: 0 0 0.25rem 0;" id="login-2fa-heading">Two-Factor Authentication</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" id="login-2fa-desc">Enter the 6-digit verification code from your authenticator app.</p>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" for="login-2fa-code" id="login-2fa-label" style="text-align: center; display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Verification Code</label>
+                        <input type="text" id="login-2fa-code" name="code" class="form-control" placeholder="000000" maxlength="10" autocomplete="one-time-code" style="text-align: center; font-size: 1.25rem; letter-spacing: 0.2rem; font-family: monospace; width: 100%; box-sizing: border-box;" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="btn-2fa-submit" style="width: 100%; margin-bottom: 0.75rem; padding: 0.65rem 1rem; font-weight: 600;">Verify &amp; Continue</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-top: 0.5rem;">
+                        <button type="button" class="btn-link" id="btn-toggle-recovery-code" style="background: none; border: none; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;">Use recovery code</button>
+                        <button type="button" class="btn-link" id="btn-back-to-login" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0;">← Back to login</button>
+                    </div>
+                </form>
+
+                <?php if ($isSubwiki): ?>
+                    <div class="auth-gateway-footer">
+                        <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>">← Back to <?= htmlspecialchars($parentTitle) ?></a>
+                    </div>
+                <?php elseif ($showPoweredBy): ?>
+                    <div class="auth-gateway-footer">
+                        Powered by <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer"><strong>Qwiki</strong></a>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php else: ?>
+        <?php if (!$isShareMode): ?>
+        <!-- App Header -->
     <header class="app-header">
         <div class="brand-container">
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
@@ -628,7 +755,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             </div>
             <?php endif; ?>
             <nav class="sidebar-nav">
-                <?php foreach ($config['books'] as $book): ?>
+                <?php foreach ($allowedBooks as $book): ?>
                     <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
                 <?php if ($showSubwikisInSidebar && !empty($sidebarSubwikis)): ?>
@@ -731,23 +858,30 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem;">The administrator has disabled public sharing for this document. If you have an authorized account, please log in to access this documentation.</p>
                     <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In</button>
                 </div>
-            <?php elseif ($activeChapter): ?>
+            <?php elseif ($activeChapter || !empty($isAccessRestricted)): ?>
                 <?php if (!$isShareMode): ?>
                 <div class="content-header">
                     <div class="breadcrumbs">
-                        <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
-                            <?php if ($index > 0): ?><span>/</span><?php endif; ?>
-                            <?php 
-                            $crumbUrl = urlencode($activeBook['id']);
-                            if ($crumb['id'] !== $activeBook['id']) {
-                                $crumbUrl .= '/' . urlencode($crumb['id']);
-                            }
-                            ?>
-                            <a href="<?= $crumbUrl ?>"><?= htmlspecialchars($crumb['title']) ?></a>
-                        <?php endforeach; ?>
-                        <span>/</span>
-                        <span><?= htmlspecialchars($activeChapter['title']) ?></span>
+                        <?php if (!empty($isAccessRestricted)): ?>
+                            <span>Access Restricted</span>
+                        <?php else: ?>
+                            <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
+                                <?php if ($index > 0): ?><span>/</span><?php endif; ?>
+                                <?php 
+                                $crumbUrl = urlencode($activeBook['id'] ?? '');
+                                if (($crumb['id'] ?? '') !== ($activeBook['id'] ?? '')) {
+                                    $crumbUrl .= '/' . urlencode($crumb['id'] ?? '');
+                                }
+                                ?>
+                                <a href="<?= $crumbUrl ?>"><?= htmlspecialchars($crumb['title'] ?? '') ?></a>
+                            <?php endforeach; ?>
+                            <?php if ($activeChapter): ?>
+                                <span>/</span>
+                                <span><?= htmlspecialchars($activeChapter['title'] ?? '') ?></span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
+                    <?php if ($activeChapter): ?>
                     <div class="content-actions">
                         <div id="read-actions" style="display: flex; gap: 0.75rem;">
                             <?php if (($activeChapter['type'] ?? '') === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
@@ -835,6 +969,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </div>
                         <?php endif; ?>
                     </div>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
 
@@ -843,7 +978,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
                 <div class="content-body" id="content-body">
-                    <?php if ($canViewContent): ?>
+                    <?php if (!empty($isAccessRestricted)): ?>
+                        <div style="text-align: center; padding: 4rem 2rem;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
+                            <h2>Access Restricted</h2>
+                            <p style="color: var(--text-muted); margin-bottom: 2rem;">Authentication is required to view this document.</p>
+                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In to Access</button>
+                        </div>
+                    <?php elseif ($canViewContent): ?>
                         <?= $renderedContent ?>
                     <?php else: ?>
                         <div style="text-align: center; padding: 4rem 2rem;">
@@ -862,7 +1004,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php endif; ?>
         </main>
 
-        <?php if (!$isShareMode && !$shareError): ?>
+        <?php if (!$isShareMode && !$shareError && empty($isAccessRestricted)): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
             <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
@@ -886,45 +1028,50 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         </aside>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <?php
     $templatesDir = is_dir(__DIR__ . '/templates') ? (__DIR__ . '/templates') : (dirname(__DIR__) . '/templates');
     ?>
 
-    <?php if (!$isAdmin && !$isViewer): ?>
-        <?php require $templatesDir . '/modals/login.php'; ?>
+    <?php if (!$canViewContent): ?>
         <?php require $templatesDir . '/modals/forgot_password.php'; ?>
-    <?php endif; ?>
-
-    <?php require $templatesDir . '/modals/share.php'; ?>
-
-    <?php if ($isAdmin): ?>
-        <?php require $templatesDir . '/modals/users.php'; ?>
-        <?php require $templatesDir . '/modals/llm_keys.php'; ?>
-        <?php require $templatesDir . '/modals/create_category.php'; ?>
-        <?php require $templatesDir . '/modals/edit_category.php'; ?>
-        <?php require $templatesDir . '/modals/edit_link.php'; ?>
-        <?php require $templatesDir . '/modals/create_chapter.php'; ?>
-        <?php if ($activeChapter): ?>
-            <?php require $templatesDir . '/modals/edit_chapter.php'; ?>
-            <?php require $templatesDir . '/modals/replace_document.php'; ?>
+    <?php else: ?>
+        <?php if (!$isAdmin && !$isViewer): ?>
+            <?php require $templatesDir . '/modals/login.php'; ?>
+            <?php require $templatesDir . '/modals/forgot_password.php'; ?>
         <?php endif; ?>
-        <?php require $templatesDir . '/modals/upload_conflict.php'; ?>
-        <?php require $templatesDir . '/modals/settings.php'; ?>
-        <?php if (!$isSubwiki): ?>
-            <?php require $templatesDir . '/modals/subwikis.php'; ?>
+
+        <?php require $templatesDir . '/modals/share.php'; ?>
+
+        <?php if ($isAdmin): ?>
+            <?php require $templatesDir . '/modals/users.php'; ?>
+            <?php require $templatesDir . '/modals/llm_keys.php'; ?>
+            <?php require $templatesDir . '/modals/create_category.php'; ?>
+            <?php require $templatesDir . '/modals/edit_category.php'; ?>
+            <?php require $templatesDir . '/modals/edit_link.php'; ?>
+            <?php require $templatesDir . '/modals/create_chapter.php'; ?>
+            <?php if ($activeChapter): ?>
+                <?php require $templatesDir . '/modals/edit_chapter.php'; ?>
+                <?php require $templatesDir . '/modals/replace_document.php'; ?>
+            <?php endif; ?>
+            <?php require $templatesDir . '/modals/upload_conflict.php'; ?>
+            <?php require $templatesDir . '/modals/settings.php'; ?>
+            <?php if (!$isSubwiki): ?>
+                <?php require $templatesDir . '/modals/subwikis.php'; ?>
+            <?php endif; ?>
         <?php endif; ?>
-    <?php endif; ?>
 
-    <?php if ($isAdmin || $isViewer): ?>
-        <?php require $templatesDir . '/modals/user_profile.php'; ?>
-    <?php endif; ?>
+        <?php if ($isAdmin || $isViewer): ?>
+            <?php require $templatesDir . '/modals/user_profile.php'; ?>
+        <?php endif; ?>
 
-    <?php if ($isAdmin): ?>
-        <?php require $templatesDir . '/modals/theme_editor.php'; ?>
-        <?php require $templatesDir . '/modals/update_available.php'; ?>
-        <!-- Utility Modals Injected by Extensions -->
-        <?php $extManager->renderUtilityModals(); ?>
+        <?php if ($isAdmin): ?>
+            <?php require $templatesDir . '/modals/theme_editor.php'; ?>
+            <?php require $templatesDir . '/modals/update_available.php'; ?>
+            <!-- Utility Modals Injected by Extensions -->
+            <?php $extManager->renderUtilityModals(); ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>

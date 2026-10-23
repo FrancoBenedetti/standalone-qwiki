@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.3] - PrivacyFlow - 2026-10-23
+
+### 🛡️ Full-Page Authentication Gateway & Privacy Scoping
+- **Dedicated Full-Page Authentication Gateway**: When `requireLoginToView` is active, unauthenticated guests are greeted with a dedicated, distraction-free authentication gateway (`.auth-gateway-wrapper` and `.auth-gateway-card`). All application chrome—sidebar navigation, search bar, breadcrumbs, table of contents, action toolbars, and administrative modals—is completely omitted to prevent metadata and hierarchy disclosure.
+- **Search Engine & Crawl Protection**: Automatically injects `<meta name="robots" content="noindex, nofollow">` and standardizes the page title to `— Sign In` when the gateway is active.
+- **Search API Privacy Shield**: `api/search.php` now strictly denies search queries for guests when `requireLoginToView` is enabled, returning an empty result set without querying backend indexes.
+- **Granular Document-Level Visibility & Silent Omission**:
+  - `lib/Core/Navigation.php`: Implemented strict silent omission for documents configured with `visibility: 'logged_in'` or `visibility: 'admin_only'` across sidebar rendering, sequential reader links (`flattenNavTree`), category hierarchies (`getCategoriesHierarchy`), and document lookups (`findChapterAndPath`).
+  - `api/search.php`: Search results now filter out restricted documents and categories for guests and viewers in real-time.
+- **Direct Route Access Guarding**: Directly navigating via URL to a restricted document or category inside a public wiki renders a clean "Access Restricted" gate while preserving layout security and preventing category or sidebar structure leakage.
+
+### 🧪 Automated Test Suite Enhancements
+- **Privacy & Access Restrictions Test Suite**: Added `tests/test_privacy_and_access_restrictions.php` asserting gateway DOM suppression, robots meta enforcement, search API privacy shields, granular document silent omission, and direct route guarding.
+
+---
+
 ## [1.20.2] - FocusFlow - 2026-10-20
 
 ### 🎯 Drag-Safe Modal Backdrop & Focus Interactions

@@ -107,9 +107,10 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ## 👁️ 8. Visibility Controls & Search
 
-- **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
+- **Full-Page Authentication Gateway**: When `requireLoginToView` is active, unauthenticated guests are greeted with a dedicated, distraction-free authentication gateway. Application chrome (sidebar, search bar, breadcrumbs, table of contents, and administrative dialogs) is completely omitted to prevent metadata and structure disclosure.
+- **Granular Visibility & Silent Omission**: Assign visibility to categories or individual documents as `Public`, `Logged In Users`, or `Admins Only`. Restricted items are silently omitted from sidebar menus, sequential reading links, and search results for unauthorized visitors.
 - **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`, `FORM`) to admin users.
-- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms.
+- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms with automatic privacy filtering.
 - **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---
