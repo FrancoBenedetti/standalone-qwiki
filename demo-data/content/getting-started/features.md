@@ -283,3 +283,15 @@ Standalone Qwiki includes a comprehensive document lifecycle management architec
 - **Sidebar Status Indicators**: Non-published documents display distinct visual status indicators (`●`) in the left navigation menu for logged-in administrators, making draft and pending documents easy to track.
 - **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML document to `Published` can automatically and permanently strip draft watermarks, review dockets, boundary comment blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`), checklists, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while setting root `<html data-qwiki-status="published">`.
 - **Headless Status Transitions**: Automation pipelines and AI agents can manage document statuses programmatically via `action=set_status` (in `api/publish.php`) or `action=set_chapter_status` (in `api/admin.php`).
+
+---
+
+## 📜 22. Audit & Access Logging Engine
+
+Standalone Qwiki includes a native, non-blocking audit logging architecture for enterprise security, compliance review, and reader analytics:
+
+- **Append-Only JSON Lines Logging**: Records security events, share link hits, document mutations, and administrative operations to monthly partitioned files in `content/.logs/activity-YYYY-MM.jsonl`, protected by Apache `.htaccess` (`Order allow,deny\nDeny from all`).
+- **Interactive Admin Audit Dashboard**: Launch the **`📜 Activity & Access Log`** modal from the header menu to view live event feeds, statistical overview cards (total events, failed logins, share visits, document mutations), and top shared document analytics.
+- **Granular Multi-Dimensional Filtering**: Filter audit records in real-time by event category (`auth`, `document`, `category`, `share`, `system`), specific action, username, or custom date range, with full-text search across event detail payloads.
+- **GDPR-Compliant IP Privacy Modes**: Configurable client IP capture modes (`hash` for 12-char SHA-256 hashes, `masked` for subnet masks, or `raw` for internal telemetry) managed directly in Site Settings.
+- **Automated Retention Management & CSV Export**: Automated log pruning based on configurable retention limits (default 30 days), manual purge controls, and 1-click CSV export for external compliance auditing and SIEM integration.

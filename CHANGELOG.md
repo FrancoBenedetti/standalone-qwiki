@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.4] - AuditFlow - 2026-10-25
+
+### 📜 Activity & Access Log Extension & Audit Engine
+- **Non-Blocking Append-Only JSON Lines Engine (`lib/Core/AuditLogger.php`)**: Built-in audit logging engine writing structured JSON Lines events to monthly partitioned files (`content/.logs/activity-YYYY-MM.jsonl`) protected by Apache `.htaccess` (`Order allow,deny\nDeny from all\n`).
+- **Administrative Audit Dashboard (`tool-activity-log`)**: Header menu utility extension providing an interactive audit modal with metric summary cards, real-time event filtering (by category, event action, user, and date range), full-text detail searching, and top shared document analytics.
+- **GDPR-Compliant IP Privacy Modes**: Configurable client IP capture modes (`hash` for 12-char SHA-256 hashes, `masked` for subnet masks, or `raw` for internal telemetry) configurable in Site Settings.
+- **Compliance CSV Export & Retention Pruning**: 1-click CSV log export for external security audits and SIEM ingestion, paired with automated retention pruning (default 30 days) and manual purge controls.
+- **Comprehensive Lifecycle Event Tracking**: Automatically logs authentication (logins, logouts, 2FA challenges/failures, password resets), document and category operations (create, edit, move, delete, soft locks/takeovers), share link visits (document slugs, share keys, referrers), and system operations.
+
+### 🧪 Automated Test Suite Enhancements
+- **Activity Log Test Suite**: Added `tests/activity_log_test.php` verifying log directory security, IP anonymization modes, share access and auth event recording, log querying, statistical aggregations, and ExtensionManager integration.
+- **Clean Release Verification**: Added `AuditLogger.php` and `tool-activity-log` manifest checks to `tests/clean_release_test.php`.
+
+---
+
 ## [1.20.3] - PrivacyFlow - 2026-10-23
 
 ### 🛡️ Full-Page Authentication Gateway & Privacy Scoping

@@ -86,10 +86,12 @@ $requiredProductionFiles = [
     'lib/Core/QwikiParsedown.php',
     'lib/Core/MetadataManager.php',
     'lib/Core/DocumentService.php',
+    'lib/Core/AuditLogger.php',
     'lib/Parsedown.php',
     'assets/js/core/theme.js',
     'templates/modals/login.php',
     'templates/modals/settings.php',
+    'assets/extensions/tool-activity-log/manifest.json',
     'demo-data/qwiki-default.json'
 ];
 
