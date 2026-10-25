@@ -1,6 +1,8 @@
 <?php
 namespace Qwiki\Core;
 
+require_once __DIR__ . '/AuditLogger.php';
+
 class LockManager {
     const DEFAULT_TTL = 60; // Lock lease duration in seconds
     const LOCK_DIR_NAME = 'content/.locks';
@@ -97,6 +99,14 @@ class LockManager {
             fflush($fp);
             flock($fp, LOCK_UN);
             fclose($fp);
+
+            if ($existing && !$isExpired && $force && (($existing['user'] ?? '') !== $username || ($existing['tabId'] ?? '') !== $tabId)) {
+                AuditLogger::log('system', 'lock_takeover', 200, [
+                    'file'           => $filePath,
+                    'displaced_user' => $existing['user'] ?? 'Unknown',
+                    'displaced_tab'  => $existing['tabId'] ?? ''
+                ], $username);
+            }
 
             return [
                 'success' => true,

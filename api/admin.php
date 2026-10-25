@@ -8,6 +8,7 @@ require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
 require_once __DIR__ . '/../lib/Core/LlmAccess.php';
 require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
+require_once __DIR__ . '/../lib/Core/AuditLogger.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -17,6 +18,7 @@ use Qwiki\Core\LockManager;
 use Qwiki\Core\SubwikiManager;
 use Qwiki\Core\LlmAccess;
 use Qwiki\Core\RemoteContentManager;
+use Qwiki\Core\AuditLogger;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -480,6 +482,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('category_created', 200, [
+                'bookId' => $bookId,
+                'title' => $title,
+                'parentId' => $parentId
+            ]);
             echo json_encode(['success' => true, 'bookId' => $bookId, 'parentId' => $parentId]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
@@ -615,6 +622,13 @@ switch ($action) {
             }
         }
         if ($added && Config::save($config)) {
+            AuditLogger::logMutation('doc_created', 200, [
+                'slug' => $slug,
+                'title' => $title,
+                'bookId' => $bookId,
+                'file' => $targetRelFile,
+                'type' => 'markdown'
+            ]);
             echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
@@ -815,6 +829,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('doc_metadata_updated', 200, [
+                'slug' => $updateResult['slug'] ?? $slug,
+                'title' => $title,
+                'bookId' => $updateResult['bookId'] ?? ''
+            ]);
             echo json_encode([
                 'success' => true,
                 'bookId' => $updateResult['bookId'],
@@ -882,6 +901,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('status_changed', 200, [
+                'slug' => $updatedChapter['slug'] ?? '',
+                'status' => $status,
+                'file' => $relFile
+            ], $username);
             echo json_encode([
                 'success' => true,
                 'slug' => $updatedChapter['slug'] ?? '',
@@ -1083,6 +1107,10 @@ switch ($action) {
         }
 
         if (file_put_contents($targetPath, $content) !== false) {
+            AuditLogger::logMutation('doc_saved', 200, [
+                'file' => $relFile,
+                'size_bytes' => strlen($content)
+            ], $username);
             if (!empty($tabId)) {
                 LockManager::releaseLock($relFile, $tabId, $username);
             }
@@ -1303,6 +1331,12 @@ switch ($action) {
         });
 
         Config::save($config);
+        AuditLogger::logMutation('file_replaced', 200, [
+            'slug' => $slug,
+            'target_file' => $targetRelFile,
+            'old_file' => $existingRelFile,
+            'type' => $docType
+        ]);
         echo json_encode(['success' => true, 'bookId' => $parentBook['id'] ?? '', 'slug' => $slug, 'action' => 'replaced']);
         break;
 
@@ -1522,6 +1556,13 @@ switch ($action) {
             if ($filePath && file_exists($filePath) && is_file($filePath)) {
                 @unlink($filePath);
             }
+        }
+        if ($deleted) {
+            AuditLogger::logMutation('doc_deleted', 200, [
+                'slug' => $slug,
+                'file' => $deletedFile ?? '',
+                'bookId' => $bookId
+            ]);
         }
         echo json_encode(['success' => true]);
         break;

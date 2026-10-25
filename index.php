@@ -10,6 +10,7 @@ require_once __DIR__ . '/lib/Core/SubwikiManager.php';
 require_once __DIR__ . '/lib/Core/QwikiParsedown.php';
 require_once __DIR__ . '/lib/Core/MetadataManager.php';
 require_once __DIR__ . '/lib/Core/DocumentService.php';
+require_once __DIR__ . '/lib/Core/AuditLogger.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -20,6 +21,7 @@ use Qwiki\Core\SubwikiManager;
 use Qwiki\Core\QwikiParsedown;
 use Qwiki\Core\MetadataManager;
 use Qwiki\Core\DocumentService;
+use Qwiki\Core\AuditLogger;
 
 Auth::startSession();
 if (!defined('QWIKI_VERSION')) {
@@ -107,6 +109,10 @@ if (!empty($shareKey)) {
 // Support JSON API content negotiation for share links (federated transclusion)
 $isJsonRequested = (($_GET['format'] ?? '') === 'json') ||
     (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+
+if (!empty($shareKey)) {
+    AuditLogger::logShareAccess($shareKey, $matchedChapter, $shareError, $isJsonRequested);
+}
 
 if (!empty($shareKey) && $isJsonRequested) {
     header('Content-Type: application/json; charset=utf-8');
