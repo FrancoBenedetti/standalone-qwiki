@@ -1911,15 +1911,41 @@ switch ($action) {
     case 'list_themes':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $themes = [];
-        $dir = $baseDir . '/assets/css/';
-        if (is_dir($dir)) {
-            $files = scandir($dir);
+        $coreDir = dirname(__DIR__) . '/assets/css/';
+        $localUploadsDir = $baseDir . '/uploads/themes/';
+        $localAssetsDir = $baseDir . '/assets/css/';
+
+        // 1. Scan core themes
+        if (is_dir($coreDir)) {
+            $files = scandir($coreDir);
             foreach ($files as $f) {
-                if (preg_match('/^theme-.*\.css$/', $f)) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
                     $themes[] = $f;
                 }
             }
         }
+
+        // 2. Scan local instance assets/css if different from core
+        if ($localAssetsDir !== $coreDir && is_dir($localAssetsDir)) {
+            $files = scandir($localAssetsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        // 3. Scan local tenant custom themes in uploads/themes/
+        if (is_dir($localUploadsDir)) {
+            $files = scandir($localUploadsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        sort($themes);
         echo json_encode(['success' => true, 'themes' => $themes]);
         break;
 
@@ -1927,9 +1953,18 @@ switch ($action) {
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $themeFile = basename($_POST['theme'] ?? $_GET['theme'] ?? '');
         if (empty($themeFile)) { echo json_encode(['success' => false, 'error' => 'No theme specified']); exit; }
-        $path = $baseDir . '/assets/css/' . $themeFile;
-        if (file_exists($path)) {
-            echo json_encode(['success' => true, 'content' => file_get_contents($path)]);
+        
+        $localUploadsPath = $baseDir . '/uploads/themes/' . $themeFile;
+        $localAssetsPath = $baseDir . '/assets/css/' . $themeFile;
+        $corePath = dirname(__DIR__) . '/assets/css/' . $themeFile;
+
+        // Check local tenant custom themes first, then local assets, then central core
+        if (file_exists($localUploadsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localUploadsPath), 'is_custom' => true]);
+        } elseif (file_exists($localAssetsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localAssetsPath), 'is_custom' => !defined('QWIKI_BASE_DIR')]);
+        } elseif (file_exists($corePath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($corePath), 'is_custom' => false]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Theme not found']);
         }
@@ -1944,7 +1979,19 @@ switch ($action) {
         }
         if (empty($themeFile) || empty($content)) { echo json_encode(['success' => false, 'error' => 'Invalid parameters']); exit; }
         if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) { echo json_encode(['success' => false, 'error' => 'Invalid theme file name']); exit; }
-        $path = $baseDir . '/assets/css/' . $themeFile;
+        
+        // Multi-tenant safe saving:
+        // In hosted/multi-tenant mode (or if uploads/themes exists or local assets/css is missing), save to tenant's uploads/themes/
+        $saveDir = $baseDir . '/uploads/themes';
+        if (!defined('QWIKI_BASE_DIR') && is_dir($baseDir . '/assets/css')) {
+            $saveDir = $baseDir . '/assets/css';
+        }
+
+        if (!is_dir($saveDir)) {
+            @mkdir($saveDir, 0755, true);
+        }
+
+        $path = $saveDir . '/' . $themeFile;
         if (file_put_contents($path, $content) !== false) {
             echo json_encode(['success' => true]);
         } else {

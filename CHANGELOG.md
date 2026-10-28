@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.5] - ThemeFlow - 2026-10-28
+
+### 🎨 Multi-Tenant Theme Engine & Centralized Customization
+- **Multi-Source Theme Discovery (`api/admin.php`)**: `list_themes` now aggregates central core predefined themes (`_core/assets/css/`), local instance themes, and tenant-specific custom themes (`uploads/themes/`), ensuring predefined themes are immediately accessible for inspection and selection across subwikis and shared-core deployments.
+- **Core-Safe Theme Inspection & Loading (`api/admin.php`)**: `get_theme` dynamically resolves requested stylesheets across tenant uploads and central core directories, allowing administrators to inspect and use core predefined themes as starting templates without permission errors.
+- **Isolated Customization Persistence (`api/admin.php`)**: Saving custom themes in multi-tenant mode (`QWIKI_BASE_DIR`) writes directly to the tenant's private storage (`$baseDir/uploads/themes/`), preserving central core stylesheets and preventing cross-tenant contamination.
+- **Dynamic Theme URL Routing (`lib/Core/Config.php` & `index.php`)**: Introduced `Config::getThemeUrl()` to seamlessly route tenant custom themes (`uploads/themes/theme-*.css`) through tenant-relative URLs while serving central predefined themes via `QWIKI_ASSETS_URL` (`/_core/assets/css/theme-*.css`).
+
+### 🧪 Automated Test Suite Enhancements
+- **Multi-Tenant Theme Test Suite**: Added `tests/test_theme_multitenant.php` covering theme aggregation, core theme reading, tenant custom theme persistence, and two-tier URL resolution.
+
+---
+
 ## [1.20.4] - AuditFlow - 2026-10-25
 
 ### 📜 Activity & Access Log Extension & Audit Engine

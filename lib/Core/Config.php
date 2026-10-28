@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.20.4';
+    const VERSION = '1.20.5';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -610,6 +610,38 @@ class Config {
         $html = preg_replace('/src\s*=\s*(["\']?)\s*(?:javascript:|data:text\/html)[^"\'\s>]*\1?/is', 'src=""', $html);
 
         return $html;
+    }
+
+    /**
+     * Resolves the web URL for a given theme filename.
+     * Checks if the theme exists in the tenant's local uploads/themes/ or assets/css/ folder,
+     * otherwise falls back to the central assets URL.
+     *
+     * @param string $theme Theme filename (e.g. 'theme-article-classic.css')
+     * @param string|null $assetsUrl Optional central assets URL
+     * @return string Relative or absolute URL to the theme CSS file
+     */
+    public static function getThemeUrl(string $theme, ?string $assetsUrl = null): string {
+        $theme = basename($theme);
+        if (empty($theme)) {
+            $theme = 'theme-default.css';
+        }
+
+        $baseDir = self::getBaseDir();
+        $fallbackAssets = $assetsUrl !== null ? rtrim($assetsUrl, '/') : (defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets');
+
+        // Check 1: Tenant custom themes in uploads/themes/
+        if (file_exists($baseDir . '/uploads/themes/' . $theme)) {
+            return 'uploads/themes/' . $theme;
+        }
+
+        // Check 2: Tenant/Instance local assets/css/
+        if (file_exists($baseDir . '/assets/css/' . $theme)) {
+            return 'assets/css/' . $theme;
+        }
+
+        // Fallback: Central/Core assets URL
+        return $fallbackAssets . '/css/' . $theme;
     }
 }
 

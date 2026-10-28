@@ -493,7 +493,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
 
     <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
-        <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/<?= htmlspecialchars($resolvedTheme) ?>" id="dynamic-theme-css">
+        <link rel="stylesheet" href="<?= htmlspecialchars(Config::getThemeUrl($resolvedTheme, $assetsUrl)) ?>" id="dynamic-theme-css">
     <?php endif; ?>
 
     <!-- Extension Styles -->
