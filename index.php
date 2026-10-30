@@ -30,6 +30,11 @@ if (!defined('QWIKI_VERSION')) {
 
 // Check for API delegation via front-controller (e.g. multi-tenant hosted routing)
 $apiRequestedPath = $_GET['path'] ?? '';
+if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'content/') === 0 || $apiRequestedPath === 'content')) {
+    http_response_code(403);
+    echo "Access denied.";
+    exit;
+}
 if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'api/') === 0 || $apiRequestedPath === 'api')) {
     $endpoint = basename($apiRequestedPath);
     if ($endpoint === 'api' || empty($endpoint)) {
@@ -112,6 +117,21 @@ $isJsonRequested = (($_GET['format'] ?? '') === 'json') ||
 
 if (!empty($shareKey)) {
     AuditLogger::logShareAccess($shareKey, $matchedChapter, $shareError, $isJsonRequested);
+}
+
+// Handle raw view streaming for shared documents (e.g. HTML iframe & full-tab view)
+if (!empty($shareKey) && (($_GET['view'] ?? '') === 'raw' || !empty($_GET['raw']))) {
+    if ($shareError === 'not_found' || empty($matchedChapter)) {
+        http_response_code(404);
+        echo "<!DOCTYPE html><html><head><title>Share Link Not Found</title></head><body><h1>404 Not Found</h1><p>The shared document could not be found or the link has expired.</p></body></html>";
+        exit;
+    }
+    if ($shareError === 'restricted') {
+        http_response_code(403);
+        echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>This shared document is restricted.</p></body></html>";
+        exit;
+    }
+    DocumentService::streamDocumentRaw($matchedChapter, $baseDir, $baseUrl);
 }
 
 if (!empty($shareKey) && $isJsonRequested) {
@@ -357,6 +377,28 @@ if (!$isShareMode && !$shareError) {
         $activeChapter = null;
         $breadcrumbsTrail = [['title' => 'Access Restricted', 'id' => '']];
     }
+}
+
+// Block direct access to content/ path if routed here
+if (!empty($rawPath) && (strpos($rawPath, 'content/') === 0 || $rawPath === 'content')) {
+    http_response_code(403);
+    echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content repository is restricted.</p></body></html>";
+    exit;
+}
+
+// Handle raw view streaming for standard documents (e.g. HTML iframe & full-tab view)
+if (($_GET['view'] ?? '') === 'raw' || !empty($_GET['raw'])) {
+    if (!$canViewContent || !empty($isAccessRestricted)) {
+        http_response_code(403);
+        echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Sign-in required to view this document.</p></body></html>";
+        exit;
+    }
+    if (!$activeChapter) {
+        http_response_code(404);
+        echo "<!DOCTYPE html><html><head><title>Document Not Found</title></head><body><h1>404 Not Found</h1><p>Document not found.</p></body></html>";
+        exit;
+    }
+    DocumentService::streamDocumentRaw($activeChapter, $baseDir, $baseUrl);
 }
 
 // Determine immediate containing category ID for active document

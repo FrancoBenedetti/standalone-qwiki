@@ -7,6 +7,9 @@ DirectoryIndex index.php index.html
     RewriteCond %{HTTPS} off
     RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
+    # Block direct web access to document storage repository
+    RewriteRule ^content(/|$) - [F,L]
+
     # Return 404 directly for missing static assets instead of routing to index.php
     RewriteCond %{REQUEST_URI} \.(pdf|png|jpe?g|gif|svg|webp|zip|docx?|xlsx?)$ [NC]
     RewriteCond %{REQUEST_FILENAME} !-f
@@ -18,8 +21,13 @@ DirectoryIndex index.php index.html
 </IfModule>
 
 # Protect configuration and user data stores from direct web access
-<FilesMatch "\.(json)$">
-    Order allow,deny
-    Deny from all
+<FilesMatch "\.(json|md|markdown)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 

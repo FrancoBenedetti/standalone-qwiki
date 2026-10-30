@@ -679,9 +679,15 @@ class LlmAccess {
                 $content = 'HTML document content unavailable.';
             }
         } elseif ($resolvedType === 'pdf') {
-            $pdfUrl = !empty($chapter['file']) ? $chapter['file'] : ($chapter['url'] ?? '');
-            if (!preg_match('/^(http|https):\/\//i', $pdfUrl)) {
-                $pdfUrl = $baseUrl . ltrim($pdfUrl, '/');
+            $catId = $chapter['category'] ?? ($chapter['bookId'] ?? '');
+            $slug = $chapter['slug'] ?? '';
+            if (!empty($slug)) {
+                $pdfUrl = $baseUrl . (!empty($catId) ? urlencode($catId) . '/' : '') . urlencode($slug) . '?view=raw';
+            } else {
+                $pdfUrl = !empty($chapter['file']) ? $chapter['file'] : ($chapter['url'] ?? '');
+                if (!preg_match('/^(http|https):\/\//i', $pdfUrl)) {
+                    $pdfUrl = $baseUrl . ltrim($pdfUrl, '/');
+                }
             }
             $content = "[Binary PDF Document]\nDownload URL: " . $pdfUrl;
             $rawSize = strlen($content);

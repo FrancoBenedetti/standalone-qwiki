@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.20.5';
+    const VERSION = '1.20.6';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -69,6 +69,10 @@ class Config {
             if (file_exists($demoDir . '/htaccess-uploads') && is_dir($baseDir . '/uploads')) {
                 @copy($demoDir . '/htaccess-uploads', $baseDir . '/uploads/.htaccess');
             }
+
+            if (file_exists($demoDir . '/htaccess-content') && is_dir($baseDir . '/content')) {
+                @copy($demoDir . '/htaccess-content', $baseDir . '/content/.htaccess');
+            }
             return true;
         }
         return false;
@@ -79,6 +83,13 @@ class Config {
         if (!file_exists($configFile)) {
             self::ensureSetup();
         }
+
+        $baseDir = self::getBaseDir();
+        if (is_dir($baseDir . '/content') && !file_exists($baseDir . '/content/.htaccess')) {
+            $htContent = "# Deny all direct web access to document repository files and directories\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+            @file_put_contents($baseDir . '/content/.htaccess', $htContent);
+        }
+
         if (!file_exists($configFile)) {
             return ['title' => 'Standalone Qwiki', 'books' => []];
         }

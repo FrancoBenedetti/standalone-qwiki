@@ -14,7 +14,22 @@ if (!file_exists($filePath)) {
     return;
 }
 
-$fileUrl = htmlspecialchars($chapter['file'] ?? '');
+$baseUrl = Config::getBaseUrl();
+$isShare = !empty($_GET['share']);
+$shareKeyVal = $isShare ? trim($_GET['share']) : ($chapter['shareKey'] ?? '');
+
+if ($isShare && !empty($shareKeyVal)) {
+    $rawUrl = $baseUrl . '?share=' . urlencode($shareKeyVal) . '&view=raw';
+} else {
+    $catSlug = $book['id'] ?? '';
+    $docSlug = $chapter['slug'] ?? '';
+    if (!empty($catSlug) && !empty($docSlug)) {
+        $rawUrl = $baseUrl . urlencode($catSlug) . '/' . urlencode($docSlug) . '?view=raw';
+    } else {
+        $rawUrl = $baseUrl . '?doc=' . urlencode($docSlug) . '&view=raw';
+    }
+}
+
 $isAdmin = Auth::isAdmin();
 $status = strtolower($chapter['status'] ?? 'published');
 ?>
@@ -70,10 +85,10 @@ $status = strtolower($chapter['status'] ?? 'published');
                     ✏️ Edit HTML
                 </button>
             <?php endif; ?>
-            <a href="<?= $fileUrl ?>" target="_blank" class="btn btn-outline btn-sm">Open in Full Tab ↗</a>
+            <a href="<?= htmlspecialchars($rawUrl) ?>" target="_blank" class="btn btn-outline btn-sm">Open in Full Tab ↗</a>
         </div>
     </div>
-    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= $fileUrl ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-downloads allow-modals" title="HTML Document View"></iframe>
+    <iframe class="html-viewer-frame" id="current-html-frame" src="<?= htmlspecialchars($rawUrl) ?>" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms allow-downloads allow-modals" title="HTML Document View"></iframe>
 </div>
 
 <?php if ($isAdmin): ?>

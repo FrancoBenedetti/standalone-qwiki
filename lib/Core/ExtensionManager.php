@@ -134,12 +134,24 @@ class ExtensionManager {
 
         // 2. Built-in: PDF
         if ($type === 'pdf') {
-            $pdfUrl = htmlspecialchars($activeChapter['file'] ?? '');
+            $baseUrl = Config::getBaseUrl();
+            if (!empty($_GET['share'])) {
+                $pdfViewUrl = $baseUrl . '?share=' . urlencode($_GET['share']) . '&view=raw';
+            } else {
+                $catSlug = $activeBook['id'] ?? '';
+                $docSlug = $activeChapter['slug'] ?? '';
+                if (!empty($catSlug) && !empty($docSlug)) {
+                    $pdfViewUrl = $baseUrl . urlencode($catSlug) . '/' . urlencode($docSlug) . '?view=raw';
+                } else {
+                    $pdfViewUrl = $baseUrl . '?doc=' . urlencode($docSlug) . '&view=raw';
+                }
+            }
+            $escapedPdfUrl = htmlspecialchars($pdfViewUrl);
             return "
-                <div class='pdf-viewer-container'>
-                    <iframe src='{$pdfUrl}' title='PDF Viewer'></iframe>
+                <div class=\"pdf-viewer-container\">
+                    <iframe src=\"{$escapedPdfUrl}\" title=\"PDF Viewer\"></iframe>
                 </div>
-                <p style='margin-top: 1rem;'><a href='{$pdfUrl}' target='_blank' class='btn btn-outline btn-sm'>Download Original PDF</a></p>
+                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">Download Original PDF</a></p>
             ";
         }
 

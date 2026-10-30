@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.6] - ShieldFlow - 2026-10-30
+
+### 🛡️ Document Access Control & Secure Raw View Pipeline
+- **Web Server Document Repository Lockdown (`.htaccess` & `content/.htaccess`)**: Added root `.htaccess` rewrite rule `RewriteRule ^content(/|$) - [F,L]` and provisioned `content/.htaccess` (`Require all denied` / `Deny from all`) to permanently prevent unauthenticated direct static file serving of `.html`, `.pdf`, `.md`, and `.json` documents from disk.
+- **Auto-Provisioned Content Protection (`lib/Core/Config.php` & `lib/Core/DemoManager.php`)**: Added `demo-data/htaccess-content` ensuring fresh installations, subwikis, and existing deployments automatically self-heal and place `content/.htaccess` if absent.
+- **Application Front-Controller Interception (`index.php`)**: Directly intercepts any front-controller path matching `content/` with `403 Forbidden` (`Access denied.`), providing defense-in-depth across non-Apache environments (Nginx, Caddy, and PHP dev server).
+- **Authorized Raw View Document Streaming (`lib/Core/DocumentService.php` & `index.php`)**:
+  - Implemented `DocumentService::streamDocumentRaw()` for authenticated document delivery via `?view=raw`.
+  - **Share Mode**: Validates secret `shareKey` integrity before streaming shared documents; rejects invalid or revoked tokens with `404 Not Found` or `403 Forbidden`.
+  - **Standard Wiki Mode**: Enforces site-level (`requireLoginToView`) and granular document/category permissions (`logged_in`, `admin_only`) prior to serving content.
+  - **Runtime Base URL Normalization**: Dynamically injects/normalizes `<base href="...">` to match the application's base URL, ensuring relative assets (`uploads/`, `assets/`) and print styles render accurately in isolated browser tabs and iframes.
+- **Secure Full-Tab & Embed Routing (`assets/extensions/page-html/renderer.php` & `lib/Core/ExtensionManager.php`)**:
+  - Refactored the HTML "Open in Full Tab ↗" button and iframe `src` to route via authorized endpoints (`?share=...&view=raw` or `/category/slug?view=raw`) instead of exposing raw `content/` filesystem paths.
+  - Aligned PDF viewer iframe and download button to route through the authenticated `?view=raw` pipeline.
+
+### 🧪 Automated Test Suite Enhancements
+- **Repository Access & Raw View Security Test Suite**: Added `tests/test_raw_view_security.php` verifying web server `.htaccess` rules, front-controller `content/` blocking, private wiki gateway enforcement on raw views, valid vs. invalid share token handling, runtime base href injection, and renderer URL generation.
+
+---
+
 ## [1.20.5] - ThemeFlow - 2026-10-28
 
 ### 🎨 Multi-Tenant Theme Engine & Centralized Customization
