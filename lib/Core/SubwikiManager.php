@@ -358,16 +358,18 @@ class SubwikiManager {
 
         // Copy core application files or generate lightweight bootstrap in hosted mode
         $isHostedMode = defined('QWIKI_BASE_DIR') || !is_dir($baseDir . '/lib');
+        $coreDir = dirname(__DIR__, 2);
         if ($isHostedMode) {
-            $coreIndex = dirname(__DIR__, 2) . '/index.php';
+            $coreIndex = $coreDir . '/index.php';
             $assetsUrl = defined('QWIKI_ASSETS_URL') ? QWIKI_ASSETS_URL : '/_core/assets';
             $subBootstrap = "<?php\n"
                 . "define('QWIKI_BASE_DIR', __DIR__);\n"
                 . "define('QWIKI_ASSETS_URL', '" . addslashes($assetsUrl) . "');\n"
                 . "require_once '" . addslashes($coreIndex) . "';\n";
             file_put_contents($targetDir . '/index.php', $subBootstrap);
-            if (file_exists($baseDir . '/.htaccess')) {
-                @copy($baseDir . '/.htaccess', $targetDir . '/.htaccess');
+            $htaccessSource = file_exists($baseDir . '/.htaccess') ? $baseDir . '/.htaccess' : (file_exists($coreDir . '/.htaccess') ? $coreDir . '/.htaccess' : null);
+            if ($htaccessSource) {
+                @copy($htaccessSource, $targetDir . '/.htaccess');
             }
         } else {
             @copy($baseDir . '/index.php', $targetDir . '/index.php');
@@ -380,17 +382,28 @@ class SubwikiManager {
 
         // Create uploads directory and protect it
         @mkdir($targetDir . '/uploads/images', 0755, true);
-        if (file_exists($baseDir . '/uploads/.htaccess')) {
-            @copy($baseDir . '/uploads/.htaccess', $targetDir . '/uploads/.htaccess');
+        $uploadsHt = file_exists($baseDir . '/uploads/.htaccess') ? $baseDir . '/uploads/.htaccess' : (file_exists($coreDir . '/demo-data/htaccess-uploads') ? $coreDir . '/demo-data/htaccess-uploads' : null);
+        if ($uploadsHt) {
+            @copy($uploadsHt, $targetDir . '/uploads/.htaccess');
         }
 
-        // Initialize content directory
+        // Initialize content directory and protect it from direct web access
         @mkdir($targetDir . '/content', 0755, true);
-        if ($includeDemoContent && is_dir($baseDir . '/demo-data/content')) {
-            Config::copyDir($baseDir . '/demo-data/content', $targetDir . '/content');
-            $demoConfigFile = $baseDir . '/demo-data/qwiki-default.json';
+        $contentHt = file_exists($baseDir . '/content/.htaccess') ? $baseDir . '/content/.htaccess' : (file_exists($coreDir . '/demo-data/htaccess-content') ? $coreDir . '/demo-data/htaccess-content' : (file_exists($baseDir . '/demo-data/htaccess-content') ? $baseDir . '/demo-data/htaccess-content' : null));
+        if ($contentHt) {
+            @copy($contentHt, $targetDir . '/content/.htaccess');
+        } else {
+            $htContent = "# Deny all direct web access to document repository files and directories\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+            @file_put_contents($targetDir . '/content/.htaccess', $htContent);
+        }
+
+        $demoContentSource = is_dir($baseDir . '/demo-data/content') ? $baseDir . '/demo-data/content' : (is_dir($coreDir . '/demo-data/content') ? $coreDir . '/demo-data/content' : null);
+        $demoConfigFile = file_exists($baseDir . '/demo-data/qwiki-default.json') ? $baseDir . '/demo-data/qwiki-default.json' : (file_exists($coreDir . '/demo-data/qwiki-default.json') ? $coreDir . '/demo-data/qwiki-default.json' : null);
+
+        if ($includeDemoContent && $demoContentSource) {
+            Config::copyDir($demoContentSource, $targetDir . '/content');
             $books = [];
-            if (file_exists($demoConfigFile)) {
+            if ($demoConfigFile) {
                 $demoData = @json_decode(file_get_contents($demoConfigFile), true);
                 $books = $demoData['books'] ?? [];
             }
@@ -529,6 +542,22 @@ class SubwikiManager {
                 Config::copyDir($sourceDir . '/assets', $targetDir . '/assets');
                 Config::copyDir($sourceDir . '/api', $targetDir . '/api');
                 Config::copyDir($sourceDir . '/templates', $targetDir . '/templates');
+
+                // 2b. Update root .htaccess and ensure content/.htaccess protection
+                if (file_exists($sourceDir . '/.htaccess')) {
+                    @copy($sourceDir . '/.htaccess', $targetDir . '/.htaccess');
+                }
+                if (is_dir($targetDir . '/content') && !file_exists($targetDir . '/content/.htaccess')) {
+                    $contentHt = file_exists($sourceDir . '/content/.htaccess')
+                        ? $sourceDir . '/content/.htaccess'
+                        : (file_exists($sourceDir . '/demo-data/htaccess-content') ? $sourceDir . '/demo-data/htaccess-content' : null);
+                    if ($contentHt) {
+                        @copy($contentHt, $targetDir . '/content/.htaccess');
+                    } else {
+                        $htContent = "# Deny all direct web access to document repository files and directories\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+                        @file_put_contents($targetDir . '/content/.htaccess', $htContent);
+                    }
+                }
 
                 // 3. Ensure .subwiki marker exists
                 if (!file_exists($targetDir . '/.subwiki')) {

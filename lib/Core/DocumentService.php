@@ -88,6 +88,12 @@ class DocumentService {
                 $htmlContent = '<base href="' . htmlspecialchars($normalizedBaseUrl) . "\">\n" . $htmlContent;
             }
 
+            // In hosted multitenant mode, rewrite relative assets/ references to QWIKI_ASSETS_URL if defined
+            if (defined('QWIKI_ASSETS_URL')) {
+                $assetsUrl = rtrim(QWIKI_ASSETS_URL, '/') . '/';
+                $htmlContent = preg_replace('/(\b(?:src|href)=["\'])assets\//i', '$1' . $assetsUrl, $htmlContent);
+            }
+
             header('Content-Type: text/html; charset=utf-8');
             header('X-Content-Type-Options: nosniff');
             echo $htmlContent;

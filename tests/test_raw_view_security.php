@@ -49,7 +49,8 @@ $baseUrl = Config::getBaseUrl();
 echo "--- 1. Web Server Protection (.htaccess) ---\n";
 
 $rootHtaccess = file_get_contents($baseDir . '/.htaccess');
-assertCondition("Root .htaccess contains RewriteRule ^content(/|$) - [F,L]", strpos($rootHtaccess, 'RewriteRule ^content(/|$) - [F,L]') !== false, $failures);
+assertCondition("Root .htaccess contains RewriteRule (^|/)content(/|$) - [F,L]", strpos($rootHtaccess, 'RewriteRule (^|/)content(/|$) - [F,L]') !== false, $failures);
+assertCondition("Root .htaccess contains RewriteCond %{QUERY_STRING} !view=raw [NC]", strpos($rootHtaccess, 'RewriteCond %{QUERY_STRING} !view=raw [NC]') !== false, $failures);
 assertCondition("Root .htaccess blocks .json, .md, and .markdown files", strpos($rootHtaccess, '<FilesMatch "\.(json|md|markdown)$">') !== false, $failures);
 
 $contentHtaccessFile = $baseDir . '/content/.htaccess';
@@ -71,6 +72,10 @@ echo "\n--- 2. Application Layer Direct Access Blocking ---\n";
 // Test front-controller path=content/... blocking
 $fcOutput = shell_exec('php -r \'$_GET["path"] = "content/getting-started/interactive-dashboard.html"; require "' . addslashes($baseDir . '/index.php') . '";\'');
 assertCondition("index.php returns 'Access denied.' for path=content/...", strpos($fcOutput, 'Access denied.') !== false, $failures);
+
+// Test front-controller path=subwiki/content/... blocking in multitenant routing
+$fcSubOutput = shell_exec('php -r \'$_GET["path"] = "tenant1/content/getting-started/interactive-dashboard.html"; require "' . addslashes($baseDir . '/index.php') . '";\'');
+assertCondition("index.php returns 'Access denied.' for path=tenant1/content/...", strpos($fcSubOutput, 'Access denied.') !== false, $failures);
 
 // --------------------------------------------------------------------------
 // TEST GROUP 3: Private Wiki Raw View Access Policy
@@ -114,20 +119,20 @@ if ($htmlChapter) {
     file_put_contents($configFile, json_encode($privateConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
     // A. Guest accesses raw view without sharelink -> must be blocked (403)
-    $cmdGuestRaw = 'php -r \'unset($_SESSION["qwiki_user"]); $_GET["book"] = "' . addslashes($catSlug) . '"; $_GET["doc"] = "' . addslashes($docSlug) . '"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
+    $cmdGuestRaw = 'php -r \'unset($_SESSION["qwiki_user"]); $_SERVER["SCRIPT_NAME"] = "' . addslashes($_SERVER["SCRIPT_NAME"] ?? "/index.php") . '"; $_GET["book"] = "' . addslashes($catSlug) . '"; $_GET["doc"] = "' . addslashes($docSlug) . '"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
     $resGuestRaw = shell_exec($cmdGuestRaw);
     assertCondition("Raw view without sharelink on private wiki is blocked with 403 Forbidden", strpos($resGuestRaw, 'Sign-in required to view this document') !== false || strpos($resGuestRaw, 'Access Restricted') !== false, $failures);
     assertCondition("Raw view does NOT leak HTML content to unauthenticated guest", strpos($resGuestRaw, 'Interactive Dashboard Demo') === false, $failures);
 
     // B. Guest accesses with valid sharelink and view=raw -> must succeed (200) and render HTML
-    $cmdShareRaw = 'php -r \'unset($_SESSION["qwiki_user"]); $_GET["share"] = "' . addslashes($shareKey) . '"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
+    $cmdShareRaw = 'php -r \'unset($_SESSION["qwiki_user"]); $_SERVER["SCRIPT_NAME"] = "' . addslashes($_SERVER["SCRIPT_NAME"] ?? "/index.php") . '"; $_GET["share"] = "' . addslashes($shareKey) . '"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
     $resShareRaw = shell_exec($cmdShareRaw);
     assertCondition("Raw view with valid sharelink on private wiki succeeds", strpos($resShareRaw, '<!DOCTYPE html>') !== false, $failures);
     assertCondition("Raw view contains expected document content", strpos($resShareRaw, 'Interactive Dashboard Demo') !== false, $failures);
     assertCondition("Raw view contains normalized base href pointing to baseUrl", strpos($resShareRaw, '<base href="' . htmlspecialchars(rtrim($baseUrl, '/') . '/')) !== false, $failures);
 
     // C. Guest accesses with invalid sharelink and view=raw -> must return 404
-    $cmdInvalidShare = 'php -r \'unset($_SESSION["qwiki_user"]); $_GET["share"] = "invalid_nonexistent_key"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
+    $cmdInvalidShare = 'php -r \'unset($_SESSION["qwiki_user"]); $_SERVER["SCRIPT_NAME"] = "' . addslashes($_SERVER["SCRIPT_NAME"] ?? "/index.php") . '"; $_GET["share"] = "invalid_nonexistent_key"; $_GET["view"] = "raw"; require "' . addslashes($baseDir . '/index.php') . '";\'';
     $resInvalidShare = shell_exec($cmdInvalidShare);
     assertCondition("Raw view with invalid sharelink returns 404", strpos($resInvalidShare, 'Share Link Not Found') !== false || strpos($resInvalidShare, '404 Not Found') !== false, $failures);
 
@@ -197,6 +202,106 @@ $pdfShareHtml = $extMgr->renderPage($pdfChapter, $pdfBook, $config);
 unset($_GET['share']);
 assertCondition("PDF viewer in share mode uses ?share=...&view=raw for iframe src", strpos($pdfShareHtml, '?share=pdf_share_key_123&amp;view=raw') !== false || strpos($pdfShareHtml, '?share=pdf_share_key_123&view=raw') !== false, $failures);
 assertCondition("PDF viewer in share mode does NOT expose raw content/ path", strpos($pdfShareHtml, 'src="content/') === false && strpos($pdfShareHtml, 'href="content/') === false, $failures);
+
+// --------------------------------------------------------------------------
+// TEST GROUP 6: Multi-Tenant Hosted Mode Raw View & Boundary Security
+// --------------------------------------------------------------------------
+echo "\n--- 6. Multi-Tenant Hosted Mode Raw View & Boundary Security ---\n";
+
+$tempTenant = sys_get_temp_dir() . '/qwiki_tenant_audit_' . uniqid();
+@mkdir($tempTenant . '/content/getting-started', 0755, true);
+
+$tenantHtml = "<!DOCTYPE html><html><head><title>Tenant Report</title></head><body><h1>Tenant Analytics</h1><img src=\"uploads/images/chart.png\"><link rel=\"stylesheet\" href=\"assets/css/theme-default.css\"></body></html>";
+file_put_contents($tempTenant . '/content/getting-started/dashboard.html', $tenantHtml);
+file_put_contents($tempTenant . '/content/getting-started/spec.pdf', "%PDF-1.4 sample pdf binary");
+
+$tenantCfg = [
+    'title' => 'Tenant Portal',
+    'requireLoginToView' => false,
+    'books' => [
+        [
+            'id' => 'getting-started',
+            'title' => 'Getting Started',
+            'type' => 'folder',
+            'items' => [
+                [
+                    'title' => 'Dashboard',
+                    'slug' => 'dashboard',
+                    'type' => 'html',
+                    'file' => 'content/getting-started/dashboard.html',
+                    'shareKey' => 'tenant_share_html_999'
+                ],
+                [
+                    'title' => 'Specification',
+                    'slug' => 'spec',
+                    'type' => 'pdf',
+                    'file' => 'content/getting-started/spec.pdf',
+                    'shareKey' => 'tenant_share_pdf_999'
+                ]
+            ]
+        ]
+    ]
+];
+file_put_contents($tempTenant . '/qwiki.json', json_encode($tenantCfg, JSON_PRETTY_PRINT));
+file_put_contents($tempTenant . '/users.json', json_encode(['users' => []], JSON_PRETTY_PRINT));
+
+$coreIndex = realpath($baseDir . '/index.php');
+$subBootstrap = "<?php\n"
+    . "define('QWIKI_BASE_DIR', __DIR__);\n"
+    . "define('QWIKI_ASSETS_URL', '/_core/assets');\n"
+    . "require_once '" . addslashes($coreIndex) . "';\n";
+file_put_contents($tempTenant . '/index.php', $subBootstrap);
+
+// Test 6.1: Raw HTML streaming in hosted mode normalizes base href and rewrites assets/ to QWIKI_ASSETS_URL
+$cmdTenantHtml = 'php -r \''
+    . '$_SERVER["REQUEST_METHOD"] = "GET"; '
+    . '$_SERVER["SCRIPT_NAME"] = "/client-portal/index.php"; '
+    . '$_SERVER["HTTP_HOST"] = "example.com"; '
+    . '$_GET["path"] = "getting-started/dashboard"; '
+    . '$_GET["view"] = "raw"; '
+    . 'require "' . addslashes($tempTenant . '/index.php') . '";\'';
+$resTenantHtml = shell_exec($cmdTenantHtml);
+assertCondition("Hosted mode raw HTML streaming succeeds", strpos($resTenantHtml, '<!DOCTYPE html>') !== false && strpos($resTenantHtml, 'Tenant Analytics') !== false, $failures);
+assertCondition("Hosted mode raw HTML normalizes base href to tenant URL", strpos($resTenantHtml, '<base href="http://example.com/client-portal/">') !== false, $failures);
+assertCondition("Hosted mode raw HTML rewrites relative assets/ to QWIKI_ASSETS_URL", strpos($resTenantHtml, 'href="/_core/assets/css/theme-default.css"') !== false, $failures);
+
+// Test 6.2: Raw PDF streaming in hosted mode
+$cmdTenantPdf = 'php -r \''
+    . '$_SERVER["REQUEST_METHOD"] = "GET"; '
+    . '$_SERVER["SCRIPT_NAME"] = "/client-portal/index.php"; '
+    . '$_SERVER["HTTP_HOST"] = "example.com"; '
+    . '$_GET["path"] = "getting-started/spec"; '
+    . '$_GET["view"] = "raw"; '
+    . 'require "' . addslashes($tempTenant . '/index.php') . '";\'';
+$resTenantPdf = shell_exec($cmdTenantPdf);
+assertCondition("Hosted mode raw PDF streaming outputs PDF content", strpos($resTenantPdf, '%PDF-1.4 sample pdf binary') !== false, $failures);
+
+// Test 6.3: Subwiki deployment in hosted mode automatically provisions content/.htaccess
+require_once $baseDir . '/lib/Core/SubwikiManager.php';
+$testSubSlug = 'audit-sub-' . bin2hex(random_bytes(4));
+$subDeployResult = \Qwiki\Core\SubwikiManager::deploySubwiki($testSubSlug, 'Audit Subwiki', 'admin', 'Password123!', true);
+assertCondition("Subwiki deployment succeeds", !empty($subDeployResult['success']), $failures);
+$nestedContentHt = $baseDir . '/' . $testSubSlug . '/content/.htaccess';
+assertCondition("Deployed subwiki contains protected content/.htaccess", file_exists($nestedContentHt), $failures);
+
+// Cleanup deployed subwiki
+\Qwiki\Core\SubwikiManager::deleteSubwiki($testSubSlug);
+if (is_dir($baseDir . '/' . $testSubSlug)) {
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($baseDir . '/' . $testSubSlug, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+    foreach ($files as $fileinfo) {
+        $fileinfo->isDir() ? @rmdir($fileinfo->getRealPath()) : @unlink($fileinfo->getRealPath());
+    }
+    @rmdir($baseDir . '/' . $testSubSlug);
+}
+
+// Cleanup temp tenant
+if (is_dir($tempTenant)) {
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tempTenant, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+    foreach ($files as $fileinfo) {
+        $fileinfo->isDir() ? @rmdir($fileinfo->getRealPath()) : @unlink($fileinfo->getRealPath());
+    }
+    @rmdir($tempTenant);
+}
 
 echo "\n----------------------------------------------------\n";
 if ($failures === 0) {

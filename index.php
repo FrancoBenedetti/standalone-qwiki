@@ -30,7 +30,22 @@ if (!defined('QWIKI_VERSION')) {
 
 // Check for API delegation via front-controller (e.g. multi-tenant hosted routing)
 $apiRequestedPath = $_GET['path'] ?? '';
-if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'content/') === 0 || $apiRequestedPath === 'content')) {
+if (empty($apiRequestedPath)) {
+    if (!empty($_SERVER['PATH_INFO'])) {
+        $apiRequestedPath = trim($_SERVER['PATH_INFO'], '/');
+    } elseif (!empty($_SERVER['REQUEST_URI'])) {
+        $parsedPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        if ($parsedPath) {
+            $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
+            if ($scriptDir !== '' && strpos($parsedPath, $scriptDir) === 0) {
+                $parsedPath = substr($parsedPath, strlen($scriptDir));
+            }
+            $parsedPath = preg_replace('#^/index\.php(/|$)#', '$1', $parsedPath);
+            $apiRequestedPath = trim($parsedPath, '/');
+        }
+    }
+}
+if (is_string($apiRequestedPath) && preg_match('#(^|/)content(/|$)#i', $apiRequestedPath)) {
     http_response_code(403);
     echo "Access denied.";
     exit;
@@ -380,7 +395,7 @@ if (!$isShareMode && !$shareError) {
 }
 
 // Block direct access to content/ path if routed here
-if (!empty($rawPath) && (strpos($rawPath, 'content/') === 0 || $rawPath === 'content')) {
+if (!empty($rawPath) && preg_match('#(^|/)content(/|$)#i', $rawPath)) {
     http_response_code(403);
     echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content repository is restricted.</p></body></html>";
     exit;
