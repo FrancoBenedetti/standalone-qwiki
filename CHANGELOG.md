@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.7] - SlugFlow - 2026-10-31
+
+### 📁 Category Creation UX & Intelligent Slug Management
+- **True Optionality & Fallback (`api/admin.php`)**: Resolved an issue where empty string submissions for optional category slugs triggered a misleading validation failure (`Category title is required`). Category creation now gracefully falls back to generating a URL-safe slug from the category title via `Config::makeSlug()`.
+- **Intelligent Collision Auto-Incrementation (`api/admin.php` & `lib/Core/Navigation.php`)**: When auto-generating category slugs, collisions with existing categories or documents automatically resolve with numeric incrementation (e.g. `category-1`, `category-2`) via `Navigation::generateUniqueSlug()`, preventing accidental creation failures.
+- **Reserved Directory Name Shielding (`api/admin.php`)**: System-reserved routes (`api`, `content`, `assets`, etc.) are automatically prefixed (e.g. `cat-api`) during auto-generation or rejected with actionable feedback if submitted as explicit custom slugs.
+- **Real-Time Slug Auto-Generation & Decoupled Customization (`assets/js/app.js` & `templates/modals/create_category.php`)**:
+  - Typing a category title dynamically auto-populates the slug in real time with an active mode indicator (`(Auto-generated)`).
+  - Editing the slug input switches to `(Custom)` mode and uncouples auto-generation to protect user overrides; clearing the input recouples back to title synchronization.
+  - Dynamically updates storage folder previews (e.g. `Storage folder: content/parent/new-category/`) in real time based on parent category selection and current slug.
+- **Pre-Submission Availability Feedback (`api/admin.php` & `assets/js/app.js`)**: Added `check_category_slug` endpoint providing instant debounced validation hints (`✓ Slug is available`, `⚠️ Slug is in use; will auto-save with increment`, or `✗ Slug unavailable`).
+- **Sidebar State Preservation (`assets/js/app.js`)**: Automatically expands newly created categories and their parent folders in the sidebar upon creation.
+- **Dialog Layout Reorganization (`templates/modals/create_category.php`)**: Restructured the category creation modal to follow a logical hierarchy: Title ➔ Parent Category ➔ Folder / URL Slug with live path preview ➔ Category Description.
+
+### 🧪 Automated Test Suite Enhancements
+- **Category Creation UX Test Suite**: Added `tests/test_category_creation_ux.php` verifying empty slug creation, auto-increment collision resolution, custom slug collision enforcement, reserved word shielding, live `check_category_slug` validation, and nested category provisioning.
+
+---
+
 ## [1.20.6] - ShieldFlow - 2026-10-30
 
 ### 🛡️ Document Access Control & Secure Raw View Pipeline

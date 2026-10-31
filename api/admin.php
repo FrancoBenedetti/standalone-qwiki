@@ -414,20 +414,56 @@ switch ($action) {
         }
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
-        $bookId = Config::makeSlug($_POST['id'] ?? $title);
+        $rawId = trim($_POST['id'] ?? '');
         $parentId = trim($_POST['parentId'] ?? '');
-        if (empty($title) || empty($bookId)) {
+        $isExplicitCustom = isset($_POST['isCustomSlug']) ? ($_POST['isCustomSlug'] === '1' || $_POST['isCustomSlug'] === 'true') : !empty($rawId);
+
+        if (empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category title is required']);
             exit;
         }
-        $val = SubwikiManager::validateSlug($bookId, null, false);
-        if (!$val['valid']) {
-            echo json_encode(['success' => false, 'error' => $val['error']]);
-            exit;
+
+        // Determine target parent folder on disk
+        $parentFolder = null;
+        if (!empty($parentId)) {
+            $parentFolder = get_category_folder($config['books'] ?? [], $parentId);
+            if ($parentFolder === null) {
+                echo json_encode(['success' => false, 'error' => 'Selected parent category does not exist']);
+                exit;
+            }
+            $parentAbsDir = $baseDir . '/' . $parentFolder;
+        } else {
+            $parentAbsDir = $baseDir . '/content';
         }
-        if (is_slug_taken($bookId, $config['books'] ?? [])) {
-            echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
-            exit;
+
+        $baseSlug = !empty($rawId) ? Config::makeSlug($rawId) : Config::makeSlug($title);
+        if (empty($baseSlug)) {
+            $baseSlug = 'category';
+        }
+
+        if ($isExplicitCustom && !empty($rawId)) {
+            $bookId = $baseSlug;
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
+            if (is_slug_taken($bookId, $config['books'] ?? [])) {
+                echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
+                exit;
+            }
+        } else {
+            // Auto-generated slug: check reserved system words and generate unique slug if colliding
+            $reserved = Config::getReservedNames();
+            if (in_array($baseSlug, $reserved, true)) {
+                $baseSlug = 'cat-' . $baseSlug;
+            }
+            $bookId = Navigation::generateUniqueSlug($baseSlug, $config['books'] ?? [], $parentAbsDir);
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
         }
 
         if (!empty($parentId)) {
@@ -2159,6 +2195,61 @@ switch ($action) {
             @unlink($tempZip);
             echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
         }
+        break;
+
+    case 'check_category_slug':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_GET['slug'] ?? $_POST['slug'] ?? '');
+        $isCustom = isset($_REQUEST['is_custom']) ? ($_REQUEST['is_custom'] === '1' || $_REQUEST['is_custom'] === 'true') : false;
+        if (empty($slug)) {
+            echo json_encode(['success' => true, 'slug' => '', 'valid' => true, 'error' => null]);
+            exit;
+        }
+
+        // Validate format, reserved routes, web root directories, and subwikis (ignoring category collision to calculate suggestion)
+        $val = SubwikiManager::validateSlug($slug, $slug, false);
+        if (!$val['valid']) {
+            echo json_encode([
+                'success' => true,
+                'slug' => $slug,
+                'valid' => false,
+                'error' => $val['error']
+            ]);
+            exit;
+        }
+
+        $isTaken = is_slug_taken($slug, $config['books'] ?? []);
+        if ($isTaken) {
+            $suggested = Navigation::generateUniqueSlug($slug, $config['books'] ?? []);
+            if ($isCustom) {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => false,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'error' => "A document or category with the slug '{$slug}' already exists."
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => true,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'note' => "Slug '{$slug}' is taken. Will auto-save as '{$suggested}' or you can customize it."
+                ]);
+            }
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'valid' => true,
+            'isTaken' => false,
+            'error' => null
+        ]);
         break;
 
     case 'check_subwiki_slug':
