@@ -255,6 +255,7 @@ External automation pipelines, CI/CD runners, and AI agents can publish self-con
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
+- **Image & Video Asset Ingestion**: Headless endpoints (`action=upload_asset`, `upload_media`, `upload_image`) accept web graphics (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp` routed to `uploads/images/`) and video files (`mp4`, `webm`, `ogg`, `ogv`, `mov` routed to `uploads/videos/`), returning canonical URLs for direct embedding in markdown and HTML documents.
 
 ---
 

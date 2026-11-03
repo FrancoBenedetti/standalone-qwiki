@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.8] - MediaFlow - 2026-11-03
+
+### 🎬 Video & Media Asset Ingestion in Publishing API
+- **Direct Video Asset Uploads (`api/publish.php`)**: Expanded publishing API asset ingestion to support video formats (`mp4`, `webm`, `ogg`, `ogv`, `mov`) in addition to web images (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`). Video uploads are automatically partitioned into dedicated `uploads/videos/` storage, while image assets are routed to `uploads/images/`.
+- **Multi-Alias Action & Key Flexibility (`api/publish.php`)**: Handlers now accept `action=upload_asset`, `upload_media`, and `upload_image`, dynamically recognizing `file`, `asset`, or `image` multi-part file keys.
+- **Canonical Media URL Resolution (`api/publish.php`)**: Upload responses return relative asset paths, full canonical URLs resolved via `Config::getBaseUrl()`, safe sanitized filenames, and media labels for immediate embedding in markdown (`[Caption](uploads/videos/...)` / `![Alt](uploads/images/...)`) or HTML documents.
+- **Brand Logo & Share Bar Image Aspect Sizing (`assets/css/qwiki.css`)**: Added responsive image scaling rules for `.brand-logo img` and `.share-bar-brand img` (`width: 100%; height: auto; object-fit: contain; display: block;`), ensuring crisp rendering without distorted aspect ratios across diverse custom logos.
+
+### 🧪 Automated Test Suite Enhancements
+- **Media Asset Upload Integration Tests (`tests/test_subwiki_templates_deployment.php`)**: Added test assertions verifying `action=upload_asset` uploads for MP4 video assets, ensuring proper routing to `uploads/videos/`, disk persistence, and URL generation.
+
+---
+
 ## [1.20.7] - SlugFlow - 2026-10-31
 
 ### 📁 Category Creation UX & Intelligent Slug Management
