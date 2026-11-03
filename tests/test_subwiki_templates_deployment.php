@@ -146,6 +146,34 @@ assertTest(strpos($jsonValid['url'] ?? '', 'uploads/images/') === 0, 'upload_ima
 assertTest(strpos($jsonValid['fullUrl'] ?? '', 'http://test.qwiki.local/uploads/images/') === 0, 'upload_image returned valid fullUrl with Config::getBaseUrl');
 assertTest(file_exists($tempDir . '/' . $jsonValid['url']), 'Uploaded image file exists on disk');
 
+// Test 4b: upload_asset for valid MP4 video
+$mp4Path = $tempDir . '/test-video.mp4';
+file_put_contents($mp4Path, "fake-mp4-video-data");
+
+$validVideoUploadScript = sprintf('
+    require_once "%s/lib/Core/Config.php";
+    \Qwiki\Core\Config::init("%s");
+    $_SERVER["HTTP_HOST"] = "test.qwiki.local";
+    $_SERVER["SCRIPT_NAME"] = "/api/publish.php";
+    $_POST = ["action" => "upload_asset", "apiKey" => "test-publish-key"];
+    $_FILES = [
+        "file" => [
+            "name" => "demo-walkthrough.mp4",
+            "type" => "video/mp4",
+            "tmp_name" => "%s",
+            "error" => UPLOAD_ERR_OK,
+            "size" => 19
+        ]
+    ];
+    require "%s";
+', __DIR__ . '/..', $tempDir, $mp4Path, $publishApi);
+
+$outVideo = shell_exec('php -r ' . escapeshellarg($validVideoUploadScript));
+$jsonVideo = json_decode($outVideo, true);
+assertTest(!empty($jsonVideo['success']), 'upload_asset succeeded for valid MP4 video');
+assertTest(strpos($jsonVideo['url'] ?? '', 'uploads/videos/') === 0, 'upload_asset returned relative url in uploads/videos/');
+assertTest(file_exists($tempDir . '/' . $jsonVideo['url']), 'Uploaded video file exists on disk');
+
 // Cleanup
 removeDirRecursive($tempDir);
 

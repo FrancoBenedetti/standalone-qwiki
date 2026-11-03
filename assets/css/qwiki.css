@@ -136,6 +136,14 @@ body {
   flex-shrink: 0;
 }
 
+.brand-logo img,
+.share-bar-brand img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .brand-logo:hover img {
   opacity: 0.88;
   transition: opacity var(--transition-fast);

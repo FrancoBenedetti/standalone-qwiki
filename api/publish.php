@@ -63,22 +63,26 @@ function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
 // 2. Dispatch Action
 $action = trim($_POST['action'] ?? $_GET['action'] ?? 'publish_doc');
 
-if ($action === 'upload_image') {
-    if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+if ($action === 'upload_image' || $action === 'upload_asset' || $action === 'upload_media') {
+    $fileKey = isset($_FILES['image']) ? 'image' : (isset($_FILES['file']) ? 'file' : (isset($_FILES['asset']) ? 'asset' : null));
+    if (!$fileKey || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'No image file uploaded or upload error occurred']);
+        echo json_encode(['success' => false, 'error' => 'No image or media file uploaded or upload error occurred']);
         exit;
     }
-    $fileName = basename($_FILES['image']['name']);
+    $fileName = basename($_FILES[$fileKey]['name']);
     $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-    $allowedExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+    $imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+    $videoExts = ['mp4', 'webm', 'ogg', 'ogv', 'mov'];
+    $allowedExts = array_merge($imageExts, $videoExts);
     if (!in_array($ext, $allowedExts, true)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid image format. Allowed formats: ' . implode(', ', $allowedExts)]);
+        echo json_encode(['success' => false, 'error' => 'Invalid image format or unsupported media type. Allowed formats: ' . implode(', ', $allowedExts)]);
         exit;
     }
     $baseDir = Config::getBaseDir();
-    $uploadDir = $baseDir . '/uploads/images/';
+    $subDir = in_array($ext, $videoExts, true) ? 'uploads/videos/' : 'uploads/images/';
+    $uploadDir = $baseDir . '/' . $subDir;
     if (!is_dir($uploadDir)) {
         @mkdir($uploadDir, 0755, true);
     }
@@ -86,11 +90,11 @@ if ($action === 'upload_image') {
     $timestamp = time();
     $newFileName = $timestamp . '-' . $safeName . '.' . $ext;
     $targetPath = $uploadDir . $newFileName;
-    $relUrl = 'uploads/images/' . $newFileName;
+    $relUrl = $subDir . $newFileName;
 
     $fullUrl = rtrim(Config::getBaseUrl(), '/') . '/' . $relUrl;
 
-    if (@move_uploaded_file($_FILES['image']['tmp_name'], $targetPath) || @copy($_FILES['image']['tmp_name'], $targetPath)) {
+    if (@move_uploaded_file($_FILES[$fileKey]['tmp_name'], $targetPath) || @copy($_FILES[$fileKey]['tmp_name'], $targetPath)) {
         echo json_encode([
             'success' => true,
             'url' => $relUrl,
@@ -100,7 +104,7 @@ if ($action === 'upload_image') {
         ]);
     } else {
         http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Failed to save uploaded image to disk']);
+        echo json_encode(['success' => false, 'error' => 'Failed to save uploaded asset to disk']);
     }
     exit;
 }
