@@ -2,6 +2,7 @@
 namespace Qwiki\Core;
 
 require_once __DIR__ . '/QwikiParsedown.php';
+require_once __DIR__ . '/MetadataManager.php';
 
 class ExtensionManager {
     private static $instance = null;
@@ -125,8 +126,23 @@ class ExtensionManager {
             $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
             if (file_exists($filePath)) {
                 $rawMarkdown = file_get_contents($filePath);
+                $frontmatterMode = $config['frontmatter'] ?? 'collapse';
+
+                if ($frontmatterMode === 'raw') {
+                    $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
+                    return $parsedown->text($rawMarkdown);
+                }
+
+                $fmData = MetadataManager::parseFrontmatter($rawMarkdown);
                 $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
-                return $parsedown->text($rawMarkdown);
+                $renderedBody = $parsedown->text($fmData['body']);
+
+                if ($fmData['hasFrontmatter'] && $frontmatterMode !== 'hidden') {
+                    $widgetHtml = MetadataManager::renderFrontmatterWidget($fmData, $frontmatterMode === 'expanded');
+                    return $widgetHtml . $renderedBody;
+                }
+
+                return $renderedBody;
             } else {
                 return "<div class='alert warning'>Markdown file not found: " . htmlspecialchars($activeChapter['file'] ?? '') . "</div>";
             }

@@ -2015,5 +2015,237 @@ body.mode-fullscreen .gdoc-container iframe {
   text-decoration: underline;
 }
 
+/* ==========================================================================
+   Document Frontmatter & Metadata Widget
+   ========================================================================== */
+
+.qwiki-frontmatter-container {
+  margin-bottom: 1.75rem;
+}
+
+.qwiki-frontmatter {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.qwiki-frontmatter:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.qwiki-frontmatter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  list-style: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.qwiki-frontmatter-summary::-webkit-details-marker {
+  display: none;
+}
+
+.qwiki-frontmatter-summary:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.qwiki-frontmatter-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.qwiki-frontmatter-icon {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+.qwiki-frontmatter-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.qwiki-frontmatter-badge {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-color);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.qwiki-frontmatter-toggle-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: transform var(--transition-fast);
+}
+
+.qwiki-frontmatter-toggle-hint::after {
+  content: "▾";
+  font-size: 0.85rem;
+  transition: transform var(--transition-fast);
+}
+
+.qwiki-frontmatter[open] .qwiki-frontmatter-toggle-hint::after {
+  transform: rotate(180deg);
+}
+
+.qwiki-frontmatter-body {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-card);
+}
+
+.qwiki-frontmatter-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.qwiki-frontmatter-table tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] .qwiki-frontmatter-table tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.qwiki-frontmatter-table tr:last-child {
+  border-bottom: none;
+}
+
+.qwiki-frontmatter-key {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.45rem 0.75rem 0.45rem 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  width: 130px;
+  max-width: 200px;
+  font-weight: 600;
+}
+
+.qwiki-frontmatter-val {
+  vertical-align: top;
+  padding: 0.45rem 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.qwiki-fm-pill {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.qwiki-fm-bool-true {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.qwiki-fm-bool-false {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.qwiki-fm-null {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+}
+
+.qwiki-fm-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.qwiki-fm-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.qwiki-fm-code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--accent-color);
+}
+
+[data-theme="light"] .qwiki-fm-code {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.qwiki-fm-link {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.qwiki-fm-link:hover {
+  text-decoration: underline;
+  color: var(--link-hover);
+}
+
+.qwiki-frontmatter-raw {
+  margin-top: 0.75rem;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.qwiki-frontmatter-raw summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.qwiki-frontmatter-raw summary:hover {
+  color: var(--text-secondary);
+}
+
+.qwiki-frontmatter-raw pre {
+  margin: 0.5rem 0 0 0;
+  padding: 0.6rem 0.8rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  overflow-x: auto;
+}
+
+@media print {
+  .qwiki-frontmatter-container {
+    display: none;
+  }
+}
+
+
 
 

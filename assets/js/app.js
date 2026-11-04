@@ -2124,10 +2124,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const rawContent = rawMarkdownData.value || '';
       const hasHtml = containsHtmlMarkup(rawContent);
+      const hasFrontmatter = /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(rawContent);
+      const isProtectedMode = hasHtml || hasFrontmatter;
 
-      // Notice banner for HTML protected mode
+      // Notice banner for HTML/Frontmatter protected mode
       let htmlNotice = document.getElementById('editor-html-notice');
-      if (hasHtml) {
+      if (isProtectedMode) {
+        const modeBadge = hasFrontmatter ? 'YAML FRONTMATTER' : 'PROTECTED HTML';
+        const modeDesc = hasFrontmatter
+          ? 'YAML frontmatter detected. Editor locked to Markdown mode to preserve metadata headers.'
+          : 'Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.';
+
         if (!htmlNotice) {
           htmlNotice = document.createElement('div');
           htmlNotice.id = 'editor-html-notice';
@@ -2135,12 +2142,19 @@ document.addEventListener('DOMContentLoaded', () => {
           htmlNotice.innerHTML = `
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span style="font-size: 1.1rem;">⚡</span>
-              <span><strong>Markdown + HTML Mode (Live Preview):</strong> Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.</span>
+              <span><strong>Markdown Mode (Live Preview):</strong> ${modeDesc}</span>
             </div>
-            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">PROTECTED HTML</span>
+            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">${modeBadge}</span>
           `;
           editorContainer.parentNode.insertBefore(htmlNotice, editorContainer);
         } else {
+          htmlNotice.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1.1rem;">⚡</span>
+              <span><strong>Markdown Mode (Live Preview):</strong> ${modeDesc}</span>
+            </div>
+            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">${modeBadge}</span>
+          `;
           htmlNotice.style.display = 'flex';
         }
       } else if (htmlNotice) {
@@ -2182,12 +2196,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
-          initialEditType: hasHtml ? 'markdown' : 'wysiwyg',
+          initialEditType: isProtectedMode ? 'markdown' : 'wysiwyg',
           previewStyle: 'vertical',
           height: '600px',
           theme: isDark ? 'dark' : '',
           usageStatistics: false,
-          hideModeSwitch: hasHtml,
+          hideModeSwitch: isProtectedMode,
           toolbarItems: [
             ['heading', 'bold', 'italic', 'strike'],
             ['hr', 'quote'],
@@ -2244,14 +2258,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         window.tuiEditorInstance = tuiEditor;
 
-        // Guard mode switching: if document contains HTML, block switching to WYSIWYG
+        // Guard mode switching: if document contains HTML or YAML frontmatter, block switching to WYSIWYG
         if (tuiEditor.eventEmitter) {
           const origEmit = tuiEditor.eventEmitter.emit.bind(tuiEditor.eventEmitter);
           tuiEditor.eventEmitter.emit = function(type, ...args) {
             if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
               const currentContent = tuiEditor.getMarkdown();
-              if (containsHtmlMarkup(currentContent)) {
-                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains custom HTML tags or inline styles which would be stripped. Please continue editing in Markdown mode.');
+              if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent)) {
+                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains YAML frontmatter or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
                 return;
               }
             }
