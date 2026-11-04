@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.9] - MetaFlow - 2026-11-04
+
+### 📑 YAML Frontmatter Parsing & Interactive Metadata Widget
+- **Pure-PHP Zero-Dependency Frontmatter Parser (`lib/Core/MetadataManager.php`)**: Built-in parser (`MetadataManager::parseFrontmatter`) extracting YAML frontmatter delimited by `---` blocks. Reliably parses scalar types (strings, single/double quotes, booleans, integers, floats, nulls), inline arrays (`[tag1, tag2]`), multiline lists (`- item`), nested mappings, and comments while cleanly separating document body content.
+- **Interactive Metadata Presentation Widget (`lib/Core/MetadataManager.php` & `assets/css/qwiki.css`)**: In markdown documents with frontmatter, renders an accessible, theme-aware `<details class="qwiki-frontmatter">` widget above the document content. Features property count badges, key-value table presentation, specialized value formatters (boolean pills, tag chips, code spans, URLs), and a nested raw YAML disclosure.
+- **Configurable Display Modes (`lib/Core/ExtensionManager.php`)**: Supports global display configuration via `frontmatter` in `qwiki.json`:
+  - `collapse` (default): Rendered in a sleek collapsed `<details>` accordion.
+  - `expand`: Rendered pre-expanded.
+  - `hidden`: Frontmatter is stripped completely from view while preserving clean markdown rendering.
+- **Metadata-Safe SEO & OpenGraph Resolution (`lib/Core/MetadataManager.php`)**: `MetadataManager::resolveArticleMetadata()` now strips frontmatter blocks when extracting document paragraphs for descriptions, preventing raw YAML leakage (e.g. `title: ...`) into social share cards and meta descriptions. Dynamically falls back to frontmatter `tags` and `keywords` for article SEO tags.
+- **Remote Content & WYSIWYG Editor Preservation (`lib/Core/RemoteContentManager.php` & `assets/js/app.js`)**:
+  - Remote federated document caches sanitize frontmatter headers to avoid nested frontmatter widgets during transclusion.
+  - Inline Toast UI editor maintains frontmatter integrity when switching between Markdown and WYSIWYG editing tabs.
+
+### 🧪 Automated Test Suite Enhancements
+- **Frontmatter & Metadata Test Suite**: Added `tests/test_frontmatter.php` with 33 unit tests validating parsing accuracy, types, multiline arrays, widget rendering, SEO description fallbacks, and extension config modes.
+
+---
+
 ## [1.20.8] - MediaFlow - 2026-11-03
 
 ### 🎬 Video & Media Asset Ingestion in Publishing API

@@ -296,3 +296,15 @@ Standalone Qwiki includes a native, non-blocking audit logging architecture for 
 - **Granular Multi-Dimensional Filtering**: Filter audit records in real-time by event category (`auth`, `document`, `category`, `share`, `system`), specific action, username, or custom date range, with full-text search across event detail payloads.
 - **GDPR-Compliant IP Privacy Modes**: Configurable client IP capture modes (`hash` for 12-char SHA-256 hashes, `masked` for subnet masks, or `raw` for internal telemetry) managed directly in Site Settings.
 - **Automated Retention Management & CSV Export**: Automated log pruning based on configurable retention limits (default 30 days), manual purge controls, and 1-click CSV export for external compliance auditing and SIEM integration.
+
+---
+
+## 📑 23. YAML Frontmatter & Metadata Widget
+
+Standalone Qwiki natively parses and presents YAML frontmatter in Markdown documents without external parser libraries:
+
+- **Zero-Dependency YAML Parsing**: Built-in extraction parses standard YAML frontmatter blocks (`--- ... ---`) at the top of markdown documents, supporting strings, booleans, numeric types, inline arrays (`[item1, item2]`), multiline lists (`- item`), nested keys, and comments.
+- **Interactive Metadata Presentation Widget**: Displays frontmatter in an accessible, theme-styled `<details class="qwiki-frontmatter">` accordion above document content, complete with property count badges, key-value table presentation, specialized formatters (boolean pills, tag chips, code spans, URLs), and nested raw YAML disclosure.
+- **Clean SEO & OpenGraph Descriptions**: Strips frontmatter headers when deriving article meta descriptions from body text, preventing YAML syntax leakage into search engine snippets and social share cards.
+- **Flexible Display Configuration**: Configure display behavior globally in `qwiki.json` via the `"frontmatter"` setting (`"collapse"` for collapsed accordion, `"expand"` for pre-expanded, or `"hidden"` for completely suppressed widget).
+- **Editor & Federation Safe**: WYSIWYG editing preserves frontmatter blocks across tab switches, and remote document transclusion sanitizes frontmatter headers to maintain clean rendering.
