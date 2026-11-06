@@ -91,6 +91,24 @@ $searchOutput = shell_exec('php -r \'$_GET["q"] = "features"; require "' . addsl
 $searchRes = json_decode($searchOutput, true);
 assertCondition("Private wiki search API returns empty results for guest", !empty($searchRes['success']) && empty($searchRes['results']), $failures);
 
+// Password reset links must remain reachable on a private wiki for guests
+$_GET['action'] = 'reset_password';
+$_GET['token'] = 'invalid-token-for-test';
+ob_start();
+include __DIR__ . '/../index.php';
+$resetHtml = ob_get_clean();
+assertCondition("Private wiki renders reset password view inside gateway", strpos($resetHtml, 'Reset Account Password') !== false && strpos($resetHtml, 'class="auth-gateway-card"') !== false, $failures);
+assertCondition("Private wiki reset view does not render the login form", strpos($resetHtml, 'id="login-form"') === false, $failures);
+assertCondition("Private wiki reset view still omits sidebar", strpos($resetHtml, 'class="app-sidebar"') === false, $failures);
+
+$_GET['action'] = 'verify_email';
+$_GET['token'] = 'invalid-token-for-test';
+ob_start();
+include __DIR__ . '/../index.php';
+$verifyHtml = ob_get_clean();
+assertCondition("Private wiki renders email verification result inside gateway", strpos($verifyHtml, 'Verification Failed') !== false && strpos($verifyHtml, 'id="login-form"') === false, $failures);
+unset($_GET['action'], $_GET['token']);
+
 // Restore config
 file_put_contents($configFile, $origConfigRaw);
 

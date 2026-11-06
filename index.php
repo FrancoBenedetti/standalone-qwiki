@@ -518,7 +518,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <?php
         if (!$canViewContent) {
-            $pageDocTitle = ($config['title'] ?? 'Documentation') . ' — Sign In';
+            if ($routeAction === 'reset_password') {
+                $pageDocTitle = 'Reset Password - ' . ($config['title'] ?? 'Documentation');
+            } elseif ($routeAction === 'verify_email') {
+                $pageDocTitle = 'Email Verification - ' . ($config['title'] ?? 'Documentation');
+            } else {
+                $pageDocTitle = ($config['title'] ?? 'Documentation') . ' — Sign In';
+            }
         } elseif (!empty($isAccessRestricted)) {
             $pageDocTitle = 'Access Restricted - ' . ($config['title'] ?? 'Standalone Qwiki');
         } else {
@@ -583,6 +589,50 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <span class="theme-label" style="font-size: 0.8rem; margin-left: 0.25rem;">Theme</span>
                     </button>
                 </div>
+                <?php if ($routeAction === 'reset_password'): ?>
+                    <div class="auth-gateway-header">
+                        <div class="auth-gateway-icon">🔑</div>
+                        <h2 class="auth-gateway-title">Reset Account Password</h2>
+                        <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
+                            <p class="auth-gateway-subtitle">Set a new password for account <strong><?= htmlspecialchars($resetPasswordValidation['username']) ?></strong>.</p>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
+                        <form id="standalone-reset-password-form">
+                            <input type="hidden" name="token" value="<?= htmlspecialchars($resetPasswordToken) ?>">
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label" for="reset-new-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">New Password (min 4 characters)</label>
+                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="Enter new password" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <label class="form-label" for="reset-confirm-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Confirm New Password</label>
+                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="Confirm new password" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
+                            </div>
+                            <div id="reset-password-status" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;">Save New Password</button>
+                        </form>
+                    <?php else: ?>
+                        <div style="padding: 1rem; background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 6px; color: #b91c1c; font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem;">
+                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? 'This password reset link is invalid or has expired.') ?>
+                        </div>
+                    <?php endif; ?>
+                    <div style="text-align: center; margin-top: 1rem;">
+                        <a href="<?= htmlspecialchars($baseUrl) ?>" style="font-size: 0.85rem; color: var(--text-muted);">← Back to Sign In</a>
+                    </div>
+                <?php elseif ($routeAction === 'verify_email'): ?>
+                    <div class="auth-gateway-header">
+                        <?php if ($emailVerificationResult && $emailVerificationResult['success']): ?>
+                            <div class="auth-gateway-icon">✅</div>
+                            <h2 class="auth-gateway-title">Email Verified!</h2>
+                            <p class="auth-gateway-subtitle">Your email address <strong><?= htmlspecialchars($emailVerificationResult['email']) ?></strong> has been verified successfully.</p>
+                        <?php else: ?>
+                            <div class="auth-gateway-icon">⚠️</div>
+                            <h2 class="auth-gateway-title">Verification Failed</h2>
+                            <p class="auth-gateway-subtitle" style="color: #ef4444;"><?= htmlspecialchars($emailVerificationResult['error'] ?? 'This email verification link is invalid or has expired.') ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary" style="display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 0.65rem 1rem; font-weight: 600;">Continue to Sign In</a>
+                <?php else: ?>
                 <div class="auth-gateway-header">
                     <div class="auth-gateway-icon">🔒</div>
                     <h2 class="auth-gateway-title"><?= htmlspecialchars($config['title'] ?? 'Private Documentation Portal') ?></h2>
@@ -620,6 +670,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <button type="button" class="btn-link" id="btn-back-to-login" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0;">← Back to login</button>
                     </div>
                 </form>
+                <?php endif; ?>
 
                 <?php if ($isSubwiki): ?>
                     <div class="auth-gateway-footer">
