@@ -49,13 +49,15 @@ const html = `
 </html>
 `;
 
-// Helper to evaluate app.js initialization logic
+// Helper to evaluate sidebar initialization logic
+const sidebarJsPath = path.join(__dirname, '..', 'assets', 'js', 'core', 'sidebar.js');
 const appJsPath = path.join(__dirname, '..', 'assets', 'js', 'app.js');
+const sidebarJsContent = fs.readFileSync(sidebarJsPath, 'utf8');
 const appJsContent = fs.readFileSync(appJsPath, 'utf8');
 
-assert(appJsContent.includes('qwiki_sidebar_scroll'), 'app.js must persist qwiki_sidebar_scroll');
-assert(appJsContent.includes('qwiki_category_states'), 'app.js must persist qwiki_category_states');
-console.log('✅ app.js storage key definitions verified');
+assert(sidebarJsContent.includes('qwiki_sidebar_scroll'), 'sidebar.js must persist qwiki_sidebar_scroll');
+assert(sidebarJsContent.includes('qwiki_category_states'), 'sidebar.js must persist qwiki_category_states');
+console.log('✅ sidebar.js storage key definitions verified');
 
 function createDom(sessionData = {}) {
     const dom = new JSDOM(html, {
@@ -79,6 +81,7 @@ function createDom(sessionData = {}) {
         })
     });
 
+    dom.window.eval(sidebarJsContent);
     dom.window.eval(appJsContent);
     dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
 
@@ -94,6 +97,7 @@ function createDom(sessionData = {}) {
 {
     const dom = createDom();
 
+    dom.window.eval(sidebarJsContent);
     dom.window.eval(appJsContent);
     dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
 
@@ -120,6 +124,7 @@ function createDom(sessionData = {}) {
         'qwiki_sidebar_scroll': '342'
     });
 
+    dom.window.eval(sidebarJsContent);
     dom.window.eval(appJsContent);
     dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
 
@@ -139,6 +144,7 @@ function createDom(sessionData = {}) {
 {
     const dom = createDom();
 
+    dom.window.eval(sidebarJsContent);
     dom.window.eval(appJsContent);
     dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
 
@@ -161,6 +167,7 @@ function createDom(sessionData = {}) {
         assert.strictEqual(options.block, 'nearest', 'scrollIntoView block should be nearest');
     };
 
+    dom.window.eval(sidebarJsContent);
     dom.window.eval(appJsContent);
     dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
 

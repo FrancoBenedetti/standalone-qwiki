@@ -63,13 +63,13 @@ const { window } = dom;
 global.window = window;
 global.document = window.document;
 
-// Load app.js search logic snippet to execute in this DOM
-const appJsPath = path.join(__dirname, '..', 'assets', 'js', 'app.js');
-const appJsContent = fs.readFileSync(appJsPath, 'utf8');
+// Load core/search.js search logic snippet to execute in this DOM
+const searchJsPath = path.join(__dirname, '..', 'assets', 'js', 'core', 'search.js');
+const searchJsContent = fs.readFileSync(searchJsPath, 'utf8');
 
-// Ensure app.js contains sidebarSearchClear definitions
-assert(appJsContent.includes("sidebar-search-clear"), 'app.js must query sidebar-search-clear');
-assert(appJsContent.includes("clearSearch"), 'app.js must define clearSearch');
+// Ensure search.js contains sidebarSearchClear definitions
+assert(searchJsContent.includes("sidebar-search-clear"), 'search.js must query sidebar-search-clear');
+assert(searchJsContent.includes("clearSearch"), 'search.js must define clearSearch');
 
 // Execute search init script in the JSDOM context
 const scriptFn = new Function('window', 'document', `
