@@ -4009,6 +4009,102 @@ document.addEventListener('DOMContentLoaded', () => {
   generateTableOfContents();
   handleInitialHashNavigation();
 
+  // Print / Download as PDF: Dynamic Print Scaling & Content Protection
+  const preparePrintScaling = () => {
+    const container = document.querySelector('.content-body');
+    if (!container) return;
+
+    // Determine target printable content width (A4/Letter portrait with 15mm margins ~ 680px)
+    const isPrintMedia = window.matchMedia && window.matchMedia('print').matches;
+    const availWidth = (isPrintMedia && container.clientWidth < 800) ? container.clientWidth : 680;
+
+    // 1. Monospace PRE blocks (code blocks, ASCII diagrams, ASCII tables)
+    const pres = container.querySelectorAll('pre');
+    pres.forEach(pre => {
+      const text = pre.textContent || '';
+      const lines = text.split('\n');
+      let maxLen = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].length > maxLen) maxLen = lines[i].length;
+      }
+
+      // If line length exceeds 96 chars, scale font-size down proportionally
+      if (maxLen > 96) {
+        const targetPt = Math.max(4.5, Math.min(7.7, Math.floor((780 / maxLen) * 10) / 10));
+        pre.dataset.origFontSize = pre.style.fontSize;
+        pre.dataset.origLineHeight = pre.style.lineHeight;
+        pre.style.fontSize = targetPt + 'pt';
+        pre.style.lineHeight = '1.18';
+      }
+    });
+
+    // 2. Data Tables: scale if table naturally exceeds available printable width
+    const tables = container.querySelectorAll('table');
+    tables.forEach(table => {
+      const tableWidth = table.scrollWidth || table.offsetWidth;
+      if (tableWidth > availWidth + 20) {
+        const scale = Math.max(0.45, Math.min(1, (availWidth / tableWidth) * 0.98));
+        if (scale < 0.98) {
+          table.dataset.origTransform = table.style.transform;
+          table.dataset.origTransformOrigin = table.style.transformOrigin;
+          table.dataset.origWidth = table.style.width;
+          table.dataset.origMarginBottom = table.style.marginBottom;
+          table.style.transformOrigin = 'top left';
+          table.style.transform = `scale(${scale})`;
+          table.style.width = `${(100 / scale)}%`;
+          const heightDiff = (1 - scale) * table.offsetHeight;
+          if (heightDiff > 0) {
+            table.style.marginBottom = `-${heightDiff}px`;
+          }
+          table.dataset.scaled = 'true';
+        }
+      }
+    });
+
+    // 3. Visual Diagrams: ensure SVG diagrams don't exceed container
+    const diagramContainers = container.querySelectorAll('.mermaid-diagram-container, .svgbob-diagram-container');
+    diagramContainers.forEach(diag => {
+      diag.querySelectorAll('svg').forEach(svg => {
+        svg.style.maxWidth = '100%';
+        svg.style.height = 'auto';
+      });
+    });
+  };
+
+  const restorePrintScaling = () => {
+    const container = document.querySelector('.content-body');
+    if (!container) return;
+
+    // Restore pre blocks
+    container.querySelectorAll('pre').forEach(pre => {
+      if (pre.dataset.origFontSize !== undefined) {
+        pre.style.fontSize = pre.dataset.origFontSize;
+        delete pre.dataset.origFontSize;
+      }
+      if (pre.dataset.origLineHeight !== undefined) {
+        pre.style.lineHeight = pre.dataset.origLineHeight;
+        delete pre.dataset.origLineHeight;
+      }
+    });
+
+    // Restore tables
+    container.querySelectorAll('table[data-scaled="true"]').forEach(table => {
+      table.style.transform = table.dataset.origTransform || '';
+      table.style.transformOrigin = table.dataset.origTransformOrigin || '';
+      table.style.width = table.dataset.origWidth || '';
+      table.style.marginBottom = table.dataset.origMarginBottom || '';
+      delete table.dataset.scaled;
+      delete table.dataset.origTransform;
+      delete table.dataset.origTransformOrigin;
+      delete table.dataset.origWidth;
+      delete table.dataset.origMarginBottom;
+    });
+  };
+
+  // Listen to browser-native print events (Ctrl+P, system menu, etc.)
+  window.addEventListener('beforeprint', preparePrintScaling);
+  window.addEventListener('afterprint', restorePrintScaling);
+
   // Print / Download as PDF (Delegates to HTML iframe if active to enable full pagination)
   document.querySelectorAll('#btn-print-chapter').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -4020,6 +4116,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         } catch(e) {}
       }
+      preparePrintScaling();
       window.print();
     });
   });

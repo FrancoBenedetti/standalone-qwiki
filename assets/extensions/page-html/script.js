@@ -496,26 +496,81 @@ document.addEventListener('DOMContentLoaded', () => {
                     const style = frameDoc.createElement('style');
                     style.id = 'qwiki-injected-print-css';
                     style.textContent = `
+                        @page { size: auto; margin: 12mm 15mm 15mm 15mm; }
                         @media print {
-                            @page { size: auto; margin: 15mm; }
                             body {
                                 background: #fff !important;
-                                color: #000 !important;
+                                color: #0f172a !important;
                                 width: 100% !important;
                                 margin: 0 !important;
                                 padding: 0 !important;
-                                font-size: 11pt !important;
+                                font-size: 10pt !important;
+                                line-height: 1.45 !important;
                                 -webkit-print-color-adjust: exact !important;
                                 print-color-adjust: exact !important;
                             }
-                            h1, h2, h3, h4 {
+                            h1, h2, h3, h4, h5, h6 {
+                                color: #0f172a !important;
                                 page-break-after: avoid !important;
                                 break-after: avoid !important;
                             }
-                            img, table, pre, blockquote {
+                            h1 { font-size: 16pt !important; line-height: 1.25 !important; margin: 14pt 0 6pt !important; }
+                            h2 { font-size: 13pt !important; line-height: 1.3 !important; margin: 12pt 0 5pt !important; }
+                            h3 { font-size: 11pt !important; line-height: 1.3 !important; margin: 10pt 0 4pt !important; }
+                            h4, h5, h6 { font-size: 10pt !important; margin: 8pt 0 3pt !important; }
+                            p, ul, ol { margin-top: 0 !important; margin-bottom: 6pt !important; line-height: 1.45 !important; }
+                            table {
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                font-size: 8.5pt !important;
+                                line-height: 1.35 !important;
+                                border-collapse: collapse !important;
+                                table-layout: auto !important;
+                                page-break-inside: auto !important;
+                            }
+                            th, td {
+                                font-size: 8.5pt !important;
+                                padding: 4pt 6pt !important;
+                                overflow-wrap: break-word !important;
+                            }
+                            th {
+                                background-color: #f1f5f9 !important;
+                                color: #0f172a !important;
+                                font-weight: 700 !important;
+                            }
+                            tr {
                                 page-break-inside: avoid !important;
                                 break-inside: avoid !important;
+                            }
+                            thead {
+                                display: table-header-group !important;
+                            }
+                            pre {
+                                background: #f8fafc !important;
+                                color: #0f172a !important;
+                                border: 1px solid #cbd5e1 !important;
+                                border-radius: 4px !important;
+                                padding: 6pt 8pt !important;
+                                font-size: 7.7pt !important;
+                                line-height: 1.2 !important;
+                                white-space: pre !important;
+                                overflow: visible !important;
+                                box-sizing: border-box !important;
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            img, svg {
                                 max-width: 100% !important;
+                                height: auto !important;
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            blockquote {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                                border-left: 3pt solid #cbd5e1 !important;
+                                padding: 4pt 8pt !important;
+                                margin: 6pt 0 !important;
                             }
                         }
                     `;
