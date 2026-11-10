@@ -60,6 +60,20 @@ $htmlSingleBlock = $parsedown->text($mdSingleBlock);
 assertTest(strpos($htmlSingleBlock, 'class="katex-display-block"') !== false, 'Single-line $$ block renders with class="katex-display-block"');
 assertTest(strpos($htmlSingleBlock, 'data-tex="E = mc^2"') !== false, 'Single-line $$ block has data-tex attribute');
 
+$mdConsecutive = <<<'MD'
+$$R_{base} = \frac{1}{3} \sum_{i=1}^{3} (Y_i \times P_i)$$
+Where:
+* $Y_i$ = Audited yield
+* $P_i$ = Price
+
+$$\Delta V = 2$$
+MD;
+$htmlConsecutive = $parsedown->text($mdConsecutive);
+assertTest(strpos($htmlConsecutive, 'data-tex="R_{base} = \frac{1}{3} \sum_{i=1}^{3} (Y_i \times P_i)"') !== false, 'Single-line math block closes immediately without swallowing subsequent lines');
+assertTest(strpos($htmlConsecutive, '<p>Where:</p>') !== false, 'Subsequent lines after single-line math render as normal paragraph');
+assertTest(strpos($htmlConsecutive, '<li><span class="katex-inline"') !== false, 'Subsequent list after single-line math renders as list items');
+assertTest(strpos($htmlConsecutive, 'data-tex="\Delta V = 2"') !== false, 'Following display math renders as independent block');
+
 // ----------------------------------------------------
 // 3. Symbol Normalization: Shorthand ($to$, $\to$, $approx$, etc.)
 // ----------------------------------------------------
