@@ -125,6 +125,9 @@ $$
 5. **Theme & Currency Awareness**:
    - Math equations inherit active theme colors in both dark and light modes.
    - Standard currency amounts (e.g. `$50 and $100`) are protected and remain literal text.
+6. **WYSIWYG Protection & Markdown Mode Enforcement**:
+   - Documents containing LaTeX math expressions are automatically initialized in **Markdown Mode (Live Preview)** with a `[LATEX / MATH]` notice banner.
+   - Mode switching to WYSIWYG is safely blocked to protect TeX formulas, subscripts, macros, and fractions from destructive character escaping (e.g. converting `_` to `\_` or `\frac` to `\\frac`).
 
 ---
 
