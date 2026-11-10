@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.10] - AccessFlow - 2026-11-10
+
+### 🔐 Authentication Gateway & Self-Service Account Recovery
+- **Dedicated Frontend Recovery Views (`index.php`)**: Built-in recovery card interfaces for `action=reset_password` and `action=verify_email`. When users navigate with valid reset or verification tokens, Qwiki presents purpose-built gateway cards for password reset (with confirmation fields and inline status indicators) or email verification confirmations without rendering the default login form or exposing sidebar navigation.
+- **Zero-Leakage Private Wiki Gateway Routing (`index.php`)**: Password reset and email verification workflows remain accessible on private portals without requiring guest authentication or bypassing boundary protection, ensuring seamless user recovery across locked and open wikis.
+
+### 📐 Mathematical Notation & Parser Stability
+- **Immediate Single-Line Display Math Termination (`lib/Core/QwikiParsedown.php`)**: Explicitly mark single-line display math blocks (`$$ formula $$`) with `'closed' => true` in `QwikiParsedown::blockMath()`. Prevents Parsedown from continuable line consumption into the math element's `data-tex` attribute, ensuring subsequent paragraphs, lists, and equations render cleanly in document flow without KaTeX syntax failures.
+
+### 🧪 Automated Test Suite Enhancements
+- **LaTeX Display Math Preservation (`tests/test_latex_rendering.php`)**: Regression tests verifying single-line display equations close immediately and do not swallow following prose, lists, or consecutive equations.
+- **Gateway Recovery Flow Tests (`tests/test_privacy_and_access_restrictions.php`)**: Added coverage for `reset_password` and `verify_email` gateway rendering, verifying proper form presentation, error messaging on invalid tokens, and strict omission of the login form and sidebar on private portals.
+- **Modular JS Storage Suite Alignment (`tests/test_sidebar_scroll_persistence.js` & `tests/test_sidebar_search_clear.js`)**: Aligned DOM evaluation in automated headless tests to inspect `assets/js/core/sidebar.js` and `assets/js/core/search.js` following the modular JavaScript refactoring.
+
+---
+
 ## [1.20.9] - MetaFlow - 2026-11-04
 
 ### 📑 YAML Frontmatter Parsing & Interactive Metadata Widget
