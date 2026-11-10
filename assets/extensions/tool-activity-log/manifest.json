@@ -1,0 +1,19 @@
+{
+  "id": "activity_log",
+  "type": "utility",
+  "adminOnly": true,
+  "title": "Activity & Access Log",
+  "icon": "📜",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_activity_get_logs",
+    "ext_activity_get_stats",
+    "ext_activity_export_csv",
+    "ext_activity_purge_logs",
+    "ext_activity_save_settings"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

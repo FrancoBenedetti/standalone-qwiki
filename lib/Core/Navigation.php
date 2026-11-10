@@ -70,6 +70,11 @@ class Navigation {
                 // Looking for a specific document
                 foreach ($node['items'] as $item) {
                     if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                        $itemVis = $item['visibility'] ?? 'public';
+                        if (!$isAdmin) {
+                            if ($itemVis === 'admin_only') continue;
+                            if ($itemVis === 'logged_in' && !$isViewer) continue;
+                        }
                         if (($item['slug'] ?? '') === $targetChapterSlug) {
                             if (!$targetFolderId || $isFolderMatch) {
                                 $trail = $currentTrail;
@@ -95,6 +100,11 @@ class Navigation {
                 if ($isTargetContext) {
                     foreach ($node['items'] as $item) {
                         if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                            $itemVis = $item['visibility'] ?? 'public';
+                            if (!$isAdmin) {
+                                if ($itemVis === 'admin_only') continue;
+                                if ($itemVis === 'logged_in' && !$isViewer) continue;
+                            }
                             $trail = $currentTrail;
                             $activeIds = $currentActiveIds;
                             return $item;
@@ -143,6 +153,11 @@ class Navigation {
                     continue;
                 } else {
                     $ch = $item;
+                    $chVis = $ch['visibility'] ?? 'public';
+                    if (!$isAdmin) {
+                        if ($chVis === 'admin_only') continue;
+                        if ($chVis === 'logged_in' && !$isViewer) continue;
+                    }
                     $nodeId = $node['id'] ?? '';
                     if ($nodeId === $bookId) {
                         $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug'] ?? '');
@@ -270,6 +285,11 @@ class Navigation {
                     self::renderLinkItem($item, $nodeId, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
                 } else {
                     $ch = $item;
+                    $chVis = $ch['visibility'] ?? 'public';
+                    if (!$isAdmin) {
+                        if ($chVis === 'admin_only') continue;
+                        if ($chVis === 'logged_in' && !$isViewer) continue;
+                    }
                     $isActive = ($isExpanded && $activeChapterSlug === ($ch['slug'] ?? ''));
                     $docType = strtolower($ch['type'] ?? 'markdown');
                     $badgeClass = 'badge-' . htmlspecialchars($docType);
@@ -443,10 +463,15 @@ class Navigation {
      * @param string|null $parentFolder Parent folder path for resolving relative folders
      * @return array List of categories with ['id', 'title', 'path', 'depth', 'folder']
      */
-    public static function getCategoriesHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null): array {
+    public static function getCategoriesHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null, bool $isAdmin = false, bool $isViewer = false): array {
         $result = [];
         foreach ($nodes as $node) {
             if (!is_array($node)) continue;
+            $vis = $node['visibility'] ?? 'public';
+            if (!$isAdmin) {
+                if ($vis === 'admin_only') continue;
+                if ($vis === 'logged_in' && !$isViewer) continue;
+            }
             if (($node['type'] ?? 'folder') === 'folder' && isset($node['id'])) {
                 $nodeId = $node['id'];
                 $nodeTitle = $node['title'] ?? $nodeId;
@@ -462,7 +487,7 @@ class Navigation {
                 ];
 
                 if (!empty($node['items']) && is_array($node['items'])) {
-                    $subCats = self::getCategoriesHierarchy($node['items'], $currentPath, $depth + 1, $curFolder);
+                    $subCats = self::getCategoriesHierarchy($node['items'], $currentPath, $depth + 1, $curFolder, $isAdmin, $isViewer);
                     $result = array_merge($result, $subCats);
                 }
             }

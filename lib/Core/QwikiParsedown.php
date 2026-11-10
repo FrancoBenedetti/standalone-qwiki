@@ -282,6 +282,7 @@ class QwikiParsedown extends \Parsedown {
         if (strlen($text) > 4 && substr($text, -2) === '$$') {
             $formula = trim(substr($text, 2, -2));
             return [
+                'closed' => true,
                 'element' => [
                     'name' => 'div',
                     'text' => '$$' . $formula . '$$',

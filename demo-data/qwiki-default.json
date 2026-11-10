@@ -190,5 +190,8 @@
         "password": "",
         "fromEmail": "",
         "fromName": "Standalone Qwiki"
-    }
+    },
+    "ipPrivacyMode": "hash",
+    "logRetentionDays": 30,
+    "frontmatter": "collapse"
 }

@@ -836,6 +836,122 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Real-time Slug Auto-Generation & Validation for Add Category Form
+  const addBookForm = document.getElementById('add-book-form');
+  const bookTitleInput = document.getElementById('book-title');
+  const bookIdInput = document.getElementById('book-id-input');
+  const bookParentSelect = document.getElementById('book-parent-select');
+  const bookPathPreview = document.getElementById('book-path-preview');
+  const bookSlugFeedback = document.getElementById('book-slug-feedback');
+  const bookSlugMode = document.getElementById('book-slug-mode');
+  const bookIsCustomSlug = document.getElementById('book-is-custom-slug');
+  let isBookSlugManual = false;
+  let bookSlugCheckTimeout = null;
+
+  function slugifyCategoryText(text) {
+    return (text || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  function updateBookPathPreview(slug) {
+    if (!bookPathPreview) return;
+    let baseFolder = 'content';
+    if (bookParentSelect && bookParentSelect.selectedIndex >= 0) {
+      const selectedOpt = bookParentSelect.options[bookParentSelect.selectedIndex];
+      if (selectedOpt && selectedOpt.getAttribute('data-folder')) {
+        baseFolder = selectedOpt.getAttribute('data-folder');
+      }
+    }
+    const cleanSlug = slug !== undefined ? slug : ((bookIdInput && bookIdInput.value.trim()) || (bookTitleInput ? slugifyCategoryText(bookTitleInput.value) : ''));
+    bookPathPreview.textContent = cleanSlug ? `${baseFolder}/${cleanSlug}/` : `${baseFolder}/`;
+  }
+
+  function checkBookSlugAvailability(rawVal, isManual) {
+    clearTimeout(bookSlugCheckTimeout);
+    if (!bookSlugFeedback) return;
+    if (!rawVal) {
+      bookSlugFeedback.textContent = '';
+      return;
+    }
+
+    bookSlugCheckTimeout = setTimeout(async () => {
+      try {
+        const isCustomParam = isManual ? '1' : '0';
+        const res = await fetch(`api/admin.php?action=check_category_slug&slug=${encodeURIComponent(rawVal)}&is_custom=${isCustomParam}`);
+        const data = await res.json();
+        if (data.valid) {
+          if (data.isTaken && data.note) {
+            bookSlugFeedback.style.color = 'var(--warning-color, #f59e0b)';
+            bookSlugFeedback.textContent = `⚠️ ${data.note}`;
+          } else {
+            bookSlugFeedback.style.color = 'var(--success-color, #10b981)';
+            bookSlugFeedback.textContent = `✓ Slug "${data.slug}" is available.`;
+          }
+        } else {
+          bookSlugFeedback.style.color = 'var(--danger-color, #ef4444)';
+          bookSlugFeedback.textContent = `✗ ${data.error || 'Slug unavailable'}`;
+        }
+      } catch (e) {
+        // ignore network error during live validation
+      }
+    }, 250);
+  }
+
+  if (bookTitleInput && bookIdInput) {
+    bookTitleInput.addEventListener('input', () => {
+      if (!isBookSlugManual) {
+        const autoSlug = slugifyCategoryText(bookTitleInput.value);
+        bookIdInput.value = autoSlug;
+        if (bookSlugMode) bookSlugMode.textContent = '(Auto-generated)';
+        if (bookIsCustomSlug) bookIsCustomSlug.value = '0';
+        updateBookPathPreview(autoSlug);
+        checkBookSlugAvailability(autoSlug, false);
+      }
+    });
+
+    bookIdInput.addEventListener('input', () => {
+      const rawVal = bookIdInput.value;
+      if (!rawVal || rawVal.trim() === '') {
+        isBookSlugManual = false;
+        if (bookSlugMode) bookSlugMode.textContent = '(Auto-generated)';
+        if (bookIsCustomSlug) bookIsCustomSlug.value = '0';
+        const autoSlug = slugifyCategoryText(bookTitleInput.value);
+        updateBookPathPreview(autoSlug);
+        checkBookSlugAvailability(autoSlug, false);
+      } else {
+        isBookSlugManual = true;
+        if (bookSlugMode) bookSlugMode.textContent = '(Custom)';
+        if (bookIsCustomSlug) bookIsCustomSlug.value = '1';
+        const slug = slugifyCategoryText(rawVal);
+        updateBookPathPreview(slug || rawVal.trim());
+        checkBookSlugAvailability(slug, true);
+      }
+    });
+
+    if (bookParentSelect) {
+      bookParentSelect.addEventListener('change', () => {
+        updateBookPathPreview();
+      });
+    }
+
+    const btnAddBook = document.getElementById('btn-add-book');
+    if (btnAddBook) {
+      btnAddBook.addEventListener('click', () => {
+        isBookSlugManual = false;
+        if (bookIsCustomSlug) bookIsCustomSlug.value = '0';
+        if (bookSlugMode) bookSlugMode.textContent = '(Auto-generated)';
+        if (bookSlugFeedback) bookSlugFeedback.textContent = '';
+        if (bookIdInput) bookIdInput.value = '';
+        if (bookTitleInput) bookTitleInput.value = '';
+        updateBookPathPreview('');
+      });
+    }
+  }
+
   // Category Edit Pencil Icons in Sidebar
   document.querySelectorAll('.btn-edit-cat-icon').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1789,7 +1905,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind Form Submissions
-  submitAdminForm('add-book-form', 'add_book');
+  submitAdminForm('add-book-form', 'add_book', false, (data) => {
+    try {
+      const states = JSON.parse(sessionStorage.getItem('qwiki_category_states') || '{}');
+      if (data.bookId) states[data.bookId] = 'expanded';
+      if (data.parentId) states[data.parentId] = 'expanded';
+      sessionStorage.setItem('qwiki_category_states', JSON.stringify(states));
+    } catch (e) {}
+    window.location.reload();
+  });
   submitAdminForm('edit-book-form', 'edit_book');
   submitAdminForm('tab-create-md', 'create_markdown');
   submitAdminForm('tab-upload', 'upload_file');
@@ -2000,10 +2124,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const rawContent = rawMarkdownData.value || '';
       const hasHtml = containsHtmlMarkup(rawContent);
+      const hasFrontmatter = /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(rawContent);
+      const isProtectedMode = hasHtml || hasFrontmatter;
 
-      // Notice banner for HTML protected mode
+      // Notice banner for HTML/Frontmatter protected mode
       let htmlNotice = document.getElementById('editor-html-notice');
-      if (hasHtml) {
+      if (isProtectedMode) {
+        const modeBadge = hasFrontmatter ? 'YAML FRONTMATTER' : 'PROTECTED HTML';
+        const modeDesc = hasFrontmatter
+          ? 'YAML frontmatter detected. Editor locked to Markdown mode to preserve metadata headers.'
+          : 'Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.';
+
         if (!htmlNotice) {
           htmlNotice = document.createElement('div');
           htmlNotice.id = 'editor-html-notice';
@@ -2011,12 +2142,19 @@ document.addEventListener('DOMContentLoaded', () => {
           htmlNotice.innerHTML = `
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span style="font-size: 1.1rem;">⚡</span>
-              <span><strong>Markdown + HTML Mode (Live Preview):</strong> Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.</span>
+              <span><strong>Markdown Mode (Live Preview):</strong> ${modeDesc}</span>
             </div>
-            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">PROTECTED HTML</span>
+            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">${modeBadge}</span>
           `;
           editorContainer.parentNode.insertBefore(htmlNotice, editorContainer);
         } else {
+          htmlNotice.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1.1rem;">⚡</span>
+              <span><strong>Markdown Mode (Live Preview):</strong> ${modeDesc}</span>
+            </div>
+            <span class="doc-badge badge-md" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap;">${modeBadge}</span>
+          `;
           htmlNotice.style.display = 'flex';
         }
       } else if (htmlNotice) {
@@ -2058,12 +2196,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
-          initialEditType: hasHtml ? 'markdown' : 'wysiwyg',
+          initialEditType: isProtectedMode ? 'markdown' : 'wysiwyg',
           previewStyle: 'vertical',
           height: '600px',
           theme: isDark ? 'dark' : '',
           usageStatistics: false,
-          hideModeSwitch: hasHtml,
+          hideModeSwitch: isProtectedMode,
           toolbarItems: [
             ['heading', 'bold', 'italic', 'strike'],
             ['hr', 'quote'],
@@ -2120,14 +2258,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         window.tuiEditorInstance = tuiEditor;
 
-        // Guard mode switching: if document contains HTML, block switching to WYSIWYG
+        // Guard mode switching: if document contains HTML or YAML frontmatter, block switching to WYSIWYG
         if (tuiEditor.eventEmitter) {
           const origEmit = tuiEditor.eventEmitter.emit.bind(tuiEditor.eventEmitter);
           tuiEditor.eventEmitter.emit = function(type, ...args) {
             if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
               const currentContent = tuiEditor.getMarkdown();
-              if (containsHtmlMarkup(currentContent)) {
-                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains custom HTML tags or inline styles which would be stripped. Please continue editing in Markdown mode.');
+              if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent)) {
+                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains YAML frontmatter or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
                 return;
               }
             }

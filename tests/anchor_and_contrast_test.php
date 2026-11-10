@@ -3,15 +3,7 @@
 
 require_once __DIR__ . '/../lib/Parsedown.php';
 
-// Load QwikiParsedown from index.php definition
-$indexCode = file_get_contents(__DIR__ . '/../index.php');
-$startMarker = "if (!class_exists('QwikiParsedown')) {";
-$endMarker = '$config = Config::load();';
-$p1 = strpos($indexCode, $startMarker);
-$p2 = strpos($indexCode, $endMarker);
-if ($p1 !== false && $p2 !== false) {
-    eval(substr($indexCode, $p1, $p2 - $p1));
-}
+require_once __DIR__ . '/../lib/Core/QwikiParsedown.php';
 
 $passed = 0;
 $failed = 0;

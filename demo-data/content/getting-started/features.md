@@ -107,9 +107,10 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ## 👁️ 8. Visibility Controls & Search
 
-- **Granular Category Access**: Assign visibility to categories as `Public`, `Logged In Users`, or `Admins Only`.
+- **Full-Page Authentication Gateway**: When `requireLoginToView` is active, unauthenticated guests are greeted with a dedicated, distraction-free authentication gateway. Application chrome (sidebar, search bar, breadcrumbs, table of contents, and administrative dialogs) is completely omitted to prevent metadata and structure disclosure.
+- **Granular Visibility & Silent Omission**: Assign visibility to categories or individual documents as `Public`, `Logged In Users`, or `Admins Only`. Restricted items are silently omitted from sidebar menus, sequential reading links, and search results for unauthorized visitors.
 - **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`, `FORM`) to admin users.
-- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms.
+- **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms with automatic privacy filtering.
 - **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---
@@ -254,6 +255,7 @@ External automation pipelines, CI/CD runners, and AI agents can publish self-con
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
+- **Image & Video Asset Ingestion**: Headless endpoints (`action=upload_asset`, `upload_media`, `upload_image`) accept web graphics (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp` routed to `uploads/images/`) and video files (`mp4`, `webm`, `ogg`, `ogv`, `mov` routed to `uploads/videos/`), returning canonical URLs for direct embedding in markdown and HTML documents.
 
 ---
 
@@ -282,3 +284,27 @@ Standalone Qwiki includes a comprehensive document lifecycle management architec
 - **Sidebar Status Indicators**: Non-published documents display distinct visual status indicators (`●`) in the left navigation menu for logged-in administrators, making draft and pending documents easy to track.
 - **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML document to `Published` can automatically and permanently strip draft watermarks, review dockets, boundary comment blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`), checklists, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while setting root `<html data-qwiki-status="published">`.
 - **Headless Status Transitions**: Automation pipelines and AI agents can manage document statuses programmatically via `action=set_status` (in `api/publish.php`) or `action=set_chapter_status` (in `api/admin.php`).
+
+---
+
+## 📜 22. Audit & Access Logging Engine
+
+Standalone Qwiki includes a native, non-blocking audit logging architecture for enterprise security, compliance review, and reader analytics:
+
+- **Append-Only JSON Lines Logging**: Records security events, share link hits, document mutations, and administrative operations to monthly partitioned files in `content/.logs/activity-YYYY-MM.jsonl`, protected by Apache `.htaccess` (`Order allow,deny\nDeny from all`).
+- **Interactive Admin Audit Dashboard**: Launch the **`📜 Activity & Access Log`** modal from the header menu to view live event feeds, statistical overview cards (total events, failed logins, share visits, document mutations), and top shared document analytics.
+- **Granular Multi-Dimensional Filtering**: Filter audit records in real-time by event category (`auth`, `document`, `category`, `share`, `system`), specific action, username, or custom date range, with full-text search across event detail payloads.
+- **GDPR-Compliant IP Privacy Modes**: Configurable client IP capture modes (`hash` for 12-char SHA-256 hashes, `masked` for subnet masks, or `raw` for internal telemetry) managed directly in Site Settings.
+- **Automated Retention Management & CSV Export**: Automated log pruning based on configurable retention limits (default 30 days), manual purge controls, and 1-click CSV export for external compliance auditing and SIEM integration.
+
+---
+
+## 📑 23. YAML Frontmatter & Metadata Widget
+
+Standalone Qwiki natively parses and presents YAML frontmatter in Markdown documents without external parser libraries:
+
+- **Zero-Dependency YAML Parsing**: Built-in extraction parses standard YAML frontmatter blocks (`--- ... ---`) at the top of markdown documents, supporting strings, booleans, numeric types, inline arrays (`[item1, item2]`), multiline lists (`- item`), nested keys, and comments.
+- **Interactive Metadata Presentation Widget**: Displays frontmatter in an accessible, theme-styled `<details class="qwiki-frontmatter">` accordion above document content, complete with property count badges, key-value table presentation, specialized formatters (boolean pills, tag chips, code spans, URLs), and nested raw YAML disclosure.
+- **Clean SEO & OpenGraph Descriptions**: Strips frontmatter headers when deriving article meta descriptions from body text, preventing YAML syntax leakage into search engine snippets and social share cards.
+- **Flexible Display Configuration**: Configure display behavior globally in `qwiki.json` via the `"frontmatter"` setting (`"collapse"` for collapsed accordion, `"expand"` for pre-expanded, or `"hidden"` for completely suppressed widget).
+- **Editor & Federation Safe**: WYSIWYG editing preserves frontmatter blocks across tab switches, and remote document transclusion sanitizes frontmatter headers to maintain clean rendering.

@@ -84,6 +84,10 @@ class DemoManager {
             @copy($demoDir . '/htaccess-uploads', $uploadsDir . '/.htaccess');
         }
 
+        if (file_exists($demoDir . '/htaccess-content')) {
+            @copy($demoDir . '/htaccess-content', $contentDir . '/.htaccess');
+        }
+
         return [
             'success' => true,
             'message' => 'Demo package reloaded successfully to fresh state.',

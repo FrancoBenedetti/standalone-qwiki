@@ -116,3 +116,18 @@ Standalone Qwiki supports single-level nested wikis (subwikis) deployed and mana
 5. **Sidebar Subwiki Navigation**: In **Site Settings**, enable **"Show Subwikis in Left Sidebar Navigation"** to render a collapsible accordion of all subwikis in the left sidebar. Readers can navigate across subwikis based on their access permissions (public content remains accessible, private content remains shielded) and return seamlessly using the parent navigation banner.
 6. **Header Breadcrumbs & Brand Wayfinding**: When browsing within a subwiki, the header brand transforms into a dual-level breadcrumb: the company logo links back to the parent wiki, followed by a `/` separator and a subwiki badge linking to the subwiki home. When viewing shared documents in distraction-free share mode, a complementary subwiki provenance badge keeps readers oriented.
 
+---
+
+## 📜 Activity & Access Log (Auditing)
+
+Standalone Qwiki provides administrators with native activity logging and audit inspection:
+
+1. Click **`📜 Activity & Access Log`** in the header menu.
+2. **Real-Time Audit Metrics**: Review total events, today's failed login count, share link visits, and top accessed shared documents.
+3. **Multi-Filter Inspection**: Narrow down event logs by category (`Authentication`, `Documents`, `Categories`, `Share Links`, `System Operations`), user, action, or date range.
+4. **IP Privacy Configuration**: In **`⚙️ Site Settings`**, configure client IP address recording modes:
+   - **Hashed (Default)**: GDPR-compliant 12-character SHA-256 hash.
+   - **Masked**: Subnet-masked IP (`/24` for IPv4).
+   - **Raw**: Unmasked IP address.
+5. **CSV Export & Log Pruning**: Download complete audit trails via **`Export CSV`** or configure automated retention periods (default 30 days).
+

@@ -102,8 +102,19 @@ function initBackupExtension() {
     const closeBtns = modalBackup.querySelectorAll('[data-close="modal-backup"]');
     closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
 
+    let backupMouseDownInside = false;
+    modalBackup.addEventListener('mousedown', (e) => {
+        backupMouseDownInside = !!e.target.closest('.modal-card');
+    });
+    modalBackup.addEventListener('mouseup', (e) => {
+        if (e.target.closest('.modal-card')) backupMouseDownInside = true;
+        setTimeout(() => { backupMouseDownInside = false; }, 0);
+    });
     modalBackup.addEventListener('click', (e) => {
-        if (e.target === modalBackup) closeModal();
+        if (e.target === modalBackup && !backupMouseDownInside) {
+            closeModal();
+        }
+        backupMouseDownInside = false;
     });
 
     document.addEventListener('keydown', (e) => {

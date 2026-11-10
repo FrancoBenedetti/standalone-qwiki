@@ -63,6 +63,52 @@ function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
 // 2. Dispatch Action
 $action = trim($_POST['action'] ?? $_GET['action'] ?? 'publish_doc');
 
+if ($action === 'upload_image' || $action === 'upload_asset' || $action === 'upload_media') {
+    $fileKey = isset($_FILES['image']) ? 'image' : (isset($_FILES['file']) ? 'file' : (isset($_FILES['asset']) ? 'asset' : null));
+    if (!$fileKey || $_FILES[$fileKey]['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'No image or media file uploaded or upload error occurred']);
+        exit;
+    }
+    $fileName = basename($_FILES[$fileKey]['name']);
+    $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+    $imageExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+    $videoExts = ['mp4', 'webm', 'ogg', 'ogv', 'mov'];
+    $allowedExts = array_merge($imageExts, $videoExts);
+    if (!in_array($ext, $allowedExts, true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid image format or unsupported media type. Allowed formats: ' . implode(', ', $allowedExts)]);
+        exit;
+    }
+    $baseDir = Config::getBaseDir();
+    $subDir = in_array($ext, $videoExts, true) ? 'uploads/videos/' : 'uploads/images/';
+    $uploadDir = $baseDir . '/' . $subDir;
+    if (!is_dir($uploadDir)) {
+        @mkdir($uploadDir, 0755, true);
+    }
+    $safeName = preg_replace('/[^a-z0-9\._-]/', '-', strtolower(pathinfo($fileName, PATHINFO_FILENAME)));
+    $timestamp = time();
+    $newFileName = $timestamp . '-' . $safeName . '.' . $ext;
+    $targetPath = $uploadDir . $newFileName;
+    $relUrl = $subDir . $newFileName;
+
+    $fullUrl = rtrim(Config::getBaseUrl(), '/') . '/' . $relUrl;
+
+    if (@move_uploaded_file($_FILES[$fileKey]['tmp_name'], $targetPath) || @copy($_FILES[$fileKey]['tmp_name'], $targetPath)) {
+        echo json_encode([
+            'success' => true,
+            'url' => $relUrl,
+            'fullUrl' => $fullUrl,
+            'filename' => $newFileName,
+            'alt' => pathinfo($fileName, PATHINFO_FILENAME)
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to save uploaded asset to disk']);
+    }
+    exit;
+}
+
 if ($action === 'create_category' || $action === 'add_book') {
     $catId = Config::makeSlug($_POST['id'] ?? $_POST['bookId'] ?? $_POST['title'] ?? '');
     $catTitle = trim($_POST['title'] ?? '');

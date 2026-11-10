@@ -821,10 +821,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Backdrop click and Escape key listeners
     [modalGallery, modalDelete, modalPreview].forEach(modal => {
         if (!modal) return;
+        let galleryMouseDownInside = false;
+        modal.addEventListener('mousedown', (e) => {
+            galleryMouseDownInside = !!e.target.closest('.modal-card');
+        });
+        modal.addEventListener('mouseup', (e) => {
+            if (e.target.closest('.modal-card')) galleryMouseDownInside = true;
+            setTimeout(() => { galleryMouseDownInside = false; }, 0);
+        });
         modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
+            if (e.target === modal && !galleryMouseDownInside) {
                 modal.classList.remove('open');
             }
+            galleryMouseDownInside = false;
         });
     });
 

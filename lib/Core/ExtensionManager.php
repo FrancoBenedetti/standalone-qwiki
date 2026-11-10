@@ -2,6 +2,7 @@
 namespace Qwiki\Core;
 
 require_once __DIR__ . '/QwikiParsedown.php';
+require_once __DIR__ . '/MetadataManager.php';
 
 class ExtensionManager {
     private static $instance = null;
@@ -125,8 +126,23 @@ class ExtensionManager {
             $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');
             if (file_exists($filePath)) {
                 $rawMarkdown = file_get_contents($filePath);
+                $frontmatterMode = $config['frontmatter'] ?? 'collapse';
+
+                if ($frontmatterMode === 'raw') {
+                    $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
+                    return $parsedown->text($rawMarkdown);
+                }
+
+                $fmData = MetadataManager::parseFrontmatter($rawMarkdown);
                 $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
-                return $parsedown->text($rawMarkdown);
+                $renderedBody = $parsedown->text($fmData['body']);
+
+                if ($fmData['hasFrontmatter'] && $frontmatterMode !== 'hidden') {
+                    $widgetHtml = MetadataManager::renderFrontmatterWidget($fmData, $frontmatterMode === 'expanded');
+                    return $widgetHtml . $renderedBody;
+                }
+
+                return $renderedBody;
             } else {
                 return "<div class='alert warning'>Markdown file not found: " . htmlspecialchars($activeChapter['file'] ?? '') . "</div>";
             }
@@ -134,12 +150,24 @@ class ExtensionManager {
 
         // 2. Built-in: PDF
         if ($type === 'pdf') {
-            $pdfUrl = htmlspecialchars($activeChapter['file'] ?? '');
+            $baseUrl = Config::getBaseUrl();
+            if (!empty($_GET['share'])) {
+                $pdfViewUrl = $baseUrl . '?share=' . urlencode($_GET['share']) . '&view=raw';
+            } else {
+                $catSlug = $activeBook['id'] ?? '';
+                $docSlug = $activeChapter['slug'] ?? '';
+                if (!empty($catSlug) && !empty($docSlug)) {
+                    $pdfViewUrl = $baseUrl . urlencode($catSlug) . '/' . urlencode($docSlug) . '?view=raw';
+                } else {
+                    $pdfViewUrl = $baseUrl . '?doc=' . urlencode($docSlug) . '&view=raw';
+                }
+            }
+            $escapedPdfUrl = htmlspecialchars($pdfViewUrl);
             return "
-                <div class='pdf-viewer-container'>
-                    <iframe src='{$pdfUrl}' title='PDF Viewer'></iframe>
+                <div class=\"pdf-viewer-container\">
+                    <iframe src=\"{$escapedPdfUrl}\" title=\"PDF Viewer\"></iframe>
                 </div>
-                <p style='margin-top: 1rem;'><a href='{$pdfUrl}' target='_blank' class='btn btn-outline btn-sm'>Download Original PDF</a></p>
+                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">Download Original PDF</a></p>
             ";
         }
 

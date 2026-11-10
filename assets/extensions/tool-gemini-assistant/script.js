@@ -351,10 +351,19 @@
             });
         });
 
+        var geminiMouseDownInside = false;
+        modal.addEventListener('mousedown', function(e) {
+            geminiMouseDownInside = !!e.target.closest('.modal-card, .gemini-modal-card');
+        });
+        modal.addEventListener('mouseup', function(e) {
+            if (e.target.closest('.modal-card, .gemini-modal-card')) geminiMouseDownInside = true;
+            setTimeout(function() { geminiMouseDownInside = false; }, 0);
+        });
         modal.addEventListener('click', function(e) {
-            if (e.target === modal) {
+            if (e.target === modal && !geminiMouseDownInside) {
                 closeGeminiAssistant();
             }
+            geminiMouseDownInside = false;
         });
 
         document.addEventListener('keydown', function(e) {

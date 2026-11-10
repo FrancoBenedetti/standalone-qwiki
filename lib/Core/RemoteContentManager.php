@@ -311,8 +311,19 @@ class RemoteContentManager {
 
         // Render Markdown content natively
         $content = $result['content'] ?? '';
+        $config = Config::load();
+        $frontmatterMode = $config['frontmatter'] ?? 'collapse';
         $parsedown = class_exists('\QwikiParsedown') ? new \QwikiParsedown() : new \Parsedown();
-        $rendered = $parsedown->text($content);
+
+        if ($frontmatterMode !== 'raw' && class_exists('\Qwiki\Core\MetadataManager')) {
+            $fmData = MetadataManager::parseFrontmatter($content);
+            $rendered = $parsedown->text($fmData['body']);
+            if ($fmData['hasFrontmatter'] && $frontmatterMode !== 'hidden') {
+                $rendered = MetadataManager::renderFrontmatterWidget($fmData, $frontmatterMode === 'expanded') . $rendered;
+            }
+        } else {
+            $rendered = $parsedown->text($content);
+        }
 
         $html .= "<div class='remote-doc-content'>" . $rendered . "</div>";
         return $html;

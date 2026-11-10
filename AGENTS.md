@@ -56,7 +56,8 @@ When creating or updating Markdown documents (`.md`) across `content/` or `demo-
    - Do not indent tags or paragraphs by 4 spaces following a blank line unless intentionally creating a `<pre><code>` block.
 4. **Multi-Step Setup Guides**:
    - Use numbered Markdown lists (`1.`, `2.`, `3.`) with isolated code blocks for each terminal command rather than one large code block with `#` comments.
-5. **Video Auto-Embedding**:
-   - Place standalone video links (YouTube, Vimeo, Loom, MP4) on their own line with blank lines before and after. Use `[Caption](url)` for styled subtitles.
+5. **Video Auto-Embedding & Media Inclusion**:
+   - Place standalone video links (YouTube, Vimeo, Loom, MP4, WebM) on their own line with blank lines before and after. Use `[Caption](url)` or `![Caption](url)` for styled subtitles and automatic player conversion.
+   - For uploaded images and screenshots (see `/Documents/MobioPlus/user-docs` / `wiki.mobioplus.co.za/user-docs`), use standard Markdown `![Alt](uploads/images/filename.png)`. The headless publishing API (`api/publish.php`) supports authorized asset uploads for images (`uploads/images/`) and video files (`uploads/videos/`).
 6. **Subfolder-Agnostic Relative Routing**:
    - Use relative internal links without leading slashes (e.g. `getting-started/features`) so documentation remains fully portable across subfolders.

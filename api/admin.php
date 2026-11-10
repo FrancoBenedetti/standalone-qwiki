@@ -8,6 +8,7 @@ require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
 require_once __DIR__ . '/../lib/Core/LlmAccess.php';
 require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
+require_once __DIR__ . '/../lib/Core/AuditLogger.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -17,6 +18,7 @@ use Qwiki\Core\LockManager;
 use Qwiki\Core\SubwikiManager;
 use Qwiki\Core\LlmAccess;
 use Qwiki\Core\RemoteContentManager;
+use Qwiki\Core\AuditLogger;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -412,20 +414,56 @@ switch ($action) {
         }
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
-        $bookId = Config::makeSlug($_POST['id'] ?? $title);
+        $rawId = trim($_POST['id'] ?? '');
         $parentId = trim($_POST['parentId'] ?? '');
-        if (empty($title) || empty($bookId)) {
+        $isExplicitCustom = isset($_POST['isCustomSlug']) ? ($_POST['isCustomSlug'] === '1' || $_POST['isCustomSlug'] === 'true') : !empty($rawId);
+
+        if (empty($title)) {
             echo json_encode(['success' => false, 'error' => 'Category title is required']);
             exit;
         }
-        $val = SubwikiManager::validateSlug($bookId, null, false);
-        if (!$val['valid']) {
-            echo json_encode(['success' => false, 'error' => $val['error']]);
-            exit;
+
+        // Determine target parent folder on disk
+        $parentFolder = null;
+        if (!empty($parentId)) {
+            $parentFolder = get_category_folder($config['books'] ?? [], $parentId);
+            if ($parentFolder === null) {
+                echo json_encode(['success' => false, 'error' => 'Selected parent category does not exist']);
+                exit;
+            }
+            $parentAbsDir = $baseDir . '/' . $parentFolder;
+        } else {
+            $parentAbsDir = $baseDir . '/content';
         }
-        if (is_slug_taken($bookId, $config['books'] ?? [])) {
-            echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
-            exit;
+
+        $baseSlug = !empty($rawId) ? Config::makeSlug($rawId) : Config::makeSlug($title);
+        if (empty($baseSlug)) {
+            $baseSlug = 'category';
+        }
+
+        if ($isExplicitCustom && !empty($rawId)) {
+            $bookId = $baseSlug;
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
+            if (is_slug_taken($bookId, $config['books'] ?? [])) {
+                echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
+                exit;
+            }
+        } else {
+            // Auto-generated slug: check reserved system words and generate unique slug if colliding
+            $reserved = Config::getReservedNames();
+            if (in_array($baseSlug, $reserved, true)) {
+                $baseSlug = 'cat-' . $baseSlug;
+            }
+            $bookId = Navigation::generateUniqueSlug($baseSlug, $config['books'] ?? [], $parentAbsDir);
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
         }
 
         if (!empty($parentId)) {
@@ -480,6 +518,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('category_created', 200, [
+                'bookId' => $bookId,
+                'title' => $title,
+                'parentId' => $parentId
+            ]);
             echo json_encode(['success' => true, 'bookId' => $bookId, 'parentId' => $parentId]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
@@ -615,6 +658,13 @@ switch ($action) {
             }
         }
         if ($added && Config::save($config)) {
+            AuditLogger::logMutation('doc_created', 200, [
+                'slug' => $slug,
+                'title' => $title,
+                'bookId' => $bookId,
+                'file' => $targetRelFile,
+                'type' => 'markdown'
+            ]);
             echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
@@ -815,6 +865,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('doc_metadata_updated', 200, [
+                'slug' => $updateResult['slug'] ?? $slug,
+                'title' => $title,
+                'bookId' => $updateResult['bookId'] ?? ''
+            ]);
             echo json_encode([
                 'success' => true,
                 'bookId' => $updateResult['bookId'],
@@ -882,6 +937,11 @@ switch ($action) {
         }
 
         if (Config::save($config)) {
+            AuditLogger::logMutation('status_changed', 200, [
+                'slug' => $updatedChapter['slug'] ?? '',
+                'status' => $status,
+                'file' => $relFile
+            ], $username);
             echo json_encode([
                 'success' => true,
                 'slug' => $updatedChapter['slug'] ?? '',
@@ -1083,6 +1143,10 @@ switch ($action) {
         }
 
         if (file_put_contents($targetPath, $content) !== false) {
+            AuditLogger::logMutation('doc_saved', 200, [
+                'file' => $relFile,
+                'size_bytes' => strlen($content)
+            ], $username);
             if (!empty($tabId)) {
                 LockManager::releaseLock($relFile, $tabId, $username);
             }
@@ -1303,6 +1367,12 @@ switch ($action) {
         });
 
         Config::save($config);
+        AuditLogger::logMutation('file_replaced', 200, [
+            'slug' => $slug,
+            'target_file' => $targetRelFile,
+            'old_file' => $existingRelFile,
+            'type' => $docType
+        ]);
         echo json_encode(['success' => true, 'bookId' => $parentBook['id'] ?? '', 'slug' => $slug, 'action' => 'replaced']);
         break;
 
@@ -1522,6 +1592,13 @@ switch ($action) {
             if ($filePath && file_exists($filePath) && is_file($filePath)) {
                 @unlink($filePath);
             }
+        }
+        if ($deleted) {
+            AuditLogger::logMutation('doc_deleted', 200, [
+                'slug' => $slug,
+                'file' => $deletedFile ?? '',
+                'bookId' => $bookId
+            ]);
         }
         echo json_encode(['success' => true]);
         break;
@@ -1870,15 +1947,41 @@ switch ($action) {
     case 'list_themes':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $themes = [];
-        $dir = $baseDir . '/assets/css/';
-        if (is_dir($dir)) {
-            $files = scandir($dir);
+        $coreDir = dirname(__DIR__) . '/assets/css/';
+        $localUploadsDir = $baseDir . '/uploads/themes/';
+        $localAssetsDir = $baseDir . '/assets/css/';
+
+        // 1. Scan core themes
+        if (is_dir($coreDir)) {
+            $files = scandir($coreDir);
             foreach ($files as $f) {
-                if (preg_match('/^theme-.*\.css$/', $f)) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
                     $themes[] = $f;
                 }
             }
         }
+
+        // 2. Scan local instance assets/css if different from core
+        if ($localAssetsDir !== $coreDir && is_dir($localAssetsDir)) {
+            $files = scandir($localAssetsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        // 3. Scan local tenant custom themes in uploads/themes/
+        if (is_dir($localUploadsDir)) {
+            $files = scandir($localUploadsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        sort($themes);
         echo json_encode(['success' => true, 'themes' => $themes]);
         break;
 
@@ -1886,9 +1989,18 @@ switch ($action) {
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
         $themeFile = basename($_POST['theme'] ?? $_GET['theme'] ?? '');
         if (empty($themeFile)) { echo json_encode(['success' => false, 'error' => 'No theme specified']); exit; }
-        $path = $baseDir . '/assets/css/' . $themeFile;
-        if (file_exists($path)) {
-            echo json_encode(['success' => true, 'content' => file_get_contents($path)]);
+        
+        $localUploadsPath = $baseDir . '/uploads/themes/' . $themeFile;
+        $localAssetsPath = $baseDir . '/assets/css/' . $themeFile;
+        $corePath = dirname(__DIR__) . '/assets/css/' . $themeFile;
+
+        // Check local tenant custom themes first, then local assets, then central core
+        if (file_exists($localUploadsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localUploadsPath), 'is_custom' => true]);
+        } elseif (file_exists($localAssetsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localAssetsPath), 'is_custom' => !defined('QWIKI_BASE_DIR')]);
+        } elseif (file_exists($corePath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($corePath), 'is_custom' => false]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Theme not found']);
         }
@@ -1903,7 +2015,19 @@ switch ($action) {
         }
         if (empty($themeFile) || empty($content)) { echo json_encode(['success' => false, 'error' => 'Invalid parameters']); exit; }
         if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) { echo json_encode(['success' => false, 'error' => 'Invalid theme file name']); exit; }
-        $path = $baseDir . '/assets/css/' . $themeFile;
+        
+        // Multi-tenant safe saving:
+        // In hosted/multi-tenant mode (or if uploads/themes exists or local assets/css is missing), save to tenant's uploads/themes/
+        $saveDir = $baseDir . '/uploads/themes';
+        if (!defined('QWIKI_BASE_DIR') && is_dir($baseDir . '/assets/css')) {
+            $saveDir = $baseDir . '/assets/css';
+        }
+
+        if (!is_dir($saveDir)) {
+            @mkdir($saveDir, 0755, true);
+        }
+
+        $path = $saveDir . '/' . $themeFile;
         if (file_put_contents($path, $content) !== false) {
             echo json_encode(['success' => true]);
         } else {
@@ -2071,6 +2195,61 @@ switch ($action) {
             @unlink($tempZip);
             echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
         }
+        break;
+
+    case 'check_category_slug':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_GET['slug'] ?? $_POST['slug'] ?? '');
+        $isCustom = isset($_REQUEST['is_custom']) ? ($_REQUEST['is_custom'] === '1' || $_REQUEST['is_custom'] === 'true') : false;
+        if (empty($slug)) {
+            echo json_encode(['success' => true, 'slug' => '', 'valid' => true, 'error' => null]);
+            exit;
+        }
+
+        // Validate format, reserved routes, web root directories, and subwikis (ignoring category collision to calculate suggestion)
+        $val = SubwikiManager::validateSlug($slug, $slug, false);
+        if (!$val['valid']) {
+            echo json_encode([
+                'success' => true,
+                'slug' => $slug,
+                'valid' => false,
+                'error' => $val['error']
+            ]);
+            exit;
+        }
+
+        $isTaken = is_slug_taken($slug, $config['books'] ?? []);
+        if ($isTaken) {
+            $suggested = Navigation::generateUniqueSlug($slug, $config['books'] ?? []);
+            if ($isCustom) {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => false,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'error' => "A document or category with the slug '{$slug}' already exists."
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => true,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'note' => "Slug '{$slug}' is taken. Will auto-save as '{$suggested}' or you can customize it."
+                ]);
+            }
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'valid' => true,
+            'isTaken' => false,
+            'error' => null
+        ]);
         break;
 
     case 'check_subwiki_slug':

@@ -7,6 +7,164 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.10] - AccessFlow - 2026-11-10
+
+### 🔐 Authentication Gateway & Self-Service Account Recovery
+- **Dedicated Frontend Recovery Views (`index.php`)**: Built-in recovery card interfaces for `action=reset_password` and `action=verify_email`. When users navigate with valid reset or verification tokens, Qwiki presents purpose-built gateway cards for password reset (with confirmation fields and inline status indicators) or email verification confirmations without rendering the default login form or exposing sidebar navigation.
+- **Zero-Leakage Private Wiki Gateway Routing (`index.php`)**: Password reset and email verification workflows remain accessible on private portals without requiring guest authentication or bypassing boundary protection, ensuring seamless user recovery across locked and open wikis.
+
+### 📐 Mathematical Notation & Parser Stability
+- **Immediate Single-Line Display Math Termination (`lib/Core/QwikiParsedown.php`)**: Explicitly mark single-line display math blocks (`$$ formula $$`) with `'closed' => true` in `QwikiParsedown::blockMath()`. Prevents Parsedown from continuable line consumption into the math element's `data-tex` attribute, ensuring subsequent paragraphs, lists, and equations render cleanly in document flow without KaTeX syntax failures.
+
+### 🧪 Automated Test Suite Enhancements
+- **LaTeX Display Math Preservation (`tests/test_latex_rendering.php`)**: Regression tests verifying single-line display equations close immediately and do not swallow following prose, lists, or consecutive equations.
+- **Gateway Recovery Flow Tests (`tests/test_privacy_and_access_restrictions.php`)**: Added coverage for `reset_password` and `verify_email` gateway rendering, verifying proper form presentation, error messaging on invalid tokens, and strict omission of the login form and sidebar on private portals.
+- **Modular JS Storage Suite Alignment (`tests/test_sidebar_scroll_persistence.js` & `tests/test_sidebar_search_clear.js`)**: Aligned DOM evaluation in automated headless tests to inspect `assets/js/core/sidebar.js` and `assets/js/core/search.js` following the modular JavaScript refactoring.
+
+---
+
+## [1.20.9] - MetaFlow - 2026-11-04
+
+### 📑 YAML Frontmatter Parsing & Interactive Metadata Widget
+- **Pure-PHP Zero-Dependency Frontmatter Parser (`lib/Core/MetadataManager.php`)**: Built-in parser (`MetadataManager::parseFrontmatter`) extracting YAML frontmatter delimited by `---` blocks. Reliably parses scalar types (strings, single/double quotes, booleans, integers, floats, nulls), inline arrays (`[tag1, tag2]`), multiline lists (`- item`), nested mappings, and comments while cleanly separating document body content.
+- **Interactive Metadata Presentation Widget (`lib/Core/MetadataManager.php` & `assets/css/qwiki.css`)**: In markdown documents with frontmatter, renders an accessible, theme-aware `<details class="qwiki-frontmatter">` widget above the document content. Features property count badges, key-value table presentation, specialized value formatters (boolean pills, tag chips, code spans, URLs), and a nested raw YAML disclosure.
+- **Configurable Display Modes (`lib/Core/ExtensionManager.php`)**: Supports global display configuration via `frontmatter` in `qwiki.json`:
+  - `collapse` (default): Rendered in a sleek collapsed `<details>` accordion.
+  - `expand`: Rendered pre-expanded.
+  - `hidden`: Frontmatter is stripped completely from view while preserving clean markdown rendering.
+- **Metadata-Safe SEO & OpenGraph Resolution (`lib/Core/MetadataManager.php`)**: `MetadataManager::resolveArticleMetadata()` now strips frontmatter blocks when extracting document paragraphs for descriptions, preventing raw YAML leakage (e.g. `title: ...`) into social share cards and meta descriptions. Dynamically falls back to frontmatter `tags` and `keywords` for article SEO tags.
+- **Remote Content & WYSIWYG Editor Preservation (`lib/Core/RemoteContentManager.php` & `assets/js/app.js`)**:
+  - Remote federated document caches sanitize frontmatter headers to avoid nested frontmatter widgets during transclusion.
+  - Inline Toast UI editor maintains frontmatter integrity when switching between Markdown and WYSIWYG editing tabs.
+
+### 🧪 Automated Test Suite Enhancements
+- **Frontmatter & Metadata Test Suite**: Added `tests/test_frontmatter.php` with 33 unit tests validating parsing accuracy, types, multiline arrays, widget rendering, SEO description fallbacks, and extension config modes.
+
+---
+
+## [1.20.8] - MediaFlow - 2026-11-03
+
+### 🎬 Video & Media Asset Ingestion in Publishing API
+- **Direct Video Asset Uploads (`api/publish.php`)**: Expanded publishing API asset ingestion to support video formats (`mp4`, `webm`, `ogg`, `ogv`, `mov`) in addition to web images (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`). Video uploads are automatically partitioned into dedicated `uploads/videos/` storage, while image assets are routed to `uploads/images/`.
+- **Multi-Alias Action & Key Flexibility (`api/publish.php`)**: Handlers now accept `action=upload_asset`, `upload_media`, and `upload_image`, dynamically recognizing `file`, `asset`, or `image` multi-part file keys.
+- **Canonical Media URL Resolution (`api/publish.php`)**: Upload responses return relative asset paths, full canonical URLs resolved via `Config::getBaseUrl()`, safe sanitized filenames, and media labels for immediate embedding in markdown (`[Caption](uploads/videos/...)` / `![Alt](uploads/images/...)`) or HTML documents.
+- **Brand Logo & Share Bar Image Aspect Sizing (`assets/css/qwiki.css`)**: Added responsive image scaling rules for `.brand-logo img` and `.share-bar-brand img` (`width: 100%; height: auto; object-fit: contain; display: block;`), ensuring crisp rendering without distorted aspect ratios across diverse custom logos.
+
+### 🧪 Automated Test Suite Enhancements
+- **Media Asset Upload Integration Tests (`tests/test_subwiki_templates_deployment.php`)**: Added test assertions verifying `action=upload_asset` uploads for MP4 video assets, ensuring proper routing to `uploads/videos/`, disk persistence, and URL generation.
+
+---
+
+## [1.20.7] - SlugFlow - 2026-10-31
+
+### 📁 Category Creation UX & Intelligent Slug Management
+- **True Optionality & Fallback (`api/admin.php`)**: Resolved an issue where empty string submissions for optional category slugs triggered a misleading validation failure (`Category title is required`). Category creation now gracefully falls back to generating a URL-safe slug from the category title via `Config::makeSlug()`.
+- **Intelligent Collision Auto-Incrementation (`api/admin.php` & `lib/Core/Navigation.php`)**: When auto-generating category slugs, collisions with existing categories or documents automatically resolve with numeric incrementation (e.g. `category-1`, `category-2`) via `Navigation::generateUniqueSlug()`, preventing accidental creation failures.
+- **Reserved Directory Name Shielding (`api/admin.php`)**: System-reserved routes (`api`, `content`, `assets`, etc.) are automatically prefixed (e.g. `cat-api`) during auto-generation or rejected with actionable feedback if submitted as explicit custom slugs.
+- **Real-Time Slug Auto-Generation & Decoupled Customization (`assets/js/app.js` & `templates/modals/create_category.php`)**:
+  - Typing a category title dynamically auto-populates the slug in real time with an active mode indicator (`(Auto-generated)`).
+  - Editing the slug input switches to `(Custom)` mode and uncouples auto-generation to protect user overrides; clearing the input recouples back to title synchronization.
+  - Dynamically updates storage folder previews (e.g. `Storage folder: content/parent/new-category/`) in real time based on parent category selection and current slug.
+- **Pre-Submission Availability Feedback (`api/admin.php` & `assets/js/app.js`)**: Added `check_category_slug` endpoint providing instant debounced validation hints (`✓ Slug is available`, `⚠️ Slug is in use; will auto-save with increment`, or `✗ Slug unavailable`).
+- **Sidebar State Preservation (`assets/js/app.js`)**: Automatically expands newly created categories and their parent folders in the sidebar upon creation.
+- **Dialog Layout Reorganization (`templates/modals/create_category.php`)**: Restructured the category creation modal to follow a logical hierarchy: Title ➔ Parent Category ➔ Folder / URL Slug with live path preview ➔ Category Description.
+
+### 🧪 Automated Test Suite Enhancements
+- **Category Creation UX Test Suite**: Added `tests/test_category_creation_ux.php` verifying empty slug creation, auto-increment collision resolution, custom slug collision enforcement, reserved word shielding, live `check_category_slug` validation, and nested category provisioning.
+
+---
+
+## [1.20.6] - ShieldFlow - 2026-10-30
+
+### 🛡️ Document Access Control & Secure Raw View Pipeline
+- **Web Server Document Repository Lockdown (`.htaccess` & `content/.htaccess`)**: Added root `.htaccess` rewrite rule `RewriteRule (^|/)content(/|$) - [F,L]` and provisioned `content/.htaccess` (`Require all denied` / `Deny from all`) to permanently prevent unauthenticated direct static file serving of `.html`, `.pdf`, `.md`, and `.json` documents from disk across standalone roots, subwikis, and multitenant subfolder instances.
+- **Multi-Tenant Static Asset Bypass (`.htaccess`)**: Added `RewriteCond %{QUERY_STRING} !view=raw [NC]` to prevent false-positive 404 static asset errors when requesting document raw views (e.g. clean URLs ending in `.pdf?view=raw`), allowing legitimate document requests to route through the front-controller.
+- **Auto-Provisioned Content Protection (`lib/Core/Config.php`, `lib/Core/DemoManager.php`, & `lib/Core/SubwikiManager.php`)**: Added `demo-data/htaccess-content` ensuring fresh installations, subwikis, and existing deployments automatically self-heal and place `content/.htaccess` if absent. Updated `SubwikiManager::deploySubwiki()` and `SubwikiManager::cascadeUpdates()` to automatically copy and provision `content/.htaccess` and `.htaccess` with multi-tenant core fallbacks.
+- **Application Front-Controller Interception & API Delegation (`index.php`)**: Directly intercepts any front-controller path matching `(^|/)content(/|$)` with `403 Forbidden` (`Access denied.`), providing defense-in-depth across non-Apache environments (Nginx, Caddy, and PHP dev server) across subwikis and tenant prefixes. Added fallback request path parsing from `PATH_INFO` and `REQUEST_URI` ensuring reliable front-controller API delegation and path routing in hosted multi-tenant environments.
+- **Authorized Raw View Document Streaming (`lib/Core/DocumentService.php` & `index.php`)**:
+  - Implemented `DocumentService::streamDocumentRaw()` for authenticated document delivery via `?view=raw`.
+  - **Share Mode**: Validates secret `shareKey` integrity before streaming shared documents; rejects invalid or revoked tokens with `404 Not Found` or `403 Forbidden`.
+  - **Standard Wiki Mode**: Enforces site-level (`requireLoginToView`) and granular document/category permissions (`logged_in`, `admin_only`) prior to serving content.
+  - **Runtime Base URL Normalization & Multi-Tenant Asset Rewriting**: Dynamically injects/normalizes `<base href="...">` to match the application's base URL, ensuring relative assets (`uploads/`) and print styles render accurately in isolated browser tabs and iframes. In hosted multi-tenant mode (`QWIKI_ASSETS_URL`), automatically rewrites relative `assets/` references to point to the shared central core assets directory.
+- **Secure Full-Tab & Embed Routing (`assets/extensions/page-html/renderer.php` & `lib/Core/ExtensionManager.php`)**:
+  - Refactored the HTML "Open in Full Tab ↗" button and iframe `src` to route via authorized endpoints (`?share=...&view=raw` or `/category/slug?view=raw`) instead of exposing raw `content/` filesystem paths.
+  - Aligned PDF viewer iframe and download button to route through the authenticated `?view=raw` pipeline.
+
+### 🧪 Automated Test Suite Enhancements
+- **Repository Access & Raw View Security Test Suite**: Added `tests/test_raw_view_security.php` verifying web server `.htaccess` rules, front-controller `content/` blocking, private wiki gateway enforcement on raw views, valid vs. invalid share token handling, runtime base href injection, and renderer URL generation.
+
+---
+
+## [1.20.5] - ThemeFlow - 2026-10-28
+
+### 🎨 Multi-Tenant Theme Engine & Centralized Customization
+- **Multi-Source Theme Discovery (`api/admin.php`)**: `list_themes` now aggregates central core predefined themes (`_core/assets/css/`), local instance themes, and tenant-specific custom themes (`uploads/themes/`), ensuring predefined themes are immediately accessible for inspection and selection across subwikis and shared-core deployments.
+- **Core-Safe Theme Inspection & Loading (`api/admin.php`)**: `get_theme` dynamically resolves requested stylesheets across tenant uploads and central core directories, allowing administrators to inspect and use core predefined themes as starting templates without permission errors.
+- **Isolated Customization Persistence (`api/admin.php`)**: Saving custom themes in multi-tenant mode (`QWIKI_BASE_DIR`) writes directly to the tenant's private storage (`$baseDir/uploads/themes/`), preserving central core stylesheets and preventing cross-tenant contamination.
+- **Dynamic Theme URL Routing (`lib/Core/Config.php` & `index.php`)**: Introduced `Config::getThemeUrl()` to seamlessly route tenant custom themes (`uploads/themes/theme-*.css`) through tenant-relative URLs while serving central predefined themes via `QWIKI_ASSETS_URL` (`/_core/assets/css/theme-*.css`).
+
+### 🧪 Automated Test Suite Enhancements
+- **Multi-Tenant Theme Test Suite**: Added `tests/test_theme_multitenant.php` covering theme aggregation, core theme reading, tenant custom theme persistence, and two-tier URL resolution.
+
+---
+
+## [1.20.4] - AuditFlow - 2026-10-25
+
+### 📜 Activity & Access Log Extension & Audit Engine
+- **Non-Blocking Append-Only JSON Lines Engine (`lib/Core/AuditLogger.php`)**: Built-in audit logging engine writing structured JSON Lines events to monthly partitioned files (`content/.logs/activity-YYYY-MM.jsonl`) protected by Apache `.htaccess` (`Order allow,deny\nDeny from all\n`).
+- **Administrative Audit Dashboard (`tool-activity-log`)**: Header menu utility extension providing an interactive audit modal with metric summary cards, real-time event filtering (by category, event action, user, and date range), full-text detail searching, and top shared document analytics.
+- **GDPR-Compliant IP Privacy Modes**: Configurable client IP capture modes (`hash` for 12-char SHA-256 hashes, `masked` for subnet masks, or `raw` for internal telemetry) configurable in Site Settings.
+- **Compliance CSV Export & Retention Pruning**: 1-click CSV log export for external security audits and SIEM ingestion, paired with automated retention pruning (default 30 days) and manual purge controls.
+- **Comprehensive Lifecycle Event Tracking**: Automatically logs authentication (logins, logouts, 2FA challenges/failures, password resets), document and category operations (create, edit, move, delete, soft locks/takeovers), share link visits (document slugs, share keys, referrers), and system operations.
+
+### 🧪 Automated Test Suite Enhancements
+- **Activity Log Test Suite**: Added `tests/activity_log_test.php` verifying log directory security, IP anonymization modes, share access and auth event recording, log querying, statistical aggregations, and ExtensionManager integration.
+- **Clean Release Verification**: Added `AuditLogger.php` and `tool-activity-log` manifest checks to `tests/clean_release_test.php`.
+
+---
+
+## [1.20.3] - PrivacyFlow - 2026-10-23
+
+### 🛡️ Full-Page Authentication Gateway & Privacy Scoping
+- **Dedicated Full-Page Authentication Gateway**: When `requireLoginToView` is active, unauthenticated guests are greeted with a dedicated, distraction-free authentication gateway (`.auth-gateway-wrapper` and `.auth-gateway-card`). All application chrome—sidebar navigation, search bar, breadcrumbs, table of contents, action toolbars, and administrative modals—is completely omitted to prevent metadata and hierarchy disclosure.
+- **Search Engine & Crawl Protection**: Automatically injects `<meta name="robots" content="noindex, nofollow">` and standardizes the page title to `— Sign In` when the gateway is active.
+- **Search API Privacy Shield**: `api/search.php` now strictly denies search queries for guests when `requireLoginToView` is enabled, returning an empty result set without querying backend indexes.
+- **Granular Document-Level Visibility & Silent Omission**:
+  - `lib/Core/Navigation.php`: Implemented strict silent omission for documents configured with `visibility: 'logged_in'` or `visibility: 'admin_only'` across sidebar rendering, sequential reader links (`flattenNavTree`), category hierarchies (`getCategoriesHierarchy`), and document lookups (`findChapterAndPath`).
+  - `api/search.php`: Search results now filter out restricted documents and categories for guests and viewers in real-time.
+- **Direct Route Access Guarding**: Directly navigating via URL to a restricted document or category inside a public wiki renders a clean "Access Restricted" gate while preserving layout security and preventing category or sidebar structure leakage.
+
+### 🧪 Automated Test Suite Enhancements
+- **Privacy & Access Restrictions Test Suite**: Added `tests/test_privacy_and_access_restrictions.php` asserting gateway DOM suppression, robots meta enforcement, search API privacy shields, granular document silent omission, and direct route guarding.
+
+---
+
+## [1.20.2] - FocusFlow - 2026-10-20
+
+### 🎯 Drag-Safe Modal Backdrop & Focus Interactions
+- **Prevent Accidental Backdrop Dismissal**: Resolved an issue where selecting text inside inputs or dragging elements inside modal dialogs and releasing the mouse outside on the backdrop triggered an unintended modal close. The core modal controller (`assets/js/core/modals.js`) now tracks mousedown origins, ensuring backdrop dismissals only fire on intentional clicks initiated directly on the backdrop.
+- **Extension Modal Hardening**: Applied the drag-safe backdrop dismissal pattern across utility extensions including Backup (`tool-backup`), Media Gallery (`tool-gallery`), and Gemini AI Assistant (`tool-gemini-assistant`).
+- **Modal Lifecycle Normalization**: Hardened `close()` and `closeAll()` in `assets/js/core/modals.js` to clear both `.open` and `.active` classes and reset inline `display: flex` styles across all core and extension dialogs.
+
+### 🧪 Automated Test Suite Enhancements
+- **Modal Backdrop Dismissal Test Suite**: Added `tests/test_modal_backdrop_dismissal.js` validating that text selection and drag-and-release outside modal cards do not dismiss dialogs, while genuine backdrop clicks, close buttons, and Escape key presses behave correctly across core and extension modals.
+- **Gemini Dialog Open Tests**: Updated `tests/test_gemini_dialog_open.js` to target extracted template partials (`templates/modals/settings.php` and `templates/modals/llm_keys.php`).
+
+---
+
+## [1.20.1] - DeployFlow - 2026-10-15
+
+### 🩹 Subwiki Deployment & Template Resolution Fix
+- **Resilient Subwiki Template Fallback**: In `index.php`, modal template inclusion now dynamically resolves `$templatesDir = is_dir(__DIR__ . '/templates') ? (__DIR__ . '/templates') : (dirname(__DIR__) . '/templates');`. If a subwiki is deployed without a local `templates/` directory, it automatically and seamlessly falls back to the parent wiki's template partials without breaking modal dialog rendering.
+- **Subwiki Provisioning & Update Cascade Hardening**: Updated `SubwikiManager::deploySubwiki` and `SubwikiManager::cascadeUpdates` in `lib/Core/SubwikiManager.php` to include the `templates/` directory during standalone subwiki provisioning and cascading update propagation.
+- **Publish API Image Upload Action**: Added `upload_image` action handler in `api/publish.php` supporting authorized image uploads (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`), canonical base URL derivation via `Config::getBaseUrl()`, and safe disk persistence in `uploads/images/`.
+
+### 🧪 Automated Test Suite Hardening
+- **Subwiki Templates Deployment Test Suite**: Added `tests/test_subwiki_templates_deployment.php` asserting standalone subwiki template deployment, parent template fallback resolution, cascading update restoration, and API image upload validation.
+- **Anchor & Contrast Test Suite**: Updated `tests/anchor_and_contrast_test.php` to directly load decoupled `lib/Core/QwikiParsedown.php`.
+
+---
+
 ## [1.20.0] - ModularFlow - 2026-10-15
 
 ### 🏗️ Separation of Concerns & Core Decoupling

@@ -3,6 +3,7 @@ namespace Qwiki\Core;
 
 require_once __DIR__ . '/Totp.php';
 require_once __DIR__ . '/Mailer.php';
+require_once __DIR__ . '/AuditLogger.php';
 
 class Auth {
     public static function getInstanceIdentifier() {
@@ -82,6 +83,10 @@ class Auth {
         return !empty($_SESSION['qwiki_user']);
     }
 
+    public static function isLoggedIn(): bool {
+        return self::isViewer() || self::isAdmin();
+    }
+
     public static function canView(array $config) {
         $requireLogin = !empty($config['requireLoginToView']);
         if (!$requireLogin) {
@@ -146,6 +151,10 @@ class Auth {
         }
 
         if (!$authenticated || !$matchedUser) {
+            AuditLogger::logAuth('login_failed', 401, [
+                'attempted' => $username,
+                'reason' => 'invalid_credentials'
+            ], $username);
             return ['success' => false, 'error' => 'Invalid credentials'];
         }
 
@@ -159,6 +168,9 @@ class Auth {
                 'role'     => $matchedUser['role'],
                 'expires'  => time() + 300 // 5 minutes
             ];
+            AuditLogger::logAuth('login_2fa_prompt', 200, [
+                'username' => $matchedUser['username']
+            ], $matchedUser['username']);
             return [
                 'success'    => true,
                 'require2fa' => true,
@@ -206,6 +218,11 @@ class Auth {
         }
         unset($_SESSION['qwiki_2fa_pending']);
         unset($_SESSION['qwiki_2fa_enrolling']);
+
+        AuditLogger::logAuth('login_success', 200, [
+            'username' => $username,
+            'role'     => $role
+        ], $username);
 
         return ['success' => true, 'role' => $role, 'username' => $username];
     }
@@ -259,6 +276,10 @@ class Auth {
         }
 
         if (!$verified) {
+            AuditLogger::logAuth('2fa_failed', 401, [
+                'username' => $targetUser['username'] ?? $pending['username'] ?? 'unknown',
+                'reason' => 'invalid_code'
+            ], $targetUser['username'] ?? $pending['username'] ?? 'unknown');
             return ['success' => false, 'error' => 'Invalid authentication code or recovery code.'];
         }
 
@@ -554,6 +575,10 @@ class Auth {
             Config::save($config);
         }
 
+        AuditLogger::logAuth('password_reset_success', 200, [
+            'username' => $username
+        ], $username);
+
         return ['success' => true];
     }
 
@@ -759,11 +784,21 @@ class Auth {
             Config::save($config);
         }
 
+        AuditLogger::logAuth('password_updated', 200, [
+            'username' => $username
+        ], $username);
+
         return ['success' => true];
     }
 
     public static function logout() {
         self::startSession();
+        $currentUser = self::getCurrentUser();
+        if ($currentUser) {
+            AuditLogger::logAuth('logout', 200, [
+                'username' => $currentUser['username']
+            ], $currentUser['username']);
+        }
         unset($_SESSION['qwiki_user']);
         unset($_SESSION['qwiki_admin']);
         unset($_SESSION['qwiki_instance']);
