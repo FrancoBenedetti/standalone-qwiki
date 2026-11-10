@@ -180,7 +180,7 @@ Standalone Qwiki provides robust protection mechanisms to safeguard critical art
 
 ## 🖨️ Print & Social Sharing
 
-- **Print / PDF — Markdown & Standard Documents**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet.
+- **Print / PDF — Markdown & Standard Documents**: Click **`🖨️`** in the document action bar to print or save the article as a clean PDF using the print-optimized stylesheet with automatic typography reduction and dynamic scaling for wide tables, ASCII diagrams, and visual flowcharts.
 - **Print / PDF — HTML Documents**: The **`🖨️ Print / Save as PDF`** button in the HTML viewer toolbar triggers the browser print dialog scoped to the embedded document. Redundant print icons are hidden automatically when the HTML viewer is active; in the full-tab expanded view or share mode, the in-document button remains the entry point.
 - **Full-Screen Sharing & Modal**: Click **`🔗`** in the document action bar to open the Share modal. Available to both Administrators and Viewers, it generates or retrieves the unique reader share link (`?share=...`).
 - **Social Sharing Shortcuts**: Inside the Share modal or from the Zen reader's floating **`🔗 Share`** dropdown, 1-click shortcuts let you immediately share the document across 𝕏 (Twitter), LinkedIn, Facebook, WhatsApp, Telegram, and Slack with pre-filled titles and links.
