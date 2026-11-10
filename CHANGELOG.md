@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.11] - FormulaFlow - 2026-11-10
+
+### 📐 LaTeX Math Protection & Editor Integrity
+- **Intelligent LaTeX Math Detection (`assets/js/app.js`)**: Implemented `containsLatexMath()` to detect mathematical expressions including centered display blocks (`$$...$$`), standard LaTeX bracket delimiters (`\[...\]`, `\(...\)`), inline equations (`$...$`, excluding pure currency amounts), and recognized TeX commands (`\frac`, `\sum`, `\int`, `\sqrt`, `\Delta`, `\to`, `\approx`, etc.) outside of fenced and inline code blocks.
+- **WYSIWYG Corruption Shield (`assets/js/app.js`)**: Extended editor protected mode to encompass documents containing LaTeX math expressions. Because ProseMirror-based WYSIWYG serializers lack native LaTeX parsing and escape TeX syntax upon serialization (e.g. escaping underscores `_` to `\_`, doubling backslashes `\` to `\\`, or inserting spaces in macro names), documents with math are automatically initialized in **Markdown Mode (Live Preview)** with a `[LATEX / MATH]` notice banner. Mode switching to WYSIWYG is safely blocked with actionable user feedback.
+- **User Guide Documentation (`content/user-guide/managing-content.md` & `demo-data/content/user-guide/managing-content.md`)**: Updated the LaTeX and mathematical notation documentation to detail the WYSIWYG mode shield and automatic Markdown mode enforcement.
+
+### 🧪 Automated Test Suite Enhancements
+- **LaTeX Math Preservation Suite (`tests/test_math_preservation.js`)**: Added automated unit tests verifying safe handling of currency numbers (`$50`, `$1,000`, `$4.99`), fenced code blocks containing math examples, and exact detection of single-line, multi-line, inline, and macro-based LaTeX expressions.
+
+---
+
 ## [1.20.10] - AccessFlow - 2026-11-10
 
 ### 🔐 Authentication Gateway & Self-Service Account Recovery

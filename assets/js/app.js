@@ -2067,6 +2067,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
+  // Helper to detect LaTeX math expressions that would be corrupted by Toast UI WYSIWYG mode
+  function containsLatexMath(md) {
+    if (!md || typeof md !== 'string') return false;
+
+    // Strip fenced code blocks (``` ... ``` and ~~~ ... ~~~) and inline code
+    const stripped = md
+      .replace(/^```[\s\S]*?^```/gm, '')
+      .replace(/^~~~[\s\S]*?^~~~/gm, '')
+      .replace(/`[^`\n]+`/g, '');
+
+    // 1. Check for block display math: $$ ... $$
+    if (/\$\$[\s\S]+?\$\$/.test(stripped)) return true;
+
+    // 2. Check for LaTeX display delimiters: \[ ... \] or \( ... \)
+    if (/\\\[[\s\S]+?\\\]/.test(stripped) || /\\\([\s\S]+?\\\)/.test(stripped)) return true;
+
+    // 3. Check for inline math $...$ (ignoring pure numbers/currency like $50, $1,000, $4.99)
+    const inlineMathRegex = /\$([^\$\n\s](?:[^\$\n]*?[^\$\n\s])?)\$/g;
+    let match;
+    while ((match = inlineMathRegex.exec(stripped)) !== null) {
+      const content = match[1];
+      if (!/^\d+(?:,\d{3})*(?:\.\d+)?$/.test(content)) {
+        return true;
+      }
+    }
+
+    // 4. Check for LaTeX math commands: e.g. \frac, \sum, \int, \sqrt, \Delta, \alpha, \approx, etc.
+    if (/\\(?:frac|sum|int|sqrt|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|omega|Delta|Sigma|Omega|approx|times|div|le|ge|ne|pm|infty|to|rightarrow|leftarrow|partial|nabla|cdot|left|right|text|mathbb|mathbf|mathrm)\b/i.test(stripped)) {
+      return true;
+    }
+
+    return false;
+  }
+
   window.syncTuiEditorTheme = function(theme) {
     if (editorContainer) {
       const ui = editorContainer.querySelector('.toastui-editor-defaultUI');
@@ -2125,15 +2159,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const rawContent = rawMarkdownData.value || '';
       const hasHtml = containsHtmlMarkup(rawContent);
       const hasFrontmatter = /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(rawContent);
-      const isProtectedMode = hasHtml || hasFrontmatter;
+      const hasLatex = containsLatexMath(rawContent);
+      const isProtectedMode = hasHtml || hasFrontmatter || hasLatex;
 
-      // Notice banner for HTML/Frontmatter protected mode
+      // Notice banner for HTML/Frontmatter/LaTeX protected mode
       let htmlNotice = document.getElementById('editor-html-notice');
       if (isProtectedMode) {
-        const modeBadge = hasFrontmatter ? 'YAML FRONTMATTER' : 'PROTECTED HTML';
-        const modeDesc = hasFrontmatter
-          ? 'YAML frontmatter detected. Editor locked to Markdown mode to preserve metadata headers.'
-          : 'Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.';
+        let modeBadge = 'PROTECTED HTML';
+        let modeDesc = 'Custom HTML tags or styles detected. Editor locked to Markdown mode to prevent HTML sanitization.';
+        if (hasFrontmatter) {
+          modeBadge = 'YAML FRONTMATTER';
+          modeDesc = 'YAML frontmatter detected. Editor locked to Markdown mode to preserve metadata headers.';
+        } else if (hasLatex) {
+          modeBadge = 'LATEX / MATH';
+          modeDesc = 'LaTeX math expressions detected ($...$ or $$...$$). Editor locked to Markdown mode to prevent equation corruption.';
+        }
 
         if (!htmlNotice) {
           htmlNotice = document.createElement('div');
@@ -2258,14 +2298,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         window.tuiEditorInstance = tuiEditor;
 
-        // Guard mode switching: if document contains HTML or YAML frontmatter, block switching to WYSIWYG
+        // Guard mode switching: if document contains HTML, YAML frontmatter, or LaTeX math, block switching to WYSIWYG
         if (tuiEditor.eventEmitter) {
           const origEmit = tuiEditor.eventEmitter.emit.bind(tuiEditor.eventEmitter);
           tuiEditor.eventEmitter.emit = function(type, ...args) {
             if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
               const currentContent = tuiEditor.getMarkdown();
-              if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent)) {
-                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains YAML frontmatter or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
+              if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent) || containsLatexMath(currentContent)) {
+                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains LaTeX math expressions, YAML frontmatter, or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
                 return;
               }
             }
