@@ -579,9 +579,10 @@ class LlmAccess {
      * @param string $slug Document slug
      * @param int $offset Byte offset for partial reading (default 0)
      * @param int $limit Maximum bytes to return (0 for all)
+     * @param bool $includeComments Whether to include discussion threads
      * @return array [success => bool, code => int, error => string|null, document => array|null]
      */
-    public static function retrieveDocument(array $keyRecord, string $slug, int $offset = 0, int $limit = 0): array {
+    public static function retrieveDocument(array $keyRecord, string $slug, int $offset = 0, int $limit = 0, bool $includeComments = false): array {
         $slug = trim($slug);
         if (empty($slug)) {
             return ['success' => false, 'code' => 400, 'error' => 'Document slug is required for mode=doc.'];
@@ -718,27 +719,185 @@ class LlmAccess {
         $wordCount = str_word_count($content);
         $tokenEst = (int)ceil(strlen($content) / 4);
 
+        $docPayload = [
+            'title' => $matchedDocMeta['title'],
+            'slug' => $slug,
+            'description' => $matchedDocMeta['description'],
+            'type' => $resolvedType,
+            'category' => $matchedDocMeta['category_id'],
+            'breadcrumb' => $matchedDocMeta['breadcrumb'],
+            'url' => $matchedDocMeta['url'],
+            'date_modified' => $matchedDocMeta['date_modified'],
+            'total_bytes' => $rawSize,
+            'returned_bytes' => strlen($content),
+            'word_count' => $wordCount,
+            'estimated_tokens' => $tokenEst,
+            'offset' => $offset,
+            'is_truncated' => $isTruncated,
+            'content' => $content
+        ];
+
+        if ($includeComments) {
+            $commentsRes = self::retrieveComments($keyRecord, $slug, 'raw');
+            $docPayload['comments'] = $commentsRes['success'] ? ($commentsRes['comments'] ?? []) : [];
+            $docPayload['comments_enabled'] = $commentsRes['success'] ? ($commentsRes['comments_enabled'] ?? false) : false;
+        }
+
         return [
             'success' => true,
             'code' => 200,
-            'document' => [
-                'title' => $matchedDocMeta['title'],
-                'slug' => $slug,
-                'description' => $matchedDocMeta['description'],
-                'type' => $resolvedType,
-                'category' => $matchedDocMeta['category_id'],
-                'breadcrumb' => $matchedDocMeta['breadcrumb'],
-                'url' => $matchedDocMeta['url'],
-                'date_modified' => $matchedDocMeta['date_modified'],
-                'total_bytes' => $rawSize,
-                'returned_bytes' => strlen($content),
-                'word_count' => $wordCount,
-                'estimated_tokens' => $tokenEst,
-                'offset' => $offset,
-                'is_truncated' => $isTruncated,
-                'content' => $content
-            ]
+            'document' => $docPayload
         ];
+    }
+
+    /**
+     * Retrieve discussion comments on a document for LLMs / AI agents (Mode: comments)
+     *
+     * @param array $keyRecord Validated key record
+     * @param string $slug Document slug
+     * @param string $format 'json' | 'markdown' | 'raw'
+     * @return array [success => bool, code => int, error => string|null, ...]
+     */
+    public static function retrieveComments(array $keyRecord, string $slug, string $format = 'json'): array {
+        $slug = trim($slug);
+        if (empty($slug)) {
+            return ['success' => false, 'code' => 400, 'error' => 'Document slug is required for mode=comments.'];
+        }
+
+        // Get the scoped tree for this key
+        $scopedDocs = self::buildDocumentTree($keyRecord);
+        $matchedDocMeta = null;
+
+        foreach ($scopedDocs as $doc) {
+            if ($doc['slug'] === $slug) {
+                $matchedDocMeta = $doc;
+                break;
+            }
+        }
+
+        if (!$matchedDocMeta) {
+            $config = Config::load();
+            $fullChapter = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+
+            if ($fullChapter) {
+                return [
+                    'success' => false,
+                    'code' => 403,
+                    'error' => 'Document access denied. The requested document is outside the authorized branch/category of this key.'
+                ];
+            }
+
+            return [
+                'success' => false,
+                'code' => 404,
+                'error' => "Document with slug '{$slug}' not found."
+            ];
+        }
+
+        $config = Config::load();
+        $bookId = $matchedDocMeta['category_id'] ?? '';
+        $docTitle = $matchedDocMeta['title'] ?? $slug;
+
+        // Load CommentService
+        $commentServicePath = Config::getBaseDir() . '/assets/extensions/tool-comments/CommentService.php';
+        if (!file_exists($commentServicePath)) {
+            return [
+                'success' => false,
+                'code' => 503,
+                'error' => 'Comments extension is not installed.'
+            ];
+        }
+
+        require_once $commentServicePath;
+        $enabled = \Qwiki\Extension\Comments\CommentService::isCommentsEnabled($bookId, $slug, $config);
+        $commentsData = \Qwiki\Extension\Comments\CommentService::getComments($bookId, $slug);
+
+        $commentsList = $commentsData['comments'] ?? [];
+        $totalComments = 0;
+        foreach ($commentsList as $c) {
+            if (empty($c['isDeleted'])) $totalComments++;
+            if (!empty($c['replies'])) {
+                foreach ($c['replies'] as $r) {
+                    if (empty($r['isDeleted'])) $totalComments++;
+                }
+            }
+        }
+
+        if ($format === 'markdown' || $format === 'md' || $format === 'text') {
+            $markdownText = self::formatCommentsMarkdown($commentsData, $docTitle, $slug, $bookId, $enabled);
+            return [
+                'success' => true,
+                'code' => 200,
+                'format' => 'markdown',
+                'markdown' => $markdownText
+            ];
+        }
+
+        return [
+            'success' => true,
+            'code' => 200,
+            'slug' => $slug,
+            'title' => $docTitle,
+            'category' => $bookId,
+            'comments_enabled' => $enabled,
+            'total_comments' => $totalComments,
+            'updated_at' => $commentsData['updatedAt'] ?? null,
+            'comments' => $commentsList
+        ];
+    }
+
+    /**
+     * Format comments data as a readable Markdown transcript for LLM prompts
+     */
+    public static function formatCommentsMarkdown(array $commentsData, string $docTitle, string $slug, string $bookId, bool $enabled): string {
+        $out = "# Discussion Comments for \"{$docTitle}\" ({$bookId}/{$slug})\n\n";
+        $out .= "- **Comments Policy**: " . ($enabled ? "Enabled" : "Disabled") . "\n";
+        $out .= "- **Last Activity**: " . ($commentsData['updatedAt'] ?? 'None') . "\n\n";
+
+        $comments = $commentsData['comments'] ?? [];
+        if (empty($comments)) {
+            $out .= "*No comments or discussion threads recorded on this chapter.*\n";
+            return $out;
+        }
+
+        foreach ($comments as $root) {
+            $author = $root['author'] ?? 'unknown';
+            $role = $root['role'] ?? 'viewer';
+            $created = $root['createdAt'] ?? '';
+            $isDeleted = !empty($root['isDeleted']);
+            $edited = !empty($root['updatedAt']) ? ' (edited)' : '';
+
+            $out .= "### @{$author} ({$role}) - {$created}{$edited}\n";
+            if ($isDeleted) {
+                $out .= "*[Comment deleted by user/moderator]*\n\n";
+            } else {
+                $out .= trim($root['content'] ?? '') . "\n\n";
+            }
+
+            if (!empty($root['replies']) && is_array($root['replies'])) {
+                foreach ($root['replies'] as $rep) {
+                    $repAuthor = $rep['author'] ?? 'unknown';
+                    $repRole = $rep['role'] ?? 'viewer';
+                    $repCreated = $rep['createdAt'] ?? '';
+                    $repDeleted = !empty($rep['isDeleted']);
+                    $repEdited = !empty($rep['updatedAt']) ? ' (edited)' : '';
+
+                    $out .= "> **Reply by @{$repAuthor} ({$repRole}) - {$repCreated}{$repEdited}**:\n";
+                    if ($repDeleted) {
+                        $out .= "> *[Comment deleted by user/moderator]*\n\n";
+                    } else {
+                        $repContentLines = explode("\n", trim($rep['content'] ?? ''));
+                        foreach ($repContentLines as $line) {
+                            $out .= "> {$line}\n";
+                        }
+                        $out .= "\n";
+                    }
+                }
+            }
+            $out .= "---\n\n";
+        }
+
+        return trim($out);
     }
 
     /**
@@ -875,17 +1034,17 @@ class LlmAccess {
                                 'name' => 'mode',
                                 'in' => 'query',
                                 'required' => true,
-                                'description' => 'Operation mode: "tree" to list documents, "doc" to fetch document contents, "search" to query documents.',
+                                'description' => 'Operation mode: "tree" to list documents, "doc" to fetch document contents, "search" to query documents, "comments" to retrieve chapter discussion threads.',
                                 'schema' => [
                                     'type' => 'string',
-                                    'enum' => ['tree', 'doc', 'search']
+                                    'enum' => ['tree', 'doc', 'search', 'comments']
                                 ]
                             ],
                             [
                                 'name' => 'slug',
                                 'in' => 'query',
                                 'required' => false,
-                                'description' => 'Document slug (required for mode=doc).',
+                                'description' => 'Document slug (required for mode=doc and mode=comments).',
                                 'schema' => ['type' => 'string']
                             ],
                             [

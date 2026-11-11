@@ -1,0 +1,2369 @@
+<?php
+require_once __DIR__ . '/../lib/Parsedown.php';
+require_once __DIR__ . '/../lib/Core/Config.php';
+require_once __DIR__ . '/../lib/Core/Auth.php';
+require_once __DIR__ . '/../lib/Core/Navigation.php';
+require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
+require_once __DIR__ . '/../lib/Core/LockManager.php';
+require_once __DIR__ . '/../lib/Core/SubwikiManager.php';
+require_once __DIR__ . '/../lib/Core/LlmAccess.php';
+require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
+require_once __DIR__ . '/../lib/Core/AuditLogger.php';
+
+use Qwiki\Core\Config;
+use Qwiki\Core\Auth;
+use Qwiki\Core\Navigation;
+use Qwiki\Core\ExtensionManager;
+use Qwiki\Core\LockManager;
+use Qwiki\Core\SubwikiManager;
+use Qwiki\Core\LlmAccess;
+use Qwiki\Core\RemoteContentManager;
+use Qwiki\Core\AuditLogger;
+
+if (!defined('QWIKI_VERSION')) {
+    define('QWIKI_VERSION', Config::VERSION);
+}
+
+Auth::startSession();
+if (!headers_sent()) {
+    header('Content-Type: application/json');
+}
+
+$config = Config::load();
+$baseDir = Config::getBaseDir();
+$action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
+
+// Helper for tree category updates
+// Helper for tree category updates (delegates to Navigation::updateNodeMeta)
+if (!function_exists('update_node_meta')) {
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null) {
+        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments);
+    }
+}
+
+// Helper to validate URL protocol safety (delegates to Navigation::isSafeUrl)
+if (!function_exists('is_safe_url')) {
+    function is_safe_url($url) {
+        return Navigation::isSafeUrl($url);
+    }
+}
+
+// Helper for tree node deletions (delegates to Navigation::deleteNodeRecursive)
+if (!function_exists('delete_node_recursive')) {
+    function delete_node_recursive(&$list, $targetId) {
+        return Navigation::deleteNodeRecursive($list, $targetId);
+    }
+}
+
+// Helper for chapter insertion into tree (delegates to Navigation::insertChapterIntoNode)
+if (!function_exists('insert_chapter_into_node')) {
+    function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
+        return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
+    }
+}
+
+// Helper for chapter update in tree (delegates to Navigation::updateChapterInNode)
+if (!function_exists('update_chapter_in_node')) {
+    function update_chapter_in_node(&$node, $slug, $updatedData) {
+        return Navigation::updateChapterInNode($node, $slug, $updatedData);
+    }
+}
+
+// Helper for chapter deletion from tree (delegates to Navigation::deleteChapterFromNode)
+if (!function_exists('delete_chapter_from_node')) {
+    function delete_chapter_from_node(&$node, $slug, &$deleted = false, &$deletedFile = null) {
+        Navigation::deleteChapterFromNode($node, $slug, $deleted, $deletedFile);
+    }
+}
+
+// Safely moves/renames a document file within content/ directory
+if (!function_exists('relocate_document_file')) {
+    function relocate_document_file($baseDir, $origRelFile, $destRelDir, $destFileName = null) {
+        if (empty($origRelFile) || strpos($origRelFile, 'content/') !== 0) {
+            return $origRelFile;
+        }
+        $destRelDir = trim($destRelDir, '/\\');
+        $destAbsDir = $baseDir . '/' . $destRelDir;
+        if (!is_dir($destAbsDir)) {
+            if (!@mkdir($destAbsDir, 0755, true) && !is_dir($destAbsDir)) {
+                return $origRelFile;
+            }
+        }
+
+        $origFileName = basename($origRelFile);
+        $targetName = $destFileName ?: $origFileName;
+        $ext = pathinfo($targetName, PATHINFO_EXTENSION);
+        $nameWithoutExt = pathinfo($targetName, PATHINFO_FILENAME);
+
+        $origAbsFile = $baseDir . '/' . $origRelFile;
+        $destAbsFile = $destAbsDir . '/' . $targetName;
+
+        // Check if target already exists and is a different file
+        if (file_exists($destAbsFile) && realpath($destAbsFile) !== realpath($origAbsFile)) {
+            $counter = 1;
+            while (file_exists($destAbsDir . '/' . $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : ''))) {
+                $counter++;
+            }
+            $targetName = $nameWithoutExt . '-' . $counter . ($ext ? '.' . $ext : '');
+            $destAbsFile = $destAbsDir . '/' . $targetName;
+        }
+
+        $newRelFile = $destRelDir . '/' . $targetName;
+
+        if (file_exists($origAbsFile) && $destAbsFile !== $origAbsFile) {
+            if (@rename($origAbsFile, $destAbsFile)) {
+                return $newRelFile;
+            }
+        } elseif (!file_exists($origAbsFile)) {
+            return $newRelFile;
+        }
+
+        return $newRelFile;
+    }
+}
+
+// Checks if a slug is already taken across all books and documents
+if (!function_exists('is_slug_taken')) {
+    function is_slug_taken($slug, $nodes, $currentSlug = null) {
+        return Navigation::isSlugTaken($slug, $nodes, $currentSlug);
+    }
+}
+
+// Safely moves uploaded file, falling back to copy in CLI test environments
+if (!function_exists('safe_move_uploaded_file')) {
+    function safe_move_uploaded_file($tmpName, $destPath) {
+        if (@move_uploaded_file($tmpName, $destPath)) {
+            return true;
+        }
+        if (php_sapi_name() === 'cli' && @copy($tmpName, $destPath)) {
+            return true;
+        }
+        return false;
+    }
+}
+
+// Finds a chapter and its parent node by slug (read-only)
+if (!function_exists('find_chapter_and_parent')) {
+    function find_chapter_and_parent($nodes, $slug, &$foundChapter, &$foundParentNode, &$topBookId, $parentNode = null, $currentTopBookId = null) {
+        if (!is_array($nodes)) return false;
+        foreach ($nodes as $node) {
+            $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+            if (!isset($node['type']) || $node['type'] !== 'folder') {
+                if (($node['slug'] ?? '') === $slug) {
+                    $foundChapter = $node;
+                    $foundParentNode = $parentNode;
+                    $topBookId = $effectiveTopBook ?: $slug;
+                    return true;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (find_chapter_and_parent($node['items'], $slug, $foundChapter, $foundParentNode, $topBookId, $node, $effectiveTopBook)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+// Finds a chapter and executes a mutating callback in-place
+if (!function_exists('find_chapter_and_update')) {
+    function find_chapter_and_update(&$nodes, $slug, $callback, &$parentNode = null, $currentTopBookId = null) {
+        if (!is_array($nodes)) return false;
+        foreach ($nodes as &$node) {
+            $effectiveTopBook = $currentTopBookId ?? ($node['id'] ?? null);
+            if (!isset($node['type']) || $node['type'] !== 'folder') {
+                if (($node['slug'] ?? '') === $slug) {
+                    return $callback($node, $parentNode, $effectiveTopBook);
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $res = find_chapter_and_update($node['items'], $slug, $callback, $node, $effectiveTopBook);
+                if ($res !== false) {
+                    return $res;
+                }
+            }
+        }
+        return false;
+    }
+}
+
+// Resolves category folder path based on hierarchy
+if (!function_exists('get_category_folder')) {
+    function get_category_folder($nodes, $targetId, $parentFolder = null) {
+        if (!is_array($nodes)) return null;
+        foreach ($nodes as $node) {
+            $nodeId = $node['id'] ?? null;
+            if ($nodeId === null) continue;
+            $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+            if ($nodeId === $targetId) {
+                return $curFolder;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $found = get_category_folder($node['items'], $targetId, $curFolder);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+}
+
+// Backward compatibility helper
+if (!function_exists('is_chapter_protected')) {
+    function is_chapter_protected($slug_or_file, $nodes = null) {
+        return \Qwiki\Core\Config::isChapterProtected($slug_or_file, $nodes);
+    }
+}
+if (!function_exists('is_category_protected')) {
+    function is_category_protected($category_id, $nodes = null) {
+        return \Qwiki\Core\Config::isCategoryProtected($category_id, $nodes);
+    }
+}
+
+if (isset($_POST['content_base64']) && !isset($_POST['content'])) {
+    $_POST['content'] = base64_decode($_POST['content_base64']);
+    $_REQUEST['content'] = $_POST['content'];
+}
+
+switch ($action) {
+    case 'login':
+        $username = trim($_POST['username'] ?? $_POST['identifier'] ?? 'admin');
+        $password = $_POST['password'] ?? '';
+        echo json_encode(Auth::login($username, $password, $config));
+        break;
+
+    case 'verify_2fa':
+        $code = trim($_POST['code'] ?? '');
+        echo json_encode(Auth::verify2faLogin($code));
+        break;
+
+    case 'forgot_password':
+        $identifier = trim($_POST['identifier'] ?? $_POST['email'] ?? $_POST['username'] ?? '');
+        echo json_encode(Auth::requestPasswordReset($identifier));
+        break;
+
+    case 'reset_password_submit':
+        $token = trim($_POST['token'] ?? '');
+        $newPassword = $_POST['newPassword'] ?? $_POST['password'] ?? '';
+        echo json_encode(Auth::resetPasswordWithToken($token, $newPassword));
+        break;
+
+    case 'initiate_2fa':
+        echo json_encode(Auth::initiate2faSetup());
+        break;
+
+    case 'confirm_2fa':
+        $code = trim($_POST['code'] ?? '');
+        echo json_encode(Auth::confirm2faSetup($code));
+        break;
+
+    case 'disable_2fa':
+        $targetUsername = trim($_POST['username'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        echo json_encode(Auth::disable2fa($targetUsername));
+        break;
+
+    case 'generate_admin_reset_link':
+        $targetUsername = trim($_POST['username'] ?? '');
+        echo json_encode(Auth::generateAdminResetLink($targetUsername));
+        break;
+
+    case 'update_user_email':
+        $targetUsername = trim($_POST['username'] ?? '');
+        $newEmail = trim($_POST['email'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        $markVerified = Auth::isAdmin() && isset($_POST['markVerified']) && $_POST['markVerified'] === '1';
+        echo json_encode(Auth::setUserEmail($targetUsername, $newEmail, $markVerified));
+        break;
+
+    case 'resend_email_verification':
+        $targetUsername = trim($_POST['username'] ?? '');
+        if (empty($targetUsername)) {
+            $cur = Auth::getCurrentUser();
+            $targetUsername = $cur['username'] ?? '';
+        }
+        echo json_encode(Auth::sendEmailVerification($targetUsername));
+        break;
+
+    case 'test_smtp':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $existingSmtp = Config::load()['smtp'] ?? [];
+        $password = (isset($_POST['password']) && $_POST['password'] !== '') ? (string)$_POST['password'] : ($existingSmtp['password'] ?? '');
+        $smtpConfig = [
+            'host'       => trim($_POST['host'] ?? ''),
+            'port'       => (int)($_POST['port'] ?? 587),
+            'encryption' => trim($_POST['encryption'] ?? 'tls'),
+            'username'   => trim($_POST['username'] ?? ''),
+            'password'   => $password,
+            'fromEmail'  => trim($_POST['fromEmail'] ?? ''),
+            'fromName'   => trim($_POST['fromName'] ?? 'Standalone Qwiki')
+        ];
+        $testRecipient = trim($_POST['testRecipient'] ?? '');
+        if (empty($testRecipient)) {
+            $users = Config::loadUsers();
+            foreach ($users['users'] as $u) {
+                if ($u['role'] === 'admin' && !empty($u['email'])) {
+                    $testRecipient = $u['email'];
+                    break;
+                }
+            }
+        }
+        if (empty($testRecipient)) {
+            $testRecipient = $smtpConfig['fromEmail'];
+        }
+        echo json_encode(\Qwiki\Core\Mailer::testConnection($smtpConfig, $testRecipient));
+        break;
+
+    case 'logout':
+        echo json_encode(Auth::logout());
+        break;
+
+    case 'list_users':
+        echo json_encode(Auth::listUsers());
+        break;
+
+    case 'add_user':
+        $newUsername = trim($_POST['username'] ?? '');
+        $newPassword = $_POST['password'] ?? '';
+        $newRole     = $_POST['role'] ?? 'viewer';
+        $newEmail    = trim($_POST['email'] ?? '');
+        echo json_encode(Auth::addUser($newUsername, $newPassword, $newRole, $newEmail ?: null));
+        break;
+
+    case 'delete_user':
+        $targetUsername = trim($_POST['username'] ?? '');
+        echo json_encode(Auth::deleteUser($targetUsername));
+        break;
+
+    case 'update_user_password':
+        $targetUsername = trim($_POST['username'] ?? '');
+        $newPassword = $_POST['newPassword'] ?? $_POST['password'] ?? '';
+        echo json_encode(Auth::updateUserPassword($targetUsername, $newPassword));
+        break;
+
+    case 'list_llm_keys':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        echo json_encode([
+            'success' => true,
+            'keys' => LlmAccess::listKeys()
+        ]);
+        break;
+
+    case 'create_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyName = trim($_POST['name'] ?? '');
+        $keyCategory = trim($_POST['category'] ?? '');
+        $rawTypes = $_POST['allowedTypes'] ?? ['markdown'];
+        if (is_string($rawTypes)) {
+            $rawTypes = array_filter(array_map('trim', explode(',', $rawTypes)));
+        }
+        $keyExpiresAt = !empty($_POST['expiresAt']) ? trim($_POST['expiresAt']) : null;
+        echo json_encode(LlmAccess::generateKey($keyName, $keyCategory, (array)$rawTypes, $keyExpiresAt));
+        break;
+
+    case 'revoke_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        $targetStatus = isset($_POST['status']) ? trim($_POST['status']) : null;
+        echo json_encode(LlmAccess::revokeKey($keyId, $targetStatus));
+        break;
+
+    case 'delete_llm_key':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        echo json_encode(LlmAccess::deleteKey($keyId));
+        break;
+
+    case 'update_llm_key_expiry':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $keyId = trim($_POST['keyId'] ?? '');
+        $newExpiresAt = !empty($_POST['expiresAt']) ? trim($_POST['expiresAt']) : null;
+        echo json_encode(LlmAccess::updateKeyExpiry($keyId, $newExpiresAt));
+        break;
+
+    case 'add_book':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $rawId = trim($_POST['id'] ?? '');
+        $parentId = trim($_POST['parentId'] ?? '');
+        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
+        $isExplicitCustom = isset($_POST['isCustomSlug']) ? ($_POST['isCustomSlug'] === '1' || $_POST['isCustomSlug'] === 'true') : !empty($rawId);
+
+        if (empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Category title is required']);
+            exit;
+        }
+
+        // Determine target parent folder on disk
+        $parentFolder = null;
+        if (!empty($parentId)) {
+            $parentFolder = get_category_folder($config['books'] ?? [], $parentId);
+            if ($parentFolder === null) {
+                echo json_encode(['success' => false, 'error' => 'Selected parent category does not exist']);
+                exit;
+            }
+            $parentAbsDir = $baseDir . '/' . $parentFolder;
+        } else {
+            $parentAbsDir = $baseDir . '/content';
+        }
+
+        $baseSlug = !empty($rawId) ? Config::makeSlug($rawId) : Config::makeSlug($title);
+        if (empty($baseSlug)) {
+            $baseSlug = 'category';
+        }
+
+        if ($isExplicitCustom && !empty($rawId)) {
+            $bookId = $baseSlug;
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
+            if (is_slug_taken($bookId, $config['books'] ?? [])) {
+                echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$bookId}' already exists"]);
+                exit;
+            }
+        } else {
+            // Auto-generated slug: check reserved system words and generate unique slug if colliding
+            $reserved = Config::getReservedNames();
+            if (in_array($baseSlug, $reserved, true)) {
+                $baseSlug = 'cat-' . $baseSlug;
+            }
+            $bookId = Navigation::generateUniqueSlug($baseSlug, $config['books'] ?? [], $parentAbsDir);
+            $val = SubwikiManager::validateSlug($bookId, null, false);
+            if (!$val['valid']) {
+                echo json_encode(['success' => false, 'error' => $val['error']]);
+                exit;
+            }
+        }
+
+        if (!empty($parentId)) {
+            $parentFolder = get_category_folder($config['books'] ?? [], $parentId);
+            if ($parentFolder === null) {
+                echo json_encode(['success' => false, 'error' => 'Selected parent category does not exist']);
+                exit;
+            }
+            $targetRelFolder = $parentFolder . '/' . $bookId;
+            $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+            if (!is_dir($targetAbsFolder)) {
+                @mkdir($targetAbsFolder, 0755, true);
+            }
+            $newNode = [
+                'id' => $bookId,
+                'title' => $title,
+                'type' => 'folder',
+                'folder' => $targetRelFolder,
+                'items' => []
+            ];
+            if ($allowComments) {
+                $newNode['allowComments'] = true;
+            }
+            if ($description !== '') {
+                $newNode['description'] = $description;
+            }
+            $inserted = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $parentId, $newNode)) {
+                    $inserted = true;
+                    break;
+                }
+            }
+            if (!$inserted) {
+                echo json_encode(['success' => false, 'error' => 'Failed to nest category in parent']);
+                exit;
+            }
+        } else {
+            $targetRelFolder = 'content/' . $bookId;
+            $targetAbsFolder = $baseDir . '/' . $targetRelFolder;
+            if (!is_dir($targetAbsFolder)) {
+                @mkdir($targetAbsFolder, 0755, true);
+            }
+            $newBook = [
+                'id' => $bookId,
+                'title' => $title,
+                'type' => 'folder',
+                'folder' => $targetRelFolder,
+                'items' => []
+            ];
+            if ($allowComments) {
+                $newBook['allowComments'] = true;
+            }
+            if ($description !== '') {
+                $newBook['description'] = $description;
+            }
+            $config['books'][] = $newBook;
+        }
+
+        if (Config::save($config)) {
+            AuditLogger::logMutation('category_created', 200, [
+                'bookId' => $bookId,
+                'title' => $title,
+                'parentId' => $parentId
+            ]);
+            echo json_encode(['success' => true, 'bookId' => $bookId, 'parentId' => $parentId]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        }
+        break;
+
+    case 'edit_book':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $theme = trim($_POST['theme'] ?? '');
+        $visibility = trim($_POST['visibility'] ?? 'public');
+        $description = isset($_POST['description']) ? trim($_POST['description']) : null;
+        if (empty($bookId) || empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Category ID and Title are required']);
+            exit;
+        }
+
+        $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
+        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
+
+        // In demo mode, prevent unlocking directly protected demo categories
+        if (Config::isDemoMode() && Config::isCategoryDirectlyProtected($bookId, $config['books'] ?? []) && $readOnly === false) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo categories cannot be unlocked in demo mode.']);
+            exit;
+        }
+
+        $updated = false;
+        foreach ($config['books'] as &$book) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description, $allowComments)) {
+                $updated = true;
+                break;
+            }
+        }
+        if ($updated && Config::save($config)) {
+            echo json_encode(['success' => true, 'bookId' => $bookId]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Category not found or save failed']);
+        }
+        break;
+
+    case 'delete_book':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = trim($_POST['bookId'] ?? '');
+        $bookTitle = trim($_POST['bookTitle'] ?? '');
+
+        if (empty($bookId)) {
+            // Handle deleting phantom or corrupted categories that lack an ID
+            if (!empty($bookTitle)) {
+                $deletedPhantom = false;
+                $filteredBooks = [];
+                foreach ($config['books'] as $b) {
+                    if (empty($b['id']) && (($b['title'] ?? '') === $bookTitle || ($b['name'] ?? '') === $bookTitle)) {
+                        $deletedPhantom = true;
+                        continue;
+                    }
+                    $filteredBooks[] = $b;
+                }
+                if ($deletedPhantom) {
+                    $config['books'] = $filteredBooks;
+                    Config::save($config);
+                    echo json_encode(['success' => true]);
+                    exit;
+                }
+            }
+            echo json_encode(['success' => false, 'error' => 'Category ID is required']);
+            exit;
+        }
+        if (Config::isCategoryProtected($bookId, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This category is protected or contains protected documents and cannot be deleted.']);
+            exit;
+        }
+        if (delete_node_recursive($config['books'], $bookId)) {
+            Config::save($config);
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Category not found or failed to delete']);
+        }
+        break;
+
+    case 'create_markdown':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $content = $_POST['content'] ?? "";
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
+        if (empty($title) && !empty($content)) {
+            if (preg_match('/^#\s+(.+)$/m', $content, $matches)) {
+                $title = trim(strip_tags($matches[1]));
+            }
+        }
+        if (empty($content)) {
+            $content = "# {$title}\n\nWrite your documentation content here...";
+        }
+        if (empty($bookId) || empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Category and title are required']);
+            exit;
+        }
+        $baseSlug = Config::makeSlug($title);
+        $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
+        $targetAbsDir = $baseDir . '/' . $targetRelDir;
+        if (!is_dir($targetAbsDir)) {
+            @mkdir($targetAbsDir, 0755, true);
+        }
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books'], $targetAbsDir, 'md');
+        $targetRelFile = $targetRelDir . '/' . $slug . '.md';
+        $targetAbsFile = $baseDir . '/' . $targetRelFile;
+        if (file_put_contents($targetAbsFile, $content) === false) {
+            echo json_encode(['success' => false, 'error' => 'Failed to create Markdown file']);
+            exit;
+        }
+        $chapterData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'markdown',
+            'file' => $targetRelFile
+        ];
+        if (isset($_POST['allowComments'])) {
+            $commentsVal = strtolower(trim((string)$_POST['allowComments']));
+            if ($commentsVal === 'enabled' || $commentsVal === '1' || $commentsVal === 'true') {
+                $chapterData['allowComments'] = true;
+            } elseif ($commentsVal === 'disabled' || $commentsVal === '0' || $commentsVal === 'false') {
+                $chapterData['allowComments'] = false;
+            }
+        }
+        $added = false;
+        foreach ($config['books'] as &$book) {
+            if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                $added = true;
+                break;
+            }
+        }
+        if ($added && Config::save($config)) {
+            AuditLogger::logMutation('doc_created', 200, [
+                'slug' => $slug,
+                'title' => $title,
+                'bookId' => $bookId,
+                'file' => $targetRelFile,
+                'type' => 'markdown'
+            ]);
+            echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+        }
+        break;
+
+    case 'edit_chapter':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document Slug is required']);
+            exit;
+        }
+        $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
+        $isProtected = Config::isChapterProtected($slug, $config['books'] ?? []);
+        $isAncestorProtected = Config::isChapterAncestorProtected($slug, $config['books'] ?? []);
+
+        if ($isAncestorProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is inside a protected category and cannot be modified.']);
+            exit;
+        }
+
+        if (Config::isDemoMode() && $isProtected) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo documents cannot be modified or unlocked in demo mode.']);
+            exit;
+        }
+
+        if ($isProtected && $readOnly !== false) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
+            exit;
+        }
+
+        $title = trim($_POST['title'] ?? '');
+        $type = $_POST['type'] ?? 'markdown';
+        $url = trim($_POST['url'] ?? '');
+        $editUrl = trim($_POST['editUrl'] ?? '');
+        $theme = trim($_POST['theme'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $image = trim($_POST['image'] ?? '');
+        $targetBookId = trim($_POST['targetBookId'] ?? '');
+
+        // Slug change validation
+        $rawNewSlug = trim($_POST['newSlug'] ?? $slug);
+        $newSlug = Config::makeSlug($rawNewSlug);
+        if (empty($newSlug)) {
+            echo json_encode(['success' => false, 'error' => 'Document Slug cannot be empty']);
+            exit;
+        }
+        if (in_array($newSlug, Config::getReservedNames(), true)) {
+            echo json_encode(['success' => false, 'error' => "The slug '{$newSlug}' is a reserved system name"]);
+            exit;
+        }
+        if ($newSlug !== $slug && is_slug_taken($newSlug, $config['books'], $slug)) {
+            echo json_encode(['success' => false, 'error' => "A document or category with the slug '{$newSlug}' already exists"]);
+            exit;
+        }
+
+        if (empty($title)) {
+            echo json_encode(['success' => false, 'error' => 'Document Title is required']);
+            exit;
+        }
+        if (!empty($url) && !is_safe_url($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe URL protocol']);
+            exit;
+        }
+        if ($type === 'gdoc' && !empty($url)) {
+            if (strpos($url, 'embedded=true') === false) {
+                $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
+            }
+        }
+        $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
+
+        $updateResult = find_chapter_and_update($config['books'], $slug, function(&$foundChapter, &$foundParentNode, $topBookId) use (
+            $title, $type, $url, $editUrl, $publicShareable, $theme, $description, $image, $newSlug, $slug,
+            $targetBookId, $baseDir, &$config, $readOnly
+        ) {
+            $currentParentId = $foundParentNode['id'] ?? $topBookId;
+            $destBookId = (!empty($targetBookId)) ? $targetBookId : $currentParentId;
+            $destCategoryFolder = get_category_folder($config['books'], $destBookId) ?: ('content/' . $destBookId);
+
+            $foundChapter['title'] = $title;
+            $foundChapter['type'] = $type;
+            $foundChapter['url'] = $url;
+            $foundChapter['editUrl'] = $editUrl;
+            $foundChapter['publicShareable'] = $publicShareable;
+
+            if (isset($_POST['allowComments'])) {
+                $commentsVal = strtolower(trim((string)$_POST['allowComments']));
+                if ($commentsVal === 'enabled' || $commentsVal === '1' || $commentsVal === 'true') {
+                    $foundChapter['allowComments'] = true;
+                } elseif ($commentsVal === 'disabled' || $commentsVal === '0' || $commentsVal === 'false') {
+                    $foundChapter['allowComments'] = false;
+                } else {
+                    unset($foundChapter['allowComments']);
+                }
+            }
+
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $foundChapter['readOnly'] = true;
+                    $foundChapter['editable'] = false;
+                } else {
+                    unset($foundChapter['readOnly']);
+                    unset($foundChapter['editable']);
+                    unset($foundChapter['locked']);
+                }
+            }
+
+            if ($theme !== '') {
+                $foundChapter['theme'] = $theme;
+            } else {
+                unset($foundChapter['theme']);
+            }
+            if ($description !== '') {
+                $foundChapter['description'] = $description;
+            } else {
+                unset($foundChapter['description']);
+            }
+            if ($image !== '') {
+                $foundChapter['image'] = $image;
+            } else {
+                unset($foundChapter['image']);
+            }
+            if (isset($_POST['status'])) {
+                $statusInput = strtolower(trim($_POST['status']));
+                if (in_array($statusInput, Navigation::VALID_STATUSES, true)) {
+                    $foundChapter['status'] = $statusInput;
+                    $foundChapter['statusUpdatedAt'] = date('c');
+                    $foundChapter['statusUpdatedBy'] = Auth::getCurrentUser()['username'] ?? 'admin';
+                }
+            }
+            if (!empty($_POST['regenerateShareKey'])) {
+                $foundChapter['shareKey'] = Navigation::generateShareKey();
+            }
+
+            // Handle optional file replacement upload
+            $origRelFile = $foundChapter['file'] ?? '';
+            if (isset($_FILES['replacement_file']) && $_FILES['replacement_file']['error'] === UPLOAD_ERR_OK) {
+                $replFileName = basename($_FILES['replacement_file']['name']);
+                $replExt = strtolower(pathinfo($replFileName, PATHINFO_EXTENSION));
+                if (in_array($replExt, ['md', 'pdf'])) {
+                    $destAbsDir = $baseDir . '/' . $destCategoryFolder;
+                    if (!is_dir($destAbsDir)) {
+                        @mkdir($destAbsDir, 0755, true);
+                    }
+                    $newRelFile = $destCategoryFolder . '/' . $newSlug . '.' . $replExt;
+                    $newAbsFile = $baseDir . '/' . $newRelFile;
+                    if (safe_move_uploaded_file($_FILES['replacement_file']['tmp_name'], $newAbsFile)) {
+                        if (!empty($origRelFile) && $origRelFile !== $newRelFile && file_exists($baseDir . '/' . $origRelFile)) {
+                            @unlink($baseDir . '/' . $origRelFile);
+                        }
+                        $foundChapter['file'] = $newRelFile;
+                        $foundChapter['type'] = ($replExt === 'pdf') ? 'pdf' : 'markdown';
+                        $origRelFile = ''; // Handled
+                    }
+                }
+            }
+
+            // Handle physical file relocation & slug renaming on disk
+            if (!empty($origRelFile) && strpos($origRelFile, 'content/') === 0) {
+                $ext = pathinfo($origRelFile, PATHINFO_EXTENSION);
+                $newFileName = ($newSlug !== $slug) ? ($newSlug . ($ext ? '.' . $ext : '')) : basename($origRelFile);
+                $newRelFile = relocate_document_file($baseDir, $origRelFile, $destCategoryFolder, $newFileName);
+                $foundChapter['file'] = $newRelFile;
+            }
+            $foundChapter['slug'] = $newSlug;
+
+            $finalBookId = $topBookId;
+
+            // Move to target category in tree if category changed
+            if (!empty($targetBookId) && $foundParentNode && ($foundParentNode['id'] ?? '') !== $targetBookId) {
+                $chapterCopy = $foundChapter;
+                // Remove from current parent
+                $filteredItems = [];
+                foreach ($foundParentNode['items'] as $item) {
+                    if (($item['slug'] ?? '') !== $slug && ($item['slug'] ?? '') !== $newSlug) {
+                        $filteredItems[] = $item;
+                    }
+                }
+                $foundParentNode['items'] = $filteredItems;
+
+                // Insert into target category
+                $inserted = false;
+                foreach ($config['books'] as &$book) {
+                    if (insert_chapter_into_node($book, $targetBookId, $chapterCopy)) {
+                        $inserted = true;
+                        $finalBookId = $book['id'] ?? $targetBookId;
+                        break;
+                    }
+                }
+                if ($inserted && empty($finalBookId)) {
+                    $finalBookId = $targetBookId;
+                }
+            }
+
+            return [
+                'bookId' => $finalBookId ?: $destBookId,
+                'slug' => $newSlug,
+                'file' => $foundChapter['file'] ?? ''
+            ];
+        });
+
+        if (!$updateResult) {
+            echo json_encode(['success' => false, 'error' => 'Document entry not found']);
+            exit;
+        }
+
+        if (Config::save($config)) {
+            AuditLogger::logMutation('doc_metadata_updated', 200, [
+                'slug' => $updateResult['slug'] ?? $slug,
+                'title' => $title,
+                'bookId' => $updateResult['bookId'] ?? ''
+            ]);
+            echo json_encode([
+                'success' => true,
+                'bookId' => $updateResult['bookId'],
+                'slug' => $updateResult['slug'],
+                'file' => $updateResult['file']
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save qwiki.json']);
+        }
+        break;
+
+    case 'set_chapter_status':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $identifier = trim($_POST['slug'] ?? $_POST['shareKey'] ?? $_POST['file'] ?? '');
+        $status = strtolower(trim($_POST['status'] ?? ''));
+        $cleanSource = false;
+        if (isset($_POST['clean_source'])) {
+            $val = $_POST['clean_source'];
+            if ($val === true || $val === 'true' || $val === '1' || $val === 1) {
+                $cleanSource = true;
+            }
+        }
+        $note = trim($_POST['note'] ?? '');
+
+        if (empty($identifier) || empty($status)) {
+            echo json_encode(['success' => false, 'error' => 'Document identifier and status are required']);
+            exit;
+        }
+
+        if (!in_array($status, Navigation::VALID_STATUSES, true)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid status. Allowed: ' . implode(', ', Navigation::VALID_STATUSES)]);
+            exit;
+        }
+
+        if (Config::isChapterProtected($identifier, $config['books'] ?? []) || Config::isChapterAncestorProtected($identifier, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and its status cannot be modified.']);
+            exit;
+        }
+
+        $curUser = Auth::getCurrentUser();
+        $username = $curUser['username'] ?? 'admin';
+
+        $updatedChapter = Navigation::updateChapterStatus($config['books'], $identifier, $status, [
+            'updatedBy' => $username,
+            'approver' => $username,
+            'note' => $note
+        ]);
+
+        if (!$updatedChapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+
+        // If HTML document, update file on disk as well
+        $baseDir = Config::getBaseDir();
+        $relFile = $updatedChapter['file'] ?? '';
+        if (!empty($relFile) && preg_match('/\.(html|htm)$/i', $relFile)) {
+            $absFile = Config::safePath($baseDir, $relFile);
+            if ($absFile && file_exists($absFile)) {
+                Navigation::sanitizeHtmlDocumentStatus($absFile, $status, $cleanSource);
+            }
+        }
+
+        if (Config::save($config)) {
+            AuditLogger::logMutation('status_changed', 200, [
+                'slug' => $updatedChapter['slug'] ?? '',
+                'status' => $status,
+                'file' => $relFile
+            ], $username);
+            echo json_encode([
+                'success' => true,
+                'slug' => $updatedChapter['slug'] ?? '',
+                'shareKey' => $updatedChapter['shareKey'] ?? '',
+                'file' => $relFile,
+                'status' => $status,
+                'statusUpdatedAt' => $updatedChapter['statusUpdatedAt'] ?? date('c'),
+                'updatedBy' => $username
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save configuration']);
+        }
+        break;
+
+    case 'get_or_create_share_key':
+        $slug = trim($_REQUEST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $shareKey = $chapter['shareKey'] ?? '';
+        $isPublic = !isset($chapter['publicShareable']) || !empty($chapter['publicShareable']);
+        if (empty($shareKey)) {
+            if (!Auth::isViewer() && !Auth::isAdmin()) {
+                echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
+                exit;
+            }
+            $shareKey = Navigation::generateShareKey();
+            $updatedData = ['shareKey' => $shareKey];
+            foreach ($config['books'] as &$book) {
+                if (update_chapter_in_node($book, $slug, $updatedData)) {
+                    Config::save($config);
+                    break;
+                }
+            }
+        } elseif (!$isPublic && !Auth::isViewer() && !Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Public sharing is disabled for this document.']);
+            exit;
+        }
+        $baseUrl = Config::getBaseUrl();
+        $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'title' => $chapter['title'] ?? '',
+            'shareKey' => $shareKey,
+            'publicShareable' => $isPublic,
+            'shareUrl' => $shareUrl,
+            'isAdmin' => Auth::isAdmin()
+        ]);
+        break;
+
+    case 'update_share_settings':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
+        $regenerate = !empty($_POST['regenerate']);
+        $shareKey = $chapter['shareKey'] ?? '';
+        if ($regenerate || empty($shareKey)) {
+            $shareKey = Navigation::generateShareKey();
+        }
+        $updatedData = [
+            'publicShareable' => $publicShareable,
+            'shareKey' => $shareKey
+        ];
+        $saved = false;
+        foreach ($config['books'] as &$book) {
+            if (update_chapter_in_node($book, $slug, $updatedData)) {
+                $saved = Config::save($config);
+                break;
+            }
+        }
+        if ($saved) {
+            $baseUrl = Config::getBaseUrl();
+            echo json_encode([
+                'success' => true,
+                'slug' => $slug,
+                'shareKey' => $shareKey,
+                'publicShareable' => $publicShareable,
+                'shareUrl' => $baseUrl . '?share=' . urlencode($shareKey)
+            ]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save share settings']);
+        }
+        break;
+
+
+    case 'lock_status':
+        $file = $_REQUEST['file'] ?? '';
+        $tabId = $_REQUEST['tab_id'] ?? null;
+        $status = LockManager::checkLock($file, $tabId);
+        echo json_encode(['success' => true, 'status' => $status]);
+        break;
+
+    case 'lock_acquire':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $force = !empty($_POST['force']);
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        $res = LockManager::acquireLock($file, $tabId, $username, $force);
+        echo json_encode($res);
+        break;
+
+    case 'lock_heartbeat':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        // Immediately release session lock to prevent blocking concurrent browsing requests
+        session_write_close();
+
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $res = LockManager::renewLock($file, $tabId, $username);
+        echo json_encode($res);
+        break;
+
+    case 'lock_release':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $file = $_POST['file'] ?? '';
+        $tabId = $_POST['tab_id'] ?? '';
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        $force = !empty($_POST['force']);
+        $res = LockManager::releaseLock($file, $tabId, $username, $force);
+        echo json_encode($res);
+        break;
+
+    case 'save_markdown':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $relFile = $_POST['file'] ?? '';
+        $slug = $_POST['slug'] ?? '';
+        if (!empty($slug)) {
+            $ch = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+            if ($ch && ($ch['type'] ?? '') === 'remote') {
+                echo json_encode(['success' => false, 'error' => 'Remote documents cannot be edited locally (Single Source of Truth).']);
+                exit;
+            }
+        }
+        if (Config::isChapterProtected($relFile, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be edited.']);
+            exit;
+        }
+        $content = $_POST['content'] ?? '';
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
+        $targetPath = Config::safePath($baseDir, $relFile);
+        if (!$targetPath || !preg_match('/\.(md|markdown)$/i', $targetPath)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid file path']);
+            exit;
+        }
+
+        $tabId = $_POST['tab_id'] ?? '';
+        $user = Auth::getCurrentUser();
+        $username = $user['username'] ?? 'admin';
+        if (!empty($tabId)) {
+            $lockCheck = LockManager::verifyOrRejectSave($relFile, $tabId, $username);
+            if (!$lockCheck['allowed']) {
+                echo json_encode([
+                    'success' => false,
+                    'code' => 'LOCKED_BY_OTHER',
+                    'lockedBy' => $lockCheck['lockedBy'] ?? 'another session',
+                    'isSameUser' => !empty($lockCheck['isSameUser']),
+                    'error' => 'Document save rejected: Document is currently locked by ' . ($lockCheck['lockedBy'] ?? 'another session')
+                ]);
+                exit;
+            }
+        }
+
+        if (file_put_contents($targetPath, $content) !== false) {
+            AuditLogger::logMutation('doc_saved', 200, [
+                'file' => $relFile,
+                'size_bytes' => strlen($content)
+            ], $username);
+            if (!empty($tabId)) {
+                LockManager::releaseLock($relFile, $tabId, $username);
+            }
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save file']);
+        }
+        break;
+
+    case 'upload_file':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $conflictAction = trim($_POST['conflictAction'] ?? ''); // 'replace' | 'rename'
+        $customSlug = trim($_POST['customSlug'] ?? '');
+
+        if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK || empty($title) || empty($bookId)) {
+            echo json_encode(['success' => false, 'error' => 'Missing file or required parameters']);
+            exit;
+        }
+        $fileName = basename($_FILES['document']['name']);
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['md', 'pdf'])) {
+            echo json_encode(['success' => false, 'error' => 'Only .md and .pdf files are supported via direct upload']);
+            exit;
+        }
+
+        $baseSlug = Config::makeSlug($title);
+        if (empty($baseSlug)) {
+            $baseSlug = 'document';
+        }
+
+        $targetRelDir = get_category_folder($config['books'], $bookId) ?: ('content/' . $bookId);
+        $targetAbsDir = $baseDir . '/' . $targetRelDir;
+        if (!is_dir($targetAbsDir)) {
+            @mkdir($targetAbsDir, 0755, true);
+        }
+
+        $targetRelFile = $targetRelDir . '/' . $baseSlug . '.' . $ext;
+        $targetAbsFile = $baseDir . '/' . $targetRelFile;
+
+        $isSlugTaken = Navigation::isSlugTaken($baseSlug, $config['books']);
+        $fileExists = file_exists($targetAbsFile);
+        $hasConflict = ($isSlugTaken || $fileExists);
+
+        // Scenario 1: Initial upload with collision detected, and no conflictAction provided
+        if ($hasConflict && empty($conflictAction)) {
+            $existingParent = null;
+            $existingDoc = Navigation::findChapterBySlug($config['books'], $baseSlug, $existingParent);
+            $isProtected = Config::isChapterProtected($baseSlug, $config['books']);
+            $isAncestorProtected = Config::isChapterAncestorProtected($baseSlug, $config['books']);
+            $suggestedSlug = Navigation::generateUniqueSlug($baseSlug, $config['books'], $targetAbsDir, $ext);
+
+            echo json_encode([
+                'success' => false,
+                'conflict' => true,
+                'existingSlug' => $baseSlug,
+                'existingTitle' => $existingDoc['title'] ?? $title,
+                'existingCategory' => $existingParent['title'] ?? $bookId,
+                'existingType' => $existingDoc['type'] ?? (($ext === 'pdf') ? 'pdf' : 'markdown'),
+                'isProtected' => ($isProtected || $isAncestorProtected || (Config::isDemoMode() && $isProtected)),
+                'suggestedSlug' => $suggestedSlug,
+                'error' => "A document or file with the identifier '{$baseSlug}' already exists."
+            ]);
+            exit;
+        }
+
+        // Scenario 2: User requested to replace the existing document
+        if ($hasConflict && $conflictAction === 'replace') {
+            $isProtected = Config::isChapterProtected($baseSlug, $config['books']);
+            $isAncestorProtected = Config::isChapterAncestorProtected($baseSlug, $config['books']);
+            if ($isProtected || $isAncestorProtected || (Config::isDemoMode() && $isProtected)) {
+                echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be replaced.']);
+                exit;
+            }
+
+            $foundParent = null;
+            $existingDoc = Navigation::findChapterBySlug($config['books'], $baseSlug, $foundParent);
+            $oldRelFile = $existingDoc['file'] ?? '';
+
+            $destRelFile = $targetRelFile;
+            $destAbsFile = $targetAbsFile;
+
+            if (safe_move_uploaded_file($_FILES['document']['tmp_name'], $destAbsFile)) {
+                if (!empty($oldRelFile) && $oldRelFile !== $destRelFile && file_exists($baseDir . '/' . $oldRelFile)) {
+                    @unlink($baseDir . '/' . $oldRelFile);
+                }
+
+                $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+                if ($existingDoc) {
+                    find_chapter_and_update($config['books'], $baseSlug, function(&$ch) use ($title, $docType, $destRelFile) {
+                        if (!empty($title)) $ch['title'] = $title;
+                        $ch['type'] = $docType;
+                        $ch['file'] = $destRelFile;
+                    });
+                } else {
+                    $chapterData = [
+                        'title' => $title,
+                        'slug' => $baseSlug,
+                        'type' => $docType,
+                        'file' => $destRelFile
+                    ];
+                    foreach ($config['books'] as &$book) {
+                        if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                            break;
+                        }
+                    }
+                }
+                Config::save($config);
+                echo json_encode(['success' => true, 'bookId' => $foundParent['id'] ?? $bookId, 'slug' => $baseSlug, 'action' => 'replaced']);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
+            }
+            break;
+        }
+
+        // Scenario 3: Rename / Copy or standard non-conflicting upload
+        if ($hasConflict || $conflictAction === 'rename') {
+            $rawChosen = !empty($customSlug) ? Config::makeSlug($customSlug) : '';
+            if (!empty($rawChosen) && !Navigation::isSlugTaken($rawChosen, $config['books']) && !file_exists($targetAbsDir . '/' . $rawChosen . '.' . $ext)) {
+                $slug = $rawChosen;
+            } else {
+                $slug = Navigation::generateUniqueSlug(!empty($rawChosen) ? $rawChosen : $baseSlug, $config['books'], $targetAbsDir, $ext);
+            }
+        } else {
+            $slug = $baseSlug;
+        }
+
+        $finalRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
+        $finalAbsFile = $baseDir . '/' . $finalRelFile;
+
+        if (safe_move_uploaded_file($_FILES['document']['tmp_name'], $finalAbsFile)) {
+            $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+            $chapterData = [
+                'title' => $title,
+                'slug' => $slug,
+                'type' => $docType,
+                'file' => $finalRelFile
+            ];
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                    break;
+                }
+            }
+            Config::save($config);
+            echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug, 'action' => 'created']);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
+        }
+        break;
+
+    case 'replace_document_file':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? '');
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Document slug is required']);
+            exit;
+        }
+        if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'error' => 'No file uploaded or upload error occurred']);
+            exit;
+        }
+        $isProtected = Config::isChapterProtected($slug, $config['books'] ?? []);
+        $isAncestorProtected = Config::isChapterAncestorProtected($slug, $config['books'] ?? []);
+        if ($isAncestorProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is inside a protected category and cannot be modified.']);
+            exit;
+        }
+        if (Config::isDemoMode() && $isProtected) {
+            echo json_encode(['success' => false, 'error' => 'Protected demo documents cannot be modified in demo mode.']);
+            exit;
+        }
+        if ($isProtected) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be modified.']);
+            exit;
+        }
+        $fileName = basename($_FILES['document']['name']);
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['md', 'pdf'])) {
+            echo json_encode(['success' => false, 'error' => 'Only .md and .pdf files are supported for replacement']);
+            exit;
+        }
+        $parentBook = null;
+        $chapter = Navigation::findChapterBySlug($config['books'], $slug, $parentBook);
+        if (!$chapter) {
+            echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        $existingRelFile = $chapter['file'] ?? '';
+        $targetRelDir = !empty($existingRelFile) ? dirname($existingRelFile) : (get_category_folder($config['books'], $parentBook['id'] ?? '') ?: ('content/' . ($parentBook['id'] ?? '')));
+        $targetAbsDir = $baseDir . '/' . $targetRelDir;
+        if (!is_dir($targetAbsDir)) {
+            @mkdir($targetAbsDir, 0755, true);
+        }
+        $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
+        $targetAbsFile = $baseDir . '/' . $targetRelFile;
+
+        if (!safe_move_uploaded_file($_FILES['document']['tmp_name'], $targetAbsFile)) {
+            echo json_encode(['success' => false, 'error' => 'Failed to save replacement file']);
+            exit;
+        }
+
+        // Clean up old file if extension changed
+        if (!empty($existingRelFile) && $existingRelFile !== $targetRelFile && file_exists($baseDir . '/' . $existingRelFile)) {
+            @unlink($baseDir . '/' . $existingRelFile);
+        }
+
+        $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+        find_chapter_and_update($config['books'], $slug, function(&$ch) use ($docType, $targetRelFile) {
+            $ch['type'] = $docType;
+            $ch['file'] = $targetRelFile;
+        });
+
+        Config::save($config);
+        AuditLogger::logMutation('file_replaced', 200, [
+            'slug' => $slug,
+            'target_file' => $targetRelFile,
+            'old_file' => $existingRelFile,
+            'type' => $docType
+        ]);
+        echo json_encode(['success' => true, 'bookId' => $parentBook['id'] ?? '', 'slug' => $slug, 'action' => 'replaced']);
+        break;
+
+    case 'add_gdoc':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $editUrl = trim($_POST['editUrl'] ?? '');
+        if (empty($bookId) || empty($title) || empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Title and Published Google Doc URL required']);
+            exit;
+        }
+        if (strpos($url, 'embedded=true') === false) {
+            $url .= (strpos($url, '?') !== false) ? '&embedded=true' : '?embedded=true';
+        }
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
+        $chapterData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'gdoc',
+            'url' => $url,
+            'editUrl' => $editUrl
+        ];
+        foreach ($config['books'] as &$book) {
+            if (insert_chapter_into_node($book, $bookId, $chapterData)) {
+                break;
+            }
+        }
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
+    case 'add_link':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        if (empty($title) || empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Title and URL are required']);
+            exit;
+        }
+        if (!is_safe_url($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe URL protocol']);
+            exit;
+        }
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
+
+        $linkData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'link',
+            'url' => $url
+        ];
+        if (!empty($description)) {
+            $linkData['description'] = $description;
+        }
+
+        if (empty($bookId)) {
+            $config['books'][] = $linkData;
+        } else {
+            $added = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $bookId, $linkData)) {
+                    $added = true;
+                    break;
+                }
+            }
+            if (!$added) {
+                $config['books'][] = $linkData;
+            }
+        }
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
+    case 'add_remote':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $title = trim($_POST['title'] ?? '');
+        $url = trim($_POST['url'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $cacheTtl = !empty($_POST['cacheTtl']) ? max(60, (int)$_POST['cacheTtl']) : 3600;
+
+        if (empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Remote sharelink URL is required']);
+            exit;
+        }
+
+        // Validate URL protocol and SSRF safety
+        if (!RemoteContentManager::validateUrlSafety($url)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid or unsafe remote URL']);
+            exit;
+        }
+
+        // Auto-fetch title if title was not provided
+        if (empty($title)) {
+            $fetched = RemoteContentManager::fetchRemoteDocument($url, $cacheTtl, true);
+            if (!empty($fetched['title'])) {
+                $title = $fetched['title'];
+            } else {
+                $title = 'Remote Document';
+            }
+        } else {
+            // Eagerly warm the cache
+            RemoteContentManager::fetchRemoteDocument($url, $cacheTtl, true);
+        }
+
+        $baseSlug = Config::makeSlug($title);
+        $slug = Navigation::generateUniqueSlug($baseSlug, $config['books']);
+
+        $remoteData = [
+            'title' => $title,
+            'slug' => $slug,
+            'type' => 'remote',
+            'url' => $url,
+            'readOnly' => true,
+            'editable' => false,
+            'cacheTtl' => $cacheTtl
+        ];
+        if (!empty($description)) {
+            $remoteData['description'] = $description;
+        }
+
+        if (empty($bookId)) {
+            $config['books'][] = $remoteData;
+        } else {
+            $added = false;
+            foreach ($config['books'] as &$book) {
+                if (insert_chapter_into_node($book, $bookId, $remoteData)) {
+                    $added = true;
+                    break;
+                }
+            }
+            if (!$added) {
+                $config['books'][] = $remoteData;
+            }
+        }
+        Config::save($config);
+        echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
+        break;
+
+    case 'refresh_remote_cache':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $slug = trim($_POST['slug'] ?? $_GET['slug'] ?? '');
+        $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
+
+        if (empty($url) && !empty($slug)) {
+            $ch = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+            if ($ch && !empty($ch['url'])) {
+                $url = $ch['url'];
+            }
+        }
+
+        if (empty($url)) {
+            echo json_encode(['success' => false, 'error' => 'Target document URL or slug not found']);
+            exit;
+        }
+
+        $res = RemoteContentManager::fetchRemoteDocument($url, 3600, true);
+        echo json_encode([
+            'success' => !empty($res['success']),
+            'is_stale' => !empty($res['is_stale']),
+            'cached_at' => $res['cached_at'] ?? time(),
+            'error' => $res['error'] ?? null
+        ]);
+        break;
+
+    case 'delete_chapter':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $bookId = $_POST['bookId'] ?? '';
+        $slug = $_POST['slug'] ?? '';
+        if (empty($slug)) {
+            echo json_encode(['success' => false, 'error' => 'Item slug is required']);
+            exit;
+        }
+        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+            echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
+            exit;
+        }
+        $deleted = false;
+        $deletedFile = null;
+        $filteredBooks = [];
+        foreach ($config['books'] as &$book) {
+            if (!$deleted && ($book['slug'] ?? '') === $slug) {
+                $deleted = true;
+                $deletedFile = $book['file'] ?? null;
+                continue;
+            }
+            delete_chapter_from_node($book, $slug, $deleted, $deletedFile);
+            $filteredBooks[] = $book;
+        }
+        $config['books'] = $filteredBooks;
+        Config::save($config);
+
+        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+            $baseDir = Config::getBaseDir();
+            $filePath = Config::safePath($baseDir, $deletedFile);
+            if ($filePath && file_exists($filePath) && is_file($filePath)) {
+                @unlink($filePath);
+            }
+        }
+        if ($deleted) {
+            AuditLogger::logMutation('doc_deleted', 200, [
+                'slug' => $slug,
+                'file' => $deletedFile ?? '',
+                'bookId' => $bookId
+            ]);
+        }
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'update_settings':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $title = trim($_POST['title'] ?? '');
+        $logoText = trim($_POST['logoText'] ?? '');
+        $logoUrl = trim($_POST['logoUrl'] ?? '');
+        $theme = trim($_POST['theme'] ?? 'theme-default.css');
+        $defaultBook = trim($_POST['defaultBook'] ?? '');
+        $requireLoginToView = isset($_POST['requireLoginToView']) && $_POST['requireLoginToView'] === '1';
+        $showDocTypesOnlyToAdmin = isset($_POST['showDocTypesOnlyToAdmin']) && $_POST['showDocTypesOnlyToAdmin'] === '1';
+        $showPoweredBy = isset($_POST['showPoweredBy']) && $_POST['showPoweredBy'] === '1';
+        $showSubwikisInSidebar = isset($_POST['showSubwikisInSidebar']) && $_POST['showSubwikisInSidebar'] === '1';
+        $shareDescription = trim($_POST['shareDescription'] ?? '');
+        $shareImageUrl = trim($_POST['shareImageUrl'] ?? '');
+        $feedItemCount = isset($_POST['feedItemCount']) ? (int)$_POST['feedItemCount'] : 10;
+        $feedAccessToken = trim($_POST['feedAccessToken'] ?? '');
+
+        if (isset($_POST['title'])) $config['title'] = $title;
+        if (isset($_POST['logoText'])) $config['logoText'] = $logoText;
+        if (isset($_POST['logoUrl'])) $config['logoUrl'] = $logoUrl;
+        if (isset($_POST['theme'])) $config['theme'] = $theme;
+        $config['showDocTypesOnlyToAdmin'] = $showDocTypesOnlyToAdmin;
+        $config['showPoweredBy'] = $showPoweredBy;
+        $config['showSubwikisInSidebar'] = $showSubwikisInSidebar;
+        if (isset($config['hideDocTypesFromPublic'])) {
+            unset($config['hideDocTypesFromPublic']);
+        }
+        if (isset($_POST['defaultBook'])) $config['defaultBook'] = $defaultBook;
+        $config['requireLoginToView'] = $requireLoginToView;
+        if (isset($_POST['shareDescription'])) $config['shareDescription'] = $shareDescription;
+        if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
+        $config['feedItemCount'] = $feedItemCount;
+        $config['feedAccessToken'] = $feedAccessToken;
+
+        if (isset($_POST['twoFactorPolicy'])) {
+            $twoFactorPolicy = trim($_POST['twoFactorPolicy']);
+            if (in_array($twoFactorPolicy, ['disabled', 'optional', 'required_admins', 'required_all'])) {
+                $config['twoFactorPolicy'] = $twoFactorPolicy;
+            }
+        }
+
+        if (isset($_POST['smtp']) && is_array($_POST['smtp'])) {
+            $smtpPost = $_POST['smtp'];
+            $existingSmtp = $config['smtp'] ?? [];
+            $password = (isset($smtpPost['password']) && $smtpPost['password'] !== '') ? (string)$smtpPost['password'] : ($existingSmtp['password'] ?? '');
+            $config['smtp'] = [
+                'enabled'    => !empty($smtpPost['enabled']) && ($smtpPost['enabled'] === '1' || $smtpPost['enabled'] === true),
+                'host'       => trim($smtpPost['host'] ?? ''),
+                'port'       => (int)($smtpPost['port'] ?? 587),
+                'encryption' => in_array(strtolower(trim($smtpPost['encryption'] ?? 'tls')), ['none', 'tls', 'ssl']) ? strtolower(trim($smtpPost['encryption'])) : 'tls',
+                'username'   => trim($smtpPost['username'] ?? ''),
+                'password'   => $password,
+                'fromEmail'  => trim($smtpPost['fromEmail'] ?? ''),
+                'fromName'   => trim($smtpPost['fromName'] ?? 'Standalone Qwiki')
+            ];
+        }
+
+        if (Config::isSubwiki()) {
+            if (isset($_POST['parentTitle'])) {
+                $config['parentTitle'] = trim($_POST['parentTitle']);
+                $config['parentTitleCustom'] = true;
+            }
+            if (isset($_POST['parentUrl'])) {
+                $config['parentUrl'] = trim($_POST['parentUrl']);
+            }
+        }
+
+        Config::save($config);
+        echo json_encode(['success' => true]);
+        break;
+
+    case 'reorder_tree':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        $rawInput = file_get_contents('php://input');
+        $json = json_decode($rawInput, true);
+        $tree = $json['tree'] ?? $_POST['tree'] ?? null;
+        if (is_string($tree)) {
+            $tree = json_decode($tree, true);
+        }
+        if (is_array($tree)) {
+            $existingCategories = [];
+            $existingDocuments = [];
+            $docOriginalCategory = [];
+
+            $indexExistingNodes = function ($nodes, $currentCatId = null) use (&$indexExistingNodes, &$existingCategories, &$existingDocuments, &$docOriginalCategory) {
+                if (!is_array($nodes)) return;
+                foreach ($nodes as $node) {
+                    if (isset($node['id'])) {
+                        $catCopy = $node;
+                        unset($catCopy['items']);
+                        $existingCategories[$node['id']] = $catCopy;
+                    } elseif (isset($node['slug'])) {
+                        $existingDocuments[$node['slug']] = $node;
+                        if ($currentCatId !== null) {
+                            $docOriginalCategory[$node['slug']] = $currentCatId;
+                        }
+                    }
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $thisParent = $node['id'] ?? $currentCatId;
+                        foreach ($node['items'] as $item) {
+                            if (isset($item['type']) && $item['type'] === 'folder') {
+                                $indexExistingNodes([$item], $thisParent);
+                            } elseif (isset($item['slug'])) {
+                                $existingDocuments[$item['slug']] = $item;
+                                if ($thisParent !== null) {
+                                    $docOriginalCategory[$item['slug']] = $thisParent;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            $indexExistingNodes($config['books'] ?? []);
+
+            $updatedFiles = [];
+            $strandedRootDocs = [];
+
+            $mergeTree = function ($nodes, $parentFolder = null, $isRoot = false) use (&$mergeTree, &$existingCategories, &$existingDocuments, &$updatedFiles, &$strandedRootDocs, $baseDir) {
+                if (!is_array($nodes)) return [];
+                $merged = [];
+                foreach ($nodes as $node) {
+                    if (!is_array($node)) continue;
+                    $nodeId = $node['id'] ?? null;
+                    $nodeSlug = $node['slug'] ?? null;
+
+                    $currentFolder = $parentFolder;
+
+                    if ($nodeId !== null && isset($existingCategories[$nodeId])) {
+                        $orig = $existingCategories[$nodeId];
+                        $mergedNode = array_merge($orig, $node);
+                        if (empty($node['visibility']) && isset($orig['visibility'])) {
+                            $mergedNode['visibility'] = $orig['visibility'];
+                        }
+                        if (empty($node['theme']) && isset($orig['theme'])) {
+                            $mergedNode['theme'] = $orig['theme'];
+                        }
+                        if (empty($node['folder']) && isset($orig['folder'])) {
+                            $mergedNode['folder'] = $orig['folder'];
+                        }
+                        foreach (['readOnly', 'editable', 'locked'] as $field) {
+                            if (!isset($node[$field]) && isset($orig[$field])) {
+                                $mergedNode[$field] = $orig[$field];
+                            }
+                        }
+                        $categoryFolder = $mergedNode['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $mergedNode['folder'] = $categoryFolder;
+                        $currentFolder = $categoryFolder;
+                    } elseif ($nodeId !== null) {
+                        $mergedNode = $node;
+                        $categoryFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $mergedNode['folder'] = $categoryFolder;
+                        $currentFolder = $categoryFolder;
+                    } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
+                        $origDoc = $existingDocuments[$nodeSlug];
+                        $mergedNode = array_merge($origDoc, $node);
+                        foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl', 'readOnly', 'editable'] as $field) {
+                            if (empty($node[$field]) && isset($origDoc[$field])) {
+                                $mergedNode[$field] = $origDoc[$field];
+                            }
+                        }
+                    } else {
+                        $mergedNode = $node;
+                    }
+
+                    // Root level safety checks
+                    if ($isRoot) {
+                        // Skip empty phantom folders with no ID and no slug
+                        if (empty($nodeId) && empty($nodeSlug)) {
+                            continue;
+                        }
+                        // If it's a non-link document placed at root, intercept it
+                        if (empty($nodeId) && !empty($nodeSlug) && ($mergedNode['type'] ?? '') !== 'link') {
+                            $strandedRootDocs[] = $mergedNode;
+                            continue;
+                        }
+                    }
+
+                    if (isset($node['items']) && is_array($node['items'])) {
+                        $mergedItems = [];
+                        foreach ($node['items'] as $item) {
+                            if (!is_array($item)) continue;
+                            if (isset($item['type']) && $item['type'] === 'folder') {
+                                $mergedSub = $mergeTree([$item], $currentFolder, false);
+                                if (!empty($mergedSub)) {
+                                    $mergedItems[] = $mergedSub[0];
+                                }
+                            } elseif (isset($item['slug'])) {
+                                $slug = $item['slug'];
+                                if (isset($existingDocuments[$slug])) {
+                                    $origDoc = $existingDocuments[$slug];
+                                    $mergedDoc = array_merge($origDoc, $item);
+                                    foreach (['theme', 'description', 'image', 'file', 'url', 'editUrl', 'readOnly', 'editable'] as $field) {
+                                        if (empty($item[$field]) && isset($origDoc[$field])) {
+                                            $mergedDoc[$field] = $origDoc[$field];
+                                        }
+                                    }
+
+                                    // Relocate file if moved to a different category folder
+                                    if (!empty($currentFolder) && !empty($mergedDoc['file']) && strpos($mergedDoc['file'], 'content/') === 0) {
+                                        $origRelFile = $mergedDoc['file'];
+                                        $origRelDir = dirname($origRelFile);
+                                        if ($origRelDir !== $currentFolder) {
+                                            $newRelFile = relocate_document_file($baseDir, $origRelFile, $currentFolder);
+                                            if ($newRelFile && $newRelFile !== $origRelFile) {
+                                                $mergedDoc['file'] = $newRelFile;
+                                                $updatedFiles[$slug] = $newRelFile;
+                                            }
+                                        }
+                                    }
+
+                                    $mergedItems[] = $mergedDoc;
+                                } else {
+                                    $mergedItems[] = $item;
+                                }
+                            } else {
+                                $mergedItems[] = $item;
+                            }
+                        }
+                        $mergedNode['items'] = $mergedItems;
+                    }
+                    $merged[] = $mergedNode;
+                }
+                return $merged;
+            };
+
+            $newBooks = $mergeTree($tree, null, true);
+
+            // If any non-link documents were submitted at root, rescue them into valid categories
+            if (!empty($strandedRootDocs)) {
+                foreach ($strandedRootDocs as $sDoc) {
+                    $slug = $sDoc['slug'] ?? '';
+                    $targetCatId = $docOriginalCategory[$slug] ?? null;
+                    $placed = false;
+
+                    // 1. Try placing into original parent category
+                    if ($targetCatId !== null) {
+                        foreach ($newBooks as &$nb) {
+                            if (($nb['type'] ?? 'folder') === 'folder' && ($nb['id'] ?? '') === $targetCatId) {
+                                if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                $nb['items'][] = $sDoc;
+                                $placed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Try placing into category matching file path prefix
+                    if (!$placed && !empty($sDoc['file']) && strpos($sDoc['file'], 'content/') === 0) {
+                        $parts = explode('/', substr($sDoc['file'], strlen('content/')));
+                        $potCat = $parts[0] ?? '';
+                        if (!empty($potCat)) {
+                            foreach ($newBooks as &$nb) {
+                                if (($nb['type'] ?? 'folder') === 'folder' && (($nb['id'] ?? '') === $potCat || ($nb['folder'] ?? '') === 'content/' . $potCat)) {
+                                    if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                    $nb['items'][] = $sDoc;
+                                    $placed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Place into first available folder category
+                    if (!$placed) {
+                        foreach ($newBooks as &$nb) {
+                            if (($nb['type'] ?? 'folder') === 'folder') {
+                                if (!isset($nb['items']) || !is_array($nb['items'])) $nb['items'] = [];
+                                $nb['items'][] = $sDoc;
+                                $placed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            Config::normalizeBooks($newBooks);
+
+            // Safety guard: ensure no protected documents or protected categories are lost during reorder
+            foreach ($existingDocuments as $slug => $origDoc) {
+                if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+                    if (!Config::isChapterProtected($slug, $newBooks)) {
+                        echo json_encode(['success' => false, 'error' => 'Cannot save tree: protected document "' . $slug . '" would be lost.']);
+                        exit;
+                    }
+                }
+            }
+            foreach ($existingCategories as $catId => $origCat) {
+                if (Config::isCategoryProtected($catId, $config['books'] ?? [])) {
+                    if (!Config::isCategoryProtected($catId, $newBooks)) {
+                        echo json_encode(['success' => false, 'error' => 'Cannot save tree: protected category "' . $catId . '" would be lost.']);
+                        exit;
+                    }
+                }
+            }
+
+            $config['books'] = $newBooks;
+            if (Config::save($config)) {
+                echo json_encode(['success' => true, 'updatedFiles' => $updatedFiles]);
+                exit;
+            }
+        }
+        echo json_encode(['success' => false, 'error' => 'Invalid tree data provided']);
+        break;
+
+    case 'upload_image':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        if (!isset($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['success' => false, 'error' => 'No image file uploaded or upload error']);
+            exit;
+        }
+        $fileName = basename($_FILES['image']['name']);
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        $allowedExts = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
+        if (!in_array($ext, $allowedExts)) {
+            echo json_encode(['success' => false, 'error' => 'Invalid image format']);
+            exit;
+        }
+        $uploadDir = $baseDir . '/uploads/images/';
+        if (!is_dir($uploadDir)) {
+            @mkdir($uploadDir, 0755, true);
+        }
+        $safeName = preg_replace('/[^a-z0-9\._-]/', '-', strtolower(pathinfo($fileName, PATHINFO_FILENAME)));
+        $newFileName = time() . '-' . $safeName . '.' . $ext;
+        $targetPath = $uploadDir . $newFileName;
+        $relUrl = 'uploads/images/' . $newFileName;
+        if (move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+            echo json_encode(['success' => true, 'url' => $relUrl, 'alt' => pathinfo($fileName, PATHINFO_FILENAME)]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save image to server']);
+        }
+        break;
+
+    case 'list_themes':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themes = [];
+        $coreDir = dirname(__DIR__) . '/assets/css/';
+        $localUploadsDir = $baseDir . '/uploads/themes/';
+        $localAssetsDir = $baseDir . '/assets/css/';
+
+        // 1. Scan core themes
+        if (is_dir($coreDir)) {
+            $files = scandir($coreDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        // 2. Scan local instance assets/css if different from core
+        if ($localAssetsDir !== $coreDir && is_dir($localAssetsDir)) {
+            $files = scandir($localAssetsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        // 3. Scan local tenant custom themes in uploads/themes/
+        if (is_dir($localUploadsDir)) {
+            $files = scandir($localUploadsDir);
+            foreach ($files as $f) {
+                if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes)) {
+                    $themes[] = $f;
+                }
+            }
+        }
+
+        sort($themes);
+        echo json_encode(['success' => true, 'themes' => $themes]);
+        break;
+
+    case 'get_theme':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themeFile = basename($_POST['theme'] ?? $_GET['theme'] ?? '');
+        if (empty($themeFile)) { echo json_encode(['success' => false, 'error' => 'No theme specified']); exit; }
+        
+        $localUploadsPath = $baseDir . '/uploads/themes/' . $themeFile;
+        $localAssetsPath = $baseDir . '/assets/css/' . $themeFile;
+        $corePath = dirname(__DIR__) . '/assets/css/' . $themeFile;
+
+        // Check local tenant custom themes first, then local assets, then central core
+        if (file_exists($localUploadsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localUploadsPath), 'is_custom' => true]);
+        } elseif (file_exists($localAssetsPath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($localAssetsPath), 'is_custom' => !defined('QWIKI_BASE_DIR')]);
+        } elseif (file_exists($corePath)) {
+            echo json_encode(['success' => true, 'content' => file_get_contents($corePath), 'is_custom' => false]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Theme not found']);
+        }
+        break;
+
+    case 'save_theme':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $themeFile = basename($_POST['theme'] ?? '');
+        $content = $_POST['content'] ?? '';
+        if (isset($_POST['content_base64'])) {
+            $content = base64_decode($_POST['content_base64']);
+        }
+        if (empty($themeFile) || empty($content)) { echo json_encode(['success' => false, 'error' => 'Invalid parameters']); exit; }
+        if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) { echo json_encode(['success' => false, 'error' => 'Invalid theme file name']); exit; }
+        
+        // Multi-tenant safe saving:
+        // In hosted/multi-tenant mode (or if uploads/themes exists or local assets/css is missing), save to tenant's uploads/themes/
+        $saveDir = $baseDir . '/uploads/themes';
+        if (!defined('QWIKI_BASE_DIR') && is_dir($baseDir . '/assets/css')) {
+            $saveDir = $baseDir . '/assets/css';
+        }
+
+        if (!is_dir($saveDir)) {
+            @mkdir($saveDir, 0755, true);
+        }
+
+        $path = $saveDir . '/' . $themeFile;
+        if (file_put_contents($path, $content) !== false) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Failed to save theme']);
+        }
+        break;
+
+    case 'check_updates':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => true, 'has_update' => false]);
+            exit;
+        }
+        if (Config::isSubwiki()) {
+            echo json_encode([
+                'success' => true,
+                'has_update' => false,
+                'managed_by_parent' => true,
+                'message' => 'Updates are managed automatically by the parent Qwiki.'
+            ]);
+            exit;
+        }
+        $cacheFile = $baseDir . '/uploads/update_cache.json';
+        $currVerClean = ltrim(preg_replace('/^v\.?/i', '', trim(QWIKI_VERSION)), 'vV');
+
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+            $cache = json_decode(file_get_contents($cacheFile), true);
+            if (is_array($cache) && isset($cache['version'])) {
+                $latestVerClean = ltrim(preg_replace('/^v\.?/i', '', trim($cache['version'])), 'vV');
+                $hasUpdate = version_compare($latestVerClean, $currVerClean, '>');
+                echo json_encode([
+                    'success' => true,
+                    'has_update' => $hasUpdate,
+                    'version' => $cache['version'],
+                    'notes' => $cache['notes'] ?? '',
+                    'notes_html' => $cache['notes_html'] ?? '',
+                    'zip_url' => $cache['zip_url'] ?? ''
+                ]);
+                exit;
+            }
+        }
+
+        $opts = ['http' => ['method' => 'GET', 'header' => ['User-Agent: PHP-Qwiki-Updater']]];
+        $context = stream_context_create($opts);
+        $response = @file_get_contents('https://api.github.com/repos/FrancoBenedetti/standalone-qwiki/releases', false, $context);
+        if ($response) {
+            $releases = json_decode($response, true);
+            if (!empty($releases) && is_array($releases)) {
+                $latest = $releases[0];
+                $latestVersion = ltrim(preg_replace('/^v\.?/i', '', trim($latest['tag_name'] ?? '')), 'vV');
+                $hasUpdate = version_compare($latestVersion, $currVerClean, '>');
+                
+                $parsedown = new Parsedown();
+                $parsedown->setSafeMode(true);
+                $notesHtml = $parsedown->text($latest['body'] ?? '');
+
+                $zipUrl = $latest['zipball_url'] ?? '';
+                if (!empty($latest['assets']) && is_array($latest['assets'])) {
+                    foreach ($latest['assets'] as $asset) {
+                        if (isset($asset['name']) && preg_match('/\.zip$/i', $asset['name'])) {
+                            $zipUrl = $asset['browser_download_url'] ?? $zipUrl;
+                            break;
+                        }
+                    }
+                }
+
+                $data = [
+                    'has_update' => $hasUpdate,
+                    'version' => $latest['tag_name'],
+                    'notes' => $latest['body'] ?? '',
+                    'notes_html' => $notesHtml,
+                    'zip_url' => $zipUrl
+                ];
+                if (!is_dir($baseDir . '/uploads')) @mkdir($baseDir . '/uploads', 0755, true);
+                file_put_contents($cacheFile, json_encode($data));
+                echo json_encode(array_merge(['success' => true], $data));
+                exit;
+            }
+        }
+        echo json_encode(['success' => false, 'error' => 'Failed to check for updates']);
+        break;
+
+    case 'install_update':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isDemoMode()) {
+            echo json_encode(['success' => false, 'error' => 'In-app updates are disabled in demo mode.']);
+            exit;
+        }
+        if (Config::isSubwiki()) {
+            echo json_encode(['success' => false, 'error' => 'Subwikis are updated automatically from the parent Qwiki.']);
+            exit;
+        }
+        $zipUrl = $_POST['zip_url'] ?? '';
+        if (empty($zipUrl)) { echo json_encode(['success' => false, 'error' => 'Missing zip URL']); exit; }
+        if (!class_exists('ZipArchive')) {
+            echo json_encode(['success' => false, 'error' => 'ZipArchive PHP extension is not installed']);
+            exit;
+        }
+        $tempZip = $baseDir . '/uploads/update_temp.zip';
+        $opts = ['http' => ['method' => 'GET', 'header' => ['User-Agent: PHP-Qwiki-Updater']]];
+        $context = stream_context_create($opts);
+        $zipData = @file_get_contents($zipUrl, false, $context);
+        if (!$zipData) {
+            echo json_encode(['success' => false, 'error' => 'Failed to download update']);
+            exit;
+        }
+        file_put_contents($tempZip, $zipData);
+        $zip = new ZipArchive;
+        if ($zip->open($tempZip) === TRUE) {
+            $rootFolder = '';
+            // Protect persistent user data, subwikis, and prevent dev/test artifacts from polluting production
+            $excludes = [
+                'content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/',
+                'tests/', 'node_modules/', 'AGENTS.md', 'package.json', 'package-lock.json',
+                'demo-reload.php', '.git', '.github', '.gitignore', '.gitattributes', 'tools/build-release.sh'
+            ];
+            $existingSubwikis = SubwikiManager::listSubwikis();
+            foreach ($existingSubwikis as $sub) {
+                if (!empty($sub['slug'])) {
+                    $excludes[] = $sub['slug'] . '/';
+                }
+            }
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $filename = $zip->getNameIndex($i);
+                if ($i === 0) $rootFolder = $filename;
+                if ($filename === $rootFolder) continue;
+                $relativePath = substr($filename, strlen($rootFolder));
+                if (empty($relativePath)) continue;
+                $skip = false;
+                foreach ($excludes as $ex) {
+                    if (strpos($relativePath, $ex) === 0 || $relativePath === $ex) {
+                        $skip = true;
+                        break;
+                    }
+                }
+                if ($skip) continue;
+                $targetPath = $baseDir . '/' . $relativePath;
+                if (substr($filename, -1) === '/') {
+                    if (!is_dir($targetPath)) @mkdir($targetPath, 0755, true);
+                } else {
+                    $dir = dirname($targetPath);
+                    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+                    $content = $zip->getFromIndex($i);
+                    file_put_contents($targetPath, $content);
+                }
+            }
+            $zip->close();
+            @unlink($tempZip);
+            if (file_exists($baseDir . '/uploads/update_cache.json')) {
+                @unlink($baseDir . '/uploads/update_cache.json');
+            }
+
+            // 1. Cascade updates to all child subwikis
+            $cascadeResult = SubwikiManager::cascadeUpdates($baseDir);
+
+            // 2. Auto-sync documentation subwikis if present (e.g. docs)
+            $docSubwikisUpdated = 0;
+            $subwikisList = SubwikiManager::listSubwikis();
+            foreach ($subwikisList as $sw) {
+                if (!empty($sw['isDocSubwiki']) || ($sw['slug'] ?? '') === 'docs') {
+                    SubwikiManager::syncDocumentation($sw['slug'], 'auto');
+                    $docSubwikisUpdated++;
+                }
+            }
+
+            // 3. Run migration routine for legacy subwikis or deep folders
+            $migrationResult = SubwikiManager::runMigration();
+
+            echo json_encode([
+                'success' => true,
+                'subwikisUpdated' => $cascadeResult['updatedCount'] ?? 0,
+                'docsSubwikisUpdated' => $docSubwikisUpdated,
+                'migration' => $migrationResult['migrated'] ?? []
+            ]);
+        } else {
+            @unlink($tempZip);
+            echo json_encode(['success' => false, 'error' => 'Failed to extract update zip']);
+        }
+        break;
+
+    case 'check_category_slug':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_GET['slug'] ?? $_POST['slug'] ?? '');
+        $isCustom = isset($_REQUEST['is_custom']) ? ($_REQUEST['is_custom'] === '1' || $_REQUEST['is_custom'] === 'true') : false;
+        if (empty($slug)) {
+            echo json_encode(['success' => true, 'slug' => '', 'valid' => true, 'error' => null]);
+            exit;
+        }
+
+        // Validate format, reserved routes, web root directories, and subwikis (ignoring category collision to calculate suggestion)
+        $val = SubwikiManager::validateSlug($slug, $slug, false);
+        if (!$val['valid']) {
+            echo json_encode([
+                'success' => true,
+                'slug' => $slug,
+                'valid' => false,
+                'error' => $val['error']
+            ]);
+            exit;
+        }
+
+        $isTaken = is_slug_taken($slug, $config['books'] ?? []);
+        if ($isTaken) {
+            $suggested = Navigation::generateUniqueSlug($slug, $config['books'] ?? []);
+            if ($isCustom) {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => false,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'error' => "A document or category with the slug '{$slug}' already exists."
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => true,
+                    'slug' => $slug,
+                    'valid' => true,
+                    'isTaken' => true,
+                    'suggested' => $suggested,
+                    'note' => "Slug '{$slug}' is taken. Will auto-save as '{$suggested}' or you can customize it."
+                ]);
+            }
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'valid' => true,
+            'isTaken' => false,
+            'error' => null
+        ]);
+        break;
+
+    case 'check_subwiki_slug':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_GET['slug'] ?? $_POST['slug'] ?? '');
+        $isForSubwiki = !empty($_REQUEST['for_subwiki']);
+        $val = SubwikiManager::validateSlug($slug, null, $isForSubwiki);
+        echo json_encode([
+            'success' => true,
+            'slug' => $slug,
+            'valid' => $val['valid'],
+            'error' => $val['error']
+        ]);
+        break;
+
+    case 'list_subwikis':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $subwikis = SubwikiManager::listSubwikis();
+        echo json_encode([
+            'success' => true,
+            'subwikis' => $subwikis,
+            'isSubwiki' => Config::isSubwiki()
+        ]);
+        break;
+
+    case 'deploy_subwiki':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (Config::isSubwiki()) {
+            echo json_encode(['success' => false, 'error' => 'Subwikis cannot deploy further subwikis. Maximum depth reached.']);
+            exit;
+        }
+        $title = trim($_POST['title'] ?? '');
+        $slug = trim($_POST['slug'] ?? '');
+        $adminUser = trim($_POST['adminUser'] ?? 'admin');
+        $adminPass = trim($_POST['adminPass'] ?? '');
+        $includeDemo = !empty($_POST['includeDemo']);
+        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo);
+        echo json_encode($res);
+        break;
+
+    case 'delete_subwiki':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = trim($_POST['slug'] ?? '');
+        $deleteFiles = !empty($_POST['deleteFiles']);
+        $res = SubwikiManager::deleteSubwiki($slug, $deleteFiles);
+        echo json_encode($res);
+        break;
+
+    case 'sync_subwiki_docs':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_POST['slug'] ?? $_GET['slug'] ?? 'docs');
+        $mode = $_POST['mode'] ?? $_GET['mode'] ?? 'auto';
+        $res = SubwikiManager::syncDocumentation($slug, $mode);
+        echo json_encode($res);
+        break;
+
+    case 'reload_demo':
+        if (!Auth::isAdmin()) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+            exit;
+        }
+        if (!Config::isDemoMode() && !\Qwiki\Core\DemoManager::isDemoConfigured()) {
+            echo json_encode(['success' => false, 'error' => 'Demo mode is not configured']);
+            exit;
+        }
+        require_once $baseDir . '/lib/Core/DemoManager.php';
+        $reloadResult = \Qwiki\Core\DemoManager::reload();
+        echo json_encode($reloadResult);
+        break;
+
+    default:
+        // Try extension action handlers
+        $extResult = ExtensionManager::getInstance()->handleAction($action, $_REQUEST);
+        if ($extResult) {
+            exit;
+        }
+        echo json_encode(['success' => false, 'error' => 'Invalid action']);
+        break;
+}

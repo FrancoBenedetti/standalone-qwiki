@@ -1,0 +1,258 @@
+/* HTML Page Type Styles */
+.badge-html {
+    background: rgba(228, 77, 38, 0.18);
+    color: #f06529;
+}
+
+.html-page-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 1rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-card, #1e1e1e);
+}
+
+.html-viewer-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary, #181818);
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.html-viewer-frame {
+    width: 100%;
+    height: 750px;
+    border: none;
+    background: #ffffff;
+}
+
+/* SunEditor Custom Styling for Qwiki */
+.sun-editor {
+    border-color: var(--border-color, #334155) !important;
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    font-family: inherit !important;
+    border-radius: var(--radius-sm, 6px);
+    overflow: visible !important;
+}
+
+.sun-editor .se-toolbar {
+    background-color: var(--bg-secondary, #1e293b) !important;
+    border-bottom: 1px solid var(--border-color, #334155) !important;
+    outline: none !important;
+    overflow: visible !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 30 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.sun-editor button.se-btn {
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor button.se-btn:hover {
+    background-color: var(--bg-card-hover, #334155) !important;
+}
+
+.sun-editor .se-resizing-bar {
+    background-color: var(--bg-secondary, #1e293b) !important;
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-wrapper .se-wrapper-inner {
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor .se-wrapper-wysiwyg {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    padding: 1.25rem !important;
+}
+
+.sun-editor .se-wrapper-code {
+    background-color: #0f172a !important;
+    color: #38bdf8 !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    font-size: 0.9rem !important;
+    padding: 1rem !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-content {
+    background-color: var(--bg-card, #1e293b) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-header {
+    border-bottom: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog .se-dialog-inner .se-dialog-footer {
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-dialog input, .sun-editor .se-dialog select {
+    background-color: var(--bg-primary, #0f172a) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+[data-theme="light"] .sun-editor button.se-btn {
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .sun-editor .se-toolbar {
+    background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] .sun-editor .se-wrapper-code {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+}
+
+/* Submenu & Dropdown styles for SunEditor */
+.sun-editor .se-submenu {
+    background-color: var(--bg-card, #1e293b) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+    border-radius: var(--radius-sm, 6px);
+    z-index: 100 !important;
+}
+
+.sun-editor .se-submenu button.se-btn-list,
+.sun-editor .se-submenu button.se-btn-list * {
+    color: var(--text-primary, #f8fafc) !important;
+}
+
+.sun-editor .se-submenu button.se-btn-list:hover,
+.sun-editor .se-submenu button.se-btn-list.active {
+    background-color: var(--bg-card-hover, #334155) !important;
+    color: var(--primary-color, #38bdf8) !important;
+}
+
+.sun-editor .se-color-pallet {
+    background-color: var(--bg-card, #1e293b) !important;
+}
+
+.sun-editor .se-submenu .se-form-group {
+    background-color: var(--bg-card, #1e293b) !important;
+    border-top: 1px solid var(--border-color, #334155) !important;
+}
+
+.sun-editor .se-submenu input.se-color-input {
+    background-color: var(--bg-primary, #0f172a) !important;
+    color: var(--text-primary, #f8fafc) !important;
+    border: 1px solid var(--border-color, #334155) !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    color: #0f172a !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list,
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list * {
+    color: #0f172a !important;
+}
+
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list:hover,
+[data-theme="light"] .sun-editor .se-submenu button.se-btn-list.active {
+    background-color: #f1f5f9 !important;
+    color: var(--primary-color, #2563eb) !important;
+}
+
+[data-theme="light"] .sun-editor .se-color-pallet {
+    background-color: #ffffff !important;
+}
+
+/* Document Lifecycle Status Badges */
+.badge-status {
+    font-weight: 600;
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-status-draft {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.badge-status-review {
+    background: rgba(99, 102, 241, 0.15);
+    color: #4f46e5;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.badge-status-published {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-status-archived {
+    background: rgba(100, 116, 139, 0.15);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+/* Document Lifecycle Status Dropdown */
+.status-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.status-dropdown .dropdown-menu {
+    min-width: 220px;
+    z-index: 1050;
+}
+
+.status-dropdown .status-action-item {
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    transition: background var(--transition-fast), color var(--transition-fast);
+    position: relative;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+}
+
+.status-dropdown .status-action-item:hover {
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.status-dropdown .status-action-item.active {
+    background-color: rgba(99, 102, 241, 0.12);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.status-dropdown .status-check-indicator {
+    margin-left: auto;
+    font-size: 0.85rem;
+    color: var(--link-color, #818cf8);
+    font-weight: 700;
+    padding-left: 0.5rem;
+}

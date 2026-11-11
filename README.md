@@ -49,6 +49,8 @@ Admins can control whether documentation is publicly readable or requires authen
 ## 🌟 Key Features
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
+- **💬 Chapter & Category Threaded Discussions**: Zero-database commenting extension (`tool-comments`) enabling authenticated users to participate in 1-level threaded chapter discussions with restricted Markdown formatting, live preview, XSS sanitization, author editability, and LLM Access Token retrieval.
+- **🌐 Documentation Subwiki Mirroring & Sync**: Seamlessly mirror and update official Qwiki documentation in a designated subwiki (`/docs/` or custom slug) with automatic terminal-free web synchronization and strict anti-overwrite data guards protecting custom user documentation.
 - **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
   - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks & custom styles). Supports mathematical formulas and LaTeX/KaTeX equations (`$...$`, `$$...$$`), automatic symbol shorthand normalization (`$to$`, `\to`, `\approx`, `\alpha`), direct image uploading, importing existing local Markdown files, auto-embedded playable videos, and native Mermaid diagram flowcharts with uncompressed scaling and responsive horizontal scrolling.

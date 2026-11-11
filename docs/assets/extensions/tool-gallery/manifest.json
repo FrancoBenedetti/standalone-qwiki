@@ -1,0 +1,17 @@
+{
+  "id": "gallery",
+  "type": "utility",
+  "title": "Image Gallery",
+  "icon": "🖼️",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_gallery_list",
+    "ext_gallery_check_usage",
+    "ext_gallery_delete",
+    "ext_gallery_upload"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

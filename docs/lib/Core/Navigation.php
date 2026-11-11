@@ -1,0 +1,883 @@
+<?php
+namespace Qwiki\Core;
+
+class Navigation {
+    public const VALID_STATUSES = ['draft', 'review', 'published', 'archived'];
+    public const DEFAULT_STATUS = 'published';
+
+    public static function filterBooks(array $books, $isAdmin = false, $isViewer = false) {
+        $allowed = [];
+        foreach ($books as $book) {
+            $visibility = $book['visibility'] ?? 'public';
+            if (!$isAdmin) {
+                if ($visibility === 'admin_only') continue;
+                if ($visibility === 'logged_in' && !$isViewer) continue;
+            }
+            $allowed[] = $book;
+        }
+        return $allowed;
+    }
+
+    public static function isExternalUrl($url) {
+        if (empty($url)) return false;
+        $rawHost = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $currentHostParts = explode(':', $rawHost);
+        $currentHostName = strtolower($currentHostParts[0]);
+        $currentPort = isset($currentHostParts[1]) ? (int)$currentHostParts[1] : null;
+
+        $parsed = parse_url($url);
+        $linkHost = isset($parsed['host']) ? strtolower($parsed['host']) : '';
+
+        // Handle protocol-relative URLs like "//example.com/path"
+        if (empty($linkHost) && strpos($url, '//') === 0) {
+            $parsedRel = parse_url('http:' . $url);
+            $linkHost = isset($parsedRel['host']) ? strtolower($parsedRel['host']) : '';
+            $linkPort = $parsedRel['port'] ?? null;
+        } else {
+            $linkPort = $parsed['port'] ?? null;
+        }
+
+        if (!empty($linkHost)) {
+            if ($linkHost !== $currentHostName) {
+                return true;
+            }
+            if ($currentPort !== null && $linkPort !== null && $currentPort !== $linkPort) {
+                return true;
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    public static function findChapterAndPath($node, $targetFolderId, $targetChapterSlug, &$trail, &$activeIds, $isAdmin = false, $isViewer = false, $inTargetFolder = false) {
+        $visibility = $node['visibility'] ?? 'public';
+        if (!$isAdmin) {
+            if ($visibility === 'admin_only') return null;
+            if ($visibility === 'logged_in' && !$isViewer) return null;
+        }
+
+        $nodeId = $node['id'] ?? '';
+        $nodeTitle = $node['title'] ?? '';
+        $currentTrail = array_merge($trail, [['title' => $nodeTitle, 'id' => $nodeId]]);
+        $currentActiveIds = array_merge($activeIds, [$nodeId]);
+
+        $isFolderMatch = ($targetFolderId && $nodeId === $targetFolderId);
+        $isTargetContext = ($inTargetFolder || $isFolderMatch || !$targetFolderId);
+
+        if (!empty($node['items'])) {
+            if ($targetChapterSlug) {
+                // Looking for a specific document
+                foreach ($node['items'] as $item) {
+                    if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                        $itemVis = $item['visibility'] ?? 'public';
+                        if (!$isAdmin) {
+                            if ($itemVis === 'admin_only') continue;
+                            if ($itemVis === 'logged_in' && !$isViewer) continue;
+                        }
+                        if (($item['slug'] ?? '') === $targetChapterSlug) {
+                            if (!$targetFolderId || $isFolderMatch) {
+                                $trail = $currentTrail;
+                                $activeIds = $currentActiveIds;
+                                return $item;
+                            }
+                        }
+                    }
+                }
+                // Recurse into subfolders
+                foreach ($node['items'] as $item) {
+                    if (isset($item['type']) && $item['type'] === 'folder') {
+                        $found = self::findChapterAndPath($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
+                        if ($found) {
+                            $trail = $currentTrail;
+                            $activeIds = $currentActiveIds;
+                            return $found;
+                        }
+                    }
+                }
+            } else {
+                // Looking for the first document in target context
+                if ($isTargetContext) {
+                    foreach ($node['items'] as $item) {
+                        if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                            $itemVis = $item['visibility'] ?? 'public';
+                            if (!$isAdmin) {
+                                if ($itemVis === 'admin_only') continue;
+                                if ($itemVis === 'logged_in' && !$isViewer) continue;
+                            }
+                            $trail = $currentTrail;
+                            $activeIds = $currentActiveIds;
+                            return $item;
+                        } else {
+                            if (isset($item['type']) && $item['type'] === 'folder') {
+                                $found = self::findChapterAndPath($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, true);
+                                if ($found) {
+                                    $trail = $currentTrail;
+                                    $activeIds = $currentActiveIds;
+                                    return $found;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    foreach ($node['items'] as $item) {
+                        if (isset($item['type']) && $item['type'] === 'folder') {
+                            $found = self::findChapterAndPath($item, $targetFolderId, $targetChapterSlug, $currentTrail, $currentActiveIds, $isAdmin, $isViewer, false);
+                            if ($found) {
+                                $trail = $currentTrail;
+                                $activeIds = $currentActiveIds;
+                                return $found;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static function flattenNavTree($node, $bookId, &$flatList, $isAdmin = false, $isViewer = false) {
+        $visibility = $node['visibility'] ?? 'public';
+        if (!$isAdmin) {
+            if ($visibility === 'admin_only') return;
+            if ($visibility === 'logged_in' && !$isViewer) return;
+        }
+
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    self::flattenNavTree($item, $bookId, $flatList, $isAdmin, $isViewer);
+                } elseif (isset($item['type']) && $item['type'] === 'link') {
+                    // Hyperlinks are excluded from sequential reading list
+                    continue;
+                } else {
+                    $ch = $item;
+                    $chVis = $ch['visibility'] ?? 'public';
+                    if (!$isAdmin) {
+                        if ($chVis === 'admin_only') continue;
+                        if ($chVis === 'logged_in' && !$isViewer) continue;
+                    }
+                    $nodeId = $node['id'] ?? '';
+                    if ($nodeId === $bookId) {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug'] ?? '');
+                    } else {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug'] ?? '');
+                    }
+                    $flatList[] = [
+                        'title' => $ch['title'] ?? '',
+                        'slug' => $ch['slug'] ?? '',
+                        'bookId' => $bookId,
+                        'url' => $linkUrl
+                    ];
+                }
+            }
+        }
+    }
+
+    public static function renderLinkItem($item, $bookId = '', $depth = 0, $isAdmin = false, $isViewer = false, $showDocTypesOnlyToAdmin = true) {
+        $visibility = $item['visibility'] ?? 'public';
+        if (!$isAdmin) {
+            if ($visibility === 'admin_only') return;
+            if ($visibility === 'logged_in' && !$isViewer) return;
+        }
+
+        $title = $item['title'] ?? 'Link';
+        $slug = $item['slug'] ?? '';
+        $rawUrl = $item['url'] ?? '#';
+        $isExternal = self::isExternalUrl($rawUrl);
+        $targetAttr = $isExternal ? "target='_blank' rel='noopener noreferrer'" : "target='_self'";
+
+        $depthClass = ($depth === 0) ? 'nav-top-link' : '';
+        $chTheme = htmlspecialchars($item['theme'] ?? '');
+        $chDesc = htmlspecialchars($item['description'] ?? '');
+        $chImg = htmlspecialchars($item['image'] ?? '');
+        $safeUrl = htmlspecialchars($rawUrl);
+        $safeTitle = htmlspecialchars($title);
+        $safeSlug = htmlspecialchars($slug);
+
+        $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='{$safeTitle}' data-doc-slug='{$safeSlug}' data-doc-type='link' data-doc-url='{$safeUrl}' data-doc-editurl='' data-doc-file='' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}'" : "";
+
+        echo "<a href='{$safeUrl}' {$targetAttr} class='nav-link nav-link-hyperlink {$depthClass}' {$docDragAttr}>";
+        echo "<span class='nav-link-title-container'>";
+        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        if ($depth === 0) echo "<span class='top-link-icon'>🔗</span> ";
+        echo "{$safeTitle}</span>";
+
+        echo "<span class='nav-link-actions-container'>";
+        if ($isAdmin) {
+            echo "<button type='button' class='btn-edit-link-icon' data-book-id='" . htmlspecialchars($bookId) . "' data-slug='{$safeSlug}' data-title='{$safeTitle}' data-url='{$safeUrl}' data-description='{$chDesc}' data-visibility='" . htmlspecialchars($visibility) . "' title='Edit Link'>⚙️</button> ";
+        }
+
+        if ($isAdmin || !$showDocTypesOnlyToAdmin) {
+            if ($isExternal) {
+                echo "<span class='doc-badge badge-link' title='External Link (Opens in new tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg></span>";
+            } else {
+                echo "<span class='doc-badge badge-internal-link' title='Internal Link (Opens in same tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path><path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path></svg></span>";
+            }
+        }
+        echo "</span>";
+        echo "</a>";
+    }
+
+    public static function renderSidebarNode($node, $bookId, $activePathIds, $activeChapterSlug, $depth = 0, $isAdmin = false, $isViewer = false, $showDocTypesOnlyToAdmin = true, $extensionManager = null) {
+        $visibility = $node['visibility'] ?? 'public';
+        if (!$isAdmin) {
+            if ($visibility === 'admin_only') return;
+            if ($visibility === 'logged_in' && !$isViewer) return;
+        }
+
+        if (($node['type'] ?? '') === 'link') {
+            self::renderLinkItem($node, '', $depth, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
+            return;
+        }
+
+        // Safety guard: if an un-categorized document reaches renderSidebarNode, do not render as a category
+        if (empty($node['id']) && !empty($node['slug']) && ($node['type'] ?? '') !== 'folder') {
+            return;
+        }
+
+        $nodeId = $node['id'] ?? '';
+        $nodeTitle = $node['title'] ?? $node['name'] ?? '';
+        $nodeDesc = htmlspecialchars($node['description'] ?? $node['desc'] ?? '');
+        $isExpanded = in_array($nodeId, $activePathIds);
+        $icon = ($depth === 0) ? '📂' : '📁';
+        $indentClass = 'depth-' . min($depth, 5);
+
+        $nodeTheme = htmlspecialchars($node['theme'] ?? '');
+        $nodeVis = htmlspecialchars($node['visibility'] ?? 'public');
+        $nodeFolder = htmlspecialchars($node['folder'] ?? '');
+        $isCatDirectlyReadOnly = !empty($node['readOnly']) || (isset($node['editable']) && $node['editable'] === false) || !empty($node['locked']);
+        $isCatProtected = Config::isCategoryProtected($nodeId, [$node]);
+        $catReadOnlyAttr = $isCatDirectlyReadOnly ? "data-category-readonly='1'" : "";
+        $catProtectedAttr = $isCatProtected ? "data-category-protected='1'" : "";
+
+        $draggableAttr = $isAdmin ? "draggable='true' data-drag-type='category' data-node-id='" . htmlspecialchars($nodeId) . "' data-node-title='" . htmlspecialchars($nodeTitle) . "' data-node-description='{$nodeDesc}' data-node-visibility='{$nodeVis}' data-node-theme='{$nodeTheme}' data-node-folder='{$nodeFolder}' {$catReadOnlyAttr} {$catProtectedAttr}" : "";
+
+        $headerTitleAttr = ($nodeDesc !== '') ? " title='{$nodeDesc}'" : "";
+
+        $safeNodeId = htmlspecialchars($nodeId);
+        echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' data-category-id='{$safeNodeId}' {$draggableAttr}>";
+        echo "<div class='nav-category-header'{$headerTitleAttr}>";
+        echo "<span>";
+        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        echo "{$icon} " . htmlspecialchars($nodeTitle);
+        if ($isCatProtected) {
+            $lockTitle = $isCatDirectlyReadOnly ? 'Protected Category (Locked against deletion)' : 'Protected Category (Contains protected documents)';
+            echo " <span class='cat-lock-icon' title='" . htmlspecialchars($lockTitle) . "' style='font-size: 0.8rem; opacity: 0.8; vertical-align: middle;'>🔒</span>";
+        }
+        echo "</span>";
+        echo "<span class='header-actions-inline'>";
+        if ($isAdmin) {
+            $catAllowComments = isset($node['allowComments']) ? ($node['allowComments'] ? '1' : '0') : '';
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' title='Edit Category'>⚙️</button> ";
+        }
+        echo "<span class='chevron-icon'>▾</span>";
+        echo "</span>";
+        echo "</div>";
+
+        echo "<div class='nav-document-list' data-parent-node-id='" . htmlspecialchars($nodeId) . "'>";
+
+        if (!empty($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    self::renderSidebarNode($item, $bookId, $activePathIds, $activeChapterSlug, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extensionManager);
+                } elseif (isset($item['type']) && $item['type'] === 'link') {
+                    self::renderLinkItem($item, $nodeId, $depth + 1, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin);
+                } else {
+                    $ch = $item;
+                    $chVis = $ch['visibility'] ?? 'public';
+                    if (!$isAdmin) {
+                        if ($chVis === 'admin_only') continue;
+                        if ($chVis === 'logged_in' && !$isViewer) continue;
+                    }
+                    $isActive = ($isExpanded && $activeChapterSlug === ($ch['slug'] ?? ''));
+                    $docType = strtolower($ch['type'] ?? 'markdown');
+                    $badgeClass = 'badge-' . htmlspecialchars($docType);
+
+                    if ($nodeId === $bookId) {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug'] ?? '');
+                    } else {
+                        $linkUrl = urlencode($bookId) . "/" . urlencode($nodeId) . "/" . urlencode($ch['slug'] ?? '');
+                    }
+
+                    $chTheme = htmlspecialchars($ch['theme'] ?? '');
+                    $chDesc = htmlspecialchars($ch['description'] ?? '');
+                    $chImg = htmlspecialchars($ch['image'] ?? '');
+                    $isChReadOnly = !empty($ch['readOnly']) || (isset($ch['editable']) && $ch['editable'] === false) || $docType === 'remote';
+                    $readOnlyAttr = $isChReadOnly ? "data-doc-readonly='1'" : "";
+                    $docDragAttr = $isAdmin ? "draggable='true' data-drag-type='document' data-doc-title='" . htmlspecialchars($ch['title'] ?? '') . "' data-doc-slug='" . htmlspecialchars($ch['slug'] ?? '') . "' data-doc-type='" . htmlspecialchars($docType) . "' data-doc-url='" . htmlspecialchars($ch['url'] ?? '') . "' data-doc-editurl='" . htmlspecialchars($ch['editUrl'] ?? '') . "' data-doc-file='" . htmlspecialchars($ch['file'] ?? '') . "' data-doc-theme='{$chTheme}' data-doc-description='{$chDesc}' data-doc-image='{$chImg}' {$readOnlyAttr}" : "";
+
+                    echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
+                    echo "<span>";
+                    if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+                    echo htmlspecialchars($ch['title'] ?? '') . "</span>";
+                    $chStatus = strtolower($ch['status'] ?? self::DEFAULT_STATUS);
+                    if ($isAdmin && $chStatus !== self::DEFAULT_STATUS) {
+                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='Status: " . htmlspecialchars(ucfirst($chStatus)) . "'>●</span>";
+                    }
+
+                    if ($isAdmin || !$showDocTypesOnlyToAdmin) {
+                        $badgeTitle = strtoupper($docType);
+                        $iconSvg = null;
+
+                        if ($extensionManager && method_exists($extensionManager, 'renderBadge')) {
+                            $iconSvg = $extensionManager->renderBadge($docType);
+                        }
+
+                        if (!$iconSvg) {
+                            if ($docType === 'markdown' || $docType === 'md') {
+                                $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 208 128" width="16" height="10" fill="currentColor" aria-hidden="true"><rect width="198" height="118" x="5" y="5" rx="14" fill="none" stroke="currentColor" stroke-width="14"/><path d="M30 98V30h20l20 25 20-25h20v68H90V55L70 80 50 55v43H30zm135 0l-30-35h20V30h20v33h20l-30 35z"/></svg>';
+                            } elseif ($docType === 'pdf') {
+                                $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9.5 8.5c0 .8-.7 1.5-1.5 1.5H7v2H5.5V9H8c.8 0 1.5.7 1.5 1.5v1zm5 2c0 .8-.7 1.5-1.5 1.5h-2.5V9H13c.8 0 1.5.7 1.5 1.5v3zm3.5-3.5h-2.5v1.5H17V13h-1.5v2H14V9h4v1.5zM7 10.5h1v1H7v-1zm5.5 0h1v3h-1v-3z"/></svg>';
+                            } elseif ($docType === 'gdoc') {
+                                $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M14.5 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7.5L14.5 2zM14 8V3.5L18.5 8H14zm-6 3h8v1.5H8V11zm0 3h8v1.5H8V14zm0 3h5v1.5H8V17z"/></svg>';
+                            } elseif ($docType === 'remote') {
+                                $iconSvg = '<svg class="doc-badge-svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>';
+                            } else {
+                                $iconSvg = htmlspecialchars($docType);
+                            }
+                        }
+                        echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars($badgeTitle) . " Document'>{$iconSvg}</span>";
+                    }
+                    echo "</a>";
+                }
+            }
+        }
+
+        echo "</div>";
+        echo "</div>";
+    }
+
+    public static function generateShareKey(): string {
+        return bin2hex(random_bytes(8));
+    }
+
+    public static function findChapterBySlug(array $books, string $slug, &$parentBook = null) {
+        if (empty($slug)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterBySlugInNode($book, $slug);
+            if ($found) {
+                $parentBook = $book;
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterBySlugInNode(array $node, string $slug) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (($item['slug'] ?? '') === $slug) {
+                        return $item;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterBySlugInNode($item, $slug);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    public static function findChapterByShareKey(array $books, string $shareKey, &$parentBook = null) {
+        if (empty($shareKey)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterByShareKeyInNode($book, $shareKey);
+            if ($found) {
+                $parentBook = $book;
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterByShareKeyInNode(array $node, string $shareKey) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (isset($item['shareKey']) && $item['shareKey'] === $shareKey) {
+                        return $item;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterByShareKeyInNode($item, $shareKey);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Recursively locate the immediate containing category/folder ID for a document slug.
+     *
+     * @param array $books Array of tree nodes
+     * @param string $slug Document slug
+     * @return string|null The ID of the containing category/folder, or null if not found
+     */
+    public static function findChapterParentId(array $books, string $slug): ?string {
+        if (empty($slug)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterParentIdInNode($book, $slug);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterParentIdInNode(array $node, string $slug): ?string {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (($item['slug'] ?? '') === $slug) {
+                        return $node['id'] ?? null;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterParentIdInNode($item, $slug);
+                    if ($found !== null) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Recursively collect all categories with hierarchical path, depth, and folder info.
+     *
+     * @param array $nodes Array of tree nodes (e.g. $config['books'])
+     * @param string $prefix Path prefix for display (e.g. "Parent / ")
+     * @param int $depth Current nesting depth
+     * @param string|null $parentFolder Parent folder path for resolving relative folders
+     * @return array List of categories with ['id', 'title', 'path', 'depth', 'folder']
+     */
+    public static function getCategoriesHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null, bool $isAdmin = false, bool $isViewer = false): array {
+        $result = [];
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+            $vis = $node['visibility'] ?? 'public';
+            if (!$isAdmin) {
+                if ($vis === 'admin_only') continue;
+                if ($vis === 'logged_in' && !$isViewer) continue;
+            }
+            if (($node['type'] ?? 'folder') === 'folder' && isset($node['id'])) {
+                $nodeId = $node['id'];
+                $nodeTitle = $node['title'] ?? $nodeId;
+                $currentPath = $prefix !== '' ? ($prefix . ' / ' . $nodeTitle) : $nodeTitle;
+                $curFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+
+                $result[] = [
+                    'id' => $nodeId,
+                    'title' => $nodeTitle,
+                    'path' => $currentPath,
+                    'depth' => $depth,
+                    'folder' => $curFolder
+                ];
+
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $subCats = self::getCategoriesHierarchy($node['items'], $currentPath, $depth + 1, $curFolder, $isAdmin, $isViewer);
+                    $result = array_merge($result, $subCats);
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Checks if a slug is already taken across all categories and documents.
+     */
+    public static function isSlugTaken(string $slug, array $nodes, ?string $currentSlug = null): bool {
+        if (empty($slug) || !is_array($nodes)) return false;
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+            if (isset($node['id']) && $node['id'] === $slug) {
+                return true;
+            }
+            if (isset($node['slug']) && $node['slug'] === $slug) {
+                if ($currentSlug === null || $currentSlug !== $slug) {
+                    return true;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::isSlugTaken($slug, $node['items'], $currentSlug)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Generates a unique, non-colliding slug.
+     * Auto-increments numeric suffix (e.g. "my-doc" -> "my-doc-1", "doc-1" -> "doc-2")
+     * verifying against both qwiki.json books/nodes and existing files on disk if targetDir is provided.
+     */
+    public static function generateUniqueSlug(string $baseSlug, array $books, ?string $targetDir = null, ?string $ext = null): string {
+        $baseSlug = trim($baseSlug);
+        if (empty($baseSlug)) {
+            $baseSlug = 'document';
+        }
+
+        $stem = $baseSlug;
+        $counter = 1;
+
+        if (preg_match('/^(.*)-(\d+)$/', $baseSlug, $matches)) {
+            $stem = $matches[1];
+            $counter = (int)$matches[2] + 1;
+        }
+
+        $slug = $baseSlug;
+        $extSuffix = $ext ? ('.' . ltrim($ext, '.')) : '';
+
+        $checkExists = function($candidateSlug) use ($books, $targetDir, $extSuffix) {
+            if (self::isSlugTaken($candidateSlug, $books)) {
+                return true;
+            }
+            if ($targetDir !== null) {
+                $targetFile = rtrim($targetDir, '/\\') . '/' . $candidateSlug . $extSuffix;
+                if (file_exists($targetFile)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        if ($checkExists($slug)) {
+            do {
+                $slug = $stem . '-' . $counter;
+                $counter++;
+            } while ($checkExists($slug));
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Updates the lifecycle status of a chapter identified by shareKey, slug, or file path.
+     * Recursively traverses books and nested folders to mutate the chapter in-place.
+     *
+     * @param array $books Reference to config['books']
+     * @param string $identifier shareKey, slug, or relative file path
+     * @param string $newStatus Target lifecycle status
+     * @param array $extraMeta Optional metadata (updatedBy, approver, approverNote, etc.)
+     * @return array|null The updated chapter array, or null if not found
+     */
+    public static function updateChapterStatus(array &$books, string $identifier, string $newStatus, array $extraMeta = []): ?array {
+        $newStatus = strtolower(trim($newStatus));
+        if (!in_array($newStatus, self::VALID_STATUSES, true)) {
+            return null;
+        }
+
+        $found = null;
+        $traverse = function(&$nodes) use (&$traverse, $identifier, $newStatus, $extraMeta, &$found) {
+            if (!is_array($nodes)) return;
+            foreach ($nodes as &$node) {
+                if (isset($node['type']) && $node['type'] === 'folder') {
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $traverse($node['items']);
+                        if ($found !== null) return;
+                    }
+                } else {
+                    $isMatch = (($node['slug'] ?? '') === $identifier) ||
+                               (!empty($node['shareKey']) && ($node['shareKey'] ?? '') === $identifier) ||
+                               (!empty($node['file']) && ($node['file'] ?? '') === $identifier);
+                    if ($isMatch) {
+                        $node['status'] = $newStatus;
+                        $node['statusUpdatedAt'] = date('c');
+                        if (isset($extraMeta['updatedBy']) && $extraMeta['updatedBy'] !== '') {
+                            $node['statusUpdatedBy'] = (string)$extraMeta['updatedBy'];
+                        }
+                        if (isset($extraMeta['approver']) && $extraMeta['approver'] !== '') {
+                            $node['approver'] = (string)$extraMeta['approver'];
+                        }
+                        if (isset($extraMeta['note']) || isset($extraMeta['approverNote'])) {
+                            $note = (string)($extraMeta['note'] ?? $extraMeta['approverNote'] ?? '');
+                            if ($note !== '') {
+                                $node['approverNote'] = $note;
+                            }
+                        }
+                        $found = $node;
+                        return;
+                    }
+                }
+            }
+        };
+
+        $traverse($books);
+        return $found;
+    }
+
+    /**
+     * Updates or sets data-qwiki-status on the root <html> tag of an HTML document file on disk.
+     * If cleanSource is true and newStatus is 'published', permanently strips draft markers,
+     * review dockets, and watermarks (.qwiki-draft, [data-qwiki-draft], .qwiki-watermark, .watermark-draft).
+     *
+     * @param string $absFilePath Absolute file path
+     * @param string $newStatus Target status (draft, review, published, archived)
+     * @param bool $cleanSource Whether to permanently strip draft/review DOM nodes on release
+     * @return bool
+     */
+    public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
+        require_once __DIR__ . '/DocumentService.php';
+        return DocumentService::sanitizeHtmlDocumentStatus($absFilePath, $newStatus, $cleanSource);
+    }
+
+    /**
+     * Helper to validate URL protocol safety (prevent javascript:, data:, vbscript:)
+     */
+    public static function isSafeUrl($url): bool {
+        $trimmed = trim((string)$url);
+        if (empty($trimmed)) return false;
+        if (preg_match('/^\s*(javascript|data|vbscript):/i', $trimmed)) {
+            return false;
+        }
+        if (preg_match('/^([a-z0-9+.-]+):/i', $trimmed, $matches)) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto'])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Recursively updates category or folder node metadata in navigation tree
+     */
+    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null): bool {
+        if (($node['id'] ?? '') === $targetId) {
+            $node['title'] = $newTitle;
+            if ($newTheme !== '') {
+                $node['theme'] = $newTheme;
+            } else {
+                unset($node['theme']);
+            }
+            $node['visibility'] = $newVisibility;
+            if ($readOnly !== null) {
+                if ($readOnly) {
+                    $node['readOnly'] = true;
+                    $node['editable'] = false;
+                } else {
+                    unset($node['readOnly']);
+                    unset($node['editable']);
+                    unset($node['locked']);
+                }
+            }
+            if ($newDescription !== null) {
+                if ($newDescription !== '') {
+                    $node['description'] = $newDescription;
+                } else {
+                    unset($node['description']);
+                }
+            }
+            if ($allowComments !== null) {
+                if ($allowComments) {
+                    $node['allowComments'] = true;
+                } else {
+                    $node['allowComments'] = false;
+                }
+            }
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Recursively deletes a category/folder node from the navigation list, respecting protected status
+     */
+    public static function deleteNodeRecursive(&$list, $targetId): bool {
+        $filtered = [];
+        $deleted = false;
+        foreach ($list as &$b) {
+            if (($b['id'] ?? '') === $targetId) {
+                if (Config::isCategoryProtected($targetId, [$b])) {
+                    $filtered[] = $b;
+                    continue;
+                }
+                $deleted = true;
+                continue;
+            }
+            if (!empty($b['items']) && is_array($b['items'])) {
+                if (self::deleteNodeRecursive($b['items'], $targetId)) {
+                    $deleted = true;
+                }
+            }
+            $filtered[] = $b;
+        }
+        $list = $filtered;
+        return $deleted;
+    }
+
+    /**
+     * Inserts a chapter item into a target folder node in the tree
+     */
+    public static function insertChapterIntoNode(&$node, $targetFolderId, $chapterData): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::insertChapterIntoNode($sub, $targetFolderId, $chapterData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Updates an existing chapter node by slug in the navigation tree
+     */
+    public static function updateChapterInNode(&$node, $slug, array $updatedData): bool {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$ch) {
+                if (!isset($ch['type']) || $ch['type'] !== 'folder') {
+                    if (($ch['slug'] ?? '') === $slug) {
+                        if (!empty($updatedData['title'])) $ch['title'] = $updatedData['title'];
+                        if (!empty($updatedData['type'])) $ch['type'] = $updatedData['type'];
+                        if (isset($updatedData['url'])) $ch['url'] = $updatedData['url'];
+                        if (isset($updatedData['editUrl'])) $ch['editUrl'] = $updatedData['editUrl'];
+                        if (isset($updatedData['file'])) $ch['file'] = $updatedData['file'];
+                        if (isset($updatedData['theme']) && $updatedData['theme'] !== '') {
+                            $ch['theme'] = $updatedData['theme'];
+                        } elseif (array_key_exists('theme', $updatedData)) {
+                            unset($ch['theme']);
+                        }
+                        if (isset($updatedData['description']) && $updatedData['description'] !== '') {
+                            $ch['description'] = $updatedData['description'];
+                        } elseif (array_key_exists('description', $updatedData)) {
+                            unset($ch['description']);
+                        }
+                        if (isset($updatedData['image']) && $updatedData['image'] !== '') {
+                            $ch['image'] = $updatedData['image'];
+                        } elseif (array_key_exists('image', $updatedData)) {
+                            unset($ch['image']);
+                        }
+                        if (isset($updatedData['publicShareable'])) {
+                            $ch['publicShareable'] = (bool)$updatedData['publicShareable'];
+                        }
+                        if (isset($updatedData['shareKey']) && $updatedData['shareKey'] !== '') {
+                            $ch['shareKey'] = $updatedData['shareKey'];
+                        }
+                        return true;
+                    }
+                } else {
+                    if (self::updateChapterInNode($ch, $slug, $updatedData)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Deletes a chapter node by slug from the tree and returns its file path
+     */
+    public static function deleteChapterFromNode(&$node, $slug, &$deleted = false, &$deletedFile = null): void {
+        if ($deleted || empty($node['items']) || !is_array($node['items'])) return;
+        $newItems = [];
+        foreach ($node['items'] as &$item) {
+            if (!$deleted && (!isset($item['type']) || $item['type'] !== 'folder') && ($item['slug'] ?? '') === $slug) {
+                $deleted = true;
+                $deletedFile = $item['file'] ?? null;
+                continue;
+            }
+            if (isset($item['type']) && $item['type'] === 'folder') {
+                self::deleteChapterFromNode($item, $slug, $deleted, $deletedFile);
+            }
+            $newItems[] = $item;
+        }
+        $node['items'] = $newItems;
+    }
+
+    /**
+     * Resolves relative target content folder path for a given category ID
+     */
+    public static function findTargetFolder(&$node, $targetId): ?string {
+        if (($node['id'] ?? '') === $targetId) {
+            $folder = $node['folder'] ?? $node['id'];
+            return ltrim(preg_replace('#^content/#i', '', $folder), '/');
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    $found = self::findTargetFolder($child, $targetId);
+                    if ($found !== null) {
+                        $parentFolder = $node['folder'] ?? $node['id'];
+                        $parentFolder = ltrim(preg_replace('#^content/#i', '', $parentFolder), '/');
+                        if (strpos($found, $parentFolder . '/') === 0) {
+                            return $found;
+                        }
+                        return $parentFolder . '/' . $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Inserts or updates a chapter in a target folder node
+     */
+    public static function upsertChapterIntoNode(&$node, $targetFolderId, $chapterData, &$isUpdated = false): bool {
+        if (($node['id'] ?? '') === $targetFolderId || ($node['folder'] ?? '') === $targetFolderId) {
+            if (!isset($node['items']) || !is_array($node['items'])) {
+                $node['items'] = [];
+            }
+            foreach ($node['items'] as &$it) {
+                $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === ($chapterData['slug'] ?? ''));
+                $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
+                if ($isSlugMatch || $isShareMatch) {
+                    if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
+                        $chapterData['shareKey'] = $it['shareKey'];
+                    }
+                    $it = array_merge($it, $chapterData);
+                    $isUpdated = true;
+                    return true;
+                }
+            }
+            $node['items'][] = $chapterData;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$sub) {
+                if (isset($sub['type']) && $sub['type'] === 'folder') {
+                    if (self::upsertChapterIntoNode($sub, $targetFolderId, $chapterData, $isUpdated)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+}
+
+

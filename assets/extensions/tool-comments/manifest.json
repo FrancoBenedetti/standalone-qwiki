@@ -1,0 +1,17 @@
+{
+  "id": "comments",
+  "type": "utility",
+  "adminOnly": false,
+  "title": "Document Comments",
+  "icon": "💬",
+  "placement": "content_footer",
+  "handler": "handler.php",
+  "actions": [
+    "ext_comments_get",
+    "ext_comments_add",
+    "ext_comments_edit",
+    "ext_comments_delete"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

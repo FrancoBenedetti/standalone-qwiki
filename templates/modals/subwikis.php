@@ -10,6 +10,13 @@
             Deploy and manage single-level subwikis from this parent Qwiki. Subwikis run with isolated content and users, but receive automated code updates from this parent wiki.
         </p>
 
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.88rem; font-weight: 600;">Active Subwikis</span>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-sync-docs-shortcut" style="font-size: 0.8rem; padding: 0.25rem 0.6rem;" title="Deploy or update the official Qwiki documentation mirror subwiki">
+                📚 Deploy Qwiki Docs Mirror
+            </button>
+        </div>
+
         <div class="subwiki-list-container" style="margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
             <table class="subwiki-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem;">
                 <thead>
@@ -51,10 +58,16 @@
                         <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="Password for subwiki" autocomplete="new-password" required>
                     </div>
                 </div>
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
-                        <input type="checkbox" name="includeDemo" value="1">
-                        Include sample documentation pages
+                <div class="form-group" style="margin-bottom: 0.6rem;">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" name="isDocMirror" id="new-subwiki-is-doc-mirror" value="1">
+                        <strong>Mirror Official Qwiki Documentation</strong> (Links to canonical manual; auto-updates on new releases)
+                    </label>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;" id="group-include-demo">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" name="includeDemo" id="new-subwiki-include-demo" value="1">
+                        Include sample starter pages (independent editable copy)
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary" id="btn-submit-deploy-subwiki" style="width: 100%;">🚀 Deploy Subwiki</button>

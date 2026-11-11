@@ -184,13 +184,15 @@ class SubwikiManager {
                 }
             }
 
+            $isDoc = !empty($sub['isDocSubwiki']) || !empty($subData['isDocSubwiki']);
             $result[$slug] = [
                 'slug' => $slug,
                 'title' => $title,
                 'url' => $slug . '/',
                 'docCount' => $docCount,
                 'createdAt' => $sub['createdAt'] ?? date('Y-m-d H:i:s'),
-                'exists' => is_dir($dir)
+                'exists' => is_dir($dir),
+                'isDocSubwiki' => $isDoc
             ];
         }
 
@@ -211,6 +213,7 @@ class SubwikiManager {
                     }
                 }
 
+                $isDoc = !empty($subData['isDocSubwiki']);
                 $result[$slug] = [
                     'slug' => $slug,
                     'title' => $title,
@@ -218,7 +221,8 @@ class SubwikiManager {
                     'docCount' => $docCount,
                     'createdAt' => date('Y-m-d H:i:s', filectime($dir)),
                     'exists' => true,
-                    'unregistered' => true
+                    'unregistered' => true,
+                    'isDocSubwiki' => $isDoc
                 ];
             }
         }
@@ -711,6 +715,188 @@ class SubwikiManager {
                 }
             }
         }
+    }
+
+    /**
+     * Synchronize a documentation subwiki with canonical demo-data navigation and content.
+     *
+     * @param string $slug Subwiki slug (defaults to 'docs')
+     * @param string $mode 'auto', 'copy', or 'symlink'
+     * @param bool $force Force overwrite if target subwiki exists with custom content not designated as doc mirror
+     * @return array ['success' => bool, 'slug' => string, 'mode' => string, 'message' => string, 'error' => ?string, 'requiresForce' => ?bool]
+     */
+    public static function syncDocumentation(string $slug = 'docs', string $mode = 'auto', bool $force = false): array {
+        $baseDir = Config::getBaseDir();
+        $slug = Config::makeSlug($slug);
+        if (empty($slug)) {
+            $slug = 'docs';
+        }
+
+        $targetDir = $baseDir . '/' . $slug;
+        $demoDir = $baseDir . '/demo-data';
+        $demoConfigFile = $demoDir . '/qwiki-default.json';
+        $demoContentDir = $demoDir . '/content';
+
+        if (!file_exists($demoConfigFile) || !is_dir($demoContentDir)) {
+            return [
+                'success' => false,
+                'slug' => $slug,
+                'error' => "Canonical demo-data directory or qwiki-default.json not found in '{$demoDir}'."
+            ];
+        }
+
+        $childConfigFile = $targetDir . '/qwiki.json';
+
+        // Safety Guard: Protect custom user subwikis from accidental overwrite
+        if (is_dir($targetDir) && file_exists($childConfigFile)) {
+            $existingConfig = @json_decode(file_get_contents($childConfigFile), true);
+            $isDesignatedDocMirror = !empty($existingConfig['isDocSubwiki']);
+
+            if (!$isDesignatedDocMirror) {
+                $parentSubwikis = Config::load()['subwikis'] ?? [];
+                foreach ($parentSubwikis as $ps) {
+                    if (($ps['slug'] ?? '') === $slug && !empty($ps['isDocSubwiki'])) {
+                        $isDesignatedDocMirror = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$isDesignatedDocMirror && !empty($existingConfig['books']) && !$force) {
+                return [
+                    'success' => false,
+                    'slug' => $slug,
+                    'requiresForce' => true,
+                    'error' => "Subwiki '/{$slug}/' contains existing custom documentation and is not designated as an official Qwiki Documentation mirror. Sync was aborted to prevent overwriting user data."
+                ];
+            }
+        }
+
+        // 1. Verify or initialize target subwiki
+        if (!is_dir($targetDir)) {
+            $dep = self::deploySubwiki($slug, 'Qwiki Documentation', 'admin', 'admin', false);
+            if (!$dep['success']) {
+                return [
+                    'success' => false,
+                    'slug' => $slug,
+                    'error' => "Failed to initialize subwiki: " . ($dep['error'] ?? 'Unknown error')
+                ];
+            }
+        }
+
+        // 2. Synchronize Navigation Tree in child qwiki.json
+        $demoConfig = json_decode(file_get_contents($demoConfigFile), true);
+        $childConfigFile = $targetDir . '/qwiki.json';
+        $childConfig = file_exists($childConfigFile) ? json_decode(file_get_contents($childConfigFile), true) : [];
+        if (!is_array($childConfig)) {
+            $childConfig = [];
+        }
+
+        $parentConfig = Config::load();
+        $childConfig['title'] = !empty($childConfig['title']) ? $childConfig['title'] : 'Qwiki Documentation';
+        $childConfig['isSubwiki'] = true;
+        $childConfig['isDocSubwiki'] = true;
+        $childConfig['parentUrl'] = '../';
+        $childConfig['parentTitle'] = $parentConfig['title'] ?? 'Parent Qwiki';
+        $childConfig['defaultBook'] = $demoConfig['defaultBook'] ?? 'getting-started';
+        $childConfig['books'] = $demoConfig['books'] ?? [];
+
+        file_put_contents(
+            $childConfigFile,
+            json_encode($childConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            LOCK_EX
+        );
+
+        // 3. Synchronize Content Directory
+        $targetContentDir = $targetDir . '/content';
+        $actualMode = 'copy';
+
+        // Check if symlink is supported and allowed on this host
+        $disabledFuncs = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+        $canSymlink = function_exists('symlink') && !in_array('symlink', $disabledFuncs, true);
+
+        if (($mode === 'symlink' || $mode === 'auto') && $canSymlink) {
+            if (is_link($targetContentDir)) {
+                $actualMode = 'symlink';
+            } else {
+                if (is_dir($targetContentDir)) {
+                    $backupContent = $targetDir . '/content_backup_' . time();
+                    @rename($targetContentDir, $backupContent);
+                }
+                $relSymlink = '../demo-data/content';
+                if (@symlink($relSymlink, $targetContentDir)) {
+                    $actualMode = 'symlink';
+                } else {
+                    if (isset($backupContent) && is_dir($backupContent) && !is_dir($targetContentDir)) {
+                        @rename($backupContent, $targetContentDir);
+                    }
+                    $actualMode = 'copy';
+                }
+            }
+        }
+
+        if ($actualMode === 'copy') {
+            if (is_link($targetContentDir)) {
+                @unlink($targetContentDir);
+            }
+            Config::copyDir($demoContentDir, $targetContentDir);
+        }
+
+        // 4. Ensure .htaccess protection in target content directory
+        if (file_exists($demoDir . '/htaccess-content') && !file_exists($targetContentDir . '/.htaccess')) {
+            @copy($demoDir . '/htaccess-content', $targetContentDir . '/.htaccess');
+        }
+
+        // 5. Ensure core bootstrap files and directories are updated in target subwiki
+        if (file_exists($baseDir . '/index.php')) {
+            @copy($baseDir . '/index.php', $targetDir . '/index.php');
+        }
+        if (!file_exists($targetDir . '/.subwiki')) {
+            file_put_contents($targetDir . '/.subwiki', "subwiki\n", LOCK_EX);
+        }
+        if (is_dir($baseDir . '/lib')) {
+            Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
+        }
+        if (is_dir($baseDir . '/assets')) {
+            Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
+        }
+        if (is_dir($baseDir . '/api')) {
+            Config::copyDir($baseDir . '/api', $targetDir . '/api');
+        }
+        if (is_dir($baseDir . '/templates')) {
+            Config::copyDir($baseDir . '/templates', $targetDir . '/templates');
+        }
+
+        // 6. Register/update in parent subwikis list
+        $parentConfig = Config::load();
+        $subwikis = $parentConfig['subwikis'] ?? [];
+        $found = false;
+        foreach ($subwikis as &$sub) {
+            if (($sub['slug'] ?? '') === $slug) {
+                $sub['isDocSubwiki'] = true;
+                $found = true;
+                break;
+            }
+        }
+        unset($sub);
+        if (!$found) {
+            $subwikis[] = [
+                'slug' => $slug,
+                'title' => $childConfig['title'],
+                'createdAt' => date('Y-m-d H:i:s'),
+                'isDocSubwiki' => true
+            ];
+        }
+        $parentConfig['subwikis'] = $subwikis;
+        Config::save($parentConfig);
+
+        return [
+            'success' => true,
+            'slug' => $slug,
+            'mode' => $actualMode,
+            'url' => '/' . $slug . '/',
+            'message' => "Documentation subwiki '/{$slug}/' successfully synchronized (mode: {$actualMode})."
+        ];
     }
 
     /**

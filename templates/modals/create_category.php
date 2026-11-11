@@ -38,6 +38,13 @@
                 <label class="form-label" for="book-description">Category Description (Optional)</label>
                 <textarea name="description" id="book-description" class="form-control" rows="2" placeholder="Brief explanation of this category (shown as tooltip)..."></textarea>
             </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <input type="hidden" name="allowComments" value="0">
+                <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                    <input type="checkbox" name="allowComments" id="create-category-allow-comments" value="1" checked>
+                    <span>💬 Allow signed-in users to comment on chapters in this category</span>
+                </label>
+            </div>
             <button type="submit" class="btn btn-primary" id="btn-submit-add-book" style="width: 100%;">Create Category</button>
         </form>
     </div>

@@ -99,8 +99,9 @@ switch ($mode) {
         $offset = isset($_GET['offset']) ? max(0, (int)$_GET['offset']) : 0;
         $limit = isset($_GET['limit']) ? max(0, (int)$_GET['limit']) : 0;
         $format = strtolower(trim($_GET['format'] ?? 'json'));
+        $includeComments = isset($_GET['include_comments']) && ($_GET['include_comments'] === '1' || $_GET['include_comments'] === 'true');
 
-        $docResult = LlmAccess::retrieveDocument($keyRecord, $slug, $offset, $limit);
+        $docResult = LlmAccess::retrieveDocument($keyRecord, $slug, $offset, $limit, $includeComments);
 
         if (!$docResult['success']) {
             llm_response_code($docResult['code'] ?? 400);
@@ -122,11 +123,38 @@ switch ($mode) {
             echo "url: " . json_encode($doc['url']) . "\n";
             echo "---\n\n";
             echo $doc['content'];
+            if ($includeComments && !empty($doc['comments'])) {
+                echo "\n\n" . LlmAccess::formatCommentsMarkdown(['comments' => $doc['comments']], $doc['title'], $doc['slug'], $doc['category'], $doc['comments_enabled'] ?? false);
+            }
             exit;
         }
 
         llm_header('Content-Type: application/json; charset=utf-8');
         echo json_encode($docResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        break;
+
+    case 'comments':
+    case 'discussions':
+        $slug = $_GET['slug'] ?? '';
+        $format = strtolower(trim($_GET['format'] ?? 'json'));
+
+        $commentsResult = LlmAccess::retrieveComments($keyRecord, $slug, $format);
+
+        if (!$commentsResult['success']) {
+            llm_response_code($commentsResult['code'] ?? 400);
+            llm_header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($commentsResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        if ($format === 'markdown' || $format === 'md' || $format === 'text') {
+            llm_header('Content-Type: text/markdown; charset=utf-8');
+            echo $commentsResult['markdown'];
+            exit;
+        }
+
+        llm_header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($commentsResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         break;
 
     case 'search':
@@ -149,7 +177,7 @@ switch ($mode) {
         llm_header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'success' => false,
-            'error' => "Unknown mode '{$mode}'. Supported modes are: tree, doc, search, schema."
+            'error' => "Unknown mode '{$mode}'. Supported modes are: tree, doc, search, comments, schema."
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         break;
 }

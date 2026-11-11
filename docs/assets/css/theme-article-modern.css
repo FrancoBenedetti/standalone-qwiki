@@ -1,0 +1,42 @@
+/* 
+ * Theme: Article Modern
+ * Description: Clean, modern layout with larger typography and ample whitespace.
+ */
+
+.app-content {
+    max-width: 1200px;
+}
+
+.content-body {
+    font-size: 1.15rem;
+    line-height: 1.9;
+}
+
+.content-body h1 {
+    font-size: 2.75rem;
+    font-weight: 900;
+    margin-top: 2.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.content-body h2 {
+    font-size: 2rem;
+    margin-top: 2.5rem;
+    border-bottom: none;
+    color: var(--accent-color);
+}
+
+.content-body img {
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border: none;
+    display: block;
+    margin: 2rem auto;
+}
+
+.content-body blockquote {
+    font-size: 1.25rem;
+    padding: 1.5rem 2rem;
+    border-left-width: 6px;
+    border-radius: var(--radius-md);
+}

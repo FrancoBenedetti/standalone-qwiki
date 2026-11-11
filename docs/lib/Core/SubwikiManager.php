@@ -1,0 +1,891 @@
+<?php
+namespace Qwiki\Core;
+
+class SubwikiManager {
+
+    /**
+     * Check if the current installation is a subwiki.
+     */
+    public static function isSubwiki(): bool {
+        return Config::isSubwiki();
+    }
+
+    /**
+     * Resolve the parent wiki's title dynamically if available, or from child config.
+     * Checks if parent directory contains a qwiki.json to reflect live parent wiki title renames.
+     *
+     * @param array|null $subConfig Child wiki configuration array.
+     * @return string
+     */
+    public static function getParentTitle(?array $subConfig = null): string {
+        if ($subConfig === null) {
+            $subConfig = Config::load();
+        }
+
+        // If subwiki explicitly customized its parentTitle
+        if (!empty($subConfig['parentTitleCustom']) && !empty($subConfig['parentTitle'])) {
+            return (string)$subConfig['parentTitle'];
+        }
+
+        $baseDir = Config::getBaseDir();
+        $parentConfigFile = dirname($baseDir) . '/qwiki.json';
+        if (file_exists($parentConfigFile)) {
+            $parentData = @json_decode(file_get_contents($parentConfigFile), true);
+            if (is_array($parentData) && !empty($parentData['title'])) {
+                return (string)$parentData['title'];
+            }
+        }
+
+        return !empty($subConfig['parentTitle']) ? (string)$subConfig['parentTitle'] : 'Main Wiki';
+    }
+
+    /**
+     * Validate a slug bi-directionally for category or subwiki usage.
+     *
+     * @param string $slug The proposed slug.
+     * @param string|null $currentBookId If updating an existing category, its current ID.
+     * @param bool $isForSubwiki True if validating for a new subwiki; false if for a category.
+     * @return array ['valid' => bool, 'error' => string|null]
+     */
+    public static function validateSlug(string $slug, ?string $currentBookId = null, bool $isForSubwiki = false): array {
+        $slug = trim($slug);
+        if (empty($slug)) {
+            return ['valid' => false, 'error' => 'Identifier or slug cannot be empty.'];
+        }
+
+        // Must be alphanumeric with single hyphens (no slashes, dots, or underscores)
+        if (!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $slug)) {
+            return [
+                'valid' => false,
+                'error' => 'Invalid slug format. Use only lowercase letters, numbers, and hyphens (e.g. "engineering-electrical").'
+            ];
+        }
+
+        // Check reserved system routes
+        $reserved = Config::getReservedNames();
+        if (in_array($slug, $reserved, true)) {
+            return [
+                'valid' => false,
+                'error' => "The slug '{$slug}' is a reserved system directory name and cannot be used."
+            ];
+        }
+
+        $baseDir = Config::getBaseDir();
+        $config = Config::load();
+
+        $categoryExists = function($nodes, $targetSlug, $ignoreId = null) use (&$categoryExists) {
+            if (!is_array($nodes)) return false;
+            foreach ($nodes as $node) {
+                if (($node['id'] ?? '') === $targetSlug && $targetSlug !== $ignoreId) {
+                    return true;
+                }
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    if ($categoryExists($node['items'], $targetSlug, $ignoreId)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        if ($isForSubwiki) {
+            // 1. Subwiki cannot clash with any parent category
+            if (!empty($config['books']) && $categoryExists($config['books'], $slug)) {
+                return [
+                    'valid' => false,
+                    'error' => "A category named '{$slug}' already exists in the parent wiki. Choose a different name or use a dash prefix (e.g. 'sub-{$slug}')."
+                ];
+            }
+
+            // 2. Subwiki cannot clash with an existing physical directory on disk
+            $targetDir = $baseDir . '/' . $slug;
+            if (is_dir($targetDir)) {
+                return [
+                    'valid' => false,
+                    'error' => "A folder named '{$slug}' already exists on disk. Please select a unique slug."
+                ];
+            }
+
+            // 3. Subwiki cannot clash with an already registered subwiki
+            if (!empty($config['subwikis'])) {
+                foreach ($config['subwikis'] as $sub) {
+                    if (($sub['slug'] ?? '') === $slug) {
+                        return [
+                            'valid' => false,
+                            'error' => "A subwiki with slug '{$slug}' is already registered."
+                        ];
+                    }
+                }
+            }
+        } else {
+            // Creating or editing a category in the parent wiki:
+            // 1. Cannot clash with any physical directory in root (which would shadow the category via web server -d rules)
+            $targetDir = $baseDir . '/' . $slug;
+            if (is_dir($targetDir)) {
+                return [
+                    'valid' => false,
+                    'error' => "A physical directory or subwiki named '{$slug}' exists in the web root. Categories cannot share names with physical subdirectories."
+                ];
+            }
+
+            // 2. Cannot clash with any registered subwiki
+            if (!empty($config['subwikis'])) {
+                foreach ($config['subwikis'] as $sub) {
+                    if (($sub['slug'] ?? '') === $slug) {
+                        return [
+                            'valid' => false,
+                            'error' => "The slug '{$slug}' is reserved by a deployed subwiki."
+                        ];
+                    }
+                }
+            }
+
+            // 3. Cannot clash with another existing category (unless editing self)
+            if (!empty($config['books']) && $categoryExists($config['books'], $slug, $currentBookId)) {
+                return [
+                    'valid' => false,
+                    'error' => "Another category with ID '{$slug}' already exists."
+                ];
+            }
+        }
+
+        return ['valid' => true, 'error' => null];
+    }
+
+    /**
+     * List all subwikis (both registered and discovered).
+     */
+    public static function listSubwikis(): array {
+        $baseDir = Config::getBaseDir();
+        $config = Config::load();
+        $registered = $config['subwikis'] ?? [];
+
+        $result = [];
+        $reserved = array_merge(Config::getReservedNames(), ['demo-data', 'assets', 'lib', 'content', 'uploads', 'api', 'tests']);
+
+        // Check registered
+        foreach ($registered as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (empty($slug)) continue;
+            $dir = $baseDir . '/' . $slug;
+            $subConfigFile = $dir . '/qwiki.json';
+            $title = $sub['title'] ?? $slug;
+            $docCount = 0;
+
+            if (file_exists($subConfigFile)) {
+                $subData = @json_decode(file_get_contents($subConfigFile), true);
+                if (is_array($subData)) {
+                    $title = $subData['title'] ?? $title;
+                    if (!empty($subData['books'])) {
+                        foreach ($subData['books'] as $b) {
+                            $docCount += count($b['items'] ?? []);
+                        }
+                    }
+                }
+            }
+
+            $isDoc = !empty($sub['isDocSubwiki']) || (!empty($subData['isDocSubwiki'])) || ($slug === 'docs');
+            $result[$slug] = [
+                'slug' => $slug,
+                'title' => $title,
+                'url' => $slug . '/',
+                'docCount' => $docCount,
+                'createdAt' => $sub['createdAt'] ?? date('Y-m-d H:i:s'),
+                'exists' => is_dir($dir),
+                'isDocSubwiki' => $isDoc
+            ];
+        }
+
+        // Auto-discover physical folders containing qwiki.json that might not yet be in the registry
+        $dirs = @glob($baseDir . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($dirs as $dir) {
+            $slug = basename($dir);
+            if (in_array($slug, $reserved, true)) continue;
+            if (isset($result[$slug])) continue;
+
+            if (file_exists($dir . '/qwiki.json') && file_exists($dir . '/index.php')) {
+                $subData = @json_decode(file_get_contents($dir . '/qwiki.json'), true);
+                $title = is_array($subData) && !empty($subData['title']) ? $subData['title'] : $slug;
+                $docCount = 0;
+                if (is_array($subData) && !empty($subData['books'])) {
+                    foreach ($subData['books'] as $b) {
+                        $docCount += count($b['items'] ?? []);
+                    }
+                }
+
+                $isDoc = (!empty($subData['isDocSubwiki'])) || ($slug === 'docs');
+                $result[$slug] = [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'url' => $slug . '/',
+                    'docCount' => $docCount,
+                    'createdAt' => date('Y-m-d H:i:s', filectime($dir)),
+                    'exists' => true,
+                    'unregistered' => true,
+                    'isDocSubwiki' => $isDoc
+                ];
+            }
+        }
+
+        return array_values($result);
+    }
+
+    /**
+     * Get the list of subwikis to display in the sidebar navigation.
+     * In the parent wiki: returns list of all deployed subwikis.
+     * In a child subwiki: discovers sibling subwikis from the parent directory, adjusting URLs to ../slug/ and excluding self.
+     *
+     * @param array|null $config Configuration array
+     * @return array
+     */
+    public static function getSidebarSubwikis(?array $config = null): array {
+        if (!self::isSubwiki()) {
+            return self::listSubwikis();
+        }
+
+        // Inside a child subwiki: query parent directory for sibling subwikis
+        $baseDir = Config::getBaseDir();
+        $parentDir = dirname($baseDir);
+        $currentSlug = basename($baseDir);
+        $parentConfigFile = $parentDir . '/qwiki.json';
+
+        if (!file_exists($parentConfigFile)) {
+            return [];
+        }
+
+        $parentConfig = @json_decode(file_get_contents($parentConfigFile), true);
+        if (!is_array($parentConfig)) {
+            return [];
+        }
+
+        $registered = $parentConfig['subwikis'] ?? [];
+        $result = [];
+        $reserved = array_merge(Config::getReservedNames(), ['demo-data', 'assets', 'lib', 'content', 'uploads', 'api', 'tests']);
+
+        foreach ($registered as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (empty($slug) || $slug === $currentSlug) continue;
+            $dir = $parentDir . '/' . $slug;
+            $subConfigFile = $dir . '/qwiki.json';
+            $title = $sub['title'] ?? $slug;
+            $docCount = 0;
+
+            if (file_exists($subConfigFile)) {
+                $subData = @json_decode(file_get_contents($subConfigFile), true);
+                if (is_array($subData)) {
+                    $title = $subData['title'] ?? $title;
+                    if (!empty($subData['books'])) {
+                        foreach ($subData['books'] as $b) {
+                            $docCount += count($b['items'] ?? []);
+                        }
+                    }
+                }
+            }
+
+            $result[$slug] = [
+                'slug' => $slug,
+                'title' => $title,
+                'url' => '../' . $slug . '/',
+                'docCount' => $docCount,
+                'createdAt' => $sub['createdAt'] ?? date('Y-m-d H:i:s'),
+                'exists' => is_dir($dir)
+            ];
+        }
+
+        // Also check discovered directories in parent dir
+        $dirs = @glob($parentDir . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($dirs as $dir) {
+            $slug = basename($dir);
+            if (in_array($slug, $reserved, true) || $slug === $currentSlug) continue;
+            if (isset($result[$slug])) continue;
+
+            if (file_exists($dir . '/qwiki.json') && file_exists($dir . '/index.php')) {
+                $subData = @json_decode(file_get_contents($dir . '/qwiki.json'), true);
+                $title = is_array($subData) && !empty($subData['title']) ? $subData['title'] : $slug;
+                $docCount = 0;
+                if (is_array($subData) && !empty($subData['books'])) {
+                    foreach ($subData['books'] as $b) {
+                        $docCount += count($b['items'] ?? []);
+                    }
+                }
+
+                $result[$slug] = [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'url' => '../' . $slug . '/',
+                    'docCount' => $docCount,
+                    'createdAt' => date('Y-m-d H:i:s', filectime($dir)),
+                    'exists' => true,
+                    'unregistered' => true
+                ];
+            }
+        }
+
+        return array_values($result);
+    }
+
+    /**
+     * Deploy a new single-level subwiki from the parent wiki.
+     */
+    public static function deploySubwiki(string $slug, string $title, string $adminUser, string $adminPass, bool $includeDemoContent = false): array {
+        if (self::isSubwiki()) {
+            return [
+                'success' => false,
+                'error' => 'Subwikis cannot deploy further subwikis. Maximum nesting depth (1 level) reached.'
+            ];
+        }
+
+        $slug = Config::makeSlug($slug);
+        $val = self::validateSlug($slug, null, true);
+        if (!$val['valid']) {
+            return ['success' => false, 'error' => $val['error']];
+        }
+
+        $title = trim($title);
+        if (empty($title)) {
+            return ['success' => false, 'error' => 'Subwiki title is required.'];
+        }
+
+        $adminUser = trim($adminUser);
+        $adminPass = trim($adminPass);
+        if (empty($adminUser) || empty($adminPass)) {
+            return ['success' => false, 'error' => 'Admin username and password are required for the new subwiki.'];
+        }
+
+        $baseDir = Config::getBaseDir();
+        $parentConfig = Config::load();
+        $targetDir = $baseDir . '/' . $slug;
+
+        if (!@mkdir($targetDir, 0755, true)) {
+            return ['success' => false, 'error' => "Failed to create directory '{$slug}'."];
+        }
+
+        // Copy core application files or generate lightweight bootstrap in hosted mode
+        $isHostedMode = defined('QWIKI_BASE_DIR') || !is_dir($baseDir . '/lib');
+        $coreDir = dirname(__DIR__, 2);
+        if ($isHostedMode) {
+            $coreIndex = $coreDir . '/index.php';
+            $assetsUrl = defined('QWIKI_ASSETS_URL') ? QWIKI_ASSETS_URL : '/_core/assets';
+            $subBootstrap = "<?php\n"
+                . "define('QWIKI_BASE_DIR', __DIR__);\n"
+                . "define('QWIKI_ASSETS_URL', '" . addslashes($assetsUrl) . "');\n"
+                . "require_once '" . addslashes($coreIndex) . "';\n";
+            file_put_contents($targetDir . '/index.php', $subBootstrap);
+            $htaccessSource = file_exists($baseDir . '/.htaccess') ? $baseDir . '/.htaccess' : (file_exists($coreDir . '/.htaccess') ? $coreDir . '/.htaccess' : null);
+            if ($htaccessSource) {
+                @copy($htaccessSource, $targetDir . '/.htaccess');
+            }
+        } else {
+            @copy($baseDir . '/index.php', $targetDir . '/index.php');
+            @copy($baseDir . '/.htaccess', $targetDir . '/.htaccess');
+            Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
+            Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
+            Config::copyDir($baseDir . '/api', $targetDir . '/api');
+            Config::copyDir($baseDir . '/templates', $targetDir . '/templates');
+        }
+
+        // Create uploads directory and protect it
+        @mkdir($targetDir . '/uploads/images', 0755, true);
+        $uploadsHt = file_exists($baseDir . '/uploads/.htaccess') ? $baseDir . '/uploads/.htaccess' : (file_exists($coreDir . '/demo-data/htaccess-uploads') ? $coreDir . '/demo-data/htaccess-uploads' : null);
+        if ($uploadsHt) {
+            @copy($uploadsHt, $targetDir . '/uploads/.htaccess');
+        }
+
+        // Initialize content directory and protect it from direct web access
+        @mkdir($targetDir . '/content', 0755, true);
+        $contentHt = file_exists($baseDir . '/content/.htaccess') ? $baseDir . '/content/.htaccess' : (file_exists($coreDir . '/demo-data/htaccess-content') ? $coreDir . '/demo-data/htaccess-content' : (file_exists($baseDir . '/demo-data/htaccess-content') ? $baseDir . '/demo-data/htaccess-content' : null));
+        if ($contentHt) {
+            @copy($contentHt, $targetDir . '/content/.htaccess');
+        } else {
+            $htContent = "# Deny all direct web access to document repository files and directories\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+            @file_put_contents($targetDir . '/content/.htaccess', $htContent);
+        }
+
+        $demoContentSource = is_dir($baseDir . '/demo-data/content') ? $baseDir . '/demo-data/content' : (is_dir($coreDir . '/demo-data/content') ? $coreDir . '/demo-data/content' : null);
+        $demoConfigFile = file_exists($baseDir . '/demo-data/qwiki-default.json') ? $baseDir . '/demo-data/qwiki-default.json' : (file_exists($coreDir . '/demo-data/qwiki-default.json') ? $coreDir . '/demo-data/qwiki-default.json' : null);
+
+        if ($includeDemoContent && $demoContentSource) {
+            Config::copyDir($demoContentSource, $targetDir . '/content');
+            $books = [];
+            if ($demoConfigFile) {
+                $demoData = @json_decode(file_get_contents($demoConfigFile), true);
+                $books = $demoData['books'] ?? [];
+            }
+        } else {
+            @mkdir($targetDir . '/content/getting-started', 0755, true);
+            $welcomeContent = "# Welcome to {$title}\n\nThis is your new Qwiki documentation space. You can start creating and organizing your documentation here.\n";
+            file_put_contents($targetDir . '/content/getting-started/welcome.md', $welcomeContent);
+
+            $books = [
+                [
+                    'id' => 'getting-started',
+                    'title' => 'Getting Started',
+                    'type' => 'folder',
+                    'items' => [
+                        [
+                            'title' => 'Welcome',
+                            'slug' => 'welcome',
+                            'type' => 'markdown',
+                            'url' => '',
+                            'editUrl' => '',
+                            'file' => 'content/getting-started/welcome.md'
+                        ]
+                    ]
+                ]
+            ];
+        }
+
+        // Create child qwiki.json with subwiki metadata
+        $childConfig = [
+            'title' => $title,
+            'logoText' => strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $slug), 0, 8)),
+            'logoUrl' => '',
+            'theme' => 'theme-default.css',
+            'shareDescription' => "Documentation for {$title}",
+            'isSubwiki' => true,
+            'parentUrl' => '../',
+            'parentTitle' => $parentConfig['title'] ?? 'Parent Qwiki',
+            'defaultBook' => 'getting-started',
+            'requireLoginToView' => false,
+            'books' => $books
+        ];
+        file_put_contents($targetDir . '/qwiki.json', json_encode($childConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+
+        // Create child users.json
+        $childUsers = [
+            'users' => [
+                [
+                    'username' => $adminUser,
+                    'role' => 'admin',
+                    'passwordHash' => password_hash($adminPass, PASSWORD_DEFAULT),
+                    'createdAt' => date('Y-m-d H:i:s')
+                ]
+            ]
+        ];
+        file_put_contents($targetDir . '/users.json', json_encode($childUsers, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+
+        // Create subwiki marker
+        file_put_contents($targetDir . '/.subwiki', "subwiki\n", LOCK_EX);
+
+        // Register in parent qwiki.json
+        if (!isset($parentConfig['subwikis']) || !is_array($parentConfig['subwikis'])) {
+            $parentConfig['subwikis'] = [];
+        }
+        $parentConfig['subwikis'][] = [
+            'slug' => $slug,
+            'title' => $title,
+            'createdAt' => date('Y-m-d H:i:s')
+        ];
+        Config::save($parentConfig);
+
+        return [
+            'success' => true,
+            'slug' => $slug,
+            'url' => $slug . '/',
+            'title' => $title
+        ];
+    }
+
+    /**
+     * Delete or de-register a subwiki.
+     */
+    public static function deleteSubwiki(string $slug, bool $deleteFiles = false): array {
+        if (self::isSubwiki()) {
+            return ['success' => false, 'error' => 'Operation not permitted from within a subwiki.'];
+        }
+
+        $baseDir = Config::getBaseDir();
+        $parentConfig = Config::load();
+
+        // Remove from registry
+        if (!empty($parentConfig['subwikis'])) {
+            $parentConfig['subwikis'] = array_values(array_filter($parentConfig['subwikis'], function($item) use ($slug) {
+                return ($item['slug'] ?? '') !== $slug;
+            }));
+            Config::save($parentConfig);
+        }
+
+        if ($deleteFiles) {
+            $targetDir = $baseDir . '/' . $slug;
+            if (is_dir($targetDir)) {
+                self::recursiveDelete($targetDir);
+            }
+        }
+
+        return ['success' => true];
+    }
+
+    /**
+     * Cascade updates from the parent wiki to all registered/discovered subwikis.
+     * Overwrites core engine files while protecting content, uploads, and configs.
+     */
+    public static function cascadeUpdates(string $sourceDir): array {
+        $subwikis = self::listSubwikis();
+        $updatedCount = 0;
+        $errors = [];
+
+        // In hosted mode, all subwikis share the central _core automatically
+        if (defined('QWIKI_BASE_DIR') || !is_dir($sourceDir . '/lib')) {
+            return ['success' => true, 'updatedCount' => count($subwikis), 'errors' => []];
+        }
+
+        foreach ($subwikis as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (empty($slug)) continue;
+            $targetDir = $sourceDir . '/' . $slug;
+            if (!is_dir($targetDir)) continue;
+
+            try {
+                // 1. Update index.php
+                if (file_exists($sourceDir . '/index.php')) {
+                    @copy($sourceDir . '/index.php', $targetDir . '/index.php');
+                }
+
+                // 2. Update core directories
+                Config::copyDir($sourceDir . '/lib', $targetDir . '/lib');
+                Config::copyDir($sourceDir . '/assets', $targetDir . '/assets');
+                Config::copyDir($sourceDir . '/api', $targetDir . '/api');
+                Config::copyDir($sourceDir . '/templates', $targetDir . '/templates');
+
+                // 2b. Update root .htaccess and ensure content/.htaccess protection
+                if (file_exists($sourceDir . '/.htaccess')) {
+                    @copy($sourceDir . '/.htaccess', $targetDir . '/.htaccess');
+                }
+                if (is_dir($targetDir . '/content') && !file_exists($targetDir . '/content/.htaccess')) {
+                    $contentHt = file_exists($sourceDir . '/content/.htaccess')
+                        ? $sourceDir . '/content/.htaccess'
+                        : (file_exists($sourceDir . '/demo-data/htaccess-content') ? $sourceDir . '/demo-data/htaccess-content' : null);
+                    if ($contentHt) {
+                        @copy($contentHt, $targetDir . '/content/.htaccess');
+                    } else {
+                        $htContent = "# Deny all direct web access to document repository files and directories\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+                        @file_put_contents($targetDir . '/content/.htaccess', $htContent);
+                    }
+                }
+
+                // 3. Ensure .subwiki marker exists
+                if (!file_exists($targetDir . '/.subwiki')) {
+                    file_put_contents($targetDir . '/.subwiki', "subwiki\n", LOCK_EX);
+                }
+
+                // 4. Ensure child qwiki.json has isSubwiki: true
+                $subConfigFile = $targetDir . '/qwiki.json';
+                if (file_exists($subConfigFile)) {
+                    $subData = @json_decode(file_get_contents($subConfigFile), true);
+                    if (is_array($subData)) {
+                        $needsSave = false;
+                        if (empty($subData['isSubwiki'])) {
+                            $subData['isSubwiki'] = true;
+                            $needsSave = true;
+                        }
+                        if (empty($subData['parentUrl'])) {
+                            $subData['parentUrl'] = '../';
+                            $needsSave = true;
+                        }
+                        if ($needsSave) {
+                            file_put_contents($subConfigFile, json_encode($subData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+                        }
+                    }
+                }
+
+                $updatedCount++;
+            } catch (\Throwable $e) {
+                $errors[] = "Failed updating subwiki '{$slug}': " . $e->getMessage();
+            }
+        }
+
+        return [
+            'success' => empty($errors),
+            'updatedCount' => $updatedCount,
+            'errors' => $errors
+        ];
+    }
+
+    /**
+     * Migration routine to run during upgrade:
+     * - Registers un-registered legacy subwikis
+     * - Normalizes image paths
+     * - Flattens any deeper nested folders (2+ depth) into 1-level dashed subwikis
+     */
+    public static function runMigration(): array {
+        $baseDir = Config::getBaseDir();
+        $parentConfig = Config::load();
+        $migrated = [];
+
+        // 1. Discover and register all 1-level subwikis
+        $subwikis = self::listSubwikis();
+        $registryUpdated = false;
+        $existingRegistrySlugs = array_column($parentConfig['subwikis'] ?? [], 'slug');
+
+        foreach ($subwikis as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (!in_array($slug, $existingRegistrySlugs, true)) {
+                $parentConfig['subwikis'][] = [
+                    'slug' => $slug,
+                    'title' => $sub['title'] ?? $slug,
+                    'createdAt' => date('Y-m-d H:i:s')
+                ];
+                $registryUpdated = true;
+                $migrated[] = "Registered legacy subwiki '{$slug}'";
+            }
+        }
+
+        if ($registryUpdated) {
+            Config::save($parentConfig);
+        }
+
+        // 2. Flatten any 2nd-level nested subwikis (e.g. subwiki/another-wiki)
+        foreach ($subwikis as $sub) {
+            $slug = $sub['slug'] ?? '';
+            $subDir = $baseDir . '/' . $slug;
+            $nestedDirs = @glob($subDir . '/*', GLOB_ONLYDIR) ?: [];
+            foreach ($nestedDirs as $nestedDir) {
+                $nestedSlug = basename($nestedDir);
+                if (in_array($nestedSlug, Config::getReservedNames(), true)) continue;
+                if (file_exists($nestedDir . '/qwiki.json') && file_exists($nestedDir . '/index.php')) {
+                    // Deep nesting detected! Flatten to parent level with a dash: slug-nestedSlug
+                    $flattenedSlug = $slug . '-' . $nestedSlug;
+                    $targetDir = $baseDir . '/' . $flattenedSlug;
+                    if (!is_dir($targetDir)) {
+                        if (@rename($nestedDir, $targetDir)) {
+                            // Update flattened qwiki.json
+                            $childJson = $targetDir . '/qwiki.json';
+                            if (file_exists($childJson)) {
+                                $cData = @json_decode(file_get_contents($childJson), true);
+                                if (is_array($cData)) {
+                                    $cData['isSubwiki'] = true;
+                                    $cData['parentUrl'] = '../';
+                                    file_put_contents($childJson, json_encode($cData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+                                }
+                            }
+                            $parentConfig['subwikis'][] = [
+                                'slug' => $flattenedSlug,
+                                'title' => ucwords(str_replace('-', ' ', $flattenedSlug)),
+                                'createdAt' => date('Y-m-d H:i:s')
+                            ];
+                            Config::save($parentConfig);
+                            $migrated[] = "Flattened deep subwiki '{$slug}/{$nestedSlug}' into 1-level subwiki '{$flattenedSlug}'";
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Scan and normalize image references in all subwikis
+        foreach ($subwikis as $sub) {
+            $slug = $sub['slug'] ?? '';
+            $contentDir = $baseDir . '/' . $slug . '/content';
+            if (is_dir($contentDir)) {
+                self::normalizeImagePaths($contentDir, $slug);
+            }
+        }
+
+        return [
+            'success' => true,
+            'migrated' => $migrated
+        ];
+    }
+
+    /**
+     * Recursively scan markdown files and normalize image paths.
+     */
+    private static function normalizeImagePaths(string $contentDir, string $subwikiSlug) {
+        if (!is_dir($contentDir)) return;
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($contentDir));
+        foreach ($iterator as $file) {
+            if ($file->isFile() && strtolower($file->getExtension()) === 'md') {
+                $content = file_get_contents($file->getPathname());
+                $modified = false;
+
+                // Strip /subwikiSlug/uploads/ -> uploads/
+                $patternSlug = '#(!\[.*?\]\()/?' . preg_quote($subwikiSlug, '#') . '/uploads/#i';
+                if (preg_match($patternSlug, $content)) {
+                    $content = preg_replace($patternSlug, '$1uploads/', $content);
+                    $modified = true;
+                }
+
+                // Strip root-relative /uploads/ -> uploads/
+                if (preg_match('#(!\[.*?\]\()/uploads/#i', $content)) {
+                    $content = preg_replace('#(!\[.*?\]\()/uploads/#i', '$1uploads/', $content);
+                    $modified = true;
+                }
+
+                if ($modified) {
+                    file_put_contents($file->getPathname(), $content, LOCK_EX);
+                }
+            }
+        }
+    }
+
+    /**
+     * Synchronize a documentation subwiki with canonical demo-data navigation and content.
+     *
+     * @param string $slug Subwiki slug (defaults to 'docs')
+     * @param string $mode 'auto', 'copy', or 'symlink'
+     * @return array ['success' => bool, 'slug' => string, 'mode' => string, 'message' => string, 'error' => ?string]
+     */
+    public static function syncDocumentation(string $slug = 'docs', string $mode = 'auto'): array {
+        $baseDir = Config::getBaseDir();
+        $slug = Config::makeSlug($slug);
+        if (empty($slug)) {
+            $slug = 'docs';
+        }
+
+        $targetDir = $baseDir . '/' . $slug;
+        $demoDir = $baseDir . '/demo-data';
+        $demoConfigFile = $demoDir . '/qwiki-default.json';
+        $demoContentDir = $demoDir . '/content';
+
+        if (!file_exists($demoConfigFile) || !is_dir($demoContentDir)) {
+            return [
+                'success' => false,
+                'slug' => $slug,
+                'error' => "Canonical demo-data directory or qwiki-default.json not found in '{$demoDir}'."
+            ];
+        }
+
+        // 1. Verify or initialize target subwiki
+        if (!is_dir($targetDir)) {
+            $dep = self::deploySubwiki($slug, 'Qwiki Documentation', 'admin', 'admin', false);
+            if (!$dep['success']) {
+                return [
+                    'success' => false,
+                    'slug' => $slug,
+                    'error' => "Failed to initialize subwiki: " . ($dep['error'] ?? 'Unknown error')
+                ];
+            }
+        }
+
+        // 2. Synchronize Navigation Tree in child qwiki.json
+        $demoConfig = json_decode(file_get_contents($demoConfigFile), true);
+        $childConfigFile = $targetDir . '/qwiki.json';
+        $childConfig = file_exists($childConfigFile) ? json_decode(file_get_contents($childConfigFile), true) : [];
+        if (!is_array($childConfig)) {
+            $childConfig = [];
+        }
+
+        $parentConfig = Config::load();
+        $childConfig['title'] = !empty($childConfig['title']) ? $childConfig['title'] : 'Qwiki Documentation';
+        $childConfig['isSubwiki'] = true;
+        $childConfig['isDocSubwiki'] = true;
+        $childConfig['parentUrl'] = '../';
+        $childConfig['parentTitle'] = $parentConfig['title'] ?? 'Parent Qwiki';
+        $childConfig['defaultBook'] = $demoConfig['defaultBook'] ?? 'getting-started';
+        $childConfig['books'] = $demoConfig['books'] ?? [];
+
+        file_put_contents(
+            $childConfigFile,
+            json_encode($childConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            LOCK_EX
+        );
+
+        // 3. Synchronize Content Directory
+        $targetContentDir = $targetDir . '/content';
+        $actualMode = 'copy';
+
+        // Check if symlink is supported and allowed on this host
+        $disabledFuncs = array_map('trim', explode(',', (string)ini_get('disable_functions')));
+        $canSymlink = function_exists('symlink') && !in_array('symlink', $disabledFuncs, true);
+
+        if (($mode === 'symlink' || $mode === 'auto') && $canSymlink) {
+            if (is_link($targetContentDir)) {
+                $actualMode = 'symlink';
+            } else {
+                if (is_dir($targetContentDir)) {
+                    $backupContent = $targetDir . '/content_backup_' . time();
+                    @rename($targetContentDir, $backupContent);
+                }
+                $relSymlink = '../demo-data/content';
+                if (@symlink($relSymlink, $targetContentDir)) {
+                    $actualMode = 'symlink';
+                } else {
+                    if (isset($backupContent) && is_dir($backupContent) && !is_dir($targetContentDir)) {
+                        @rename($backupContent, $targetContentDir);
+                    }
+                    $actualMode = 'copy';
+                }
+            }
+        }
+
+        if ($actualMode === 'copy') {
+            if (is_link($targetContentDir)) {
+                @unlink($targetContentDir);
+            }
+            Config::copyDir($demoContentDir, $targetContentDir);
+        }
+
+        // 4. Ensure .htaccess protection in target content directory
+        if (file_exists($demoDir . '/htaccess-content') && !file_exists($targetContentDir . '/.htaccess')) {
+            @copy($demoDir . '/htaccess-content', $targetContentDir . '/.htaccess');
+        }
+
+        // 5. Ensure core bootstrap files and directories are updated in target subwiki
+        if (file_exists($baseDir . '/index.php')) {
+            @copy($baseDir . '/index.php', $targetDir . '/index.php');
+        }
+        if (!file_exists($targetDir . '/.subwiki')) {
+            file_put_contents($targetDir . '/.subwiki', "subwiki\n", LOCK_EX);
+        }
+        if (is_dir($baseDir . '/lib')) {
+            Config::copyDir($baseDir . '/lib', $targetDir . '/lib');
+        }
+        if (is_dir($baseDir . '/assets')) {
+            Config::copyDir($baseDir . '/assets', $targetDir . '/assets');
+        }
+        if (is_dir($baseDir . '/api')) {
+            Config::copyDir($baseDir . '/api', $targetDir . '/api');
+        }
+        if (is_dir($baseDir . '/templates')) {
+            Config::copyDir($baseDir . '/templates', $targetDir . '/templates');
+        }
+
+        // 6. Register/update in parent subwikis list
+        $parentConfig = Config::load();
+        $subwikis = $parentConfig['subwikis'] ?? [];
+        $found = false;
+        foreach ($subwikis as &$sub) {
+            if (($sub['slug'] ?? '') === $slug) {
+                $sub['isDocSubwiki'] = true;
+                $found = true;
+                break;
+            }
+        }
+        unset($sub);
+        if (!$found) {
+            $subwikis[] = [
+                'slug' => $slug,
+                'title' => $childConfig['title'],
+                'createdAt' => date('Y-m-d H:i:s'),
+                'isDocSubwiki' => true
+            ];
+        }
+        $parentConfig['subwikis'] = $subwikis;
+        Config::save($parentConfig);
+
+        return [
+            'success' => true,
+            'slug' => $slug,
+            'mode' => $actualMode,
+            'url' => '/' . $slug . '/',
+            'message' => "Documentation subwiki '/{$slug}/' successfully synchronized (mode: {$actualMode})."
+        ];
+    }
+
+    /**
+     * Recursively delete a directory.
+     */
+    private static function recursiveDelete(string $dir) {
+        if (!is_dir($dir)) return;
+        $items = scandir($dir);
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $dir . '/' . $item;
+            if (is_dir($path)) {
+                self::recursiveDelete($path);
+            } else {
+                @unlink($path);
+            }
+        }
+        @rmdir($dir);
+    }
+}

@@ -36,8 +36,8 @@ $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 // Helper for tree category updates
 // Helper for tree category updates (delegates to Navigation::updateNodeMeta)
 if (!function_exists('update_node_meta')) {
-    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null) {
-        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription);
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null) {
+        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments);
     }
 }
 
@@ -416,6 +416,7 @@ switch ($action) {
         $description = trim($_POST['description'] ?? '');
         $rawId = trim($_POST['id'] ?? '');
         $parentId = trim($_POST['parentId'] ?? '');
+        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
         $isExplicitCustom = isset($_POST['isCustomSlug']) ? ($_POST['isCustomSlug'] === '1' || $_POST['isCustomSlug'] === 'true') : !empty($rawId);
 
         if (empty($title)) {
@@ -484,6 +485,9 @@ switch ($action) {
                 'folder' => $targetRelFolder,
                 'items' => []
             ];
+            if ($allowComments) {
+                $newNode['allowComments'] = true;
+            }
             if ($description !== '') {
                 $newNode['description'] = $description;
             }
@@ -511,6 +515,9 @@ switch ($action) {
                 'folder' => $targetRelFolder,
                 'items' => []
             ];
+            if ($allowComments) {
+                $newBook['allowComments'] = true;
+            }
             if ($description !== '') {
                 $newBook['description'] = $description;
             }
@@ -545,6 +552,7 @@ switch ($action) {
         }
 
         $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
+        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
 
         // In demo mode, prevent unlocking directly protected demo categories
         if (Config::isDemoMode() && Config::isCategoryDirectlyProtected($bookId, $config['books'] ?? []) && $readOnly === false) {
@@ -554,7 +562,7 @@ switch ($action) {
 
         $updated = false;
         foreach ($config['books'] as &$book) {
-            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description)) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description, $allowComments)) {
                 $updated = true;
                 break;
             }
@@ -650,6 +658,14 @@ switch ($action) {
             'type' => 'markdown',
             'file' => $targetRelFile
         ];
+        if (isset($_POST['allowComments'])) {
+            $commentsVal = strtolower(trim((string)$_POST['allowComments']));
+            if ($commentsVal === 'enabled' || $commentsVal === '1' || $commentsVal === 'true') {
+                $chapterData['allowComments'] = true;
+            } elseif ($commentsVal === 'disabled' || $commentsVal === '0' || $commentsVal === 'false') {
+                $chapterData['allowComments'] = false;
+            }
+        }
         $added = false;
         foreach ($config['books'] as &$book) {
             if (insert_chapter_into_node($book, $bookId, $chapterData)) {
@@ -753,6 +769,17 @@ switch ($action) {
             $foundChapter['url'] = $url;
             $foundChapter['editUrl'] = $editUrl;
             $foundChapter['publicShareable'] = $publicShareable;
+
+            if (isset($_POST['allowComments'])) {
+                $commentsVal = strtolower(trim((string)$_POST['allowComments']));
+                if ($commentsVal === 'enabled' || $commentsVal === '1' || $commentsVal === 'true') {
+                    $foundChapter['allowComments'] = true;
+                } elseif ($commentsVal === 'disabled' || $commentsVal === '0' || $commentsVal === 'false') {
+                    $foundChapter['allowComments'] = false;
+                } else {
+                    unset($foundChapter['allowComments']);
+                }
+            }
 
             if ($readOnly !== null) {
                 if ($readOnly) {
@@ -2183,12 +2210,23 @@ switch ($action) {
             // 1. Cascade updates to all child subwikis
             $cascadeResult = SubwikiManager::cascadeUpdates($baseDir);
 
-            // 2. Run migration routine for legacy subwikis or deep folders
+            // 2. Auto-sync subwikis explicitly designated as documentation mirrors
+            $docSubwikisUpdated = 0;
+            $subwikisList = SubwikiManager::listSubwikis();
+            foreach ($subwikisList as $sw) {
+                if (!empty($sw['isDocSubwiki'])) {
+                    SubwikiManager::syncDocumentation($sw['slug'], 'auto');
+                    $docSubwikisUpdated++;
+                }
+            }
+
+            // 3. Run migration routine for legacy subwikis or deep folders
             $migrationResult = SubwikiManager::runMigration();
 
             echo json_encode([
                 'success' => true,
                 'subwikisUpdated' => $cascadeResult['updatedCount'] ?? 0,
+                'docsSubwikisUpdated' => $docSubwikisUpdated,
                 'migration' => $migrationResult['migrated'] ?? []
             ]);
         } else {
@@ -2286,7 +2324,15 @@ switch ($action) {
         $adminUser = trim($_POST['adminUser'] ?? 'admin');
         $adminPass = trim($_POST['adminPass'] ?? '');
         $includeDemo = !empty($_POST['includeDemo']);
-        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo);
+        $isDocMirror = !empty($_POST['isDocMirror']);
+
+        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo && !$isDocMirror);
+        if ($res['success'] && $isDocMirror) {
+            $syncRes = SubwikiManager::syncDocumentation($slug, 'auto', true);
+            if ($syncRes['success']) {
+                $res['message'] = "Subwiki '{$slug}' deployed and linked as Qwiki Documentation mirror.";
+            }
+        }
         echo json_encode($res);
         break;
 
@@ -2295,6 +2341,15 @@ switch ($action) {
         $slug = trim($_POST['slug'] ?? '');
         $deleteFiles = !empty($_POST['deleteFiles']);
         $res = SubwikiManager::deleteSubwiki($slug, $deleteFiles);
+        echo json_encode($res);
+        break;
+
+    case 'sync_subwiki_docs':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = Config::makeSlug($_POST['slug'] ?? $_GET['slug'] ?? 'docs');
+        $mode = $_POST['mode'] ?? $_GET['mode'] ?? 'auto';
+        $force = !empty($_POST['force']) || !empty($_GET['force']);
+        $res = SubwikiManager::syncDocumentation($slug, $mode, $force);
         echo json_encode($res);
         break;
 

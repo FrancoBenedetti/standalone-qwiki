@@ -1,0 +1,40 @@
+{
+  "id": "form",
+  "type": "page_type",
+  "title": "Interactive Form",
+  "icon": "📝",
+  "badge": {
+    "label": "FORM",
+    "class": "badge-form",
+    "svg": "<svg class=\"doc-badge-svg\" viewBox=\"0 0 24 24\" width=\"13\" height=\"13\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2z\"/></svg>"
+  },
+  "file_extensions": [".form.json"],
+  "renderer": "renderer.php",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "search_extractor": "search_extractor.php",
+  "actions": [
+    "create_form",
+    "ext_form_create",
+    "save_form_schema",
+    "ext_form_save_schema",
+    "get_form_schema",
+    "ext_form_get_schema",
+    "submit_form",
+    "ext_form_submit",
+    "get_form_submissions",
+    "ext_form_get_submissions",
+    "delete_form_submission",
+    "ext_form_delete_submission",
+    "clear_form_submissions",
+    "ext_form_clear_submissions",
+    "export_form_csv",
+    "ext_form_export_csv"
+  ],
+  "styles": [
+    "style.css"
+  ],
+  "scripts": [
+    "script.js"
+  ]
+}

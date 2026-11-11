@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.12] - CollabFlow - 2026-11-11
+
+### 💬 Chapter & Category Comments Extension
+- **Zero-Database Discussion Engine (`assets/extensions/tool-comments/`)**: Built-in utility extension (`tool-comments`) enabling signed-in users (`viewer` and `admin`) to participate in chapter discussions. Stores threads as atomic JSON flat files in `data/comments/`, protected by `.htaccess` against direct web access.
+- **Cascading Comment Enablement Hierarchy (`lib/Core/Navigation.php` & `api/admin.php`)**: Commenting can be enabled globally in `qwiki.json`, at the category level via Category Settings (`allowComments: true`), or overridden per chapter (`Inherit from category`, `Enabled`, `Disabled`).
+- **1-Level Threaded Discussions**: Supports root chapter comments and single-level indented replies, preventing deep nested indentation while enabling clear, structured discussion.
+- **Restricted Markdown & XSS Protection (`assets/extensions/tool-comments/CommentService.php`)**: Parses GitHub-Flavored Markdown (bold, italic, code, blockquotes, lists, links) with real-time preview, while strictly stripping `<script>`, `<iframe>`, inline event handlers, and `javascript:` URIs.
+- **Reactive UI & View/Hide Preferences (`assets/extensions/tool-comments/script.js` & `style.css`)**: Injects a theme-styled, accessible comments section below `#content-body`. Users can hide/show comments with single-click toggle and persistence via `localStorage`.
+- **Author Identity, Timestamps & Moderation**: Cards display avatar initials, commenter usernames, role badges (`Admin` / `Viewer`), relative time calculation with full ISO hover tooltips, inline author editing with `(edited)` indicators, and soft-delete tombstones when parent comments have replies.
+- **LLM Token Discussion Retrieval (`api/llm.php` & `lib/Core/LlmAccess.php`)**: Added dedicated `mode=comments` and `mode=doc&include_comments=1` endpoints allowing AI agents and LLMs to retrieve discussions via LLM Access Tokens in JSON or formatted Markdown transcripts (`format=markdown`). Extension action `ext_comments_get` also validates Bearer tokens while strictly disallowing mutation actions (`403 Forbidden`).
+- **Audit Logging Integration**: Actions (`comment_add`, `comment_edit`, `comment_delete`) are logged to `AuditLogger` with actor identity and document slug.
+- **Automated Test Suite (`tests/comments_test.php`)**: Comprehensive test suite with 66 assertions covering directory security, inheritance cascading, restricted markdown parsing, threading, edit authorization, tombstoning, ExtensionManager routing, and LLM token retrieval.
+
+### 🌐 Subwiki Documentation Mirroring & Data Loss Protection
+- **Decoupled System Docs Mirroring (`lib/Core/SubwikiManager.php`)**: Decoupled documentation synchronization from the folder slug `docs`. Any subwiki can now be designated as an official Qwiki Documentation Mirror via an explicit `isDocSubwiki: true` flag, while regular subwikis named `docs` for company-internal documentation remain completely independent and protected.
+- **Anti-Overwrite Protection Guard**: If a subwiki directory already contains user-authored documentation and has not been explicitly marked as a system docs mirror, synchronization is immediately blocked (`requiresForce = true`) to prevent accidental overwriting of custom user content. Overwrite requires explicit confirmation (`force=1` or `--force`).
+- **Safe Auto-Updater Integration (`api/admin.php`)**: During one-click system updates (`install_update`), Qwiki automatically re-synchronizes documentation subwikis **only** if they are explicitly flagged with `isDocSubwiki: true`. User-created subwikis (including any custom `/docs/` folders) are skipped and kept intact.
+- **Terminal-Free Web Synchronization (`sync-docs.php`)**: Added a web-accessible utility script at the site root allowing administrators on shared hosting without SSH access (e.g., Xneelo Volume plans) to synchronize documentation via a single browser click or scheduled konsoleH cron jobs using `feedAccessToken`.
+- **UI Subwiki Alignment (`templates/modals/subwikis.php` & `assets/js/app.js`)**: Added a dedicated option in the "Deploy New Subwiki" modal to designate whether a new subwiki mirrors official Qwiki documentation. Standard subwikis do not render documentation sync triggers, preventing accidental clicks on internal company documentation.
+- **Automated Test Suite (`tests/sync_docs_test.php`)**: Added end-to-end tests covering documentation synchronization, symlink-to-copy fallback, token authorization, API dispatch, and anti-overwrite protection of custom user documentation.
+
+---
+
 ## [1.20.11] - FormulaFlow - 2026-11-10
 
 ### 📐 LaTeX Math Protection & Editor Integrity

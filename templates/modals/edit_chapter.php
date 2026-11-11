@@ -76,6 +76,14 @@
                     <span>Allow Public Sharing (open in full screen)</span>
                 </label>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-chapter-allow-comments">Comments Policy</label>
+                <select name="allowComments" id="edit-chapter-allow-comments" class="form-control">
+                    <option value="inherit">Inherit from category</option>
+                    <option value="enabled">Enabled (Allow comments)</option>
+                    <option value="disabled">Disabled (Disallow comments)</option>
+                </select>
+            </div>
             <div class="form-group" id="group-edit-share-key" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label class="form-label" style="margin: 0;">Unique Share Key</label>

@@ -1,0 +1,347 @@
+/**
+ * Standalone Qwiki - Activity & Access Log Extension Styles
+ */
+
+/* Modal Display */
+#modal-activity-log.open,
+#modal-activity-log.active {
+    display: flex !important;
+}
+
+/* Modal Card Sizing */
+.activity-modal-card {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Mode Navigation Tabs */
+.activity-mode-nav {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    margin: 1rem 0 1.25rem 0;
+    padding-bottom: 0.5rem;
+}
+
+.activity-nav-tab {
+    background: transparent;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+}
+
+.activity-nav-tab:hover {
+    color: var(--text-primary);
+    background: rgba(125, 125, 125, 0.1);
+}
+
+.activity-nav-tab.active {
+    color: #fff;
+    background: var(--accent-color, #2563eb);
+}
+
+/* Status Banner */
+.activity-status-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(37, 99, 235, 0.1);
+    border: 1px solid rgba(37, 99, 235, 0.3);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.activity-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(37, 99, 235, 0.3);
+    border-top-color: var(--accent-color, #2563eb);
+    border-radius: 50%;
+    animation: act-spin 0.8s linear infinite;
+}
+
+@keyframes act-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Metrics Summary Grid */
+.activity-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.act-metric-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.act-metric-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.act-metric-info {
+    overflow: hidden;
+    min-width: 0;
+}
+
+.act-metric-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+.act-metric-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.act-metric-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+
+.act-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Filter Controls Bar */
+.act-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.act-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.act-search-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.act-action-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Log Table Wrap */
+.act-table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    min-height: 250px;
+    max-height: 480px;
+}
+
+.act-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    text-align: left;
+}
+
+.act-table th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border-color);
+    z-index: 10;
+}
+
+.act-table td {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.act-table tr:hover td {
+    background: rgba(125, 125, 125, 0.05);
+}
+
+/* Event Category Badges */
+.act-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.act-badge-share {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.act-badge-auth {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.act-badge-content {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.act-badge-system {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Status Pills */
+.act-status-pill {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.act-status-200 {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.act-status-401 {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.act-status-403 {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.act-status-404 {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+/* Actor and IP Pills */
+.act-actor-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.act-actor-user {
+    font-weight: 600;
+}
+
+.act-actor-ip {
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Details Expander & JSON Drawer */
+.act-details-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.act-details-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+}
+
+.act-details-row td {
+    background: var(--bg-secondary);
+    padding: 0.75rem 1rem;
+}
+
+.act-details-pre {
+    margin: 0;
+    padding: 0.6rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+/* Pagination Bar */
+.act-pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.85rem;
+    padding-top: 0.5rem;
+}
+
+.act-pagination-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.act-pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* Tab Views Switcher */
+.activity-tab-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}

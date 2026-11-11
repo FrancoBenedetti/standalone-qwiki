@@ -1,0 +1,23 @@
+{
+  "id": "html",
+  "type": "page_type",
+  "title": "HTML Document",
+  "icon": "🌐",
+  "badge": {
+    "label": "HTML",
+    "class": "badge-html"
+  },
+  "file_extensions": [".html", ".htm"],
+  "renderer": "renderer.php",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": ["create_html", "ext_html_create", "save_html", "ext_html_save", "get_html", "ext_html_get"],
+  "styles": [
+    "https://cdn.jsdelivr.net/npm/suneditor@2.46.3/dist/css/suneditor.min.css",
+    "style.css"
+  ],
+  "scripts": [
+    "https://cdn.jsdelivr.net/npm/suneditor@2.46.3/dist/suneditor.min.js",
+    "script.js"
+  ]
+}

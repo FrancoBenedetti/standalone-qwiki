@@ -308,3 +308,17 @@ Standalone Qwiki natively parses and presents YAML frontmatter in Markdown docum
 - **Clean SEO & OpenGraph Descriptions**: Strips frontmatter headers when deriving article meta descriptions from body text, preventing YAML syntax leakage into search engine snippets and social share cards.
 - **Flexible Display Configuration**: Configure display behavior globally in `qwiki.json` via the `"frontmatter"` setting (`"collapse"` for collapsed accordion, `"expand"` for pre-expanded, or `"hidden"` for completely suppressed widget).
 - **Editor & Federation Safe**: WYSIWYG editing preserves frontmatter blocks across tab switches, and remote document transclusion sanitizes frontmatter headers to maintain clean rendering.
+
+---
+
+## 💬 24. Document & Category Discussion Comments
+
+Standalone Qwiki includes a privacy-respecting, zero-database discussion engine allowing signed-in users (viewers and administrators) to collaborate, review, and comment on documentation:
+
+- **Cascading Category & Chapter Policies**: Enable comments globally, for an entire category, or configure individual chapter overrides (`Inherit from category`, `Enabled`, `Disabled`) directly in category and document metadata settings.
+- **1-Level Threaded Discussions**: Supports root chapter comments and direct single-level replies to facilitate focused documentation reviews without recursive indentation clutter.
+- **Restricted Markdown Formatting**: Authors can format comments using safe GitHub-Flavored Markdown (bold, italics, inline code, code blocks, blockquotes, lists, and links) with real-time composer preview and strict XSS sanitization.
+- **Zero-Database JSON Storage**: Comments are stored in isolated, `.htaccess`-protected flat files under `data/comments/` using atomic file locking (`flock`) to eliminate database dependencies.
+- **Client-Side Hide/Show Toggle**: Readers can toggle the comments section with a single click, with preference persistence stored across browser sessions in `localStorage`.
+- **Identity, Timestamps & Moderation**: Cards display commenter avatar initials, username, role badges (`Admin` / `Viewer`), relative timestamps with ISO date tooltips, and inline author editing or administrative moderation. Soft-deletion ("tombstoning") preserves reply threads when parent comments are removed.
+- **LLM & AI Agent Token Retrieval**: Autonomous AI agents and LLMs can retrieve chapter discussions using scoped LLM access tokens via `api/llm.php?mode=comments&slug=<slug>` (available in structured JSON or clean Markdown transcripts) or embedded into document payloads with `mode=doc&include_comments=1`. Direct action calls to `ext_comments_get` also validate Bearer tokens, with strict read-only enforcement preventing token-based comment mutation.
