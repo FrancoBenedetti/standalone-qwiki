@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.20.12] - CollabFlow - 2026-11-11
 
 ### 💬 Chapter & Category Comments Extension
 - **Zero-Database Discussion Engine (`assets/extensions/tool-comments/`)**: Built-in utility extension (`tool-comments`) enabling signed-in users (`viewer` and `admin`) to participate in chapter discussions. Stores threads as atomic JSON flat files in `data/comments/`, protected by `.htaccess` against direct web access.
