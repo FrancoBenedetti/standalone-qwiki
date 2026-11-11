@@ -106,6 +106,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (shareableCheckbox) {
               shareableCheckbox.checked = btnMeta.getAttribute('data-public-shareable') !== '0';
             }
+            const allowCommentsSelect = document.getElementById('edit-chapter-allow-comments');
+            if (allowCommentsSelect) {
+              allowCommentsSelect.value = btnMeta.getAttribute('data-allow-comments') || 'inherit';
+            }
             const shareKeyInput = document.getElementById('edit-chapter-share-key');
             if (shareKeyInput) {
               shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
@@ -725,20 +729,65 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      tbody.innerHTML = subwikis.map(sub => `
+      const docSub = subwikis.find(s => Boolean(s.isDocSubwiki));
+      const shortcutBtn = document.getElementById('btn-sync-docs-shortcut');
+      if (shortcutBtn) {
+        if (docSub) {
+          shortcutBtn.innerHTML = `🔄 Sync /${escapeHtml(docSub.slug)}/ Docs`;
+          shortcutBtn.setAttribute('data-slug', docSub.slug);
+        } else {
+          shortcutBtn.innerHTML = '📚 Deploy Qwiki Docs Mirror';
+          shortcutBtn.removeAttribute('data-slug');
+        }
+      }
+
+      tbody.innerHTML = subwikis.map(sub => {
+        const isDoc = Boolean(sub.isDocSubwiki);
+        return `
         <tr style="border-bottom: 1px solid var(--border-color);">
           <td style="padding: 0.6rem 0.75rem;">
-            <strong>${escapeHtml(sub.title || sub.slug)}</strong><br>
+            <strong>${escapeHtml(sub.title || sub.slug)}</strong>
+            ${isDoc ? '<span style="display:inline-block; font-size: 0.7rem; background: rgba(37,99,235,0.12); color: var(--accent-color, #2563eb); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; font-weight: 500;">Qwiki Docs Mirror</span>' : ''}
+            <br>
             <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
           </td>
           <td style="padding: 0.6rem 0.75rem;">
             <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--accent-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
           </td>
-          <td style="padding: 0.6rem 0.75rem; text-align: right;">
+          <td style="padding: 0.6rem 0.75rem; text-align: right; white-space: nowrap;">
+            ${isDoc ? `<button class="btn btn-outline btn-sm btn-sync-subwiki-docs" data-slug="${escapeHtml(sub.slug)}" title="Synchronize documentation content with latest releases" style="margin-right: 0.35rem; font-size: 0.8rem; padding: 0.2rem 0.5rem;">🔄 Sync Docs</button>` : ''}
             <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
+
+      tbody.querySelectorAll('.btn-sync-subwiki-docs').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const slug = btn.getAttribute('data-slug');
+          btn.disabled = true;
+          const origText = btn.innerHTML;
+          btn.innerHTML = '⏳ Syncing...';
+          try {
+            const formData = new FormData();
+            formData.append('action', 'sync_subwiki_docs');
+            formData.append('slug', slug);
+
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+              alert(`✓ ${data.message || 'Documentation synchronized successfully!'}`);
+              loadSubwikisList();
+            } else {
+              alert('Failed to synchronize documentation: ' + (data.error || 'Unknown error'));
+            }
+          } catch (err) {
+            alert('Request failed while syncing documentation.');
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+          }
+        });
+      });
 
       tbody.querySelectorAll('.btn-delete-subwiki').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -832,6 +881,68 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         submitBtn.disabled = false;
         if (loadingEl) loadingEl.style.display = 'none';
+      }
+    });
+  }
+
+  // Quick Deploy / Sync Qwiki Docs Mirror Shortcut Button
+  const btnSyncDocsShortcut = document.getElementById('btn-sync-docs-shortcut');
+  if (btnSyncDocsShortcut) {
+    btnSyncDocsShortcut.addEventListener('click', async () => {
+      const targetSlug = btnSyncDocsShortcut.getAttribute('data-slug') || 'docs';
+      const isNew = !btnSyncDocsShortcut.getAttribute('data-slug');
+      const promptMsg = isNew
+        ? `Deploy a new subwiki '/${targetSlug}/' mirroring official Qwiki documentation?\n\nThis will link canonical Qwiki guides and automatically keep them updated on new releases.`
+        : `Synchronize the '/${targetSlug}/' documentation mirror with the latest Qwiki release?`;
+
+      if (!confirm(promptMsg)) {
+        return;
+      }
+      btnSyncDocsShortcut.disabled = true;
+      const origText = btnSyncDocsShortcut.innerHTML;
+      btnSyncDocsShortcut.innerHTML = `⏳ Syncing /${targetSlug}/...`;
+      try {
+        const formData = new FormData();
+        formData.append('action', 'sync_subwiki_docs');
+        formData.append('slug', targetSlug);
+        const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✓ ${data.message || 'Documentation mirror synchronized successfully!'}\n\nAccess it at: ${data.url || '/' + targetSlug + '/'}`);
+          loadSubwikisList();
+        } else {
+          alert('Failed to synchronize documentation: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Request failed while syncing documentation.');
+      } finally {
+        btnSyncDocsShortcut.disabled = false;
+        btnSyncDocsShortcut.innerHTML = origText;
+      }
+    });
+  }
+
+  // Auto-fill and toggle behavior when "Mirror Official Qwiki Documentation" is checked
+  const isDocMirrorCheckbox = document.getElementById('new-subwiki-is-doc-mirror');
+  const includeDemoGroup = document.getElementById('group-include-demo');
+  const newSubwikiTitleInput = document.getElementById('new-subwiki-title');
+  if (isDocMirrorCheckbox) {
+    isDocMirrorCheckbox.addEventListener('change', () => {
+      if (isDocMirrorCheckbox.checked) {
+        if (newSubwikiTitleInput && !newSubwikiTitleInput.value.trim()) {
+          newSubwikiTitleInput.value = 'Qwiki Documentation';
+        }
+        if (newSubwikiSlugInput && !newSubwikiSlugInput.value.trim()) {
+          newSubwikiSlugInput.value = 'docs';
+          newSubwikiSlugInput.dispatchEvent(new Event('input'));
+        }
+        if (includeDemoGroup) {
+          includeDemoGroup.style.display = 'none';
+        }
+      } else {
+        if (includeDemoGroup) {
+          includeDemoGroup.style.display = 'block';
+        }
       }
     });
   }
@@ -1035,6 +1146,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const separator = baseUrl.includes('?') ? '&' : '?';
             editBookRssUrlInput.value = baseUrl + separator + 'category=' + encodeURIComponent(categoryVal);
           }
+        }
+
+        const editBookAllowCommentsInput = document.getElementById('edit-book-allow-comments-input');
+        if (editBookAllowCommentsInput) {
+          const bookAllowComments = btn.getAttribute('data-book-allow-comments');
+          editBookAllowCommentsInput.checked = (bookAllowComments !== '0');
         }
 
         editBookModal.classList.add('open');

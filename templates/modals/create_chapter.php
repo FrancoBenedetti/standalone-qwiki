@@ -36,6 +36,14 @@
                 <input type="file" id="md-file-upload-input" accept=".md" style="display: none;">
                 <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="create-chapter-allow-comments">Comments Policy</label>
+                <select name="allowComments" id="create-chapter-allow-comments" class="form-control">
+                    <option value="inherit">Inherit from category</option>
+                    <option value="enabled">Enabled (Allow comments)</option>
+                    <option value="disabled">Disabled (Disallow comments)</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>
         </form>
 

@@ -1,0 +1,741 @@
+/**
+ * HTML Page Extension Client Script with SunEditor Integration
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    // Hide the outer generic print icon ONLY when viewing an HTML document (since the HTML viewer toolbar has its own Print/Save button)
+    const htmlFrame = document.getElementById('current-html-frame');
+    if (htmlFrame) {
+        document.querySelectorAll('#btn-print-chapter').forEach(btn => {
+            btn.style.display = 'none';
+        });
+    }
+
+    let createEditor = null;
+    let editEditor = null;
+
+    /**
+     * Safely retrieves editor content whether SunEditor is in WYSIWYG mode
+     * or raw Code View mode (which SunEditor does not automatically sync into getContents()).
+     */
+    function getEditorContent(editor) {
+        if (!editor) return '';
+        const isCodeView = !!(editor.core && editor.core._variable && editor.core._variable.isCodeView);
+        if (isCodeView) {
+            let codeVal = '';
+            if (typeof editor.core._getCodeView === 'function') {
+                codeVal = editor.core._getCodeView();
+            } else {
+                const ctx = typeof editor.getContext === 'function' ? editor.getContext() : (editor.core ? editor.core.context : null);
+                if (ctx && ctx.element && ctx.element.code) {
+                    codeVal = ctx.element.code.value;
+                }
+            }
+            // Synchronize code view content back into the WYSIWYG editor DOM
+            if (typeof editor.core._setCodeDataToEditor === 'function') {
+                editor.core._setCodeDataToEditor();
+            }
+            return (codeVal !== undefined && codeVal !== null) ? codeVal : editor.getContents();
+        }
+        return editor.getContents();
+    }
+
+    function getSunEditorOptions(height) {
+        return {
+            buttonList: [
+                ['undo', 'redo'],
+                ['formatBlock', 'fontSize'],
+                ['bold', 'underline', 'italic', 'strike'],
+                ['fontColor', 'hiliteColor'],
+                ['align', 'list', 'table'],
+                ['link', 'image'],
+                ['fullScreen', 'showBlocks', 'codeView'],
+                ['preview']
+            ],
+            width: '100%',
+            height: height || '320px',
+            placeholder: 'Write or design HTML content here...',
+            attributesWhitelist: { all: '*' },
+            callBackSave: function() {
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
+        };
+    }
+
+    function initCreateEditor() {
+        const textarea = document.getElementById('html-content-textarea');
+        const toggle = document.getElementById('create-use-visual-editor');
+        if (!textarea) return;
+
+        // CDN fallback: if SunEditor failed to load, show raw textarea
+        if (typeof window.SUNEDITOR === 'undefined') {
+            textarea.style.display = 'block';
+            if (toggle) { toggle.disabled = true; toggle.checked = false; }
+            return;
+        }
+
+        if (toggle && !toggle.checked) {
+            if (createEditor) {
+                textarea.value = getEditorContent(createEditor);
+                createEditor.destroy();
+                createEditor = null;
+                window.createEditor = null;
+            }
+            textarea.style.display = 'block';
+            return;
+        }
+
+        if (createEditor) return;
+        textarea.style.display = 'none';
+        createEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('280px'));
+        window.createEditor = createEditor;
+    }
+
+    function initEditEditor() {
+        const textarea = document.getElementById('edit-html-textarea');
+        const toggle = document.getElementById('edit-use-visual-editor');
+        if (!textarea) return;
+
+        // CDN fallback: if SunEditor failed to load, show raw textarea
+        if (typeof window.SUNEDITOR === 'undefined') {
+            textarea.style.display = 'block';
+            if (toggle) { toggle.disabled = true; toggle.checked = false; }
+            return;
+        }
+
+        if (toggle && !toggle.checked) {
+            if (editEditor) {
+                textarea.value = getEditorContent(editEditor);
+                editEditor.destroy();
+                editEditor = null;
+                window.editEditor = null;
+            }
+            textarea.style.display = 'block';
+            return;
+        }
+
+        if (editEditor) return;
+        textarea.style.display = 'none';
+        editEditor = window.SUNEDITOR.create(textarea, getSunEditorOptions('400px'));
+        window.editEditor = editEditor;
+    }
+
+    // Toggle Listeners
+    const createToggle = document.getElementById('create-use-visual-editor');
+    if (createToggle) createToggle.addEventListener('change', initCreateEditor);
+
+    const editToggle = document.getElementById('edit-use-visual-editor');
+    if (editToggle) editToggle.addEventListener('change', initEditEditor);
+
+    // Lazy load SunEditor when Add Document modal opens
+    const chapterModal = document.getElementById('chapter-modal');
+    if (chapterModal) {
+        const observer = new MutationObserver(() => {
+            if (chapterModal.classList.contains('open') || chapterModal.style.display !== 'none') {
+                setTimeout(initCreateEditor, 100);
+            }
+        });
+        observer.observe(chapterModal, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+
+    // Tab switch listener to refresh SunEditor layout
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.getAttribute('data-tab') === 'tab-ext-html') {
+                setTimeout(() => {
+                    initCreateEditor();
+                }, 50);
+            }
+        });
+    });
+
+    // File upload reader helper
+    const uploadLink = document.getElementById('upload-html-link');
+    const uploadInput = document.getElementById('html-file-upload-input');
+    const form = document.getElementById('tab-ext-html');
+
+    if (uploadLink && uploadInput) {
+        uploadLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            uploadInput.click();
+        });
+
+        uploadInput.addEventListener('change', () => {
+            const file = uploadInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    
+                    const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(content);
+                    const toggle = document.getElementById('create-use-visual-editor');
+                    if (hasScriptsOrStyles && toggle) {
+                        toggle.checked = false;
+                        alert('This HTML file contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
+                    }
+                    
+                    initCreateEditor();
+                    
+                    const textarea = document.getElementById('html-content-textarea');
+                    if (textarea) textarea.value = content;
+                    
+                    if (createEditor && toggle && toggle.checked) {
+                        createEditor.setContents(content);
+                    }
+                    
+                    const titleInput = form?.querySelector('input[name="title"]');
+                    if (titleInput && !titleInput.value.trim()) {
+                        const titleMatch = content.match(/<title[^>]*>(.*?)<\/title>/i);
+                        if (titleMatch && titleMatch[1].trim()) {
+                            titleInput.value = titleMatch[1].trim();
+                        } else {
+                            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+                            titleInput.value = nameWithoutExt.replace(/[-_]/g, ' ');
+                        }
+                    }
+
+                    const descInput = form?.querySelector('textarea[name="description"]');
+                    if (descInput && !descInput.value.trim()) {
+                        const descMatch = content.match(/<meta\s+[^>]*(?:name=["']description["']|property=["']og:description["'])[^>]*content=["']([^"']+)["']/i) ||
+                                          content.match(/<meta\s+[^>]*content=["']([^"']+)["'][^>]*(?:name=["']description["']|property=["']og:description["'])/i);
+                        if (descMatch && descMatch[1].trim()) {
+                            descInput.value = descMatch[1].trim();
+                        }
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+    }
+
+    // Create Document Form Submission
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            formData.append('action', 'create_html');
+
+            let contentStr = '';
+            const createToggle = document.getElementById('create-use-visual-editor');
+            if (createEditor && createToggle && createToggle.checked) {
+                contentStr = getEditorContent(createEditor);
+            } else {
+                const textarea = document.getElementById('html-content-textarea');
+                contentStr = textarea ? textarea.value : (formData.get('content') || '');
+            }
+
+            // Encode content fields as base64 to bypass Apache ModSecurity / WAF
+            formData.delete('content');
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Creating...';
+            }
+
+            fetch('api/admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(async res => {
+                const text = await res.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    if (!res.ok) {
+                        throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+                    }
+                    throw new Error('Invalid response from server');
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    const base = document.querySelector('base')?.href || '/';
+                    window.location.href = base + `${encodeURIComponent(data.bookId)}/${encodeURIComponent(data.slug)}`;
+                } else {
+                    alert('Error creating HTML document: ' + (data.error || 'Unknown error'));
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Create HTML Document';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Request failed: ' + (err.message || 'Please try again.'));
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Create HTML Document';
+                }
+            });
+        });
+    }
+
+    // Edit Existing HTML Document
+    const editBtn = document.getElementById('btn-edit-html-doc');
+    const editModal = document.getElementById('edit-html-modal');
+    const editForm = document.getElementById('edit-html-form');
+
+    function openEditModal(file, title) {
+        const titleSpan = document.getElementById('edit-html-modal-title');
+        if (titleSpan) titleSpan.textContent = title;
+
+        const fileInput = document.getElementById('edit-html-file');
+        if (fileInput) fileInput.value = file;
+
+        editModal.classList.add('open');
+        initEditEditor();
+
+        // Fetch latest content from disk
+        const formData = new FormData();
+        formData.append('action', 'get_html');
+        formData.append('file', file);
+
+        fetch('api/admin.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.content) {
+                const hasScriptsOrStyles = /<(script|style|link)[\s>]/i.test(data.content);
+                const toggle = document.getElementById('edit-use-visual-editor');
+                
+                if (hasScriptsOrStyles && toggle) {
+                    toggle.checked = false;
+                    alert('This HTML document contains scripts, styles, or links. The Visual Editor has been disabled automatically to prevent these tags from being stripped.');
+                }
+                
+                initEditEditor();
+                
+                const textarea = document.getElementById('edit-html-textarea');
+                if (textarea) textarea.value = data.content;
+                
+                if (editEditor && toggle && toggle.checked) {
+                    editEditor.setContents(data.content);
+                }
+            }
+        })
+        .catch(err => console.error('Failed to load HTML content:', err));
+    }
+
+    if (editBtn && editModal) {
+        editBtn.addEventListener('click', async () => {
+            const file = editBtn.getAttribute('data-file');
+            const title = editBtn.getAttribute('data-title');
+
+            if (window.SoftLock && file) {
+                const lockRes = await window.SoftLock.acquire(file, false);
+                if (!lockRes.success) {
+                    window.SoftLock.promptLockConflict(lockRes, async () => {
+                        await window.SoftLock.acquire(file, true);
+                        openEditModal(file, title);
+                    }, () => {});
+                    return;
+                }
+            }
+            openEditModal(file, title);
+        });
+    }
+
+    // Close Edit Modal on cancel / close buttons
+    document.querySelectorAll('[data-close="edit-html-modal"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            editModal?.classList.remove('open');
+            const fileInput = document.getElementById('edit-html-file');
+            const file = fileInput ? fileInput.value : '';
+            if (window.SoftLock && file) {
+                window.SoftLock.release(file);
+            }
+        });
+    });
+
+    // Save Edited HTML Document
+    if (editForm) {
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(editForm);
+            formData.append('action', 'save_html');
+            if (window.SoftLock) {
+                formData.append('tab_id', window.SoftLock.getTabId());
+            }
+
+            let contentStr = '';
+            const editToggle = document.getElementById('edit-use-visual-editor');
+            if (editEditor && editToggle && editToggle.checked) {
+                contentStr = getEditorContent(editEditor);
+            } else {
+                const textarea = document.getElementById('edit-html-textarea');
+                contentStr = textarea ? textarea.value : (formData.get('content') || '');
+            }
+
+            // Encode content fields as base64 to bypass Apache ModSecurity / WAF
+            formData.delete('content');
+            try {
+                formData.append('content_base64', btoa(unescape(encodeURIComponent(contentStr))));
+            } catch (err) {
+                formData.append('content', contentStr);
+            }
+
+            const saveBtn = document.getElementById('btn-save-html-doc');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+            }
+
+            fetch('api/admin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(async res => {
+                const text = await res.text();
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    if (!res.ok) {
+                        throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+                    }
+                    throw new Error('Invalid response from server');
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    editModal.classList.remove('open');
+                    const iframe = document.getElementById('current-html-frame');
+                    if (iframe) {
+                        const baseSrc = iframe.src.split('?')[0];
+                        iframe.src = baseSrc + '?t=' + Date.now();
+                    }
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '💾 Save Changes';
+                    }
+                } else {
+                    if (data.code === 'LOCKED_BY_OTHER') {
+                        alert('Save Blocked: ' + (data.error || 'The document lock belongs to another session.'));
+                    } else {
+                        alert('Failed to save HTML document: ' + (data.error || 'Unknown error'));
+                    }
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = '💾 Save Changes';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Failed to save document: ' + (err.message || 'Please try again.'));
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = '💾 Save Changes';
+                }
+            });
+        });
+    }
+
+    // Toolbar Print / Save as PDF Button
+    const btnPrintHtml = document.getElementById('btn-print-html-frame');
+    if (btnPrintHtml) {
+        btnPrintHtml.addEventListener('click', () => {
+            const frame = document.getElementById('current-html-frame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            }
+        });
+    }
+
+    // Setup print delegation, universal print CSS injection, and missing PDF download link handling
+    function setupHtmlFramePrint(frame) {
+        if (!frame) return;
+
+        const handleFrameLoad = () => {
+            try {
+                const frameDoc = frame.contentDocument || frame.contentWindow.document;
+                if (!frameDoc || !frameDoc.body) return;
+
+                // 0. Ensure relative wiki assets (e.g. uploads/images/...) resolve against application base URL
+                const baseHref = document.querySelector('base')?.href || (window.location.origin + '/');
+                frameDoc.querySelectorAll('img, video, audio, source').forEach(el => {
+                    const rawSrc = el.getAttribute('src');
+                    if (rawSrc && !/^https?:\/\//i.test(rawSrc) && !rawSrc.startsWith('/') && !rawSrc.startsWith('data:')) {
+                        if (rawSrc.startsWith('uploads/') || rawSrc.startsWith('assets/')) {
+                            const resolved = new URL(rawSrc, baseHref).href;
+                            if (el.src !== resolved) {
+                                el.src = resolved;
+                            }
+                        }
+                    }
+                });
+
+                // 1. Inspect if the document has author-defined @media print or @page rules
+                let hasPrintMedia = false;
+                try {
+                    for (const sheet of frameDoc.styleSheets) {
+                        try {
+                            for (const rule of sheet.cssRules || []) {
+                                if ((rule.media && rule.media.mediaText && rule.media.mediaText.includes('print')) || rule.type === 6 /* CSSRule.PAGE_RULE */) {
+                                    hasPrintMedia = true;
+                                    break;
+                                }
+                            }
+                        } catch(e) {}
+                        if (hasPrintMedia) break;
+                    }
+                } catch(e) {}
+
+                // If document does NOT contain dedicated print styles, inject universal clean print CSS
+                if (!hasPrintMedia && !frameDoc.getElementById('qwiki-injected-print-css')) {
+                    const style = frameDoc.createElement('style');
+                    style.id = 'qwiki-injected-print-css';
+                    style.textContent = `
+                        @page { size: auto; margin: 12mm 15mm 15mm 15mm; }
+                        @media print {
+                            body {
+                                background: #fff !important;
+                                color: #0f172a !important;
+                                width: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                font-size: 10pt !important;
+                                line-height: 1.45 !important;
+                                -webkit-print-color-adjust: exact !important;
+                                print-color-adjust: exact !important;
+                            }
+                            h1, h2, h3, h4, h5, h6 {
+                                color: #0f172a !important;
+                                page-break-after: avoid !important;
+                                break-after: avoid !important;
+                            }
+                            h1 { font-size: 16pt !important; line-height: 1.25 !important; margin: 14pt 0 6pt !important; }
+                            h2 { font-size: 13pt !important; line-height: 1.3 !important; margin: 12pt 0 5pt !important; }
+                            h3 { font-size: 11pt !important; line-height: 1.3 !important; margin: 10pt 0 4pt !important; }
+                            h4, h5, h6 { font-size: 10pt !important; margin: 8pt 0 3pt !important; }
+                            p, ul, ol { margin-top: 0 !important; margin-bottom: 6pt !important; line-height: 1.45 !important; }
+                            table {
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                font-size: 8.5pt !important;
+                                line-height: 1.35 !important;
+                                border-collapse: collapse !important;
+                                table-layout: auto !important;
+                                page-break-inside: auto !important;
+                            }
+                            th, td {
+                                font-size: 8.5pt !important;
+                                padding: 4pt 6pt !important;
+                                overflow-wrap: break-word !important;
+                            }
+                            th {
+                                background-color: #f1f5f9 !important;
+                                color: #0f172a !important;
+                                font-weight: 700 !important;
+                            }
+                            tr {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            thead {
+                                display: table-header-group !important;
+                            }
+                            pre {
+                                background: #f8fafc !important;
+                                color: #0f172a !important;
+                                border: 1px solid #cbd5e1 !important;
+                                border-radius: 4px !important;
+                                padding: 6pt 8pt !important;
+                                font-size: 7.7pt !important;
+                                line-height: 1.2 !important;
+                                white-space: pre !important;
+                                overflow: visible !important;
+                                box-sizing: border-box !important;
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            img, svg {
+                                max-width: 100% !important;
+                                height: auto !important;
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                            }
+                            blockquote {
+                                page-break-inside: avoid !important;
+                                break-inside: avoid !important;
+                                border-left: 3pt solid #cbd5e1 !important;
+                                padding: 4pt 8pt !important;
+                                margin: 6pt 0 !important;
+                            }
+                        }
+                    `;
+                    frameDoc.head.appendChild(style);
+                }
+
+                // 2. Intercept download links targeting relative .pdf files (e.g. Technical_Dossier_Durbanville_Vineyards.pdf)
+                frameDoc.querySelectorAll('a[download], a[href$=".pdf"]').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('.pdf') && !/^https?:\/\//i.test(href)) {
+                        // Pre-verify whether the physical file exists on the server
+                        fetch(href, { method: 'HEAD' })
+                            .then(res => {
+                                if (!res.ok) {
+                                    // Missing companion PDF: gracefully trigger browser print to PDF
+                                    link.addEventListener('click', (e) => {
+                                        e.preventDefault();
+                                        frame.contentWindow.focus();
+                                        frame.contentWindow.print();
+                                    });
+                                }
+                            })
+                            .catch(() => {
+                                link.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    frame.contentWindow.focus();
+                                    frame.contentWindow.print();
+                                });
+                            });
+                    }
+                });
+            } catch(e) {
+                // Cross-origin safety catch
+            }
+        };
+
+        frame.addEventListener('load', handleFrameLoad);
+        if (frame.contentDocument && frame.contentDocument.readyState === 'complete') {
+            handleFrameLoad();
+        }
+    }
+
+    const currentFrame = document.getElementById('current-html-frame');
+    if (currentFrame) {
+        setupHtmlFramePrint(currentFrame);
+    }
+
+    // Status Dropdown & Lifecycle Management
+    const statusToggleBtn = document.getElementById('btn-status-dropdown-toggle');
+    const statusDropdownMenu = document.getElementById('status-dropdown-menu');
+
+    if (statusToggleBtn && statusDropdownMenu) {
+        statusToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isCurrentlyOpen = statusDropdownMenu.classList.contains('show') || statusDropdownMenu.style.display === 'flex' || statusDropdownMenu.style.display === 'block';
+            if (isCurrentlyOpen) {
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+            } else {
+                statusDropdownMenu.classList.add('show');
+                statusDropdownMenu.style.display = 'flex';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!statusToggleBtn.contains(e.target) && !statusDropdownMenu.contains(e.target)) {
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+            }
+        });
+
+        statusDropdownMenu.querySelectorAll('.status-action-item').forEach(item => {
+            item.addEventListener('click', async (e) => {
+                e.preventDefault();
+                statusDropdownMenu.classList.remove('show');
+                statusDropdownMenu.style.display = 'none';
+
+                const newStatus = item.getAttribute('data-set-status');
+                const curStatus = statusToggleBtn.getAttribute('data-status');
+                if (newStatus === curStatus) return;
+
+                let cleanSource = false;
+                if (newStatus === 'published') {
+                    cleanSource = confirm('Publish Document (Release)?\n\nClick OK to permanently strip draft markers, review dockets, and watermarks from the HTML file on disk.\nClick CANCEL to apply the published state non-destructively (via CSS attribute).');
+                }
+
+                const prevLabel = document.getElementById('status-current-label')?.textContent || '';
+                const labelElem = document.getElementById('status-current-label');
+                if (labelElem) labelElem.textContent = 'Updating...';
+                statusToggleBtn.disabled = true;
+
+                const formData = new FormData();
+                formData.append('action', 'set_chapter_status');
+                formData.append('slug', statusToggleBtn.getAttribute('data-slug') || '');
+                formData.append('file', statusToggleBtn.getAttribute('data-file') || '');
+                formData.append('shareKey', statusToggleBtn.getAttribute('data-sharekey') || '');
+                formData.append('status', newStatus);
+                formData.append('clean_source', cleanSource ? '1' : '0');
+
+                try {
+                    const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (data.success) {
+                        statusToggleBtn.setAttribute('data-status', newStatus);
+                        const formattedLabel = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+                        if (labelElem) labelElem.textContent = formattedLabel;
+
+                        const badge = document.getElementById('qwiki-current-status-badge');
+                        if (badge) {
+                            badge.className = 'badge badge-status badge-status-' + newStatus;
+                            badge.textContent = formattedLabel;
+                        }
+
+                        // Update active indicator in dropdown menu
+                        statusDropdownMenu.querySelectorAll('.status-action-item').forEach(btn => {
+                            const btnStatus = btn.getAttribute('data-set-status');
+                            const checkSpan = btn.querySelector('.status-check-indicator');
+                            if (btnStatus === newStatus) {
+                                btn.classList.add('active');
+                                if (!checkSpan) {
+                                    const span = document.createElement('span');
+                                    span.className = 'status-check-indicator';
+                                    span.textContent = '✓';
+                                    btn.appendChild(span);
+                                }
+                            } else {
+                                btn.classList.remove('active');
+                                if (checkSpan) {
+                                    checkSpan.remove();
+                                }
+                            }
+                        });
+
+                        // Hot-reload iframe content
+                        const iframe = document.getElementById('current-html-frame');
+                        if (iframe) {
+                            const baseSrc = iframe.src.split('?')[0];
+                            iframe.src = baseSrc + '?t=' + Date.now();
+                        }
+                    } else {
+                        alert('Failed to update status: ' + (data.error || 'Unknown error'));
+                        if (labelElem) labelElem.textContent = prevLabel;
+                    }
+                } catch (err) {
+                    console.error('Error updating status:', err);
+                    alert('Network error while updating document status');
+                    if (labelElem) labelElem.textContent = prevLabel;
+                } finally {
+                    statusToggleBtn.disabled = false;
+                }
+            });
+        });
+    }
+
+    // Ctrl+S / Cmd+S shortcut inside HTML edit modal
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+            const editModal = document.getElementById('edit-html-modal');
+            if (editModal && editModal.classList.contains('open')) {
+                e.preventDefault();
+                const saveBtn = document.getElementById('btn-save-html-doc');
+                if (saveBtn && !saveBtn.disabled) {
+                    saveBtn.click();
+                }
+            }
+        }
+    });
+});

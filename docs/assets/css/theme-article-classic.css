@@ -1,0 +1,36 @@
+/* 
+ * Theme: Article Classic
+ * Description: Traditional academic/wiki layout with serif fonts and denser text.
+ */
+
+.content-body {
+    font-family: 'Merriweather', 'Georgia', serif;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: #cbd5e1;
+}
+
+[data-theme="light"] .content-body {
+    color: #334155;
+}
+
+.content-body h1, 
+.content-body h2, 
+.content-body h3, 
+.content-body h4 {
+    font-family: 'Playfair Display', 'Times New Roman', serif;
+}
+
+.content-body h1 {
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.content-body h2 {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.content-body a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}

@@ -1,0 +1,368 @@
+/**
+ * Standalone Qwiki - Native Flat-File Form Extension Stylesheet
+ */
+
+/* 1. Badge */
+.badge-form {
+    background: rgba(245, 158, 11, 0.18);
+    color: #f59e0b;
+}
+
+[data-theme="light"] .badge-form {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+/* 2. Page Container */
+.form-page-container {
+    width: 100%;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 1rem 0 3rem 0;
+}
+
+/* 3. Admin Toolbar */
+.form-admin-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--card-bg, #1a1a1a);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    margin-bottom: 1.75rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.form-admin-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.form-submission-count-badge {
+    font-size: 0.85rem;
+    color: var(--text-muted, #888);
+    background: var(--bg-color, #111);
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #333);
+}
+
+.form-submission-count-badge strong {
+    color: var(--text-color, #eee);
+}
+
+.form-admin-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* 4. Form Card */
+.form-card {
+    background: var(--card-bg, #1e1e1e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.form-header {
+    margin-bottom: 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.form-header h1.form-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-color, #fff);
+    line-height: 1.3;
+}
+
+.form-header .form-desc {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-muted, #aaa);
+}
+
+/* 5. Form Groups & Inputs */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label.form-label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-color, #ddd);
+}
+
+.form-required-star {
+    color: #ef4444;
+    margin-left: 0.2rem;
+}
+
+.form-help-text {
+    font-size: 0.8rem;
+    color: var(--text-muted, #888);
+    margin-top: 0.3rem;
+}
+
+.form-page-container input.form-control,
+.form-page-container select.form-control,
+.form-page-container textarea.form-control {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: var(--text-color, #fff);
+    background: var(--bg-color, #121212);
+    border: 1px solid var(--border-color, #3a3a3a);
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-page-container input.form-control:focus,
+.form-page-container select.form-control:focus,
+.form-page-container textarea.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.form-page-container textarea.form-control {
+    min-height: 110px;
+    resize: vertical;
+}
+
+/* 6. Radio & Checkbox Groups */
+.form-options-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.form-option-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    cursor: pointer;
+    font-size: 0.92rem;
+    color: var(--text-color, #eee);
+    user-select: none;
+}
+
+.form-option-item input[type="radio"],
+.form-option-item input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--primary-color, #3b82f6);
+}
+
+/* 7. Alerts */
+.form-alert {
+    padding: 0.85rem 1.15rem;
+    border-radius: 6px;
+    font-size: 0.92rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    line-height: 1.4;
+}
+
+.form-alert-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.form-alert-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.form-alert-info {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.form-alert-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* 8. Success State Card */
+.form-success-card {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.form-success-card .form-success-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    display: inline-block;
+    color: #10b981;
+}
+
+.form-success-card h2 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.6rem;
+    color: var(--text-color, #fff);
+}
+
+.form-success-card p {
+    color: var(--text-muted, #aaa);
+    font-size: 1rem;
+    max-width: 500px;
+    margin: 0 auto 1.5rem auto;
+}
+
+/* 9. Buttons & Actions */
+.form-submit-actions {
+    margin-top: 1.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #333);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.btn-submitting {
+    opacity: 0.75;
+    pointer-events: none;
+}
+
+/* 10. Field Builder in Admin Modal */
+.form-builder-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-top: 0.5rem;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.form-field-card {
+    background: var(--bg-color, #181818);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    padding: 0.85rem;
+    position: relative;
+    transition: border-color 0.15s ease;
+}
+
+.form-field-card:hover {
+    border-color: var(--border-color-hover, #555);
+}
+
+.form-field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted, #aaa);
+}
+
+.form-field-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+}
+
+.form-field-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.form-field-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    color: var(--text-muted, #aaa);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.form-field-actions button:hover {
+    background: var(--border-color, #333);
+    color: var(--text-color, #fff);
+}
+
+.form-field-actions button.btn-remove-field:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+/* 11. Submissions Viewer Modal */
+.form-submissions-modal-dialog {
+    max-width: 960px !important;
+    width: 90% !important;
+}
+
+.form-submissions-table-wrap {
+    max-height: 520px;
+    overflow-x: auto;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    margin-top: 1rem;
+}
+
+.form-submissions-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    text-align: left;
+}
+
+.form-submissions-table th,
+.form-submissions-table td {
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--border-color, #333);
+    vertical-align: top;
+    white-space: normal;
+}
+
+.form-submissions-table th {
+    background: var(--bg-color, #181818);
+    font-weight: 600;
+    color: var(--text-muted, #aaa);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.form-submissions-table tr:hover td {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] .form-submissions-table tr:hover td {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.form-submission-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted, #888);
+}
