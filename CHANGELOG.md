@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.20.13] - TalkFlow - 2026-11-12
+
 ### 🗣️ Wikipedia-Style Editorial Talk Pages Extension
 - **Zero-Database Companion Discussions (`assets/extensions/tool-talk/`)**: Built-in utility extension (`tool-talk`) providing companion editorial discussion documents for chapters. Persists topics as flat Markdown files in `data/talk/`, protected by `.htaccess` against direct web access and atomic `flock` locking.
 - **Interactive Header Tab Switcher (`assets/extensions/tool-talk/script.js` & `style.css`)**: Injects an accessible `[ 📄 Document | 🗣️ Discussion (N) ]` tab switcher above the content body, keeping public reference reading clean while allowing contributors to switch seamlessly into the discussion workspace.
@@ -17,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Opt-In Cascading Enablement (Disabled by Default)**: Categories default to disabled (`allowTalk: false`). When an administrator enables Talk Pages on a category, all documents in that category display the Discussion tab unless explicitly disabled per document (`Inherit from category (Default)`, `Enabled`, `Disabled`).
 - **LLM Token Discussion Retrieval (`api/llm.php` & `lib/Core/LlmAccess.php`)**: Added dedicated `mode=talk` and `mode=doc&include_talk=1` endpoints allowing AI agents and LLMs to retrieve discussions via LLM Access Tokens in structured JSON or clean Markdown transcripts (`format=markdown`).
 - **Automated Test Suite (`tests/talk_test.php` & `tests/test_talk_ui.js`)**: Comprehensive unit and DOM test suites covering directory security, inheritance cascading truth table, topic addition, indented replies, raw markdown saving, XSS stripping, ExtensionManager routing, and LLM token retrieval.
+
+### 🧩 Per-Wiki Extension Management & Tabbed Settings Modal
+- **Per-Wiki Extension Toggles & Persistence (`lib/Core/ExtensionManager.php` & `api/admin.php`)**: Added fine-grained enablement checks in `ExtensionManager` with state saved to `extensions` in `qwiki.json`. Maintained full default-on backward compatibility for existing installations while giving subwiki administrators independent authority over their active extension suites.
+- **Frontend Asset Stripping & Action Interception**: Disabled extensions automatically have their client scripts and stylesheets excluded from `getFrontendAssets()` (stripping heavy bundles like SunEditor on lean wikis), and backend mutation actions return HTTP 403 Forbidden.
+- **Soft Read-Only Protection for Page Types**: Disabling a custom page type (such as HTML or Form) safely hides document creation from the "Add Document" dialog and blocks edit actions while existing documents continue to render safely in read-only mode with an advisory notice banner.
+- **Tabbed Settings Modal Redesign (`templates/modals/settings.php` & `assets/css/qwiki.css`)**: Restructured the monolithic Wiki Settings dialog into 5 accessible tabs: General (with native Theme Editor button integration), Access & Security, Extensions (with grouped card switch toggles for Page Types and Tools & Utilities), Email (SMTP), and Feeds & Integrations.
+- **Automated Test Suite (`tests/test_extension_management.php` & `tests/test_settings_modal_tabs.js`)**: Comprehensive unit and DOM test suites covering extension resolution, asset stripping, action interception, read-only document rendering, settings persistence, subwiki isolation, and modal tab interactions.
 
 ---
 
