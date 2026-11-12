@@ -110,6 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (allowCommentsSelect) {
               allowCommentsSelect.value = btnMeta.getAttribute('data-allow-comments') || 'inherit';
             }
+            const allowTalkSelect = document.getElementById('edit-chapter-allow-talk');
+            if (allowTalkSelect) {
+              allowTalkSelect.value = btnMeta.getAttribute('data-allow-talk') || 'inherit';
+            }
             const shareKeyInput = document.getElementById('edit-chapter-share-key');
             if (shareKeyInput) {
               shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
@@ -1151,7 +1155,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const editBookAllowCommentsInput = document.getElementById('edit-book-allow-comments-input');
         if (editBookAllowCommentsInput) {
           const bookAllowComments = btn.getAttribute('data-book-allow-comments');
-          editBookAllowCommentsInput.checked = (bookAllowComments !== '0');
+          editBookAllowCommentsInput.checked = (bookAllowComments === '1' || bookAllowComments === 'true');
+        }
+
+        const editBookAllowTalkInput = document.getElementById('edit-book-allow-talk-input');
+        if (editBookAllowTalkInput) {
+          const bookAllowTalk = btn.getAttribute('data-book-allow-talk');
+          editBookAllowTalkInput.checked = (bookAllowTalk === '1');
         }
 
         editBookModal.classList.add('open');
@@ -2934,25 +2944,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Theme Editor Modal Logic
   const themeEditorModal = document.getElementById('theme-editor-modal');
   if (themeEditorModal) {
-    const btnOpenThemeEditor = document.createElement('button');
-    btnOpenThemeEditor.type = 'button';
-    btnOpenThemeEditor.className = 'btn btn-outline';
-    btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
-    btnOpenThemeEditor.style.marginTop = '1rem';
-    btnOpenThemeEditor.style.width = '100%';
-    
-    // Inject it into settings modal
-    const settingsForm = document.getElementById('settings-form');
-    if (settingsForm) {
-      settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
-    }
+    const btnDirect = document.getElementById('btn-open-theme-editor-direct');
+    if (btnDirect) {
+      btnDirect.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    } else {
+      const btnOpenThemeEditor = document.createElement('button');
+      btnOpenThemeEditor.type = 'button';
+      btnOpenThemeEditor.className = 'btn btn-outline';
+      btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
+      btnOpenThemeEditor.style.marginTop = '1rem';
+      btnOpenThemeEditor.style.width = '100%';
+      
+      const settingsForm = document.getElementById('settings-form');
+      if (settingsForm) {
+        settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
+      }
 
-    btnOpenThemeEditor.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('settings-modal').classList.remove('open');
-      populateThemes(document.getElementById('editor-theme-selector'), '');
-      themeEditorModal.classList.add('open');
-    });
+      btnOpenThemeEditor.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    }
 
     const btnLoadTheme = document.getElementById('btn-load-theme');
     const editorArea = document.getElementById('theme-editor-area');

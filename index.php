@@ -1046,6 +1046,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-image="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>"
                                             data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
                                             data-allow-comments="<?= isset($activeChapter['allowComments']) ? ($activeChapter['allowComments'] ? 'enabled' : 'disabled') : 'inherit' ?>"
+                                            data-allow-talk="<?= isset($activeChapter['allowTalk']) ? ($activeChapter['allowTalk'] ? 'enabled' : 'disabled') : 'inherit' ?>"
                                             data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
                                             data-book-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-category-id="<?= htmlspecialchars($currentCategoryId) ?>"

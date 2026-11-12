@@ -104,6 +104,41 @@ assert_true(CommentService::isCommentsEnabled('cat-enabled', 'doc-explicit-disab
 // Category disabled, Doc explicit true -> true
 assert_true(CommentService::isCommentsEnabled('cat-disabled', 'doc-override-enabled', $mockConfig) === true, "Chapter explicit true overrides category disabled");
 
+// Category-first behavior when user has not set anything (clean slate configuration)
+$cleanSlateConfig = [
+    'books' => [
+        [
+            'id' => 'clean-category',
+            'title' => 'Clean Category',
+            'items' => [
+                ['slug' => 'clean-doc-inherit', 'title' => 'Inherit Doc'],
+                ['slug' => 'clean-doc-disabled', 'title' => 'Disabled Doc', 'allowComments' => false],
+                ['slug' => 'clean-doc-enabled', 'title' => 'Enabled Doc', 'allowComments' => true]
+            ]
+        ],
+        [
+            'id' => 'active-category',
+            'title' => 'Active Category',
+            'allowComments' => true,
+            'items' => [
+                ['slug' => 'active-doc-inherit', 'title' => 'Inherit Doc in Active Cat'],
+                ['slug' => 'active-doc-subsequently-disabled', 'title' => 'Subsequently Disabled Doc', 'allowComments' => false],
+                ['slug' => 'active-doc-explicit-enabled', 'title' => 'Explicit Enabled Doc', 'allowComments' => true]
+            ]
+        ]
+    ]
+];
+
+// If user has not set anything (category unset, doc unset/inherit) -> function is NOT available (false)
+assert_true(CommentService::isCommentsEnabled('clean-category', 'clean-doc-inherit', $cleanSlateConfig) === false, "Unset category + doc inherit resolves to disabled by default");
+assert_true(CommentService::isCommentsEnabled('clean-category', 'clean-doc-disabled', $cleanSlateConfig) === false, "Unset category + explicit disabled resolves to disabled");
+assert_true(CommentService::isCommentsEnabled('clean-category', 'clean-doc-enabled', $cleanSlateConfig) === true, "Unset category + explicit enabled resolves to enabled");
+
+// When user sets it to active for category -> available for each document unless subsequently disabled
+assert_true(CommentService::isCommentsEnabled('active-category', 'active-doc-inherit', $cleanSlateConfig) === true, "Active category propagates to inheriting documents");
+assert_true(CommentService::isCommentsEnabled('active-category', 'active-doc-subsequently-disabled', $cleanSlateConfig) === false, "Specific document subsequent disable overrides active category");
+assert_true(CommentService::isCommentsEnabled('active-category', 'active-doc-explicit-enabled', $cleanSlateConfig) === true, "Active category + explicit enabled resolves to enabled");
+
 // TEST 3: Safe Markdown Rendering & XSS Sanitization
 echo "\n3. Testing Safe Markdown Rendering & XSS Protection...\n";
 $dirtyMarkdown = "**Bold** and `code` and <script>alert('xss')</script> and [Safe Link](https://qwiki.org) and [Malicious](javascript:alert(1))";

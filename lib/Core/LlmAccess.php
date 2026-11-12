@@ -580,9 +580,10 @@ class LlmAccess {
      * @param int $offset Byte offset for partial reading (default 0)
      * @param int $limit Maximum bytes to return (0 for all)
      * @param bool $includeComments Whether to include discussion threads
+     * @param bool $includeTalk Whether to include editorial talk pages
      * @return array [success => bool, code => int, error => string|null, document => array|null]
      */
-    public static function retrieveDocument(array $keyRecord, string $slug, int $offset = 0, int $limit = 0, bool $includeComments = false): array {
+    public static function retrieveDocument(array $keyRecord, string $slug, int $offset = 0, int $limit = 0, bool $includeComments = false, bool $includeTalk = false): array {
         $slug = trim($slug);
         if (empty($slug)) {
             return ['success' => false, 'code' => 400, 'error' => 'Document slug is required for mode=doc.'];
@@ -743,6 +744,13 @@ class LlmAccess {
             $docPayload['comments_enabled'] = $commentsRes['success'] ? ($commentsRes['comments_enabled'] ?? false) : false;
         }
 
+        if ($includeTalk) {
+            $talkRes = self::retrieveTalk($keyRecord, $slug, 'raw');
+            $docPayload['talk'] = $talkRes['success'] ? ($talkRes['topics'] ?? []) : [];
+            $docPayload['talk_raw'] = $talkRes['success'] ? ($talkRes['raw'] ?? '') : '';
+            $docPayload['talk_enabled'] = $talkRes['success'] ? ($talkRes['talk_enabled'] ?? false) : false;
+        }
+
         return [
             'success' => true,
             'code' => 200,
@@ -897,6 +905,114 @@ class LlmAccess {
             $out .= "---\n\n";
         }
 
+        return trim($out);
+    }
+
+    /**
+     * Retrieve talk page discussion topics on a document for LLMs / AI agents (Mode: talk)
+     *
+     * @param array $keyRecord Validated key record
+     * @param string $slug Document slug
+     * @param string $format 'json' | 'markdown' | 'raw'
+     * @return array [success => bool, code => int, error => string|null, ...]
+     */
+    public static function retrieveTalk(array $keyRecord, string $slug, string $format = 'json'): array {
+        $slug = trim($slug);
+        if (empty($slug)) {
+            return ['success' => false, 'code' => 400, 'error' => 'Document slug is required for mode=talk.'];
+        }
+
+        // Get the scoped tree for this key
+        $scopedDocs = self::buildDocumentTree($keyRecord);
+        $matchedDocMeta = null;
+
+        foreach ($scopedDocs as $doc) {
+            if ($doc['slug'] === $slug) {
+                $matchedDocMeta = $doc;
+                break;
+            }
+        }
+
+        if (!$matchedDocMeta) {
+            $config = Config::load();
+            $fullChapter = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+
+            if ($fullChapter) {
+                return [
+                    'success' => false,
+                    'code' => 403,
+                    'error' => "Access denied: document '{$slug}' is outside the category scope of this LLM key."
+                ];
+            }
+
+            return [
+                'success' => false,
+                'code' => 404,
+                'error' => "Document with slug '{$slug}' not found."
+            ];
+        }
+
+        $config = Config::load();
+        $bookId = $matchedDocMeta['category_id'] ?? '';
+        $docTitle = $matchedDocMeta['title'] ?? $slug;
+
+        $talkServicePath = Config::getBaseDir() . '/assets/extensions/tool-talk/TalkService.php';
+        if (!file_exists($talkServicePath)) {
+            return [
+                'success' => false,
+                'code' => 503,
+                'error' => 'Talk Pages extension is not installed.'
+            ];
+        }
+
+        require_once $talkServicePath;
+        $enabled = \Qwiki\Extension\Talk\TalkService::isTalkEnabled($bookId, $slug, $config);
+        $topics = \Qwiki\Extension\Talk\TalkService::getTopics($bookId, $slug);
+        $raw = \Qwiki\Extension\Talk\TalkService::getRawContent($bookId, $slug);
+
+        if ($format === 'markdown' || $format === 'md' || $format === 'text') {
+            $markdownText = self::formatTalkMarkdown($topics, $raw, $docTitle, $slug, $bookId, $enabled);
+            return [
+                'success' => true,
+                'code' => 200,
+                'format' => 'markdown',
+                'markdown' => $markdownText
+            ];
+        }
+
+        return [
+            'success' => true,
+            'code' => 200,
+            'slug' => $slug,
+            'title' => $docTitle,
+            'category' => $bookId,
+            'talk_enabled' => $enabled,
+            'topics_count' => count($topics),
+            'topics' => $topics,
+            'raw' => $raw
+        ];
+    }
+
+    /**
+     * Format talk topics data as a readable Markdown transcript for LLM prompts
+     */
+    public static function formatTalkMarkdown(array $topics, string $raw, string $docTitle, string $slug, string $bookId, bool $enabled): string {
+        $out = "# Editorial Discussion & Talk Page for \"{$docTitle}\" ({$bookId}/{$slug})\n\n";
+        $out .= "- **Talk Page Policy**: " . ($enabled ? "Enabled" : "Disabled") . "\n";
+        $out .= "- **Topic Count**: " . count($topics) . "\n\n";
+
+        if (empty($topics) && empty(trim($raw))) {
+            $out .= "*No editorial discussion topics recorded for this chapter.*\n";
+            return trim($out);
+        }
+
+        if (!empty(trim($raw))) {
+            $out .= trim($raw) . "\n";
+        } else {
+            foreach ($topics as $t) {
+                $out .= "## " . $t['title'] . "\n\n" . $t['rawMarkdown'] . "\n\n";
+            }
+        }
         return trim($out);
     }
 

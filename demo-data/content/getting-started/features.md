@@ -315,10 +315,23 @@ Standalone Qwiki natively parses and presents YAML frontmatter in Markdown docum
 
 Standalone Qwiki includes a privacy-respecting, zero-database discussion engine allowing signed-in users (viewers and administrators) to collaborate, review, and comment on documentation:
 
-- **Cascading Category & Chapter Policies**: Enable comments globally, for an entire category, or configure individual chapter overrides (`Inherit from category`, `Enabled`, `Disabled`) directly in category and document metadata settings.
+- **Cascading Category & Document Policies**: Comments are disabled by default. Administrators can activate comments per Category, which automatically enables comments on all documents within that category. Individual documents default to `Inherit from category (Default)`, with granular `Enabled` and `Disabled` overrides available in document settings.
 - **1-Level Threaded Discussions**: Supports root chapter comments and direct single-level replies to facilitate focused documentation reviews without recursive indentation clutter.
 - **Restricted Markdown Formatting**: Authors can format comments using safe GitHub-Flavored Markdown (bold, italics, inline code, code blocks, blockquotes, lists, and links) with real-time composer preview and strict XSS sanitization.
 - **Zero-Database JSON Storage**: Comments are stored in isolated, `.htaccess`-protected flat files under `data/comments/` using atomic file locking (`flock`) to eliminate database dependencies.
 - **Client-Side Hide/Show Toggle**: Readers can toggle the comments section with a single click, with preference persistence stored across browser sessions in `localStorage`.
 - **Identity, Timestamps & Moderation**: Cards display commenter avatar initials, username, role badges (`Admin` / `Viewer`), relative timestamps with ISO date tooltips, and inline author editing or administrative moderation. Soft-deletion ("tombstoning") preserves reply threads when parent comments are removed.
 - **LLM & AI Agent Token Retrieval**: Autonomous AI agents and LLMs can retrieve chapter discussions using scoped LLM access tokens via `api/llm.php?mode=comments&slug=<slug>` (available in structured JSON or clean Markdown transcripts) or embedded into document payloads with `mode=doc&include_comments=1`. Direct action calls to `ext_comments_get` also validate Bearer tokens, with strict read-only enforcement preventing token-based comment mutation.
+
+---
+
+## 🗣️ 25. Wikipedia-Style Editorial Talk Pages
+
+Standalone Qwiki includes a Wikipedia-inspired Talk Pages extension (`tool-talk`) that provides a companion editorial discussion document for any chapter, separated from the primary reading experience:
+
+- **Document vs. Discussion Tab Switcher**: An interactive `[ 📄 Document | 🗣️ Discussion (N) ]` tab switcher is neatly placed at the top of the article header, allowing readers to view pristine documentation while editors switch to the discussion tab for drafting, debate, and consensus.
+- **Topic-Based Organization & Quick Replies**: Discussions are structured into topics under standard `## Subject` headings. Contributors can start new topics or post indented replies with one click, automatically stamped with user badges, roles, and timestamps.
+- **Raw Markdown Editing & Archiving**: Authorized editors and administrators can toggle into full raw Markdown editing mode to refactor discussions, resolve proposals, or archive completed debates.
+- **Opt-in Cascading Enablement (Disabled by Default)**: Talk pages are opt-in per Category (disabled by default). When an admin activates Talk Pages on a category, all documents in that category gain a discussion page, while individual documents can explicitly override to `Inherit from category (Default)`, `Enabled`, or `Disabled`.
+- **Zero-Database Flat-File Markdown**: Discussions are stored in isolated, `.htaccess`-protected flat Markdown files under `data/talk/` using atomic file locking (`flock(..., LOCK_EX)`) to guarantee zero-ops portability and Git backup compatibility.
+- **LLM & AI Agent Token Retrieval**: Autonomous AI agents can query chapter discussion pages via `api/llm.php?mode=talk&slug=<slug>` (in structured JSON or Markdown transcripts) or embedded into document payloads with `mode=doc&include_talk=1`.

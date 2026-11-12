@@ -269,8 +269,9 @@ class Navigation {
         echo "</span>";
         echo "<span class='header-actions-inline'>";
         if ($isAdmin) {
-            $catAllowComments = isset($node['allowComments']) ? ($node['allowComments'] ? '1' : '0') : '';
-            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' title='Edit Category'>⚙️</button> ";
+            $catAllowComments = !empty($node['allowComments']) ? '1' : '0';
+            $catAllowTalk = isset($node['allowTalk']) ? ($node['allowTalk'] ? '1' : '0') : '0';
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' data-book-allow-talk='{$catAllowTalk}' title='Edit Category'>⚙️</button> ";
         }
         echo "<span class='chevron-icon'>▾</span>";
         echo "</span>";
@@ -656,7 +657,7 @@ class Navigation {
     /**
      * Recursively updates category or folder node metadata in navigation tree
      */
-    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null): bool {
+    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null, $allowTalk = null): bool {
         if (($node['id'] ?? '') === $targetId) {
             $node['title'] = $newTitle;
             if ($newTheme !== '') {
@@ -689,12 +690,19 @@ class Navigation {
                     $node['allowComments'] = false;
                 }
             }
+            if ($allowTalk !== null) {
+                if ($allowTalk) {
+                    $node['allowTalk'] = true;
+                } else {
+                    $node['allowTalk'] = false;
+                }
+            }
             return true;
         }
         if (!empty($node['items']) && is_array($node['items'])) {
             foreach ($node['items'] as &$sub) {
                 if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments)) {
+                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments, $allowTalk)) {
                         return true;
                     }
                 }

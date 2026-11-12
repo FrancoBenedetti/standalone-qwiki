@@ -37,11 +37,19 @@
                 <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
             </div>
             <div class="form-group">
-                <label class="form-label" for="create-chapter-allow-comments">Comments Policy</label>
+                <label class="form-label" for="create-chapter-allow-comments">Comments</label>
                 <select name="allowComments" id="create-chapter-allow-comments" class="form-control">
-                    <option value="inherit">Inherit from category</option>
-                    <option value="enabled">Enabled (Allow comments)</option>
-                    <option value="disabled">Disabled (Disallow comments)</option>
+                    <option value="inherit" selected>Inherit from category (Default)</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="create-chapter-allow-talk">Discussion & Talk Page</label>
+                <select name="allowTalk" id="create-chapter-allow-talk" class="form-control">
+                    <option value="inherit" selected>Inherit from category (Default)</option>
+                    <option value="enabled">Enabled (Always show Talk tab)</option>
+                    <option value="disabled">Disabled (Hide Talk tab)</option>
                 </select>
             </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>

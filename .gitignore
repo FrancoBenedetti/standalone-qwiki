@@ -4,6 +4,7 @@
 # User Data (Ignored to protect updates and auto-setup)
 /content
 /uploads
+/data
 /qwiki.json
 /users.json
 /test_*

@@ -1,0 +1,18 @@
+{
+  "id": "talk",
+  "type": "utility",
+  "adminOnly": false,
+  "title": "Talk Pages",
+  "icon": "🗣️",
+  "placement": "chapter_header",
+  "description": "Wikipedia-style editorial discussion and debate pages for chapters.",
+  "handler": "handler.php",
+  "actions": [
+    "ext_talk_get",
+    "ext_talk_add_topic",
+    "ext_talk_reply",
+    "ext_talk_save_raw"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

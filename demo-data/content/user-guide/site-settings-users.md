@@ -6,12 +6,35 @@ Standalone Qwiki provides a comprehensive Admin Suite to configure site access, 
 
 ## ⚙️ Access Modes & Privacy
 
-To change site visibility:
-1. Click **`⚙️ Settings`** in the header menu.
-2. Choose your preferred **Access Mode**:
+To change site visibility and settings:
+1. Click **`⚙️ Settings`** in the header menu to open the tabbed administration dialog.
+2. Navigate between the dedicated configuration tabs:
+   - **🌐 General**: Portal title, logo text/image, default theme, theme editor, default landing category, and navigation badges.
+   - **🔒 Access & Security**: Portal visibility (Public vs. Private) and Two-Factor Authentication policy.
+   - **🧩 Extensions**: Enable or disable page types and utilities for this wiki.
+   - **📧 Email (SMTP)**: Outbound socket SMTP credentials and test connection dispatch.
+   - **📡 Feeds & Integrations**: RSS syndication, API access tokens, and LLM / Gemini shortcuts.
+3. In **Access & Security**, choose your preferred **Access Mode**:
    - **Public Access**: Anyone on the internet can read and search your documentation.
    - **Private Portal**: Visitors must log in to view any documentation.
-3. Click **Save Settings**.
+4. Click **Save Settings**.
+
+---
+
+## 🧩 Extension Management
+
+Standalone Qwiki enables administrators to manage which extensions are active on a per-wiki and per-subwiki basis:
+
+1. Click **`⚙️ Settings` ➔ `🧩 Extensions`**.
+2. Toggle individual extensions on or off:
+   - **Page Type Extensions** (`HTML Document`, `Interactive Form`): Custom document creation and specialized viewer renderers.
+   - **Tools & Utilities** (`Document Comments`, `Image Gallery`, `Document Postbox`, `Backup & Export`, `Activity Log`, `Gemini Assistant`, `Visual Chart`): Productive workflow tools and background utilities.
+3. **Optimized Frontend Assets**: Disabling unused extensions prevents their client scripts and stylesheets (such as SunEditor or Gemini assistants) from loading on pages, keeping your portal lightweight and fast.
+4. **Soft Read-Only Protection for Page Types**: If an administrator disables a page type extension (like HTML or Form) on a wiki with existing documents:
+   - Existing documents remain fully viewable in **read-only mode** with an advisory notice.
+   - Creating new documents of that type is hidden from the "Add Document" dialog.
+   - Content editing actions are locked to prevent desynchronization, while administrators retain the right to delete legacy documents if no longer needed.
+5. **Subwiki Independence**: Each subwiki administrator has full, unrestricted authority to tailor their active extension set in their own subwiki settings without altering parent or sibling wikis.
 
 ---
 

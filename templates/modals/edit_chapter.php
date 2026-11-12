@@ -77,11 +77,19 @@
                 </label>
             </div>
             <div class="form-group">
-                <label class="form-label" for="edit-chapter-allow-comments">Comments Policy</label>
+                <label class="form-label" for="edit-chapter-allow-comments">Comments</label>
                 <select name="allowComments" id="edit-chapter-allow-comments" class="form-control">
-                    <option value="inherit">Inherit from category</option>
-                    <option value="enabled">Enabled (Allow comments)</option>
-                    <option value="disabled">Disabled (Disallow comments)</option>
+                    <option value="inherit" selected>Inherit from category (Default)</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-chapter-allow-talk">Discussion & Talk Page</label>
+                <select name="allowTalk" id="edit-chapter-allow-talk" class="form-control">
+                    <option value="inherit">Inherit from category (Default)</option>
+                    <option value="enabled">Enabled (Always show Talk tab)</option>
+                    <option value="disabled">Disabled (Hide Talk tab)</option>
                 </select>
             </div>
             <div class="form-group" id="group-edit-share-key" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
