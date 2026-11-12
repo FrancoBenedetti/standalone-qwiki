@@ -1699,6 +1699,16 @@ switch ($action) {
             }
         }
 
+        if (!empty($_POST['extensions_configured'])) {
+            $submittedExtensions = isset($_POST['extensions']) && is_array($_POST['extensions']) ? $_POST['extensions'] : [];
+            $allDiscovered = ExtensionManager::getInstance()->getAllExtensions();
+            $extensionsConfig = $config['extensions'] ?? [];
+            foreach ($allDiscovered as $extId => $extInfo) {
+                $extensionsConfig[$extId] = !empty($submittedExtensions[$extId]);
+            }
+            $config['extensions'] = $extensionsConfig;
+        }
+
         Config::save($config);
         echo json_encode(['success' => true]);
         break;

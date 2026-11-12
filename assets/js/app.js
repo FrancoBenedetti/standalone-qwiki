@@ -2934,25 +2934,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Theme Editor Modal Logic
   const themeEditorModal = document.getElementById('theme-editor-modal');
   if (themeEditorModal) {
-    const btnOpenThemeEditor = document.createElement('button');
-    btnOpenThemeEditor.type = 'button';
-    btnOpenThemeEditor.className = 'btn btn-outline';
-    btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
-    btnOpenThemeEditor.style.marginTop = '1rem';
-    btnOpenThemeEditor.style.width = '100%';
-    
-    // Inject it into settings modal
-    const settingsForm = document.getElementById('settings-form');
-    if (settingsForm) {
-      settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
-    }
+    const btnDirect = document.getElementById('btn-open-theme-editor-direct');
+    if (btnDirect) {
+      btnDirect.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    } else {
+      const btnOpenThemeEditor = document.createElement('button');
+      btnOpenThemeEditor.type = 'button';
+      btnOpenThemeEditor.className = 'btn btn-outline';
+      btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
+      btnOpenThemeEditor.style.marginTop = '1rem';
+      btnOpenThemeEditor.style.width = '100%';
+      
+      const settingsForm = document.getElementById('settings-form');
+      if (settingsForm) {
+        settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
+      }
 
-    btnOpenThemeEditor.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('settings-modal').classList.remove('open');
-      populateThemes(document.getElementById('editor-theme-selector'), '');
-      themeEditorModal.classList.add('open');
-    });
+      btnOpenThemeEditor.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    }
 
     const btnLoadTheme = document.getElementById('btn-load-theme');
     const editorArea = document.getElementById('theme-editor-area');
