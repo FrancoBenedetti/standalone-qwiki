@@ -160,6 +160,75 @@ assert_true(strpos($rendered, 'javascript:') === false, "Javascript links stripp
 assert_true(strpos($rendered, 'onerror') === false, "Inline onerror event handler stripped");
 assert_true(strpos($rendered, '<strong>Bold Text</strong>') !== false || strpos($rendered, '<b>Bold Text</b>') !== false, "Safe bold formatting preserved");
 
+// TEST 7: Extension Discovery via ExtensionManager
+echo "\n7. Testing Extension Registration & Discovery...\n";
+$extManager = ExtensionManager::getInstance();
+$utilities = $extManager->getUtilities();
+assert_true(isset($utilities['talk']), "Talk extension discovered by ExtensionManager");
+assert_true(($utilities['talk']['type'] ?? '') === 'utility', "Extension type is utility");
+assert_true(in_array('ext_talk_get', $utilities['talk']['actions'] ?? []), "Registers ext_talk_get action");
+assert_true(in_array('ext_talk_add_topic', $utilities['talk']['actions'] ?? []), "Registers ext_talk_add_topic action");
+assert_true(in_array('ext_talk_reply', $utilities['talk']['actions'] ?? []), "Registers ext_talk_reply action");
+assert_true(in_array('ext_talk_save_raw', $utilities['talk']['actions'] ?? []), "Registers ext_talk_save_raw action");
+
+// TEST 8: API Action Handling, Session Auth & Permission Checks
+echo "\n8. Testing API Action Handling & Security Guards...\n";
+Auth::startSession();
+$_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
+
+// A. Unauthenticated add topic should fail with 401
+unset($_SESSION['qwiki_user']);
+unset($_SESSION['qwiki_admin']);
+ob_start();
+$handled = $extManager->handleAction('ext_talk_add_topic', [
+    'book' => 'test_book',
+    'slug' => 'test_topic_doc',
+    'title' => 'Unauth Topic',
+    'message' => 'Should fail'
+]);
+$output = ob_get_clean();
+$res = json_decode($output, true);
+assert_true($handled, "Action was handled by ExtensionManager");
+assert_equals(401, $res['code'] ?? null, "Unauthenticated add topic returns 401");
+
+// B. Authenticated viewer adds topic
+$_SESSION['qwiki_user'] = ['username' => 'viewer_user', 'role' => 'viewer'];
+unset($_SESSION['qwiki_admin']);
+ob_start();
+$handled = $extManager->handleAction('ext_talk_add_topic', [
+    'book' => 'test_book',
+    'slug' => 'test_topic_doc',
+    'title' => 'Viewer Topic',
+    'message' => 'Valid message from viewer'
+]);
+$output = ob_get_clean();
+$res = json_decode($output, true);
+assert_true(!empty($res['success']), "Authenticated viewer can add topic");
+
+// C. Non-admin viewer attempting ext_talk_save_raw returns 403
+ob_start();
+$handled = $extManager->handleAction('ext_talk_save_raw', [
+    'book' => 'test_book',
+    'slug' => 'test_topic_doc',
+    'markdown' => '## Hacked raw markdown'
+]);
+$output = ob_get_clean();
+$res = json_decode($output, true);
+assert_equals(403, $res['code'] ?? null, "Non-admin viewer calling ext_talk_save_raw returns 403");
+
+// D. Admin user can save raw
+$_SESSION['qwiki_user'] = ['username' => 'admin_user', 'role' => 'admin'];
+$_SESSION['qwiki_admin'] = true;
+ob_start();
+$handled = $extManager->handleAction('ext_talk_save_raw', [
+    'book' => 'test_book',
+    'slug' => 'test_topic_doc',
+    'markdown' => "## Admin Controlled\n\nRaw edit approved.\n"
+]);
+$output = ob_get_clean();
+$res = json_decode($output, true);
+assert_true(!empty($res['success']), "Admin can save raw talk markdown");
+
 // Cleanup test files
 $testFiles = glob($talkDir . '/*test*');
 if ($testFiles) {
