@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### 🗣️ Wikipedia-Style Editorial Talk Pages Extension
+- **Zero-Database Companion Discussions (`assets/extensions/tool-talk/`)**: Built-in utility extension (`tool-talk`) providing companion editorial discussion documents for chapters. Persists topics as flat Markdown files in `data/talk/`, protected by `.htaccess` against direct web access and atomic `flock` locking.
+- **Interactive Header Tab Switcher (`assets/extensions/tool-talk/script.js` & `style.css`)**: Injects an accessible `[ 📄 Document | 🗣️ Discussion (N) ]` tab switcher above the content body, keeping public reference reading clean while allowing contributors to switch seamlessly into the discussion workspace.
+- **Topic-Based Organization & Quick Replies**: Discussions are structured into topics under standard `## Subject` headings with one-click reply forms, author initials avatars, role badges (`admin`, `editor`, `viewer`), and timestamps.
+- **Raw Markdown Editing & Archiving**: Authorized editors and administrators can toggle into full raw Markdown editing mode to refactor discussions, resolve proposals, or archive completed debates.
+- **Opt-In Cascading Enablement (Disabled by Default)**: Categories default to disabled (`allowTalk: false`). When an administrator enables Talk Pages on a category, all documents in that category display the Discussion tab unless explicitly disabled per document (`Inherit from category (Default)`, `Enabled`, `Disabled`).
+- **LLM Token Discussion Retrieval (`api/llm.php` & `lib/Core/LlmAccess.php`)**: Added dedicated `mode=talk` and `mode=doc&include_talk=1` endpoints allowing AI agents and LLMs to retrieve discussions via LLM Access Tokens in structured JSON or clean Markdown transcripts (`format=markdown`).
+- **Automated Test Suite (`tests/talk_test.php` & `tests/test_talk_ui.js`)**: Comprehensive unit and DOM test suites covering directory security, inheritance cascading truth table, topic addition, indented replies, raw markdown saving, XSS stripping, ExtensionManager routing, and LLM token retrieval.
+
+---
+
 ## [1.20.12] - CollabFlow - 2026-11-11
 
 ### 💬 Chapter & Category Comments Extension
