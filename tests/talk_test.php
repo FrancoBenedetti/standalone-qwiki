@@ -176,6 +176,20 @@ echo "\n8. Testing API Action Handling & Security Guards...\n";
 Auth::startSession();
 $_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
 
+// Temporarily ensure test_book and test_topic_doc exist in config with allowTalk = true
+$origCfgBefore8 = Config::load();
+$testCfg8 = $origCfgBefore8;
+$testCfg8['books'][] = [
+    'id' => 'test_book',
+    'title' => 'Test Book',
+    'type' => 'folder',
+    'allowTalk' => true,
+    'items' => [
+        ['slug' => 'test_topic_doc', 'title' => 'Test Topic Doc', 'type' => 'markdown']
+    ]
+];
+Config::save($testCfg8);
+
 // A. Unauthenticated add topic should fail with 401
 unset($_SESSION['qwiki_user']);
 unset($_SESSION['qwiki_admin']);
@@ -228,6 +242,9 @@ $handled = $extManager->handleAction('ext_talk_save_raw', [
 $output = ob_get_clean();
 $res = json_decode($output, true);
 assert_true(!empty($res['success']), "Admin can save raw talk markdown");
+
+// Restore config after Test 8
+Config::save($origCfgBefore8);
 
 // TEST 9: Category and Chapter Metadata Persistence
 echo "\n9. Testing Category & Chapter Talk Page Enablement Persistence...\n";
@@ -318,6 +335,43 @@ $docTalkResp = $runApiLlm(['mode' => 'doc', 'slug' => 'test-llm-talk-doc', 'incl
 $docTalkParsed = json_decode($docTalkResp, true);
 assert_true(!empty($docTalkParsed['success']), "mode=doc with include_talk=1 returns success=true");
 assert_true(isset($docTalkParsed['document']['talk']), "mode=doc response includes talk payload");
+
+// E: Retrieve talk embedded in mode=doc with format=markdown & include_talk=1
+$docTalkMd = $runApiLlm(['mode' => 'doc', 'slug' => 'test-llm-talk-doc', 'format' => 'markdown', 'include_talk' => '1', 'key' => $keyAll]);
+assert_true(strpos($docTalkMd, 'Editorial Discussion') !== false, "mode=doc&format=markdown contains editorial discussion header");
+assert_true(strpos($docTalkMd, 'API Design Spec') !== false, "mode=doc&format=markdown contains discussion topic content");
+
+// TEST 11: Reviewer Findings Fix Verification
+echo "\n11. Testing Reviewer Findings Fixes...\n";
+
+// A. Verify mutation blocked when Talk is disabled for chapter
+$_SESSION['qwiki_admin'] = true;
+$_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+$_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
+
+ob_start();
+$extManager->handleAction('ext_talk_add_topic', [
+    'book' => 'cat_disabled',
+    'slug' => 'doc_inherit_disabled',
+    'title' => 'Should be blocked',
+    'message' => 'This chapter has talk disabled'
+]);
+$disabledAddOut = ob_get_clean();
+$disabledAddJson = json_decode($disabledAddOut, true);
+assert_true(isset($disabledAddJson['success']) && $disabledAddJson['success'] === false, "Mutation blocked on chapter with talk disabled");
+assert_equals(403, $disabledAddJson['code'] ?? null, "Mutation on disabled talk chapter returns 403 Forbidden");
+
+// B. Verify nested H2 markdown in user message is demoted to prevent topic fragmentation
+$tH2 = TalkService::addTopic('test_book', 'test_h2_demote', 'alice', 'editor', 'Parent Topic', "First line\n\n## Subheading in message\n\nSecond line");
+$topicsH2 = TalkService::getTopics('test_book', 'test_h2_demote');
+assert_equals(1, count($topicsH2), "Nested H2 in message does not create phantom topics");
+assert_equals('Parent Topic', $topicsH2[0]['title'], "Only genuine topic heading parsed as title");
+
+// C. Verify process lock helper exists and executes safely
+$lockedResult = TalkService::withLock('test_book', 'test_lock_doc', function() {
+    return 'locked_success';
+});
+assert_equals('locked_success', $lockedResult, "TalkService::withLock executes callback with synchronized lock");
 
 // Restore original config
 Config::save($origCfg);

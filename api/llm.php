@@ -127,8 +127,8 @@ switch ($mode) {
             if ($includeComments && !empty($doc['comments'])) {
                 echo "\n\n" . LlmAccess::formatCommentsMarkdown(['comments' => $doc['comments']], $doc['title'], $doc['slug'], $doc['category'], $doc['comments_enabled'] ?? false);
             }
-            if ($includeTalk && !empty($doc['talk'])) {
-                echo "\n\n" . LlmAccess::formatTalkMarkdown($doc['talk'], '', $doc['title'], $doc['slug'], $doc['category'], $doc['talk_enabled'] ?? false);
+            if ($includeTalk && (!empty($doc['talk']) || !empty($doc['talk_raw']))) {
+                echo "\n\n" . LlmAccess::formatTalkMarkdown($doc['talk'] ?? [], $doc['talk_raw'] ?? '', $doc['title'], $doc['slug'], $doc['category'], $doc['talk_enabled'] ?? false);
             }
             exit;
         }

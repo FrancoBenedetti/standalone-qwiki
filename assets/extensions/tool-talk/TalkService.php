@@ -8,6 +8,7 @@ use Qwiki\Core\Config;
 
 class TalkService {
     private static $storageDir = null;
+    private static $activeLocks = [];
 
     /**
      * Get and initialize the secure flat-file storage directory for talk pages.
@@ -114,6 +115,37 @@ class TalkService {
     }
 
     /**
+     * Synchronize file operations using an exclusive process lock with re-entrant support.
+     */
+    public static function withLock(string $bookId, string $slug, callable $callback) {
+        $dir = self::getStorageDir();
+        $safeBook = preg_replace('/[^a-zA-Z0-9_-]/', '_', $bookId ?: 'default');
+        $safeSlug = preg_replace('/[^a-zA-Z0-9_-]/', '_', $slug ?: 'index');
+        $lockKey = $safeBook . '__' . $safeSlug;
+
+        // Re-entrant lock check: if this process already holds the lock on this chapter, execute callback directly
+        if (!empty(self::$activeLocks[$lockKey])) {
+            return $callback();
+        }
+
+        $lockFile = $dir . '/' . $lockKey . '.lock';
+        $fp = @fopen($lockFile, 'c+');
+        if (!$fp) {
+            return $callback();
+        }
+
+        flock($fp, LOCK_EX);
+        self::$activeLocks[$lockKey] = $fp;
+        try {
+            return $callback();
+        } finally {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+            unset(self::$activeLocks[$lockKey]);
+        }
+    }
+
+    /**
      * Read raw Markdown content from storage.
      */
     public static function getRawContent(string $bookId, string $slug): string {
@@ -139,22 +171,24 @@ class TalkService {
      * Atomically save raw Markdown content.
      */
     public static function saveRawContent(string $bookId, string $slug, string $markdown): bool {
-        $dir = self::getStorageDir();
-        $targetFile = self::getFilePath($bookId, $slug);
-        $tempFile = $dir . '/tmp_' . uniqid('', true) . '.md';
+        return self::withLock($bookId, $slug, function() use ($bookId, $slug, $markdown) {
+            $dir = self::getStorageDir();
+            $targetFile = self::getFilePath($bookId, $slug);
+            $tempFile = $dir . '/tmp_' . uniqid('', true) . '.md';
 
-        $fp = @fopen($tempFile, 'wb');
-        if (!$fp) {
-            return false;
-        }
+            $fp = @fopen($tempFile, 'wb');
+            if (!$fp) {
+                return false;
+            }
 
-        flock($fp, LOCK_EX);
-        fwrite($fp, $markdown);
-        fflush($fp);
-        flock($fp, LOCK_UN);
-        fclose($fp);
+            flock($fp, LOCK_EX);
+            fwrite($fp, $markdown);
+            fflush($fp);
+            flock($fp, LOCK_UN);
+            fclose($fp);
 
-        return @rename($tempFile, $targetFile);
+            return @rename($tempFile, $targetFile);
+        });
     }
 
     /**
@@ -210,86 +244,95 @@ class TalkService {
      * Add a new topic section to the talk page.
      */
     public static function addTopic(string $bookId, string $slug, string $username, string $role, string $title, string $message): array {
-        $cleanTitle = trim(preg_replace('/[\r\n\t]+/', ' ', strip_tags($title)));
-        if ($cleanTitle === '') {
-            $cleanTitle = 'Untitled Discussion';
-        }
+        return self::withLock($bookId, $slug, function() use ($bookId, $slug, $username, $role, $title, $message) {
+            $cleanTitle = trim(preg_replace('/[\r\n\t]+/', ' ', strip_tags($title)));
+            if ($cleanTitle === '') {
+                $cleanTitle = 'Untitled Discussion';
+            }
 
-        $cleanUsername = trim(strip_tags($username)) ?: 'Anonymous';
-        $cleanRole = trim(strip_tags($role)) ?: 'viewer';
-        $timestamp = date('Y-m-d H:i');
+            $cleanUsername = trim(strip_tags($username)) ?: 'Anonymous';
+            $cleanRole = trim(strip_tags($role)) ?: 'viewer';
+            $timestamp = date('Y-m-d H:i');
 
-        $topicMarkdown = "## {$cleanTitle}\n\n"
-                       . "**@{$cleanUsername}** ({$cleanRole}) *({$timestamp})*:\n"
-                       . trim($message) . "\n\n";
+            // Demote any H2 in message body to prevent breaking topic boundaries
+            $cleanMessage = preg_replace('/^##\s+/m', '### ', trim($message));
 
-        $raw = self::getRawContent($bookId, $slug);
-        $updatedRaw = rtrim($raw) . ($raw ? "\n\n" : "") . $topicMarkdown;
+            $topicMarkdown = "## {$cleanTitle}\n\n"
+                           . "**@{$cleanUsername}** ({$cleanRole}) *({$timestamp})*:\n"
+                           . $cleanMessage . "\n\n";
 
-        $saved = self::saveRawContent($bookId, $slug, $updatedRaw);
-        if (!$saved) {
-            return ['success' => false, 'error' => 'Failed to save topic'];
-        }
+            $raw = self::getRawContent($bookId, $slug);
+            $updatedRaw = rtrim($raw) . ($raw ? "\n\n" : "") . $topicMarkdown;
 
-        $topics = self::getTopics($bookId, $slug);
-        return [
-            'success' => true,
-            'topicsCount' => count($topics),
-            'topic' => end($topics) ?: null
-        ];
+            $saved = self::saveRawContent($bookId, $slug, $updatedRaw);
+            if (!$saved) {
+                return ['success' => false, 'error' => 'Failed to save topic'];
+            }
+
+            $topics = self::getTopics($bookId, $slug);
+            return [
+                'success' => true,
+                'topicsCount' => count($topics),
+                'topic' => end($topics) ?: null
+            ];
+        });
     }
 
     /**
      * Add an indented reply under a specific topic index.
      */
     public static function addReply(string $bookId, string $slug, string $username, string $role, int $topicIndex, string $message): array {
-        $raw = self::getRawContent($bookId, $slug);
-        if (trim($raw) === '') {
-            return ['success' => false, 'error' => 'Talk page is empty'];
-        }
-
-        $lines = explode("\n", $raw);
-        $topicIndices = [];
-        $currentIndex = -1;
-
-        foreach ($lines as $lineNum => $line) {
-            if (preg_match('/^##\s+(.+)$/', $line)) {
-                $currentIndex++;
-                $topicIndices[$currentIndex] = $lineNum;
+        return self::withLock($bookId, $slug, function() use ($bookId, $slug, $username, $role, $topicIndex, $message) {
+            $raw = self::getRawContent($bookId, $slug);
+            if (trim($raw) === '') {
+                return ['success' => false, 'error' => 'Talk page is empty'];
             }
-        }
 
-        if (!isset($topicIndices[$topicIndex])) {
-            return ['success' => false, 'error' => 'Topic not found'];
-        }
+            $lines = explode("\n", $raw);
+            $topicIndices = [];
+            $currentIndex = -1;
 
-        // Determine insertion point: before next ## topic or at end of file
-        $insertLineNum = isset($topicIndices[$topicIndex + 1]) ? $topicIndices[$topicIndex + 1] : count($lines);
+            foreach ($lines as $lineNum => $line) {
+                if (preg_match('/^##\s+(.+)$/', $line)) {
+                    $currentIndex++;
+                    $topicIndices[$currentIndex] = $lineNum;
+                }
+            }
 
-        $cleanUsername = trim(strip_tags($username)) ?: 'Anonymous';
-        $cleanRole = trim(strip_tags($role)) ?: 'viewer';
-        $timestamp = date('Y-m-d H:i');
+            if (!isset($topicIndices[$topicIndex])) {
+                return ['success' => false, 'error' => 'Topic not found'];
+            }
 
-        $indentedMessage = implode("\n> ", explode("\n", trim($message)));
-        $replyBlock = "\n> **@{$cleanUsername}** ({$cleanRole}) *({$timestamp})*:\n"
-                    . "> {$indentedMessage}\n";
+            // Determine insertion point: before next ## topic or at end of file
+            $insertLineNum = isset($topicIndices[$topicIndex + 1]) ? $topicIndices[$topicIndex + 1] : count($lines);
 
-        $before = array_slice($lines, 0, $insertLineNum);
-        $after = array_slice($lines, $insertLineNum);
+            $cleanUsername = trim(strip_tags($username)) ?: 'Anonymous';
+            $cleanRole = trim(strip_tags($role)) ?: 'viewer';
+            $timestamp = date('Y-m-d H:i');
 
-        $updatedLines = array_merge($before, explode("\n", $replyBlock), $after);
-        $updatedRaw = implode("\n", $updatedLines);
+            // Demote any H2 in reply message to prevent breaking topic boundaries
+            $cleanMessage = preg_replace('/^##\s+/m', '### ', trim($message));
+            $indentedMessage = implode("\n> ", explode("\n", $cleanMessage));
+            $replyBlock = "\n> **@{$cleanUsername}** ({$cleanRole}) *({$timestamp})*:\n"
+                        . "> {$indentedMessage}\n";
 
-        $saved = self::saveRawContent($bookId, $slug, $updatedRaw);
-        if (!$saved) {
-            return ['success' => false, 'error' => 'Failed to save reply'];
-        }
+            $before = array_slice($lines, 0, $insertLineNum);
+            $after = array_slice($lines, $insertLineNum);
 
-        $topics = self::getTopics($bookId, $slug);
-        return [
-            'success' => true,
-            'topic' => $topics[$topicIndex] ?? null
-        ];
+            $updatedLines = array_merge($before, explode("\n", $replyBlock), $after);
+            $updatedRaw = implode("\n", $updatedLines);
+
+            $saved = self::saveRawContent($bookId, $slug, $updatedRaw);
+            if (!$saved) {
+                return ['success' => false, 'error' => 'Failed to save reply'];
+            }
+
+            $topics = self::getTopics($bookId, $slug);
+            return [
+                'success' => true,
+                'topic' => $topics[$topicIndex] ?? null
+            ];
+        });
     }
 
     /**
@@ -307,6 +350,7 @@ class TalkService {
         $html = preg_replace('#\s*on[a-z]+\s*=[^\s>]+#i', '', $html);
         $html = preg_replace('#href=["\']\s*javascript:[^"\']*["\']#i', 'href="#"', $html);
         $html = preg_replace('#src=["\']\s*javascript:[^"\']*["\']#i', 'src=""', $html);
+        $html = preg_replace('/<a\s+href=/i', '<a target="_blank" rel="noopener noreferrer" href=', $html);
 
         return $html;
     }

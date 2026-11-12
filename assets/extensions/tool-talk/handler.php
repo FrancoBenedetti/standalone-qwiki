@@ -69,6 +69,14 @@ switch ($action) {
             return;
         }
 
+        if (!TalkService::isTalkEnabled($book, $slug, $config)) {
+            if (!headers_sent()) {
+                http_response_code(403);
+            }
+            echo json_encode(['success' => false, 'code' => 403, 'error' => 'Talk pages are disabled for this chapter.']);
+            return;
+        }
+
         $title = trim((string)($params['title'] ?? ''));
         $message = trim((string)($params['message'] ?? ''));
 
@@ -101,6 +109,14 @@ switch ($action) {
                 http_response_code(401);
             }
             echo json_encode(['success' => false, 'code' => 401, 'error' => 'Authentication required to reply to topics.']);
+            return;
+        }
+
+        if (!TalkService::isTalkEnabled($book, $slug, $config)) {
+            if (!headers_sent()) {
+                http_response_code(403);
+            }
+            echo json_encode(['success' => false, 'code' => 403, 'error' => 'Talk pages are disabled for this chapter.']);
             return;
         }
 
@@ -144,6 +160,14 @@ switch ($action) {
                 http_response_code(403);
             }
             echo json_encode(['success' => false, 'code' => 403, 'error' => 'Only editors and administrators can edit raw talk markdown.']);
+            return;
+        }
+
+        if (!TalkService::isTalkEnabled($book, $slug, $config)) {
+            if (!headers_sent()) {
+                http_response_code(403);
+            }
+            echo json_encode(['success' => false, 'code' => 403, 'error' => 'Talk pages are disabled for this chapter.']);
             return;
         }
 

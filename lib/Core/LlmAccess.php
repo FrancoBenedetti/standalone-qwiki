@@ -747,6 +747,7 @@ class LlmAccess {
         if ($includeTalk) {
             $talkRes = self::retrieveTalk($keyRecord, $slug, 'raw');
             $docPayload['talk'] = $talkRes['success'] ? ($talkRes['topics'] ?? []) : [];
+            $docPayload['talk_raw'] = $talkRes['success'] ? ($talkRes['raw'] ?? '') : '';
             $docPayload['talk_enabled'] = $talkRes['success'] ? ($talkRes['talk_enabled'] ?? false) : false;
         }
 
@@ -1000,12 +1001,18 @@ class LlmAccess {
         $out .= "- **Talk Page Policy**: " . ($enabled ? "Enabled" : "Disabled") . "\n";
         $out .= "- **Topic Count**: " . count($topics) . "\n\n";
 
-        if (empty($topics)) {
+        if (empty($topics) && empty(trim($raw))) {
             $out .= "*No editorial discussion topics recorded for this chapter.*\n";
-            return $out;
+            return trim($out);
         }
 
-        $out .= $raw . "\n";
+        if (!empty(trim($raw))) {
+            $out .= trim($raw) . "\n";
+        } else {
+            foreach ($topics as $t) {
+                $out .= "## " . $t['title'] . "\n\n" . $t['rawMarkdown'] . "\n\n";
+            }
+        }
         return trim($out);
     }
 
