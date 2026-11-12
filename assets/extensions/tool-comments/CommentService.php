@@ -43,32 +43,31 @@ class CommentService {
 
     /**
      * Resolve cascading inheritance for comments enablement:
-     * Global setting -> Category setting -> Chapter override
+     * - Category setting: default (if not set) is disabled (false)
+     * - Page/Document setting: default is 'inherit from category', with explicit 'enabled' and 'disabled'
      */
     public static function isCommentsEnabled(string $bookId, string $slug, array $config): bool {
-        $enabled = !empty($config['allowComments']);
-
-        if (empty($config['books']) || !is_array($config['books'])) {
-            return $enabled;
-        }
-
-        // Search category and chapter
         $targetCategory = null;
         $targetChapter = null;
 
-        self::findCategoryAndChapter($config['books'], $bookId, $slug, $targetCategory, $targetChapter);
-
-        // If category explicitly sets allowComments (boolean), override global
-        if ($targetCategory && isset($targetCategory['allowComments']) && is_bool($targetCategory['allowComments'])) {
-            $enabled = $targetCategory['allowComments'];
+        if (!empty($config['books']) && is_array($config['books'])) {
+            self::findCategoryAndChapter($config['books'], $bookId, $slug, $targetCategory, $targetChapter);
         }
 
-        // If chapter explicitly sets allowComments (boolean), override category/global
+        // Category setting: default (if not set) is disabled (false)
+        $categoryEnabled = false;
+        if ($targetCategory && !empty($targetCategory['allowComments'])) {
+            $categoryEnabled = true;
+        }
+
+        // Document / Chapter level:
+        // Default: 'inherit from category' ($categoryEnabled)
+        // If chapter explicitly sets allowComments as boolean, it overrides the category
         if ($targetChapter && isset($targetChapter['allowComments']) && is_bool($targetChapter['allowComments'])) {
-            $enabled = $targetChapter['allowComments'];
+            return $targetChapter['allowComments'];
         }
 
-        return $enabled;
+        return $categoryEnabled;
     }
 
     /**

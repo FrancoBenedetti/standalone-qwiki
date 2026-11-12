@@ -269,7 +269,7 @@ class Navigation {
         echo "</span>";
         echo "<span class='header-actions-inline'>";
         if ($isAdmin) {
-            $catAllowComments = isset($node['allowComments']) ? ($node['allowComments'] ? '1' : '0') : '';
+            $catAllowComments = !empty($node['allowComments']) ? '1' : '0';
             $catAllowTalk = isset($node['allowTalk']) ? ($node['allowTalk'] ? '1' : '0') : '0';
             echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' data-book-allow-talk='{$catAllowTalk}' title='Edit Category'>⚙️</button> ";
         }

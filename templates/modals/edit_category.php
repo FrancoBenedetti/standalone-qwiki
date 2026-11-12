@@ -50,7 +50,7 @@
                 <input type="hidden" name="allowComments" value="0">
                 <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
                     <input type="checkbox" name="allowComments" id="edit-book-allow-comments-input" value="1">
-                    <span>💬 Allow signed-in users to comment on chapters in this category</span>
+                    <span>💬 Allow signed-in users to comment on documents in this category (Disabled by default)</span>
                 </label>
             </div>
             <div class="form-group" style="margin-top: 0.5rem;">

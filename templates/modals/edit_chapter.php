@@ -77,11 +77,11 @@
                 </label>
             </div>
             <div class="form-group">
-                <label class="form-label" for="edit-chapter-allow-comments">Comments Policy</label>
+                <label class="form-label" for="edit-chapter-allow-comments">Comments</label>
                 <select name="allowComments" id="edit-chapter-allow-comments" class="form-control">
-                    <option value="inherit">Inherit from category</option>
-                    <option value="enabled">Enabled (Allow comments)</option>
-                    <option value="disabled">Disabled (Disallow comments)</option>
+                    <option value="inherit" selected>Inherit from category (Default)</option>
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
                 </select>
             </div>
             <div class="form-group">

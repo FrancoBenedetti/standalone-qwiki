@@ -315,7 +315,7 @@ Standalone Qwiki natively parses and presents YAML frontmatter in Markdown docum
 
 Standalone Qwiki includes a privacy-respecting, zero-database discussion engine allowing signed-in users (viewers and administrators) to collaborate, review, and comment on documentation:
 
-- **Cascading Category & Chapter Policies**: Enable comments globally, for an entire category, or configure individual chapter overrides (`Inherit from category`, `Enabled`, `Disabled`) directly in category and document metadata settings.
+- **Cascading Category & Document Policies**: Comments are disabled by default. Administrators can activate comments per Category, which automatically enables comments on all documents within that category. Individual documents default to `Inherit from category (Default)`, with granular `Enabled` and `Disabled` overrides available in document settings.
 - **1-Level Threaded Discussions**: Supports root chapter comments and direct single-level replies to facilitate focused documentation reviews without recursive indentation clutter.
 - **Restricted Markdown Formatting**: Authors can format comments using safe GitHub-Flavored Markdown (bold, italics, inline code, code blocks, blockquotes, lists, and links) with real-time composer preview and strict XSS sanitization.
 - **Zero-Database JSON Storage**: Comments are stored in isolated, `.htaccess`-protected flat files under `data/comments/` using atomic file locking (`flock`) to eliminate database dependencies.

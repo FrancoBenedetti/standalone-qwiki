@@ -1155,7 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const editBookAllowCommentsInput = document.getElementById('edit-book-allow-comments-input');
         if (editBookAllowCommentsInput) {
           const bookAllowComments = btn.getAttribute('data-book-allow-comments');
-          editBookAllowCommentsInput.checked = (bookAllowComments !== '0');
+          editBookAllowCommentsInput.checked = (bookAllowComments === '1' || bookAllowComments === 'true');
         }
 
         const editBookAllowTalkInput = document.getElementById('edit-book-allow-talk-input');
