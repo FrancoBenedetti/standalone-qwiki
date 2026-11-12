@@ -100,8 +100,9 @@ switch ($mode) {
         $limit = isset($_GET['limit']) ? max(0, (int)$_GET['limit']) : 0;
         $format = strtolower(trim($_GET['format'] ?? 'json'));
         $includeComments = isset($_GET['include_comments']) && ($_GET['include_comments'] === '1' || $_GET['include_comments'] === 'true');
+        $includeTalk = isset($_GET['include_talk']) && ($_GET['include_talk'] === '1' || $_GET['include_talk'] === 'true');
 
-        $docResult = LlmAccess::retrieveDocument($keyRecord, $slug, $offset, $limit, $includeComments);
+        $docResult = LlmAccess::retrieveDocument($keyRecord, $slug, $offset, $limit, $includeComments, $includeTalk);
 
         if (!$docResult['success']) {
             llm_response_code($docResult['code'] ?? 400);
@@ -125,6 +126,9 @@ switch ($mode) {
             echo $doc['content'];
             if ($includeComments && !empty($doc['comments'])) {
                 echo "\n\n" . LlmAccess::formatCommentsMarkdown(['comments' => $doc['comments']], $doc['title'], $doc['slug'], $doc['category'], $doc['comments_enabled'] ?? false);
+            }
+            if ($includeTalk && !empty($doc['talk'])) {
+                echo "\n\n" . LlmAccess::formatTalkMarkdown($doc['talk'], '', $doc['title'], $doc['slug'], $doc['category'], $doc['talk_enabled'] ?? false);
             }
             exit;
         }
@@ -157,6 +161,30 @@ switch ($mode) {
         echo json_encode($commentsResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         break;
 
+    case 'talk':
+    case 'discussion':
+        $slug = $_GET['slug'] ?? '';
+        $format = strtolower(trim($_GET['format'] ?? 'json'));
+
+        $talkResult = LlmAccess::retrieveTalk($keyRecord, $slug, $format);
+
+        if (!$talkResult['success']) {
+            llm_response_code($talkResult['code'] ?? 400);
+            llm_header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($talkResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        if ($format === 'markdown' || $format === 'md' || $format === 'text') {
+            llm_header('Content-Type: text/markdown; charset=utf-8');
+            echo $talkResult['markdown'];
+            exit;
+        }
+
+        llm_header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($talkResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        break;
+
     case 'search':
         $query = $_GET['q'] ?? '';
         $limit = isset($_GET['limit']) ? max(1, min(50, (int)$_GET['limit'])) : 10;
@@ -177,7 +205,7 @@ switch ($mode) {
         llm_header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'success' => false,
-            'error' => "Unknown mode '{$mode}'. Supported modes are: tree, doc, search, comments, schema."
+            'error' => "Unknown mode '{$mode}'. Supported modes are: tree, doc, search, comments, talk, schema."
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         break;
 }

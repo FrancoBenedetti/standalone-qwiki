@@ -83,29 +83,31 @@ class TalkService {
     /**
      * Recursively find matching category and chapter.
      */
-    private static function findCategoryAndChapter(array $books, string $bookId, string $slug, &$targetCategory, &$targetChapter) {
-        foreach ($books as $category) {
-            $catId = $category['id'] ?? '';
-            $catMatches = empty($bookId) || $catId === $bookId;
+    private static function findCategoryAndChapter(array $nodes, string $bookId, string $slug, &$foundCategory, &$foundChapter, $currentParent = null): void {
+        foreach ($nodes as $node) {
+            $hasItems = isset($node['items']) && is_array($node['items']);
+            $hasChapters = isset($node['chapters']) && is_array($node['chapters']);
+            $isFolder = $hasItems || $hasChapters || (($node['type'] ?? '') === 'folder');
 
-            if (!empty($category['chapters']) && is_array($category['chapters'])) {
-                foreach ($category['chapters'] as $chapter) {
-                    if (($chapter['slug'] ?? '') === $slug) {
-                        if ($catMatches || $targetChapter === null) {
-                            $targetCategory = $category;
-                            $targetChapter = $chapter;
-                            if ($catMatches) {
-                                return;
-                            }
-                        }
-                    }
+            if ($isFolder) {
+                $isCurrentBook = (!empty($node['id']) && $node['id'] === $bookId);
+                $parentForChildren = $isCurrentBook ? $node : ($currentParent ?: $node);
+                if ($isCurrentBook && !$foundCategory) {
+                    $foundCategory = $node;
+                }
+
+                if ($hasItems) {
+                    self::findCategoryAndChapter($node['items'], $bookId, $slug, $foundCategory, $foundChapter, $parentForChildren);
+                }
+                if ($hasChapters) {
+                    self::findCategoryAndChapter($node['chapters'], $bookId, $slug, $foundCategory, $foundChapter, $parentForChildren);
                 }
             }
 
-            if (!empty($category['subcategories']) && is_array($category['subcategories'])) {
-                self::findCategoryAndChapter($category['subcategories'], $bookId, $slug, $targetCategory, $targetChapter);
-                if ($targetChapter !== null) {
-                    return;
+            if (!empty($node['slug']) && $node['slug'] === $slug) {
+                $foundChapter = $node;
+                if (!$foundCategory && $currentParent) {
+                    $foundCategory = $currentParent;
                 }
             }
         }

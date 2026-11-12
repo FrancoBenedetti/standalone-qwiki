@@ -258,6 +258,70 @@ assert_equals(true, TalkService::isTalkEnabled('cat-talk-test', 'ch-default', $t
 assert_equals(false, TalkService::isTalkEnabled('cat-talk-test', 'ch-disabled', $testNavConfig), "Chapter with allowTalk=false in enabled category is disabled");
 assert_equals(true, TalkService::isTalkEnabled('cat-talk-test', 'ch-enabled', $testNavConfig), "Chapter with allowTalk=true is enabled");
 
+// TEST 10: LLM Access Token Retrieval for Talk Pages
+echo "\n10. Testing LLM Access Token Retrieval for Talk Pages...\n";
+require_once __DIR__ . '/../lib/Core/LlmAccess.php';
+
+// Create a test document in temporary config with Talk enabled
+$origCfg = Config::load();
+$tempCfg = $origCfg;
+$tempCfg['books'][] = [
+    'id' => 'test-llm-talk-book',
+    'title' => 'LLM Talk Book',
+    'type' => 'folder',
+    'allowTalk' => true,
+    'items' => [
+        ['slug' => 'test-llm-talk-doc', 'title' => 'LLM Talk Document', 'type' => 'markdown', 'file' => 'content/getting-started/features.md']
+    ]
+];
+Config::save($tempCfg);
+
+// Add sample talk topic and reply
+TalkService::addTopic('test-llm-talk-book', 'test-llm-talk-doc', 'editor1', 'editor', 'API Design Spec', 'Should we support GraphQL?');
+TalkService::addReply('test-llm-talk-book', 'test-llm-talk-doc', 'admin1', 'admin', 0, 'REST and flat JSON are sufficient for now.');
+
+// Generate LLM keys
+$genKeyAll = \Qwiki\Core\LlmAccess::generateKey('AI Assistant Talk Test', '', ['markdown'], null);
+$keyAll = $genKeyAll['key']['key'];
+
+$genKeyScoped = \Qwiki\Core\LlmAccess::generateKey('AI Assistant Talk Scoped', 'other-category', ['markdown'], null);
+$keyScoped = $genKeyScoped['key']['key'];
+
+$runApiLlm = function(array $getParams) {
+    $phpCode = '$_GET = ' . var_export($getParams, true) . '; ';
+    $phpCode .= 'include "' . __DIR__ . '/../api/llm.php";';
+    $cmd = 'php -r ' . escapeshellarg($phpCode);
+    return shell_exec($cmd);
+};
+
+// A: Retrieve talk via mode=talk (JSON)
+$llmRespJson = $runApiLlm(['mode' => 'talk', 'slug' => 'test-llm-talk-doc', 'key' => $keyAll]);
+$llmParsed = json_decode($llmRespJson, true);
+assert_true(!empty($llmParsed['success']), "api/llm.php?mode=talk returns success=true with valid key");
+assert_equals('test-llm-talk-doc', $llmParsed['slug'] ?? '', "api/llm.php?mode=talk returns correct slug");
+assert_true(($llmParsed['topics_count'] ?? 0) >= 1, "api/llm.php?mode=talk returns topics_count >= 1");
+assert_true(!empty($llmParsed['talk_enabled']), "api/llm.php?mode=talk returns talk_enabled=true");
+
+// B: Retrieve talk via mode=talk (Markdown format)
+$llmRespMd = $runApiLlm(['mode' => 'talk', 'slug' => 'test-llm-talk-doc', 'format' => 'markdown', 'key' => $keyAll]);
+assert_true(strpos($llmRespMd, 'Editorial Discussion') !== false || strpos($llmRespMd, 'Talk Page') !== false, "mode=talk&format=markdown returns markdown header");
+assert_true(strpos($llmRespMd, 'API Design Spec') !== false, "Markdown transcript contains topic title");
+
+// C: Scoped key outside category is rejected
+$scopedResp = $runApiLlm(['mode' => 'talk', 'slug' => 'test-llm-talk-doc', 'key' => $keyScoped]);
+$scopedParsed = json_decode($scopedResp, true);
+assert_true(isset($scopedParsed['success']) && $scopedParsed['success'] === false, "Scoped LLM key outside category is rejected");
+assert_equals(403, $scopedParsed['code'] ?? 0, "Rejection returns HTTP 403 Forbidden");
+
+// D: Retrieve talk embedded in mode=doc with include_talk=1
+$docTalkResp = $runApiLlm(['mode' => 'doc', 'slug' => 'test-llm-talk-doc', 'include_talk' => '1', 'key' => $keyAll]);
+$docTalkParsed = json_decode($docTalkResp, true);
+assert_true(!empty($docTalkParsed['success']), "mode=doc with include_talk=1 returns success=true");
+assert_true(isset($docTalkParsed['document']['talk']), "mode=doc response includes talk payload");
+
+// Restore original config
+Config::save($origCfg);
+
 // Cleanup test files
 $testFiles = glob($talkDir . '/*test*');
 if ($testFiles) {
