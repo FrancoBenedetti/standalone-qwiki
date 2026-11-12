@@ -110,6 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (allowCommentsSelect) {
               allowCommentsSelect.value = btnMeta.getAttribute('data-allow-comments') || 'inherit';
             }
+            const allowTalkSelect = document.getElementById('edit-chapter-allow-talk');
+            if (allowTalkSelect) {
+              allowTalkSelect.value = btnMeta.getAttribute('data-allow-talk') || 'inherit';
+            }
             const shareKeyInput = document.getElementById('edit-chapter-share-key');
             if (shareKeyInput) {
               shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
@@ -1152,6 +1156,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editBookAllowCommentsInput) {
           const bookAllowComments = btn.getAttribute('data-book-allow-comments');
           editBookAllowCommentsInput.checked = (bookAllowComments !== '0');
+        }
+
+        const editBookAllowTalkInput = document.getElementById('edit-book-allow-talk-input');
+        if (editBookAllowTalkInput) {
+          const bookAllowTalk = btn.getAttribute('data-book-allow-talk');
+          editBookAllowTalkInput.checked = (bookAllowTalk === '1');
         }
 
         editBookModal.classList.add('open');

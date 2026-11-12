@@ -36,8 +36,8 @@ $action = $_REQUEST['action'] ?? $_GET['action'] ?? $_POST['action'] ?? '';
 // Helper for tree category updates
 // Helper for tree category updates (delegates to Navigation::updateNodeMeta)
 if (!function_exists('update_node_meta')) {
-    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null) {
-        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments);
+    function update_node_meta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null, $allowTalk = null) {
+        return Navigation::updateNodeMeta($node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments, $allowTalk);
     }
 }
 
@@ -417,6 +417,7 @@ switch ($action) {
         $rawId = trim($_POST['id'] ?? '');
         $parentId = trim($_POST['parentId'] ?? '');
         $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
+        $allowTalk = isset($_POST['allowTalk']) ? ($_POST['allowTalk'] === '1' || $_POST['allowTalk'] === 'true') : false;
         $isExplicitCustom = isset($_POST['isCustomSlug']) ? ($_POST['isCustomSlug'] === '1' || $_POST['isCustomSlug'] === 'true') : !empty($rawId);
 
         if (empty($title)) {
@@ -488,6 +489,9 @@ switch ($action) {
             if ($allowComments) {
                 $newNode['allowComments'] = true;
             }
+            if ($allowTalk) {
+                $newNode['allowTalk'] = true;
+            }
             if ($description !== '') {
                 $newNode['description'] = $description;
             }
@@ -517,6 +521,9 @@ switch ($action) {
             ];
             if ($allowComments) {
                 $newBook['allowComments'] = true;
+            }
+            if ($allowTalk) {
+                $newBook['allowTalk'] = true;
             }
             if ($description !== '') {
                 $newBook['description'] = $description;
@@ -553,6 +560,7 @@ switch ($action) {
 
         $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
         $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
+        $allowTalk = isset($_POST['allowTalk']) ? ($_POST['allowTalk'] === '1' || $_POST['allowTalk'] === 'true') : false;
 
         // In demo mode, prevent unlocking directly protected demo categories
         if (Config::isDemoMode() && Config::isCategoryDirectlyProtected($bookId, $config['books'] ?? []) && $readOnly === false) {
@@ -562,7 +570,7 @@ switch ($action) {
 
         $updated = false;
         foreach ($config['books'] as &$book) {
-            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description, $allowComments)) {
+            if (update_node_meta($book, $bookId, $title, $theme, $visibility, $readOnly, $description, $allowComments, $allowTalk)) {
                 $updated = true;
                 break;
             }
@@ -664,6 +672,14 @@ switch ($action) {
                 $chapterData['allowComments'] = true;
             } elseif ($commentsVal === 'disabled' || $commentsVal === '0' || $commentsVal === 'false') {
                 $chapterData['allowComments'] = false;
+            }
+        }
+        if (isset($_POST['allowTalk'])) {
+            $talkVal = strtolower(trim((string)$_POST['allowTalk']));
+            if ($talkVal === 'enabled' || $talkVal === '1' || $talkVal === 'true') {
+                $chapterData['allowTalk'] = true;
+            } elseif ($talkVal === 'disabled' || $talkVal === '0' || $talkVal === 'false') {
+                $chapterData['allowTalk'] = false;
             }
         }
         $added = false;
@@ -778,6 +794,17 @@ switch ($action) {
                     $foundChapter['allowComments'] = false;
                 } else {
                     unset($foundChapter['allowComments']);
+                }
+            }
+
+            if (isset($_POST['allowTalk'])) {
+                $talkVal = strtolower(trim((string)$_POST['allowTalk']));
+                if ($talkVal === 'enabled' || $talkVal === '1' || $talkVal === 'true') {
+                    $foundChapter['allowTalk'] = true;
+                } elseif ($talkVal === 'disabled' || $talkVal === '0' || $talkVal === 'false') {
+                    $foundChapter['allowTalk'] = false;
+                } else {
+                    unset($foundChapter['allowTalk']);
                 }
             }
 

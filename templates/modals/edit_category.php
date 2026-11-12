@@ -53,6 +53,13 @@
                     <span>💬 Allow signed-in users to comment on chapters in this category</span>
                 </label>
             </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <input type="hidden" name="allowTalk" value="0">
+                <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                    <input type="checkbox" name="allowTalk" id="edit-book-allow-talk-input" value="1">
+                    <span>🗣️ Enable Discussion & Talk Pages for chapters in this category</span>
+                </label>
+            </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
                 <div>
                     <button type="button" class="btn btn-outline btn-danger-text" id="btn-delete-book">🗑️ Delete Category</button>

@@ -229,6 +229,35 @@ $output = ob_get_clean();
 $res = json_decode($output, true);
 assert_true(!empty($res['success']), "Admin can save raw talk markdown");
 
+// TEST 9: Category and Chapter Metadata Persistence
+echo "\n9. Testing Category & Chapter Talk Page Enablement Persistence...\n";
+$_SESSION['qwiki_admin'] = true;
+$_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+
+// A. Test Navigation::updateNodeMeta sets allowTalk
+$targetNode = ['id' => 'test-book', 'title' => 'Test Book', 'type' => 'folder', 'items' => []];
+\Qwiki\Core\Navigation::updateNodeMeta($targetNode, 'test-book', 'Test Book Renamed', '', 'public', null, null, null, true);
+assert_true(isset($targetNode['allowTalk']) && $targetNode['allowTalk'] === true, "Navigation::updateNodeMeta sets allowTalk = true");
+
+\Qwiki\Core\Navigation::updateNodeMeta($targetNode, 'test-book', 'Test Book Renamed', '', 'public', null, null, null, false);
+assert_true(isset($targetNode['allowTalk']) && $targetNode['allowTalk'] === false, "Navigation::updateNodeMeta sets allowTalk = false");
+
+// B. Test chapter allowTalk override resolution
+$testCategory = [
+    'id' => 'cat-talk-test',
+    'title' => 'Cat Talk Test',
+    'allowTalk' => true,
+    'chapters' => [
+        ['slug' => 'ch-default', 'title' => 'Inherit Chapter'],
+        ['slug' => 'ch-disabled', 'title' => 'Disabled Chapter', 'allowTalk' => false],
+        ['slug' => 'ch-enabled', 'title' => 'Enabled Chapter', 'allowTalk' => true]
+    ]
+];
+$testNavConfig = ['books' => [$testCategory]];
+assert_equals(true, TalkService::isTalkEnabled('cat-talk-test', 'ch-default', $testNavConfig), "Chapter inheriting from enabled category is enabled");
+assert_equals(false, TalkService::isTalkEnabled('cat-talk-test', 'ch-disabled', $testNavConfig), "Chapter with allowTalk=false in enabled category is disabled");
+assert_equals(true, TalkService::isTalkEnabled('cat-talk-test', 'ch-enabled', $testNavConfig), "Chapter with allowTalk=true is enabled");
+
 // Cleanup test files
 $testFiles = glob($talkDir . '/*test*');
 if ($testFiles) {

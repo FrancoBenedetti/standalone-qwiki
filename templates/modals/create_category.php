@@ -45,6 +45,13 @@
                     <span>💬 Allow signed-in users to comment on chapters in this category</span>
                 </label>
             </div>
+            <div class="form-group" style="margin-top: 0.5rem;">
+                <input type="hidden" name="allowTalk" value="0">
+                <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+                    <input type="checkbox" name="allowTalk" id="create-category-allow-talk" value="1">
+                    <span>🗣️ Enable Discussion & Talk Pages for chapters in this category (Disabled by default)</span>
+                </label>
+            </div>
             <button type="submit" class="btn btn-primary" id="btn-submit-add-book" style="width: 100%;">Create Category</button>
         </form>
     </div>

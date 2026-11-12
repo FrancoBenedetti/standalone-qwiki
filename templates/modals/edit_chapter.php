@@ -84,6 +84,14 @@
                     <option value="disabled">Disabled (Disallow comments)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="edit-chapter-allow-talk">Discussion & Talk Page</label>
+                <select name="allowTalk" id="edit-chapter-allow-talk" class="form-control">
+                    <option value="inherit">Inherit from category (Default)</option>
+                    <option value="enabled">Enabled (Always show Talk tab)</option>
+                    <option value="disabled">Disabled (Hide Talk tab)</option>
+                </select>
+            </div>
             <div class="form-group" id="group-edit-share-key" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                     <label class="form-label" style="margin: 0;">Unique Share Key</label>

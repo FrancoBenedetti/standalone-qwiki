@@ -44,6 +44,14 @@
                     <option value="disabled">Disabled (Disallow comments)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label class="form-label" for="create-chapter-allow-talk">Discussion & Talk Page</label>
+                <select name="allowTalk" id="create-chapter-allow-talk" class="form-control">
+                    <option value="inherit" selected>Inherit from category (Default)</option>
+                    <option value="enabled">Enabled (Always show Talk tab)</option>
+                    <option value="disabled">Disabled (Hide Talk tab)</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>
         </form>
 
