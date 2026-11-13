@@ -12,6 +12,8 @@ assert.ok(appJs.includes('attachDiagramToolbars'), 'app.js must define attachDia
 assert.ok(appJs.includes('diagram-toolbar'), 'app.js must create .diagram-toolbar');
 assert.ok(appJs.includes('mermaid-lightbox-modal'), 'app.js must create #mermaid-lightbox-modal');
 assert.ok(appJs.includes('Escape'), 'app.js must handle Escape key dismissal for lightbox');
+assert.ok(appJs.includes("removeEventListener('mousemove'"), 'app.js must clean up window mousemove listener on lightbox close');
+assert.ok(appJs.includes("removeEventListener('mouseup'"), 'app.js must clean up window mouseup listener on lightbox close');
 
 // 2. Check qwiki.css styles toolbar, lightbox, and @media print rules
 assert.ok(qwikiCss.includes('.diagram-toolbar'), 'qwiki.css must style .diagram-toolbar');

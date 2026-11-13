@@ -3733,11 +3733,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = () => {
       modal.classList.remove('open');
       document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
     };
 
     const onKeyDown = (e) => {
       if (e.key === 'Escape') {
         closeModal();
+      }
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        clonedSvg.style.cursor = 'grab';
       }
     };
 
@@ -3762,19 +3778,8 @@ document.addEventListener('DOMContentLoaded', () => {
       clonedSvg.style.cursor = 'grabbing';
     };
 
-    window.addEventListener('mousemove', (e) => {
-      if (!isDragging) return;
-      panX = e.clientX - startX;
-      panY = e.clientY - startY;
-      updateTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (isDragging) {
-        isDragging = false;
-        clonedSvg.style.cursor = 'grab';
-      }
-    });
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
 
     document.addEventListener('keydown', onKeyDown);
     modal.classList.add('open');
