@@ -1,3 +1,6 @@
+<?php
+$extManager = isset($extManager) ? $extManager : \Qwiki\Core\ExtensionManager::getInstance();
+?>
 <!-- Add Category Modal -->
 <div class="modal-overlay" id="book-modal">
     <div class="modal-card">
@@ -38,20 +41,24 @@
                 <label class="form-label" for="book-description">Category Description (Optional)</label>
                 <textarea name="description" id="book-description" class="form-control" rows="2" placeholder="Brief explanation of this category (shown as tooltip)..."></textarea>
             </div>
-            <div class="form-group" style="margin-top: 0.5rem;">
-                <input type="hidden" name="allowComments" value="0">
-                <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                    <input type="checkbox" name="allowComments" id="create-category-allow-comments" value="1">
-                    <span>💬 Allow signed-in users to comment on documents in this category (Disabled by default)</span>
-                </label>
-            </div>
-            <div class="form-group" style="margin-top: 0.5rem;">
-                <input type="hidden" name="allowTalk" value="0">
-                <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
-                    <input type="checkbox" name="allowTalk" id="create-category-allow-talk" value="1">
-                    <span>🗣️ Enable Discussion & Talk Pages for chapters in this category (Disabled by default)</span>
-                </label>
-            </div>
+<?php if ($extManager->isExtensionEnabled('comments')): ?>
+<div class="form-group" style="margin-top: 0.5rem;">
+<input type="hidden" name="allowComments" value="0">
+<label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+<input type="checkbox" name="allowComments" id="create-category-allow-comments" value="1">
+<span>💬 Allow signed-in users to comment on documents in this category (Disabled by default)</span>
+</label>
+</div>
+<?php endif; ?>
+<?php if ($extManager->isExtensionEnabled('talk')): ?>
+<div class="form-group" style="margin-top: 0.5rem;">
+<input type="hidden" name="allowTalk" value="0">
+<label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;">
+<input type="checkbox" name="allowTalk" id="create-category-allow-talk" value="1">
+<span>🗣️ Enable Discussion &amp; Talk Pages for chapters in this category (Disabled by default)</span>
+</label>
+</div>
+<?php endif; ?>
             <button type="submit" class="btn btn-primary" id="btn-submit-add-book" style="width: 100%;">Create Category</button>
         </form>
     </div>
