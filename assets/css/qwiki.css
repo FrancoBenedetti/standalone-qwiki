@@ -2622,6 +2622,76 @@ body.mode-fullscreen .gdoc-container iframe {
   transform: translateX(20px);
 }
 
+/* ==========================================================================
+   GFM Markdown Alert Callouts ([!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION])
+   ========================================================================== */
+.markdown-alert {
+  padding: 0.85rem 1.1rem;
+  margin: 1.25rem 0;
+  border-left: 4px solid var(--alert-accent, #3b82f6);
+  background: var(--alert-bg, rgba(59, 130, 246, 0.08));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--text-primary);
+}
+
+.markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--alert-accent, #3b82f6);
+  margin-bottom: 0.45rem;
+}
+
+.markdown-alert-icon {
+  flex-shrink: 0;
+}
+
+.markdown-alert-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-alert-content > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-alert-note {
+  --alert-accent: #3b82f6;
+  --alert-bg: rgba(59, 130, 246, 0.08);
+}
+
+.markdown-alert-tip {
+  --alert-accent: #10b981;
+  --alert-bg: rgba(16, 185, 129, 0.08);
+}
+
+.markdown-alert-important {
+  --alert-accent: #8b5cf6;
+  --alert-bg: rgba(139, 92, 246, 0.08);
+}
+
+.markdown-alert-warning {
+  --alert-accent: #f59e0b;
+  --alert-bg: rgba(245, 158, 11, 0.1);
+}
+
+.markdown-alert-danger {
+  --alert-accent: #ef4444;
+  --alert-bg: rgba(239, 68, 68, 0.08);
+}
+
+@media print {
+  .markdown-alert {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-left: 4px solid var(--alert-accent, #3b82f6) !important;
+  }
+}
+
+
 
 
 
