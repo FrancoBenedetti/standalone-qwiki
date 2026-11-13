@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.15] - CanvasFlow - 2026-11-13
+
+### ✨ Reading Canvas, Navigation & Authoring UX Enhancements
+- **Collapsible Left & Right Sidebars (`index.php`, `assets/js/core/sidebar.js`, `assets/css/qwiki.css`)**: Added symmetrical sidebar toggle buttons (`#btn-toggle-left-sidebar` and `#btn-toggle-right-toc`) in the document toolbar, smooth animated collapsing on desktop (`>= 769px`), `localStorage` state persistence, and keyboard shortcuts (`[` and `]`) safely guarded against active inputs/editors. Centered `.app-content` (`margin: 0 auto`) and dynamically expanded reading width (`1180px` / `1360px`) when sidebars are collapsed while keeping mobile drawer navigation unaffected.
+- **Chapter Navigation Pagers & Header Arrows (`index.php`, `assets/css/qwiki.css`)**: Removed `.toc-nav-buttons` from the Table of Contents sidebar to eliminate section-vs-chapter confusion, replacing them with responsive bottom-of-page **Previous / Next Chapter** pager cards (`.chapter-pager`) and compact quick-flip arrows (`.header-chapter-nav`) in the document header toolbar.
+- **Unified Add Document & Add Category Modals (`templates/modals/create_chapter.php`, `create_category.php`, `assets/js/app.js`)**: Promoted **Target Category / Folder** (`#chapter-modal-category`) above the `.modal-tabs` bar with automatic synchronization across all document type tabs (`syncChapterModalCategory()`), plus a dedicated **Place at Top Level (Sidebar Root)** override for Web Links (`#link-root-override`).
+- **Interactive Mermaid Diagram Lightbox, Print Rules & AI Directives (`assets/js/app.js`, `assets/css/qwiki.css`, `AGENTS.md`)**: Added a floating diagram toolbar (`.diagram-toolbar`) on Mermaid diagrams with inline Zoom (`+`/`−`/`100%`), SVG Download, and **Expand** to `#mermaid-lightbox-modal` (pan, mouse-wheel zoom, and `Esc` dismissal). Added `@media print` page-break protection (`page-break-inside: avoid`) and documented `flowchart TD` authoring directives in `AGENTS.md`.
+- **Native GFM Markdown Alert Callouts (`lib/Core/QwikiParsedown.php`, `assets/css/qwiki.css`)**: Extended `QwikiParsedown` (`blockQuote`, `blockQuoteComplete`) to natively render `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`, and aliases (`[!INFO]`, `[!HINT]`, `[!SUCCESS]`, `[!DANGER]`, `[!ALERT]`, `[!FAIL]`) into semantic `.markdown-alert` blocks with SVG icons and theme-adaptive styling.
+
+---
+
 ## [1.20.14] - ModalFlow - 2026-11-13
 
 ### 🗂️ Settings Modals Redesign & Extension Awareness
