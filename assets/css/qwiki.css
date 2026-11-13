@@ -1529,8 +1529,9 @@ textarea.form-control {
 }
 
 @media (max-width: 1200px) {
-  .app-toc, .app-toc.show {
-    display: none;
+  .app-toc, .app-toc.show,
+  .toc-collapse-btn {
+    display: none !important;
   }
 }
 
@@ -2463,6 +2464,7 @@ body.mode-fullscreen .gdoc-container iframe {
 }
 
 #settings-modal .modal-tabs,
+#chapter-modal .modal-tabs,
 #edit-chapter-modal .modal-tabs,
 #edit-book-modal .modal-tabs {
   display: flex;
@@ -2485,7 +2487,9 @@ body.mode-fullscreen .gdoc-container iframe {
 }
 
 .modal-tab-scroll,
-#settings-form .settings-tab-scroll {
+#settings-form .settings-tab-scroll,
+#chapter-modal .settings-tab-scroll,
+#add-book-form .settings-tab-scroll {
   flex: 1;
   overflow-y: auto;
   padding-right: 0.25rem;

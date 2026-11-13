@@ -21,5 +21,6 @@ assert.ok(sidebarJs.includes('isContentEditable') && sidebarJs.includes('TEXTARE
 assert.ok(qwikiCss.includes('.app-container.sidebar-collapsed'), 'qwiki.css must define .app-container.sidebar-collapsed');
 assert.ok(qwikiCss.includes('.app-container.toc-collapsed'), 'qwiki.css must define .app-container.toc-collapsed');
 assert.ok(qwikiCss.includes('#sidebar-resizer'), 'qwiki.css must handle #sidebar-resizer when collapsed');
+assert.ok(/@media\s*\(max-width:\s*1200px\)\s*\{[^}]*\.toc-collapse-btn/s.test(qwikiCss), 'qwiki.css must hide .toc-collapse-btn at max-width: 1200px');
 
 console.log('PASS: Collapsible sidebar tests passed');

@@ -22,4 +22,9 @@ assert.ok(createChapterPhp.includes('id="link-root-override"'), '#tab-link must 
 // 4. Check app.js implements syncChapterModalCategory
 assert.ok(appJs.includes('syncChapterModalCategory'), 'app.js must define syncChapterModalCategory');
 
+// 5. Check qwiki.css styles #chapter-modal .modal-tabs and .settings-tab-scroll
+const qwikiCss = fs.readFileSync(path.join(__dirname, '../assets/css/qwiki.css'), 'utf8');
+assert.ok(qwikiCss.includes('#chapter-modal .modal-tabs'), 'qwiki.css must style #chapter-modal .modal-tabs');
+assert.ok(qwikiCss.includes('#chapter-modal .settings-tab-scroll'), 'qwiki.css must style #chapter-modal .settings-tab-scroll');
+
 console.log('PASS: Add chapter modal structure and category sync tests passed');
