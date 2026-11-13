@@ -2440,7 +2440,9 @@ body.mode-fullscreen .gdoc-container iframe {
 /* ==========================================================================
    Tabbed Settings Modal & Extension Cards
    ========================================================================== */
-#settings-modal .modal-card {
+#settings-modal .modal-card,
+#edit-chapter-modal .modal-card,
+#edit-book-modal .modal-card {
   max-width: 720px;
   width: 95vw;
   max-height: 90vh;
@@ -2448,11 +2450,19 @@ body.mode-fullscreen .gdoc-container iframe {
   flex-direction: column;
 }
 
-#settings-modal .modal-header {
+#edit-book-modal .modal-card {
+  max-width: 620px;
+}
+
+#settings-modal .modal-header,
+#edit-chapter-modal .modal-header,
+#edit-book-modal .modal-header {
   flex-shrink: 0;
 }
 
-#settings-modal .modal-tabs {
+#settings-modal .modal-tabs,
+#edit-chapter-modal .modal-tabs,
+#edit-book-modal .modal-tabs {
   display: flex;
   overflow-x: auto;
   gap: 0.25rem;
@@ -2463,13 +2473,16 @@ body.mode-fullscreen .gdoc-container iframe {
   flex-shrink: 0;
 }
 
-#settings-form {
+#settings-form,
+#edit-chapter-form,
+#edit-book-form {
   display: flex;
   flex-direction: column;
   flex: 1;
   overflow: hidden;
 }
 
+.modal-tab-scroll,
 #settings-form .settings-tab-scroll {
   flex: 1;
   overflow-y: auto;
@@ -2477,6 +2490,7 @@ body.mode-fullscreen .gdoc-container iframe {
   margin-bottom: 1rem;
 }
 
+.modal-form-footer,
 #settings-form .settings-footer {
   flex-shrink: 0;
   padding-top: 1rem;
