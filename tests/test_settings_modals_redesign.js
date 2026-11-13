@@ -215,4 +215,50 @@ assert(!catHtmlNone.includes('id="edit-book-allow-comments-input"'), 'Category m
 assert(!catHtmlNone.includes('id="edit-book-allow-talk-input"'), 'Category modal must NOT render allow-talk checkbox when talk is disabled');
 console.log('  [PASS] Category modal suppresses extension inputs when extensions disabled');
 
+// -----------------------------------------------------------------------------
+// 3. Category Flag Preservation when Extensions are Disabled
+// -----------------------------------------------------------------------------
+console.log('\n3. Testing Category Flag Preservation during edit_book without extension inputs...');
+
+const preserveScript = `<?php
+require_once __DIR__ . '/lib/Core/Config.php';
+require_once __DIR__ . '/lib/Core/Navigation.php';
+
+$node = [
+    'id' => 'test-cat',
+    'title' => 'Original Title',
+    'allowComments' => true,
+    'allowTalk' => true
+];
+
+// Simulate what api/admin.php produces for updateNodeMeta when fields are absent from $_POST:
+// If api/admin.php defaults to null when not set:
+$postAllowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : null;
+$postAllowTalk = isset($_POST['allowTalk']) ? ($_POST['allowTalk'] === '1' || $_POST['allowTalk'] === 'true') : null;
+
+\\Qwiki\\Core\\Navigation::updateNodeMeta($node, 'test-cat', 'Updated Title', '', 'public', null, null, $postAllowComments, $postAllowTalk);
+
+echo json_encode([
+    'title' => $node['title'],
+    'allowComments' => $node['allowComments'] ?? null,
+    'allowTalk' => $node['allowTalk'] ?? null
+]);
+`;
+
+// Test 3.1: Verify updateNodeMeta preserves flags when null is passed
+const resPreserve = JSON.parse(renderPhpSnippet(preserveScript));
+assert.strictEqual(resPreserve.title, 'Updated Title');
+assert.strictEqual(resPreserve.allowComments, true, 'allowComments should remain true when not in $_POST');
+assert.strictEqual(resPreserve.allowTalk, true, 'allowTalk should remain true when not in $_POST');
+console.log('  [PASS] Navigation::updateNodeMeta preserves allowComments and allowTalk when null is passed');
+
+// Test 3.2: Verify api/admin.php handles missing $_POST fields as null
+const adminPhpCode = fs.readFileSync(path.join(__dirname, '../api/admin.php'), 'utf8');
+const hasCorrectCommentsFallback = adminPhpCode.includes("\$allowComments = isset(\$_POST['allowComments']) ? (\$_POST['allowComments'] === '1' || \$_POST['allowComments'] === 'true') : null;");
+const hasCorrectTalkFallback = adminPhpCode.includes("\$allowTalk = isset(\$_POST['allowTalk']) ? (\$_POST['allowTalk'] === '1' || \$_POST['allowTalk'] === 'true') : null;");
+
+assert(hasCorrectCommentsFallback, "api/admin.php must default allowComments to null when omitted from $_POST");
+assert(hasCorrectTalkFallback, "api/admin.php must default allowTalk to null when omitted from $_POST");
+console.log('  [PASS] api/admin.php correctly defaults allowComments and allowTalk to null');
+
 console.log('\nAll Settings Modals Redesign & Extension Awareness tests passed successfully! 🎉');
