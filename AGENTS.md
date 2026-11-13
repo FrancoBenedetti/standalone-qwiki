@@ -61,3 +61,8 @@ When creating or updating Markdown documents (`.md`) across `content/` or `demo-
    - For uploaded images and screenshots (see `/Documents/MobioPlus/user-docs` / `wiki.mobioplus.co.za/user-docs`), use standard Markdown `![Alt](uploads/images/filename.png)`. The headless publishing API (`api/publish.php`) supports authorized asset uploads for images (`uploads/images/`) and video files (`uploads/videos/`).
 6. **Subfolder-Agnostic Relative Routing**:
    - Use relative internal links without leading slashes (e.g. `getting-started/features`) so documentation remains fully portable across subfolders.
+7. **Mermaid Screen & PDF Authoring Directives**:
+   - **Layout Orientation:** Prefer `flowchart TD` (top-down) over wide `flowchart LR` (left-right) for multi-step processes with more than 4 nodes so diagrams fit standard reading columns and A4 print pages cleanly.
+   - **Branch Width Constraints:** Limit concurrent horizontal branches to at most 4 nodes and group related steps into balanced subgraphs.
+   - **Node Label Wrapping:** Use explicit `<br/>` line breaks inside node labels to keep box widths compact.
+   - **Modularity:** Split overly complex architectures into focused modular diagrams (e.g., Core Flow, Error Handling, Data Model) rather than a single monolithic diagram.
