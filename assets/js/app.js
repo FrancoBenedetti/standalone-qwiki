@@ -1283,6 +1283,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Sync Master Category Selector in Add Document Modal across all tabs
+  function syncChapterModalCategory() {
+    const chapterModal = document.getElementById('chapter-modal');
+    const masterSelect = document.getElementById('chapter-modal-category');
+    if (!chapterModal || !masterSelect) return;
+
+    const selectedCat = masterSelect.value;
+    const linkRootOverride = document.getElementById('link-root-override');
+
+    chapterModal.querySelectorAll('form').forEach(form => {
+      const bookIdField = form.querySelector('input[name="bookId"], select[name="bookId"]');
+      if (!bookIdField) return;
+      if (form.id === 'tab-link' && linkRootOverride && linkRootOverride.checked) {
+        bookIdField.value = '';
+      } else {
+        bookIdField.value = selectedCat;
+      }
+    });
+  }
+
+  const chapterMasterCat = document.getElementById('chapter-modal-category');
+  if (chapterMasterCat) {
+    chapterMasterCat.addEventListener('change', syncChapterModalCategory);
+  }
+  const linkRootOverrideCb = document.getElementById('link-root-override');
+  if (linkRootOverrideCb) {
+    linkRootOverrideCb.addEventListener('change', syncChapterModalCategory);
+  }
+  const btnAddChapter = document.getElementById('btn-add-chapter');
+  if (btnAddChapter) {
+    btnAddChapter.addEventListener('click', syncChapterModalCategory);
+  }
+
   // Tab Switcher inside Modals
   document.querySelectorAll('.tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
@@ -1298,6 +1331,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetTabId = tabBtn.getAttribute('data-tab');
       const targetContent = parentModal.querySelector('#' + targetTabId);
       if (targetContent) targetContent.classList.add('active');
+
+      if (parentModal.closest('#chapter-modal')) {
+        syncChapterModalCategory();
+      }
     });
   });
 
