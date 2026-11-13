@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.20.14] - ModalFlow - 2026-11-13
+
 ### 🗂️ Settings Modals Redesign & Extension Awareness
 - **Tabbed Document / Chapter Settings Modal (`templates/modals/edit_chapter.php`)**: Restructured the monolithic document metadata dialog into 4 logically grouped tabs: **General** (title, category placement, type selector, source/file path, replacement upload, and slug), **Display & SEO** (theme, short description, and social share image preview URL), **Sharing & Access** (public sharing, unique share key with one-click regeneration, and document lock protection), and **Collaboration** (conditional tab containing comments and talk policies).
 - **Tabbed Category / Folder Settings Modal (`templates/modals/edit_category.php`)**: Reorganized the category settings dialog into 3 clean, focused tabs: **General** (title, description tooltip, and theme), **Access & Security** (visibility permissions, category lock against deletion, and danger zone delete actions), and **Feeds & Features** (category RSS feed URL with copy tool, comments toggle, and talk page toggle).
 - **Dynamic Extension Suppression**: Controls for optional extensions (comments via `tool-comments`, talk pages via `tool-talk`, and custom page types via `page-html`/`page-form`) only render when their respective extension is enabled in `qwiki.json`. If neither `comments` nor `talk` is active, the Collaboration tab is omitted completely from the Document modal.
 - **Creation Modals Extension Alignment (`create_chapter.php` & `create_category.php`)**: Synchronized new document and category creation dialogs to similarly hide comments and talk page settings when the respective extension is disabled.
+- **Category Extension Flag Preservation (`api/admin.php`)**: Defaulted `allowComments` and `allowTalk` parameters to `null` when omitted from form submissions, preventing accidental resets of category-level discussion and commenting settings during routine metadata edits with extensions disabled.
 - **Fixed Header & Footer Layout (`assets/css/qwiki.css`)**: Styled both modal cards with responsive flex-column containers (`max-height: 90vh`), an internal `.modal-tab-scroll` container for pane content, and pinned action footers ensuring the "Save" button remains visible regardless of screen height or scroll position.
 - **Client-Side Tab State Reset (`assets/js/app.js`)**: Updated modal initialization handlers to automatically reset tabs to the primary General tab upon opening, and added ARIA attribute synchronization (`aria-selected`) across tab clicks.
 - **Regression Test Suite (`tests/test_settings_modals_redesign.js`)**: Added automated regression tests verifying tab presence, element persistence, and extension suppression across various toggle configurations.
