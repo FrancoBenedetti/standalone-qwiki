@@ -2764,6 +2764,69 @@ body.mode-fullscreen .gdoc-container iframe {
   }
 }
 
+/* ==========================================================================
+   Collapsible Left & Right Sidebars (Desktop >= 769px)
+   ========================================================================== */
+.sidebar-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  color: var(--text-secondary);
+  padding: 0.35rem;
+  cursor: pointer;
+  margin-right: 0.35rem;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.sidebar-collapse-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover, rgba(128, 128, 128, 0.1));
+}
+
+.sidebar-collapse-btn.active,
+.toc-collapse-btn.active {
+  color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+@media (max-width: 768px) {
+  .sidebar-collapse-btn,
+  .toc-collapse-btn {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .app-sidebar,
+  .app-toc {
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s ease;
+  }
+
+  .app-container.sidebar-collapsed .app-sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-right: none;
+    overflow: hidden;
+  }
+
+  .app-container.sidebar-collapsed #sidebar-resizer {
+    display: none !important;
+    pointer-events: none;
+  }
+
+  .app-container.toc-collapsed .app-toc {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border-left: none;
+    overflow: hidden;
+  }
+}
+
+
 
 
 
