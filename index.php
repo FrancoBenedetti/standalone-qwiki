@@ -975,7 +975,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php elseif ($activeChapter || !empty($isAccessRestricted)): ?>
                 <?php if (!$isShareMode): ?>
                 <div class="content-header">
-                    <div class="breadcrumbs">
+                    <div class="content-header-left" style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
+                        <button type="button" class="btn btn-outline btn-sm sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="Toggle Navigation Sidebar ([)" aria-label="Toggle Navigation Sidebar">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                            </svg>
+                        </button>
+                        <div class="breadcrumbs">
                         <?php if (!empty($isAccessRestricted)): ?>
                             <span>Access Restricted</span>
                         <?php else: ?>
@@ -994,10 +1001,33 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span><?= htmlspecialchars($activeChapter['title'] ?? '') ?></span>
                             <?php endif; ?>
                         <?php endif; ?>
+                        </div>
                     </div>
                     <?php if ($activeChapter): ?>
                     <div class="content-actions">
-                        <div id="read-actions" style="display: flex; gap: 0.75rem;">
+                        <div id="read-actions" style="display: flex; gap: 0.75rem; align-items: center;">
+                            <?php if ($prevDoc || $nextDoc): ?>
+                                <div class="header-chapter-nav" role="group" aria-label="Chapter Navigation">
+                                    <?php if ($prevDoc): ?>
+                                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" title="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>" aria-label="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No previous chapter" style="opacity: 0.4; pointer-events: none;">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if ($nextDoc): ?>
+                                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" title="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>" aria-label="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No next chapter" style="opacity: 0.4; pointer-events: none;">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                             <?php if (($activeChapter['type'] ?? '') === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
                                 <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Edit Google Doc">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -1006,6 +1036,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                            </button>
+                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="Toggle Table of Contents (])" aria-label="Toggle Table of Contents">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                                </svg>
                             </button>
                             <?php
                             $chapterShareKey = $activeChapter['shareKey'] ?? '';
@@ -1112,6 +1148,26 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </div>
                     <?php endif; ?>
                 </div>
+                <?php if (!$isShareMode && empty($isAccessRestricted) && ($prevDoc || $nextDoc)): ?>
+                <nav class="chapter-pager" aria-label="Chapter navigation">
+                    <?php if ($prevDoc): ?>
+                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="chapter-pager-card chapter-pager-prev">
+                            <span class="chapter-pager-label">&laquo; Previous Chapter</span>
+                            <span class="chapter-pager-title"><?= htmlspecialchars($prevDoc['title']) ?></span>
+                        </a>
+                    <?php else: ?>
+                        <div class="chapter-pager-spacer"></div>
+                    <?php endif; ?>
+                    <?php if ($nextDoc): ?>
+                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="chapter-pager-card chapter-pager-next">
+                            <span class="chapter-pager-label">Next Chapter &raquo;</span>
+                            <span class="chapter-pager-title"><?= htmlspecialchars($nextDoc['title']) ?></span>
+                        </a>
+                    <?php else: ?>
+                        <div class="chapter-pager-spacer"></div>
+                    <?php endif; ?>
+                </nav>
+                <?php endif; ?>
             <?php else: ?>
                 <div class="content-body">
                     <h1>No Document Selected</h1>
@@ -1123,22 +1179,6 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php if (!$isShareMode && !$shareError && empty($isAccessRestricted)): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
-            <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
-                <div class="toc-nav-buttons">
-                    <?php if ($prevDoc): ?>
-                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Previous: <?= htmlspecialchars($prevDoc['title']) ?>">&laquo; Prev</a>
-                    <?php else: ?>
-                        <div style="flex: 1;"></div>
-                    <?php endif; ?>
-                    
-                    <?php if ($nextDoc): ?>
-                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Next: <?= htmlspecialchars($nextDoc['title']) ?>">Next &raquo;</a>
-                    <?php else: ?>
-                        <div style="flex: 1;"></div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-
             <div class="toc-header">Table of Contents</div>
             <div class="toc-content" id="toc-content"></div>
         </aside>

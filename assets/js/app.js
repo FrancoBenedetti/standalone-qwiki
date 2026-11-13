@@ -1283,6 +1283,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Sync Master Category Selector in Add Document Modal across all tabs
+  function syncChapterModalCategory() {
+    const chapterModal = document.getElementById('chapter-modal');
+    const masterSelect = document.getElementById('chapter-modal-category');
+    if (!chapterModal || !masterSelect) return;
+
+    const selectedCat = masterSelect.value;
+    const linkRootOverride = document.getElementById('link-root-override');
+
+    chapterModal.querySelectorAll('form').forEach(form => {
+      const bookIdField = form.querySelector('input[name="bookId"], select[name="bookId"]');
+      if (!bookIdField) return;
+      if (form.id === 'tab-link' && linkRootOverride && linkRootOverride.checked) {
+        bookIdField.value = '';
+      } else {
+        bookIdField.value = selectedCat;
+      }
+    });
+  }
+
+  const chapterMasterCat = document.getElementById('chapter-modal-category');
+  if (chapterMasterCat) {
+    chapterMasterCat.addEventListener('change', syncChapterModalCategory);
+  }
+  const linkRootOverrideCb = document.getElementById('link-root-override');
+  if (linkRootOverrideCb) {
+    linkRootOverrideCb.addEventListener('change', syncChapterModalCategory);
+  }
+  const btnAddChapter = document.getElementById('btn-add-chapter');
+  if (btnAddChapter) {
+    btnAddChapter.addEventListener('click', syncChapterModalCategory);
+  }
+
   // Tab Switcher inside Modals
   document.querySelectorAll('.tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
@@ -1298,6 +1331,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetTabId = tabBtn.getAttribute('data-tab');
       const targetContent = parentModal.querySelector('#' + targetTabId);
       if (targetContent) targetContent.classList.add('active');
+
+      if (parentModal.closest('#chapter-modal')) {
+        syncChapterModalCategory();
+      }
     });
   });
 
@@ -3571,10 +3608,184 @@ document.addEventListener('DOMContentLoaded', () => {
         await mermaid.run({ nodes: unrenderedMermaid });
         normalizeMermaidSvgs();
       }
+      attachDiagramToolbars();
     } catch (err) {
       console.warn('Mermaid rendering error:', err);
     }
   }
+
+  function attachDiagramToolbars() {
+    document.querySelectorAll('.mermaid-diagram-container').forEach(container => {
+      if (container.querySelector('.diagram-toolbar')) return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      let inlineScale = 1;
+      const toolbar = document.createElement('div');
+      toolbar.className = 'diagram-toolbar';
+
+      const applyInlineScale = (scale) => {
+        inlineScale = Math.min(2.5, Math.max(0.4, scale));
+        const targetSvg = container.querySelector('.mermaid svg');
+        if (targetSvg) {
+          targetSvg.style.transformOrigin = 'top left';
+          targetSvg.style.transform = inlineScale === 1 ? '' : `scale(${inlineScale})`;
+        }
+      };
+
+      const btnZoomOut = document.createElement('button');
+      btnZoomOut.type = 'button';
+      btnZoomOut.className = 'diagram-toolbar-btn';
+      btnZoomOut.title = 'Zoom Out';
+      btnZoomOut.textContent = '−';
+      btnZoomOut.addEventListener('click', () => applyInlineScale(inlineScale - 0.2));
+
+      const btnReset = document.createElement('button');
+      btnReset.type = 'button';
+      btnReset.className = 'diagram-toolbar-btn';
+      btnReset.title = 'Reset Zoom (100%)';
+      btnReset.textContent = '100%';
+      btnReset.addEventListener('click', () => applyInlineScale(1));
+
+      const btnZoomIn = document.createElement('button');
+      btnZoomIn.type = 'button';
+      btnZoomIn.className = 'diagram-toolbar-btn';
+      btnZoomIn.title = 'Zoom In';
+      btnZoomIn.textContent = '+';
+      btnZoomIn.addEventListener('click', () => applyInlineScale(inlineScale + 0.2));
+
+      const btnDownload = document.createElement('button');
+      btnDownload.type = 'button';
+      btnDownload.className = 'diagram-toolbar-btn';
+      btnDownload.title = 'Download SVG';
+      btnDownload.textContent = '📥';
+      btnDownload.addEventListener('click', () => {
+        const currentSvg = container.querySelector('svg');
+        if (!currentSvg) return;
+        const serializer = new XMLSerializer();
+        const svgStr = serializer.serializeToString(currentSvg);
+        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'diagram.svg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      const btnExpand = document.createElement('button');
+      btnExpand.type = 'button';
+      btnExpand.className = 'diagram-toolbar-btn diagram-toolbar-expand';
+      btnExpand.title = 'Expand Diagram in Fullscreen Lightbox';
+      btnExpand.textContent = '⛶ Expand';
+      btnExpand.addEventListener('click', () => openMermaidLightbox(container));
+
+      toolbar.append(btnZoomOut, btnReset, btnZoomIn, btnDownload, btnExpand);
+      container.appendChild(toolbar);
+    });
+  }
+
+  function openMermaidLightbox(container) {
+    const svg = container && container.querySelector('svg');
+    if (!svg) return;
+
+    let modal = document.getElementById('mermaid-lightbox-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mermaid-lightbox-modal';
+      modal.className = 'mermaid-lightbox-overlay';
+      modal.innerHTML = `
+        <div class="mermaid-lightbox-header">
+          <span class="mermaid-lightbox-title">Diagram Viewer (Scroll to zoom, drag to pan, Esc to close)</span>
+          <div class="mermaid-lightbox-controls">
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-out" title="Zoom Out">−</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-reset" title="Reset View">Reset</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-in" title="Zoom In">+</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-close" title="Close (Esc)">✕ Close</button>
+          </div>
+        </div>
+        <div class="mermaid-lightbox-stage" id="mermaid-lightbox-stage"></div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const stage = modal.querySelector('#mermaid-lightbox-stage');
+    stage.innerHTML = '';
+    const clonedSvg = svg.cloneNode(true);
+    clonedSvg.style.transform = '';
+    clonedSvg.style.maxWidth = 'none';
+    clonedSvg.style.cursor = 'grab';
+    stage.appendChild(clonedSvg);
+
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const updateTransform = () => {
+      clonedSvg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    };
+
+    const closeModal = () => {
+      modal.classList.remove('open');
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        clonedSvg.style.cursor = 'grab';
+      }
+    };
+
+    modal.querySelector('#lb-zoom-in').onclick = () => { scale = Math.min(4, scale + 0.25); updateTransform(); };
+    modal.querySelector('#lb-zoom-out').onclick = () => { scale = Math.max(0.25, scale - 0.25); updateTransform(); };
+    modal.querySelector('#lb-zoom-reset').onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
+    modal.querySelector('#lb-close').onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal || e.target === stage) closeModal(); };
+
+    stage.onwheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+      scale = Math.min(4, Math.max(0.25, scale + delta));
+      updateTransform();
+    };
+
+    stage.onmousedown = (e) => {
+      if (e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+      clonedSvg.style.cursor = 'grabbing';
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    document.addEventListener('keydown', onKeyDown);
+    modal.classList.add('open');
+  }
+
+  window.openMermaidLightbox = openMermaidLightbox;
 
   window.reRenderMermaidDiagrams = async function(theme) {
     if (typeof mermaid === 'undefined') return;
@@ -3596,6 +3807,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await mermaid.run({ nodes: document.querySelectorAll('.mermaid-diagram-container .mermaid') });
       normalizeMermaidSvgs();
+      attachDiagramToolbars();
     } catch (e) {
       console.warn('Mermaid re-render failed:', e);
     }

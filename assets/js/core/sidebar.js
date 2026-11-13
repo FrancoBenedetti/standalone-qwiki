@@ -169,12 +169,81 @@ window.QwikiApp.sidebar = (function() {
     });
   }
 
+  function toggleLeftSidebar() {
+    const container = document.querySelector('.app-container');
+    if (!container) return;
+    const isCollapsed = container.classList.toggle('sidebar-collapsed');
+    try {
+      localStorage.setItem('qwiki_sidebar_collapsed', isCollapsed ? '1' : '0');
+    } catch (e) {}
+    const btn = document.getElementById('btn-toggle-left-sidebar');
+    if (btn) btn.classList.toggle('active', isCollapsed);
+  }
+
+  function toggleRightToc() {
+    const container = document.querySelector('.app-container');
+    if (!container) return;
+    const isCollapsed = container.classList.toggle('toc-collapsed');
+    try {
+      localStorage.setItem('qwiki_toc_collapsed', isCollapsed ? '1' : '0');
+    } catch (e) {}
+    const btn = document.getElementById('btn-toggle-right-toc');
+    if (btn) btn.classList.toggle('active', isCollapsed);
+  }
+
+  function initCollapseControls() {
+    const container = document.querySelector('.app-container');
+    if (!container) return;
+
+    try {
+      if (localStorage.getItem('qwiki_sidebar_collapsed') === '1') {
+        container.classList.add('sidebar-collapsed');
+        const leftBtn = document.getElementById('btn-toggle-left-sidebar');
+        if (leftBtn) leftBtn.classList.add('active');
+      }
+      if (localStorage.getItem('qwiki_toc_collapsed') === '1') {
+        container.classList.add('toc-collapsed');
+        const rightBtn = document.getElementById('btn-toggle-right-toc');
+        if (rightBtn) rightBtn.classList.add('active');
+      }
+    } catch (e) {}
+
+    const leftBtn = document.getElementById('btn-toggle-left-sidebar');
+    if (leftBtn) {
+      leftBtn.addEventListener('click', toggleLeftSidebar);
+    }
+
+    const rightBtn = document.getElementById('btn-toggle-right-toc');
+    if (rightBtn) {
+      rightBtn.addEventListener('click', toggleRightToc);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.isContentEditable || active.closest('.toastui-editor')) {
+          return;
+        }
+      }
+      if (e.key === '[') {
+        e.preventDefault();
+        toggleLeftSidebar();
+      } else if (e.key === ']') {
+        e.preventDefault();
+        toggleRightToc();
+      }
+    });
+  }
+
   function init() {
     initWidth();
     initMobileToggle();
     initResizer();
     initAccordions();
     initScrollPersistence();
+    initCollapseControls();
   }
 
   // Export globally for backward compatibility with existing drag-and-drop code
@@ -185,6 +254,8 @@ window.QwikiApp.sidebar = (function() {
     init,
     getCategoryId,
     getSavedCategoryStates,
-    saveCategoryState
+    saveCategoryState,
+    toggleLeftSidebar,
+    toggleRightToc
   };
 })();

@@ -3,13 +3,14 @@ $extManager = isset($extManager) ? $extManager : \Qwiki\Core\ExtensionManager::g
 ?>
 <!-- Add Category Modal -->
 <div class="modal-overlay" id="book-modal">
-    <div class="modal-card">
+    <div class="modal-card" style="max-width: 600px;">
         <div class="modal-header">
             <h3>Add New Category</h3>
             <button class="modal-close" data-close="book-modal">&times;</button>
         </div>
         <form id="add-book-form">
-            <input type="hidden" name="isCustomSlug" id="book-is-custom-slug" value="0">
+            <div class="settings-tab-scroll">
+                <input type="hidden" name="isCustomSlug" id="book-is-custom-slug" value="0">
             <div class="form-group">
                 <label class="form-label" for="book-title">Category Title</label>
                 <input type="text" name="title" id="book-title" class="form-control" placeholder="e.g. Developer Guides" required autocomplete="off">
@@ -59,7 +60,10 @@ $extManager = isset($extManager) ? $extManager : \Qwiki\Core\ExtensionManager::g
 </label>
 </div>
 <?php endif; ?>
-            <button type="submit" class="btn btn-primary" id="btn-submit-add-book" style="width: 100%;">Create Category</button>
+            </div>
+            <div style="margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-submit-add-book" style="width: 100%;">Create Category</button>
+            </div>
         </form>
     </div>
 </div>
