@@ -864,10 +864,13 @@ body {
 .app-content {
   --content-padding-top: 2rem;
   flex: 1;
+  min-width: 0;
+  margin: 0 auto;
   padding: var(--content-padding-top) 3rem 4rem 3rem;
   overflow-y: auto;
   scroll-behavior: smooth;
   max-width: 1000px;
+  transition: max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .content-header {
@@ -2771,23 +2774,12 @@ body.mode-fullscreen .gdoc-container iframe {
 /* ==========================================================================
    Collapsible Left & Right Sidebars (Desktop >= 769px)
    ========================================================================== */
-.sidebar-collapse-btn {
+.sidebar-collapse-btn,
+.toc-collapse-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm, 6px);
-  color: var(--text-secondary);
-  padding: 0.35rem;
-  cursor: pointer;
-  margin-right: 0.35rem;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
-}
-
-.sidebar-collapse-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-card-hover, rgba(128, 128, 128, 0.1));
+  flex-shrink: 0;
 }
 
 .sidebar-collapse-btn.active,
@@ -2827,6 +2819,22 @@ body.mode-fullscreen .gdoc-container iframe {
     padding: 0 !important;
     border-left: none;
     overflow: hidden;
+  }
+
+  .app-container.sidebar-collapsed .app-content,
+  .app-container.toc-collapsed .app-content {
+    max-width: 1180px;
+  }
+
+  .app-container.sidebar-collapsed.toc-collapsed .app-content {
+    max-width: 1360px;
+  }
+}
+
+@media print {
+  .sidebar-collapse-btn,
+  .toc-collapse-btn {
+    display: none !important;
   }
 }
 

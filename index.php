@@ -689,12 +689,6 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <header class="app-header">
         <div class="brand-container">
             <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
-            <button type="button" class="btn-icon sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="Toggle Navigation Sidebar ([)" aria-label="Toggle Navigation Sidebar">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="9" y1="3" x2="9" y2="21"></line>
-                </svg>
-            </button>
             <div class="brand-header-group">
                 <?php 
                 $logoHref = $isSubwiki ? ($config['parentUrl'] ?? '../') : $baseUrl;
@@ -981,7 +975,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php elseif ($activeChapter || !empty($isAccessRestricted)): ?>
                 <?php if (!$isShareMode): ?>
                 <div class="content-header">
-                    <div class="breadcrumbs">
+                    <div class="content-header-left" style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
+                        <button type="button" class="btn btn-outline btn-sm sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="Toggle Navigation Sidebar ([)" aria-label="Toggle Navigation Sidebar">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                            </svg>
+                        </button>
+                        <div class="breadcrumbs">
                         <?php if (!empty($isAccessRestricted)): ?>
                             <span>Access Restricted</span>
                         <?php else: ?>
@@ -1000,6 +1001,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span><?= htmlspecialchars($activeChapter['title'] ?? '') ?></span>
                             <?php endif; ?>
                         <?php endif; ?>
+                        </div>
                     </div>
                     <?php if ($activeChapter): ?>
                     <div class="content-actions">
