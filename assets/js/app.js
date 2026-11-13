@@ -57,6 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
         if (modalId === 'edit-chapter-modal') {
+          const editModalEl = document.getElementById('edit-chapter-modal');
+          if (editModalEl) {
+            editModalEl.querySelectorAll('.tab-btn').forEach(b => {
+              const isGen = b.getAttribute('data-tab') === 'edit-chapter-tab-general';
+              b.classList.toggle('active', isGen);
+              b.setAttribute('aria-selected', isGen ? 'true' : 'false');
+            });
+            editModalEl.querySelectorAll('.tab-content').forEach(c => {
+              c.classList.toggle('active', c.id === 'edit-chapter-tab-general');
+            });
+          }
           const replFileInput = document.getElementById('edit-chapter-replacement-file');
           if (replFileInput) replFileInput.value = '';
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
@@ -1164,6 +1175,15 @@ document.addEventListener('DOMContentLoaded', () => {
           editBookAllowTalkInput.checked = (bookAllowTalk === '1');
         }
 
+        editBookModal.querySelectorAll('.tab-btn').forEach(b => {
+          const isGen = b.getAttribute('data-tab') === 'edit-book-tab-general';
+          b.classList.toggle('active', isGen);
+          b.setAttribute('aria-selected', isGen ? 'true' : 'false');
+        });
+        editBookModal.querySelectorAll('.tab-content').forEach(c => {
+          c.classList.toggle('active', c.id === 'edit-book-tab-general');
+        });
+
         editBookModal.classList.add('open');
       }
     });
@@ -1267,10 +1287,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
       const parentModal = tabBtn.closest('.modal-card');
-      parentModal.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      parentModal.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
       parentModal.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
       tabBtn.classList.add('active');
+      tabBtn.setAttribute('aria-selected', 'true');
       const targetTabId = tabBtn.getAttribute('data-tab');
       const targetContent = parentModal.querySelector('#' + targetTabId);
       if (targetContent) targetContent.classList.add('active');

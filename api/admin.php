@@ -559,8 +559,8 @@ switch ($action) {
         }
 
         $readOnly = isset($_POST['readOnly']) ? ($_POST['readOnly'] === '1' || $_POST['readOnly'] === 'true') : null;
-        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : false;
-        $allowTalk = isset($_POST['allowTalk']) ? ($_POST['allowTalk'] === '1' || $_POST['allowTalk'] === 'true') : false;
+        $allowComments = isset($_POST['allowComments']) ? ($_POST['allowComments'] === '1' || $_POST['allowComments'] === 'true') : null;
+        $allowTalk = isset($_POST['allowTalk']) ? ($_POST['allowTalk'] === '1' || $_POST['allowTalk'] === 'true') : null;
 
         // In demo mode, prevent unlocking directly protected demo categories
         if (Config::isDemoMode() && Config::isCategoryDirectlyProtected($bookId, $config['books'] ?? []) && $readOnly === false) {

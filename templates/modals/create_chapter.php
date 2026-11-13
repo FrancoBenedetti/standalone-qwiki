@@ -1,3 +1,6 @@
+<?php
+$extManager = isset($extManager) ? $extManager : \Qwiki\Core\ExtensionManager::getInstance();
+?>
 <!-- Unified Add Document Modal (Dynamic with Extensions) -->
 <div class="modal-overlay" id="chapter-modal">
     <div class="modal-card" style="max-width: 700px;">
@@ -36,22 +39,26 @@
                 <input type="file" id="md-file-upload-input" accept=".md" style="display: none;">
                 <textarea name="content" id="md-content-textarea" class="form-control" style="min-height: 180px;" placeholder="# Document Title&#10;&#10;Write your documentation here..."></textarea>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="create-chapter-allow-comments">Comments</label>
-                <select name="allowComments" id="create-chapter-allow-comments" class="form-control">
-                    <option value="inherit" selected>Inherit from category (Default)</option>
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="create-chapter-allow-talk">Discussion & Talk Page</label>
-                <select name="allowTalk" id="create-chapter-allow-talk" class="form-control">
-                    <option value="inherit" selected>Inherit from category (Default)</option>
-                    <option value="enabled">Enabled (Always show Talk tab)</option>
-                    <option value="disabled">Disabled (Hide Talk tab)</option>
-                </select>
-            </div>
+<?php if ($extManager->isExtensionEnabled('comments')): ?>
+<div class="form-group">
+<label class="form-label" for="create-chapter-allow-comments">Comments</label>
+<select name="allowComments" id="create-chapter-allow-comments" class="form-control">
+<option value="inherit" selected>Inherit from category (Default)</option>
+<option value="enabled">Enabled</option>
+<option value="disabled">Disabled</option>
+</select>
+</div>
+<?php endif; ?>
+<?php if ($extManager->isExtensionEnabled('talk')): ?>
+<div class="form-group">
+<label class="form-label" for="create-chapter-allow-talk">Discussion &amp; Talk Page</label>
+<select name="allowTalk" id="create-chapter-allow-talk" class="form-control">
+<option value="inherit" selected>Inherit from category (Default)</option>
+<option value="enabled">Enabled (Always show Talk tab)</option>
+<option value="disabled">Disabled (Hide Talk tab)</option>
+</select>
+</div>
+<?php endif; ?>
             <button type="submit" class="btn btn-primary" style="width: 100%;">Create Document</button>
         </form>
 
