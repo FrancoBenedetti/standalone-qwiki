@@ -45,7 +45,7 @@ if (empty($apiRequestedPath)) {
         }
     }
 }
-if (is_string($apiRequestedPath) && preg_match('#(^|/)content(/|$)#i', $apiRequestedPath)) {
+if (is_string($apiRequestedPath) && preg_match('#(^|/)(content|data)(/|$)#i', $apiRequestedPath)) {
     http_response_code(403);
     echo "Access denied.";
     exit;
@@ -85,6 +85,7 @@ $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset(
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
 $assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
+$brandLogoUrl = SubwikiManager::resolveBrandLogoUrl($config, $isSubwiki, $assetsUrl);
 
 // Check for action triggers: reset_password or verify_email
 $routeAction = $_GET['action'] ?? '';
@@ -108,7 +109,7 @@ $shareError = null;
 if (!empty($shareKey)) {
     $matchedParentBook = null;
     $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParentBook);
-    if (!$matchedChapter) {
+    if (!$matchedChapter || !Navigation::isChapterVisibleForStatus($matchedChapter, $isAdmin)) {
         $shareError = 'not_found';
     } else {
         $isPublic = !isset($matchedChapter['publicShareable']) || !empty($matchedChapter['publicShareable']);
@@ -365,12 +366,21 @@ if (!$isShareMode && !$shareError) {
             }
         }
 
+        $isDocumentNotFound = false;
+        if ($activeChapter && !Navigation::isChapterVisibleForStatus($activeChapter, $isAdmin)) {
+            $activeChapter = null;
+        }
         if ($isAccessRestricted) {
             $activeChapter = null;
             $breadcrumbsTrail = [['title' => 'Access Restricted', 'id' => '']];
         } elseif ($activeChapter) {
             $breadcrumbsTrail = $dummyTrail;
             $activePathIds = array_unique(array_merge([$activeBook['id'] ?? ''], $dummyIds));
+        } elseif (!empty($requestedChapterSlug)) {
+            // Do not silently fall back to first document when an explicit document route is missing or draft/archived
+            $isDocumentNotFound = true;
+            http_response_code(404);
+            $breadcrumbsTrail = [['title' => 'Document Not Found', 'id' => '']];
         } else {
             // Fallback to first document in the active book
             if (!empty($activeBook['items'])) {
@@ -381,6 +391,7 @@ if (!$isShareMode && !$shareError) {
                             if ($itemVis === 'admin_only') continue;
                             if ($itemVis === 'logged_in' && !$isViewer) continue;
                         }
+                        if (!Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                         $activeChapter = $item;
                         $breadcrumbsTrail = [['title' => $activeBook['title'] ?? '', 'id' => $activeBook['id'] ?? '']];
                         break;
@@ -394,10 +405,10 @@ if (!$isShareMode && !$shareError) {
     }
 }
 
-// Block direct access to content/ path if routed here
-if (!empty($rawPath) && preg_match('#(^|/)content(/|$)#i', $rawPath)) {
+// Block direct access to content/ or data/ path if routed here
+if (!empty($rawPath) && preg_match('#(^|/)(content|data)(/|$)#i', $rawPath)) {
     http_response_code(403);
-    echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content repository is restricted.</p></body></html>";
+    echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content or data repository is restricted.</p></body></html>";
     exit;
 }
 
@@ -554,6 +565,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         }
     ?>
 
+    <link rel="icon" type="image/svg+xml" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon.svg?v=<?= @filemtime(__DIR__ . '/assets/images/favicon.svg') ?: QWIKI_VERSION ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon-32x32.png?v=<?= @filemtime(__DIR__ . '/assets/images/favicon-32x32.png') ?: QWIKI_VERSION ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon-16x16.png?v=<?= @filemtime(__DIR__ . '/assets/images/favicon-16x16.png') ?: QWIKI_VERSION ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars($assetsUrl) ?>/images/apple-touch-icon.png?v=<?= @filemtime(__DIR__ . '/assets/images/apple-touch-icon.png') ?: QWIKI_VERSION ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
         <link rel="stylesheet" href="<?= htmlspecialchars(Config::getThemeUrl($resolvedTheme, $assetsUrl)) ?>" id="dynamic-theme-css">
@@ -580,8 +595,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="auth-gateway-card">
                 <div class="auth-gateway-topbar">
                     <div class="auth-gateway-brand">
-                        <span>⚡</span>
-                        <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
+                        <?php if ($brandLogoUrl !== ''): ?>
+                            <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 36px; border-radius: 4px;">
+                        <?php else: ?>
+                            <span>⚡</span>
+                            <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
+                        <?php endif; ?>
                     </div>
                     <button type="button" class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
                         <span class="theme-icon-dark">🌙</span>
@@ -695,8 +714,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 $logoTitle = $isSubwiki ? ('Back to ' . ($parentTitle ?: 'Parent Wiki')) : ($config['title'] ?? 'Home');
                 ?>
                 <a href="<?= htmlspecialchars($logoHref) ?>" class="brand-logo" title="<?= htmlspecialchars($logoTitle) ?>">
-                    <?php if (!empty($config['logoUrl'])): ?>
-                        <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
+                    <?php if ($brandLogoUrl !== ''): ?>
+                        <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
                     <?php else: ?>
                         ⚡ <?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? 'QWIKI')) ?>
                     <?php endif; ?>
@@ -742,6 +761,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span class="dropdown-item-icon">🤖</span>
                                 <span class="dropdown-item-text">LLM & API Access</span>
                             </button>
+                            <button class="dropdown-item" id="btn-trash-bin">
+                                <span class="dropdown-item-icon">🗑️</span>
+                                <span class="dropdown-item-text">Trash Bin</span>
+                            </button>
                             <?php if (!$isSubwiki): ?>
                                 <button class="dropdown-item" id="btn-subwikis">
                                     <span class="dropdown-item-icon">🌐</span>
@@ -774,8 +797,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <!-- Floating Minimal Share Bar -->
     <div class="share-floating-bar">
         <div class="share-bar-brand">
-            <?php if (!empty($config['logoUrl'])): ?>
-                <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
+            <?php if ($brandLogoUrl !== ''): ?>
+                <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
             <?php else: ?>
                 ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
             <?php endif; ?>
@@ -975,7 +998,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php elseif ($activeChapter || !empty($isAccessRestricted)): ?>
                 <?php if (!$isShareMode): ?>
                 <div class="content-header">
-                    <div class="breadcrumbs">
+                    <div class="content-header-left" style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
+                        <button type="button" class="btn btn-outline btn-sm sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="Toggle Navigation Sidebar ([)" aria-label="Toggle Navigation Sidebar">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="9" y1="3" x2="9" y2="21"></line>
+                            </svg>
+                        </button>
+                        <div class="breadcrumbs">
                         <?php if (!empty($isAccessRestricted)): ?>
                             <span>Access Restricted</span>
                         <?php else: ?>
@@ -994,10 +1024,33 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span><?= htmlspecialchars($activeChapter['title'] ?? '') ?></span>
                             <?php endif; ?>
                         <?php endif; ?>
+                        </div>
                     </div>
                     <?php if ($activeChapter): ?>
                     <div class="content-actions">
-                        <div id="read-actions" style="display: flex; gap: 0.75rem;">
+                        <div id="read-actions" style="display: flex; gap: 0.75rem; align-items: center;">
+                            <?php if ($prevDoc || $nextDoc): ?>
+                                <div class="header-chapter-nav" role="group" aria-label="Chapter Navigation">
+                                    <?php if ($prevDoc): ?>
+                                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" title="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>" aria-label="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No previous chapter" style="opacity: 0.4; pointer-events: none;">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if ($nextDoc): ?>
+                                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" title="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>" aria-label="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                        </a>
+                                    <?php else: ?>
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No next chapter" style="opacity: 0.4; pointer-events: none;">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                             <?php if (($activeChapter['type'] ?? '') === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
                                 <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Edit Google Doc">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -1006,6 +1059,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                            </button>
+                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="Toggle Table of Contents (])" aria-label="Toggle Table of Contents">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                                </svg>
                             </button>
                             <?php
                             $chapterShareKey = $activeChapter['shareKey'] ?? '';
@@ -1046,7 +1105,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-image="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>"
                                             data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
                                             data-allow-comments="<?= isset($activeChapter['allowComments']) ? ($activeChapter['allowComments'] ? 'enabled' : 'disabled') : 'inherit' ?>"
+                                            data-allow-talk="<?= isset($activeChapter['allowTalk']) ? ($activeChapter['allowTalk'] ? 'enabled' : 'disabled') : 'inherit' ?>"
                                             data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                            data-status="<?= htmlspecialchars($activeChapter['status'] ?? 'published') ?>"
                                             data-book-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-category-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-doc-readonly="<?= (!empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false) || !empty($activeChapter['locked'])) ? '1' : '0' ?>"
@@ -1063,6 +1124,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                     </button>
                                 <?php endif; ?>
+                                <?php if ($extManager->isExtensionEnabled('revisions') && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'html', 'pdf', 'form'])): ?>
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="Revision History">
+                                        🕒
+                                    </button>
+                                <?php endif; ?>
+                                <?php $extManager->renderChapterHeaderUtilityButtons($isAdmin); ?>
                                 <?php if (!$isPageReadOnly): ?>
                                     <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -1111,6 +1178,33 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </div>
                     <?php endif; ?>
                 </div>
+                <?php if (!$isShareMode && empty($isAccessRestricted) && ($prevDoc || $nextDoc)): ?>
+                <nav class="chapter-pager" aria-label="Chapter navigation">
+                    <?php if ($prevDoc): ?>
+                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="chapter-pager-card chapter-pager-prev">
+                            <span class="chapter-pager-label">&laquo; Previous Chapter</span>
+                            <span class="chapter-pager-title"><?= htmlspecialchars($prevDoc['title']) ?></span>
+                        </a>
+                    <?php else: ?>
+                        <div class="chapter-pager-spacer"></div>
+                    <?php endif; ?>
+                    <?php if ($nextDoc): ?>
+                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="chapter-pager-card chapter-pager-next">
+                            <span class="chapter-pager-label">Next Chapter &raquo;</span>
+                            <span class="chapter-pager-title"><?= htmlspecialchars($nextDoc['title']) ?></span>
+                        </a>
+                    <?php else: ?>
+                        <div class="chapter-pager-spacer"></div>
+                    <?php endif; ?>
+                </nav>
+                <?php endif; ?>
+            <?php elseif (!empty($isDocumentNotFound)): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
+                    <h2>Document Not Found</h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The requested document does not exist or is not published for public viewing.</p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                </div>
             <?php else: ?>
                 <div class="content-body">
                     <h1>No Document Selected</h1>
@@ -1122,22 +1216,6 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php if (!$isShareMode && !$shareError && empty($isAccessRestricted)): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
-            <?php if ($activeChapter && ($prevDoc || $nextDoc)): ?>
-                <div class="toc-nav-buttons">
-                    <?php if ($prevDoc): ?>
-                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Previous: <?= htmlspecialchars($prevDoc['title']) ?>">&laquo; Prev</a>
-                    <?php else: ?>
-                        <div style="flex: 1;"></div>
-                    <?php endif; ?>
-                    
-                    <?php if ($nextDoc): ?>
-                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" style="flex: 1; text-align: center; padding: 0.4rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Next: <?= htmlspecialchars($nextDoc['title']) ?>">Next &raquo;</a>
-                    <?php else: ?>
-                        <div style="flex: 1;"></div>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-
             <div class="toc-header">Table of Contents</div>
             <div class="toc-content" id="toc-content"></div>
         </aside>
@@ -1164,6 +1242,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php require $templatesDir . '/modals/llm_keys.php'; ?>
             <?php require $templatesDir . '/modals/create_category.php'; ?>
             <?php require $templatesDir . '/modals/edit_category.php'; ?>
+            <?php require $templatesDir . '/modals/delete_category_confirm.php'; ?>
+            <?php require $templatesDir . '/modals/trash.php'; ?>
             <?php require $templatesDir . '/modals/edit_link.php'; ?>
             <?php require $templatesDir . '/modals/create_chapter.php'; ?>
             <?php if ($activeChapter): ?>

@@ -85,6 +85,7 @@ $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (isset(
 $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
 $assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
+$brandLogoUrl = SubwikiManager::resolveBrandLogoUrl($config, $isSubwiki, $assetsUrl);
 
 // Check for action triggers: reset_password or verify_email
 $routeAction = $_GET['action'] ?? '';
@@ -564,6 +565,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         }
     ?>
 
+    <link rel="icon" type="image/svg+xml" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon.svg?v=<?= @filemtime(__DIR__ . '/assets/images/favicon.svg') ?: QWIKI_VERSION ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon-32x32.png?v=<?= @filemtime(__DIR__ . '/assets/images/favicon-32x32.png') ?: QWIKI_VERSION ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= htmlspecialchars($assetsUrl) ?>/images/favicon-16x16.png?v=<?= @filemtime(__DIR__ . '/assets/images/favicon-16x16.png') ?: QWIKI_VERSION ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= htmlspecialchars($assetsUrl) ?>/images/apple-touch-icon.png?v=<?= @filemtime(__DIR__ . '/assets/images/apple-touch-icon.png') ?: QWIKI_VERSION ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars($assetsUrl) ?>/css/qwiki.css?v=<?= @filemtime(__DIR__ . '/assets/css/qwiki.css') ?: time() ?>">
     <?php if ($resolvedTheme && $resolvedTheme !== 'theme-default.css'): ?>
         <link rel="stylesheet" href="<?= htmlspecialchars(Config::getThemeUrl($resolvedTheme, $assetsUrl)) ?>" id="dynamic-theme-css">
@@ -590,8 +595,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="auth-gateway-card">
                 <div class="auth-gateway-topbar">
                     <div class="auth-gateway-brand">
-                        <span>⚡</span>
-                        <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
+                        <?php if ($brandLogoUrl !== ''): ?>
+                            <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 36px; border-radius: 4px;">
+                        <?php else: ?>
+                            <span>⚡</span>
+                            <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
+                        <?php endif; ?>
                     </div>
                     <button type="button" class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
                         <span class="theme-icon-dark">🌙</span>
@@ -705,8 +714,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 $logoTitle = $isSubwiki ? ('Back to ' . ($parentTitle ?: 'Parent Wiki')) : ($config['title'] ?? 'Home');
                 ?>
                 <a href="<?= htmlspecialchars($logoHref) ?>" class="brand-logo" title="<?= htmlspecialchars($logoTitle) ?>">
-                    <?php if (!empty($config['logoUrl'])): ?>
-                        <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
+                    <?php if ($brandLogoUrl !== ''): ?>
+                        <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 64px; border-radius: 4px;">
                     <?php else: ?>
                         ⚡ <?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? 'QWIKI')) ?>
                     <?php endif; ?>
@@ -788,8 +797,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <!-- Floating Minimal Share Bar -->
     <div class="share-floating-bar">
         <div class="share-bar-brand">
-            <?php if (!empty($config['logoUrl'])): ?>
-                <img src="<?= htmlspecialchars($config['logoUrl']) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
+            <?php if ($brandLogoUrl !== ''): ?>
+                <img src="<?= htmlspecialchars($brandLogoUrl) ?>" alt="Logo" style="max-height: 24px; border-radius: 3px;">
             <?php else: ?>
                 ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
             <?php endif; ?>

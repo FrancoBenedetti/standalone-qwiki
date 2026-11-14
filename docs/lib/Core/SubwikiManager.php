@@ -40,6 +40,52 @@ class SubwikiManager {
     }
 
     /**
+     * Resolve the brand logo URL for the current wiki, inheriting from the parent
+     * wiki when a subwiki does not specify its own logoUrl.
+     *
+     * @param array|null $config Current wiki configuration array.
+     * @param bool $isSubwiki Whether the current wiki is a subwiki.
+     * @param string $assetsUrl Base URL for shared assets.
+     * @return string
+     */
+    public static function resolveBrandLogoUrl(?array $config = null, bool $isSubwiki = false, string $assetsUrl = 'assets'): string {
+        if ($config === null) {
+            $config = Config::load();
+        }
+        $normalizeAssetPath = static function (string $url) use ($assetsUrl): string {
+            if (strpos($url, 'assets/') === 0 && $assetsUrl !== 'assets') {
+                return rtrim($assetsUrl, '/') . '/' . substr($url, 7);
+            }
+            return $url;
+        };
+
+        $ownLogo = trim((string)($config['logoUrl'] ?? ''));
+        if ($ownLogo !== '') {
+            return $normalizeAssetPath($ownLogo);
+        }
+
+        if ($isSubwiki) {
+            $parentConfigFile = dirname(Config::getBaseDir()) . '/qwiki.json';
+            if (file_exists($parentConfigFile)) {
+                $parentData = @json_decode(file_get_contents($parentConfigFile), true);
+                if (is_array($parentData) && !empty($parentData['logoUrl'])) {
+                    $parentLogo = trim((string)$parentData['logoUrl']);
+                    if (preg_match('#^(https?://|/|data:)#i', $parentLogo)) {
+                        return $parentLogo;
+                    }
+                    if (strpos($parentLogo, 'assets/') === 0) {
+                        return $normalizeAssetPath($parentLogo);
+                    }
+                    $parentPrefix = rtrim((string)($config['parentUrl'] ?? '../'), '/');
+                    return ($parentPrefix !== '' ? $parentPrefix : '..') . '/' . ltrim($parentLogo, '/');
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Validate a slug bi-directionally for category or subwiki usage.
      *
      * @param string $slug The proposed slug.
@@ -184,7 +230,7 @@ class SubwikiManager {
                 }
             }
 
-            $isDoc = !empty($sub['isDocSubwiki']) || (!empty($subData['isDocSubwiki'])) || ($slug === 'docs');
+            $isDoc = !empty($sub['isDocSubwiki']) || !empty($subData['isDocSubwiki']);
             $result[$slug] = [
                 'slug' => $slug,
                 'title' => $title,
@@ -213,7 +259,7 @@ class SubwikiManager {
                     }
                 }
 
-                $isDoc = (!empty($subData['isDocSubwiki'])) || ($slug === 'docs');
+                $isDoc = !empty($subData['isDocSubwiki']);
                 $result[$slug] = [
                     'slug' => $slug,
                     'title' => $title,
@@ -722,9 +768,10 @@ class SubwikiManager {
      *
      * @param string $slug Subwiki slug (defaults to 'docs')
      * @param string $mode 'auto', 'copy', or 'symlink'
-     * @return array ['success' => bool, 'slug' => string, 'mode' => string, 'message' => string, 'error' => ?string]
+     * @param bool $force Force overwrite if target subwiki exists with custom content not designated as doc mirror
+     * @return array ['success' => bool, 'slug' => string, 'mode' => string, 'message' => string, 'error' => ?string, 'requiresForce' => ?bool]
      */
-    public static function syncDocumentation(string $slug = 'docs', string $mode = 'auto'): array {
+    public static function syncDocumentation(string $slug = 'docs', string $mode = 'auto', bool $force = false): array {
         $baseDir = Config::getBaseDir();
         $slug = Config::makeSlug($slug);
         if (empty($slug)) {
@@ -742,6 +789,33 @@ class SubwikiManager {
                 'slug' => $slug,
                 'error' => "Canonical demo-data directory or qwiki-default.json not found in '{$demoDir}'."
             ];
+        }
+
+        $childConfigFile = $targetDir . '/qwiki.json';
+
+        // Safety Guard: Protect custom user subwikis from accidental overwrite
+        if (is_dir($targetDir) && file_exists($childConfigFile)) {
+            $existingConfig = @json_decode(file_get_contents($childConfigFile), true);
+            $isDesignatedDocMirror = !empty($existingConfig['isDocSubwiki']);
+
+            if (!$isDesignatedDocMirror) {
+                $parentSubwikis = Config::load()['subwikis'] ?? [];
+                foreach ($parentSubwikis as $ps) {
+                    if (($ps['slug'] ?? '') === $slug && !empty($ps['isDocSubwiki'])) {
+                        $isDesignatedDocMirror = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$isDesignatedDocMirror && !empty($existingConfig['books']) && !$force) {
+                return [
+                    'success' => false,
+                    'slug' => $slug,
+                    'requiresForce' => true,
+                    'error' => "Subwiki '/{$slug}/' contains existing custom documentation and is not designated as an official Qwiki Documentation mirror. Sync was aborted to prevent overwriting user data."
+                ];
+            }
         }
 
         // 1. Verify or initialize target subwiki

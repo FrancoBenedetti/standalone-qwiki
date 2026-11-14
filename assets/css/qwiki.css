@@ -138,7 +138,8 @@ body {
 
 .brand-logo img,
 .share-bar-brand img {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
   object-fit: contain;
   display: block;

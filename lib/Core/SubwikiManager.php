@@ -40,6 +40,52 @@ class SubwikiManager {
     }
 
     /**
+     * Resolve the brand logo URL for the current wiki, inheriting from the parent
+     * wiki when a subwiki does not specify its own logoUrl.
+     *
+     * @param array|null $config Current wiki configuration array.
+     * @param bool $isSubwiki Whether the current wiki is a subwiki.
+     * @param string $assetsUrl Base URL for shared assets.
+     * @return string
+     */
+    public static function resolveBrandLogoUrl(?array $config = null, bool $isSubwiki = false, string $assetsUrl = 'assets'): string {
+        if ($config === null) {
+            $config = Config::load();
+        }
+        $normalizeAssetPath = static function (string $url) use ($assetsUrl): string {
+            if (strpos($url, 'assets/') === 0 && $assetsUrl !== 'assets') {
+                return rtrim($assetsUrl, '/') . '/' . substr($url, 7);
+            }
+            return $url;
+        };
+
+        $ownLogo = trim((string)($config['logoUrl'] ?? ''));
+        if ($ownLogo !== '') {
+            return $normalizeAssetPath($ownLogo);
+        }
+
+        if ($isSubwiki) {
+            $parentConfigFile = dirname(Config::getBaseDir()) . '/qwiki.json';
+            if (file_exists($parentConfigFile)) {
+                $parentData = @json_decode(file_get_contents($parentConfigFile), true);
+                if (is_array($parentData) && !empty($parentData['logoUrl'])) {
+                    $parentLogo = trim((string)$parentData['logoUrl']);
+                    if (preg_match('#^(https?://|/|data:)#i', $parentLogo)) {
+                        return $parentLogo;
+                    }
+                    if (strpos($parentLogo, 'assets/') === 0) {
+                        return $normalizeAssetPath($parentLogo);
+                    }
+                    $parentPrefix = rtrim((string)($config['parentUrl'] ?? '../'), '/');
+                    return ($parentPrefix !== '' ? $parentPrefix : '..') . '/' . ltrim($parentLogo, '/');
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
      * Validate a slug bi-directionally for category or subwiki usage.
      *
      * @param string $slug The proposed slug.
