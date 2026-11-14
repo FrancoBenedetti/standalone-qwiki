@@ -453,6 +453,11 @@ class LlmAccess {
                     continue;
                 }
 
+                $isFolder = (isset($node['type']) && strtolower($node['type']) === 'folder') || !empty($node['items']);
+                if (!$isFolder && class_exists('\Qwiki\Core\Navigation') && !Navigation::isChapterVisibleForStatus($node, false)) {
+                    continue;
+                }
+
                 $currentBook = ($bookId === null) ? $nodeId : $bookId;
                 $currentFolder = (isset($node['type']) && strtolower($node['type']) === 'folder') ? ($nodeId ?: $folderId) : $folderId;
 

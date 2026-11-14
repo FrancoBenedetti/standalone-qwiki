@@ -95,6 +95,28 @@ if (!in_array($activeType, ['markdown', 'gdoc', 'pdf'], true) && !isset($enabled
 <input type="text" name="newSlug" id="edit-chapter-slug" class="form-control" value="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>" required pattern="[a-zA-Z0-9\-_]+">
 <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem; display: block;">Unique identifier used in URLs. Changing this renames the file on disk.</small>
 </div>
+
+<div class="form-group" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+<label class="form-label" for="edit-chapter-status">Lifecycle Status</label>
+<?php $curStatus = strtolower($activeChapter['status'] ?? 'published'); ?>
+<select name="status" id="edit-chapter-status" class="form-control">
+<option value="published" <?= ($curStatus === 'published') ? 'selected' : '' ?>>Published (Visible to readers)</option>
+<option value="review" <?= ($curStatus === 'review') ? 'selected' : '' ?>>In Review (Pending approval)</option>
+<option value="draft" <?= ($curStatus === 'draft') ? 'selected' : '' ?>>Draft (Hidden from non-admins)</option>
+<option value="archived" <?= ($curStatus === 'archived') ? 'selected' : '' ?>>Archived (Hidden from non-admins)</option>
+</select>
+<?php if (!empty($activeChapter['statusUpdatedAt'])): ?>
+<small style="color: var(--text-muted); font-size: 0.78rem; margin-top: 0.25rem; display: block;">
+Last status update: <?= htmlspecialchars($activeChapter['statusUpdatedAt']) ?><?= !empty($activeChapter['statusUpdatedBy']) ? ' by ' . htmlspecialchars($activeChapter['statusUpdatedBy']) : '' ?>
+<?php if (!empty($activeChapter['approverNote'])): ?> — <em><?= htmlspecialchars($activeChapter['approverNote']) ?></em><?php endif; ?>
+</small>
+<?php endif; ?>
+<?php if ($extManager->isExtensionEnabled('revisions')): ?>
+<div style="margin-top: 0.5rem;">
+<button type="button" id="btn-open-doc-revisions" class="btn btn-outline btn-sm" style="font-size: 0.8rem;">🕒 View Revision &amp; Replacement History</button>
+</div>
+<?php endif; ?>
+</div>
 </div>
 
 <!-- Tab 2: Display & SEO -->

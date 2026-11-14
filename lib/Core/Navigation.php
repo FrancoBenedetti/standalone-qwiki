@@ -158,6 +158,7 @@ class Navigation {
                         if ($chVis === 'admin_only') continue;
                         if ($chVis === 'logged_in' && !$isViewer) continue;
                     }
+                    if (!self::isChapterVisibleForStatus($ch, $isAdmin)) continue;
                     $nodeId = $node['id'] ?? '';
                     if ($nodeId === $bookId) {
                         $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug'] ?? '');
@@ -292,6 +293,7 @@ class Navigation {
                         if ($chVis === 'admin_only') continue;
                         if ($chVis === 'logged_in' && !$isViewer) continue;
                     }
+                    if (!self::isChapterVisibleForStatus($ch, $isAdmin)) continue;
                     $isActive = ($isExpanded && $activeChapterSlug === ($ch['slug'] ?? ''));
                     $docType = strtolower($ch['type'] ?? 'markdown');
                     $badgeClass = 'badge-' . htmlspecialchars($docType);
@@ -867,11 +869,16 @@ class Navigation {
                     if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
                         $chapterData['shareKey'] = $it['shareKey'];
                     }
+                    if (empty($chapterData['docId']) && !empty($it['docId'])) {
+                        $chapterData['docId'] = $it['docId'];
+                    }
                     $it = array_merge($it, $chapterData);
+                    self::ensureDocId($it);
                     $isUpdated = true;
                     return true;
                 }
             }
+            self::ensureDocId($chapterData);
             $node['items'][] = $chapterData;
             return true;
         }
@@ -885,6 +892,71 @@ class Navigation {
             }
         }
         return false;
+    }
+
+    /**
+     * Finds a category/folder node by ID and optionally outputs its parent category ID.
+     */
+    public static function findCategoryById(array $list, string $bookId, string &$parentId = ''): ?array {
+        foreach ($list as $node) {
+            if (($node['id'] ?? '') === $bookId) {
+                return $node;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $curId = (string)($node['id'] ?? '');
+                $found = self::findCategoryById($node['items'], $bookId, $parentId);
+                if ($found !== null) {
+                    if ($parentId === '') {
+                        $parentId = $curId;
+                    }
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Inserts a category/folder node under a specific parent category ID.
+     */
+    public static function insertCategoryIntoNode(array &$list, string $parentId, array $categoryNode): bool {
+        foreach ($list as &$node) {
+            if (($node['id'] ?? '') === $parentId) {
+                if (!isset($node['items']) || !is_array($node['items'])) {
+                    $node['items'] = [];
+                }
+                $node['items'][] = $categoryNode;
+                return true;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::insertCategoryIntoNode($node['items'], $parentId, $categoryNode)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Ensures a document/chapter node has a permanent immutable docId.
+     */
+    public static function ensureDocId(array &$chapter): string {
+        if (empty($chapter['docId']) || !is_string($chapter['docId'])) {
+            $chapter['docId'] = 'doc_' . bin2hex(random_bytes(8));
+        }
+        return $chapter['docId'];
+    }
+
+    /**
+     * Checks whether a chapter should be visible to the current user based on lifecycle status.
+     * Draft and archived documents are hidden from non-admins.
+     */
+    public static function isChapterVisibleForStatus(array $chapter, bool $isAdmin = false): bool {
+        if ($isAdmin) {
+            return true;
+        }
+        $status = strtolower(trim($chapter['status'] ?? self::DEFAULT_STATUS));
+        return !in_array($status, ['draft', 'archived'], true);
     }
 }
 

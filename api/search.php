@@ -52,6 +52,7 @@ function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extMana
                     if ($itemVis === 'admin_only') continue;
                     if ($itemVis === 'logged_in' && !$isViewer) continue;
                 }
+                if (!Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                 $isMatch = false;
 
                 // 1. Match title

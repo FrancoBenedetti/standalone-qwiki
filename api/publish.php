@@ -4,10 +4,18 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/LlmAccess.php';
+require_once __DIR__ . '/../lib/Core/DocumentService.php';
+require_once __DIR__ . '/../lib/Core/TrashManager.php';
+require_once __DIR__ . '/../lib/Core/LockManager.php';
+require_once __DIR__ . '/../lib/Core/AuditLogger.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Navigation;
 use Qwiki\Core\LlmAccess;
+use Qwiki\Core\DocumentService;
+use Qwiki\Core\TrashManager;
+use Qwiki\Core\LockManager;
+use Qwiki\Core\AuditLogger;
 
 $config = Config::load();
 
@@ -678,8 +686,31 @@ if ($type === 'html') {
     $sanitizedContent = sanitize_markdown($content);
 }
 
-// Write the document file
-if (file_put_contents($targetAbsFile, $sanitizedContent) === false) {
+// Prepare docId (preserve existing or generate new)
+$docId = ($existingChapter && !empty($existingChapter['docId']))
+    ? $existingChapter['docId']
+    : ('doc_' . bin2hex(random_bytes(8)));
+
+$chapterForWrite = $existingChapter ?? [
+    'docId' => $docId,
+    'slug' => $slug,
+    'file' => $targetRelFile,
+    'type' => $type,
+];
+$chapterForWrite['docId'] = $docId;
+
+// Write the document file via unified DocumentService (tracks sha256 + pre-write hooks + audit log)
+$writeRes = DocumentService::replaceContent($chapterForWrite, $targetAbsFile, [
+    'content' => $sanitizedContent,
+    'oldAbsFile' => ($existingChapter && !empty($existingChapter['file'])) ? Config::safePath(Config::getBaseDir(), $existingChapter['file']) : $targetAbsFile,
+    'oldRelFile' => $existingChapter['file'] ?? '',
+    'newRelFile' => $targetRelFile,
+    'source' => 'api_publish',
+    'actor' => 'api_publish',
+    'event' => $existingChapter ? 'doc_replaced' : 'doc_published',
+    'extraAudit' => ['type' => $type, 'bookId' => $bookId],
+]);
+if (empty($writeRes['success'])) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Failed to write document file to disk']);
     exit;
@@ -700,6 +731,7 @@ if ($collidingChapter !== null && ($collidingChapter['slug'] ?? '') !== $slug) {
 
 // 8. Prepare Chapter Data for qwiki.json
 $chapterData = [
+    'docId' => $docId,
     'title' => $title,
     'slug' => $slug,
     'type' => $type,

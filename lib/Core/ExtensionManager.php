@@ -461,6 +461,9 @@ class ExtensionManager {
                 continue;
             }
             $placement = $util['placement'] ?? 'dropdown';
+            if ($placement === 'chapter_header') {
+                continue;
+            }
             $icon = $util['icon'] ?? '⚡';
             $title = htmlspecialchars($util['title'] ?? ucfirst($id));
             $btnId = 'btn-util-' . htmlspecialchars($id);

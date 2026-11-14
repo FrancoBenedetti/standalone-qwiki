@@ -216,6 +216,7 @@ function gatherFeedItems($node, &$items, $bookId, $folderId, $isViewer = false, 
                 if ($itemIsFolder) {
                     gatherFeedItems($item, $items, $bookId, $item['id'] ?? $item['slug'] ?? $folderId, $isViewer, $isAdmin, $effectiveVis);
                 } else {
+                    if (!\Qwiki\Core\Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                     processSingleFeedItem($item, $items, $bookId, $folderId, $isViewer, $isAdmin, $effectiveVis);
                 }
             }

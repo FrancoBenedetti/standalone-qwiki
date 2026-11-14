@@ -2,6 +2,153 @@
 namespace Qwiki\Core;
 
 class DocumentService {
+    /** @var callable[] */
+    private static $preWriteHooks = [];
+
+    /**
+     * Registers a callback invoked before an existing document file is overwritten.
+     * Signature: function(array $chapter, string $absFilePath, array $context): void
+     */
+    public static function registerPreWriteHook(callable $hook): void {
+        self::$preWriteHooks[] = $hook;
+    }
+
+    /**
+     * Invokes registered pre-write hooks (e.g. revision snapshotting) safely.
+     */
+    public static function runPreWriteHooks(array $chapter, string $absFilePath, array $context = []): void {
+        // Auto-invoke optional tool-revisions snapshot if installed and enabled
+        $revManagerPath = dirname(__DIR__, 2) . '/assets/extensions/tool-revisions/RevisionManager.php';
+        if (is_file($revManagerPath)) {
+            $revEnabled = true;
+            if (class_exists('\Qwiki\Core\ExtensionManager')) {
+                $revEnabled = ExtensionManager::getInstance()->isExtensionEnabled('revisions');
+            }
+            if ($revEnabled) {
+                require_once $revManagerPath;
+                if (class_exists('\Qwiki\Extensions\Revisions\RevisionManager')) {
+                    \Qwiki\Extensions\Revisions\RevisionManager::snapshot($chapter, $absFilePath, $context);
+                }
+            }
+        }
+        foreach (self::$preWriteHooks as $hook) {
+            try {
+                $hook($chapter, $absFilePath, $context);
+            } catch (\Throwable $e) {
+                // Never block primary write if an optional hook fails
+            }
+        }
+    }
+
+    /**
+     * Unified helper for writing/replacing document content on disk with optional pre-write
+     * snapshotting and consistent audit logging (used by both UI and headless APIs).
+     *
+     * @param array $chapter Chapter metadata (should include docId, slug, file)
+     * @param string $targetAbsFile Absolute destination path on disk
+     * @param array $options [
+     *   'content' => ?string,           // Raw string content to write
+     *   'tmpFile' => ?string,           // Uploaded tmp file to move
+     *   'moveCallback' => ?callable,    // Custom mover e.g. safe_move_uploaded_file
+     *   'oldAbsFile' => ?string,        // Previous file path if extension/path changed
+     *   'oldRelFile' => ?string,        // Previous relative file path
+     *   'newRelFile' => ?string,        // New relative file path
+     *   'source' => string,             // 'ui_save' | 'ui_replace' | 'ui_edit_modal' | 'api_publish'
+     *   'actor' => string,              // Username or API actor label
+     *   'event' => string,              // Audit event name ('doc_saved' | 'doc_replaced')
+     *   'extraAudit' => array           // Additional audit details
+     * ]
+     * @return array ['success' => bool, 'error' => ?string, 'sha256Before' => ?string, 'sha256After' => ?string, 'changed' => bool]
+     */
+    public static function replaceContent(array $chapter, string $targetAbsFile, array $options = []): array {
+        $oldAbsFile = $options['oldAbsFile'] ?? $targetAbsFile;
+        $sha256Before = (is_string($oldAbsFile) && $oldAbsFile !== '' && file_exists($oldAbsFile) && is_file($oldAbsFile))
+            ? hash_file('sha256', $oldAbsFile)
+            : null;
+
+        if (is_string($oldAbsFile) && $oldAbsFile !== '' && file_exists($oldAbsFile) && is_file($oldAbsFile)) {
+            self::runPreWriteHooks($chapter, $oldAbsFile, [
+                'source' => $options['source'] ?? 'unknown',
+                'actor' => $options['actor'] ?? 'system',
+                'sha256Before' => $sha256Before,
+            ]);
+        }
+
+        $dir = dirname($targetAbsFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        $written = false;
+        if (array_key_exists('content', $options) && $options['content'] !== null) {
+            $written = (file_put_contents($targetAbsFile, $options['content']) !== false);
+        } elseif (!empty($options['tmpFile'])) {
+            $mover = $options['moveCallback'] ?? null;
+            if (is_callable($mover)) {
+                $written = (bool)$mover($options['tmpFile'], $targetAbsFile);
+            } else {
+                $written = @rename($options['tmpFile'], $targetAbsFile) || @copy($options['tmpFile'], $targetAbsFile);
+            }
+        }
+
+        if (!$written) {
+            return ['success' => false, 'error' => 'Failed to write document file'];
+        }
+
+        if (!empty($options['oldAbsFile']) && $options['oldAbsFile'] !== $targetAbsFile && file_exists($options['oldAbsFile'])) {
+            @unlink($options['oldAbsFile']);
+        }
+
+        $sha256After = file_exists($targetAbsFile) ? hash_file('sha256', $targetAbsFile) : null;
+        $changed = ($sha256Before === null) || ($sha256Before !== $sha256After);
+
+        if (!class_exists('\Qwiki\Core\AuditLogger') && file_exists(__DIR__ . '/AuditLogger.php')) {
+            require_once __DIR__ . '/AuditLogger.php';
+        }
+        if (class_exists('\Qwiki\Core\AuditLogger')) {
+            $event = $options['event'] ?? 'doc_replaced';
+            $actor = $options['actor'] ?? 'system';
+            $details = array_merge([
+                'docId' => $chapter['docId'] ?? '',
+                'slug' => $chapter['slug'] ?? '',
+                'source' => $options['source'] ?? 'unknown',
+                'file' => $options['newRelFile'] ?? ($chapter['file'] ?? ''),
+                'old_file' => $options['oldRelFile'] ?? '',
+                'sha256_before' => $sha256Before ? substr($sha256Before, 0, 16) : null,
+                'sha256_after' => $sha256After ? substr($sha256After, 0, 16) : null,
+                'changed' => $changed,
+            ], $options['extraAudit'] ?? []);
+            AuditLogger::logMutation($event, 200, $details, $actor);
+        }
+
+        return [
+            'success' => true,
+            'sha256Before' => $sha256Before,
+            'sha256After' => $sha256After,
+            'changed' => $changed,
+        ];
+    }
+
+    /**
+     * Strips QWIKI_DRAFT_START/END blocks from Markdown files on publish.
+     */
+    public static function sanitizeMarkdownDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
+        if (!$cleanSource || $newStatus !== 'published') {
+            return true;
+        }
+        if (!file_exists($absFilePath) || !is_file($absFilePath) || !is_writable($absFilePath)) {
+            return false;
+        }
+        $content = file_get_contents($absFilePath);
+        if ($content === false) {
+            return false;
+        }
+        $cleaned = preg_replace('/<!--\s*QWIKI_DRAFT_START\s*-->[\s\S]*?<!--\s*QWIKI_DRAFT_END\s*-->\s*/is', '', $content);
+        if ($cleaned !== $content) {
+            return (file_put_contents($absFilePath, $cleaned) !== false);
+        }
+        return true;
+    }
 
     /**
      * Updates or injects the data-qwiki-status attribute on the root <html> tag of a document,

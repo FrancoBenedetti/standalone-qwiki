@@ -108,7 +108,7 @@ $shareError = null;
 if (!empty($shareKey)) {
     $matchedParentBook = null;
     $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $shareKey, $matchedParentBook);
-    if (!$matchedChapter) {
+    if (!$matchedChapter || !Navigation::isChapterVisibleForStatus($matchedChapter, $isAdmin)) {
         $shareError = 'not_found';
     } else {
         $isPublic = !isset($matchedChapter['publicShareable']) || !empty($matchedChapter['publicShareable']);
@@ -365,6 +365,9 @@ if (!$isShareMode && !$shareError) {
             }
         }
 
+        if ($activeChapter && !Navigation::isChapterVisibleForStatus($activeChapter, $isAdmin)) {
+            $activeChapter = null;
+        }
         if ($isAccessRestricted) {
             $activeChapter = null;
             $breadcrumbsTrail = [['title' => 'Access Restricted', 'id' => '']];
@@ -381,6 +384,7 @@ if (!$isShareMode && !$shareError) {
                             if ($itemVis === 'admin_only') continue;
                             if ($itemVis === 'logged_in' && !$isViewer) continue;
                         }
+                        if (!Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                         $activeChapter = $item;
                         $breadcrumbsTrail = [['title' => $activeBook['title'] ?? '', 'id' => $activeBook['id'] ?? '']];
                         break;

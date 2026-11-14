@@ -1,0 +1,17 @@
+{
+  "id": "revisions",
+  "type": "utility",
+  "adminOnly": true,
+  "title": "Revision History",
+  "icon": "🕒",
+  "placement": "header_menu",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_revisions_list",
+    "ext_revisions_get",
+    "ext_revisions_restore"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}
