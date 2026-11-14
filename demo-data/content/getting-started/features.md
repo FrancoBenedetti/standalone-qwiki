@@ -113,6 +113,7 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 - **Granular Visibility & Silent Omission**: Assign visibility to categories or individual documents as `Public`, `Logged In Users`, or `Admins Only`. Restricted items are silently omitted from sidebar menus, sequential reading links, and search results for unauthorized visitors.
 - **UI Customization**: Restrict document type badges (`MD`, `PDF`, `GDOC`, `HTML`, `FORM`) to admin users.
 - **Full-Text Search**: Real-time search across titles, descriptions, Markdown content, HTML documents, and interactive forms with automatic privacy filtering.
+- **In-Document Search Highlighting**: Clicking a search result carries your query across navigation via `sessionStorage` (keeping URLs clean), highlights visible matches in the document body using the CSS Custom Highlight API (with a `<mark>` fallback), scrolls to the first match, and displays a floating match navigator (`Previous` / `Next` / `Dismiss`).
 - **Clear Search Button**: A `×` clear button appears in the sidebar search bar when text is present, instantly resetting the search and restoring the pre-search navigation state. Press `Escape` to achieve the same result with keyboard.
 
 ---

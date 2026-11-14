@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.17] - BeaconFlow - 2026-11-14
+
+### 🔍 Search Reliability & In-Document Highlighting
+- **Search API Namespace Fix (`api/search.php`)**: Added the missing `use Qwiki\Core\Navigation;` import so `Navigation::isChapterVisibleForStatus()` resolves cleanly without throwing a fatal `Class "Navigation" not found` error during sidebar search queries.
+- **Cross-Navigation Search Term Highlighting (`assets/js/core/search.js`, `assets/css/qwiki.css`)**: Carried active search queries across internal `.sidebar-nav` navigation via path-scoped `sessionStorage` (30-minute TTL) to keep canonical URLs clean and preserve the filtered sidebar across result clicks. Highlights visible matches inside `#content-body` using the non-mutating CSS Custom Highlight API (`CSS.highlights`) with a `textContent`-safe `<mark>` fallback, skipping KaTeX math, Mermaid/Svgbob diagrams, scripts, inputs, and hidden nodes.
+- **Floating Match Navigation Bar & Accessibility (`assets/js/core/search.js`, `assets/css/qwiki.css`)**: Added a bottom-right `.search-highlight-bar` with match counters (`"term" • current / total`), Previous/Next/Dismiss controls, `Enter` / `Shift+Enter` keyboard stepping, automatic scroll-to-first-match on result navigation, inline-edit cleanup, high-contrast underline styling, `@media (forced-colors: active)` system colors, and `@media print` suppression.
+- **Automated Search Highlight Tests (`tests/test_search_highlight.js`)**: Added JSDOM unit tests covering CSS rules, both highlighting engines, DOM restoration, ignored containers, and `sessionStorage` handoff/invalidation.
+
+### 🎨 Universal Brand Identity & Subwiki Logo Inheritance
+- **Universal Qwiki Logo & Favicon Suite (`assets/images/`, `favicon.ico`, `.htaccess`, `index.php`, `demo-data/qwiki-default.json`)**: Added theme-agnostic `logo-qwiki.svg`/`.png` and multi-format favicons (`favicon.svg`, `favicon-16x16.png`, `favicon-32x32.png`, `apple-touch-icon.png`, and multi-resolution `favicon.ico`), wired `<link rel="icon">` / `apple-touch-icon` tags via `$assetsUrl`, and configured `assets/images/logo-qwiki.svg` as the default logo.
+- **Subwiki Parent-Logo Inheritance (`lib/Core/SubwikiManager.php`, `index.php`, `assets/css/qwiki.css`)**: Added `SubwikiManager::resolveBrandLogoUrl()` so subwikis inherit the parent wiki's brand logo across the app header, share bar, and auth gateway unless explicitly overridden, with refined `.brand-logo img` and `.share-bar-brand img` sizing and automated verification (`tests/logo_and_favicon_test.php`).
+
+---
+
 ## [1.20.16] - VaultFlow - 2026-11-14
 
 ### 🛡️ Document Lifecycle Enforcement, Safe Deletion & Revision Tracking
