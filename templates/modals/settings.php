@@ -70,6 +70,10 @@ foreach ($allExtensions as $id => $ext) {
                         </select>
                     </div>
                     <div class="form-group">
+                        <label class="form-label" for="setting-revisions-max">Revision History Retention (Snapshots per Document)</label>
+                        <input type="number" name="revisionsMaxPerDoc" id="setting-revisions-max" class="form-control" value="<?= htmlspecialchars((string)($config['revisions']['maxPerDoc'] ?? 20)) ?>" min="1" max="200">
+                    </div>
+                    <div class="form-group">
                         <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                             <input type="checkbox" name="showDocTypesOnlyToAdmin" value="1" <?= $showDocTypesOnlyToAdmin ? 'checked' : '' ?>>
                             <span>Show Document Type Badges Only to Admin Users</span>

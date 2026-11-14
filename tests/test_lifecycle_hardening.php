@@ -130,6 +130,32 @@ $revs = RevisionManager::listRevisions($docId);
 assertTest(count($revs) === 1, 'Revision snapshot created before overwrite');
 $revDetail = RevisionManager::getRevision($docId, $revs[0]['revId']);
 assertTest($revDetail && strpos($revDetail['content'], 'Alpha v1') !== false, 'Revision snapshot preserves v1 content');
+assertTest(isset($revDetail['isBinary']) && $revDetail['isBinary'] === false, 'Markdown revision marked non-binary');
+
+// No-op replaceContent skips redundant snapshot
+$resNoop = DocumentService::replaceContent($alphaChapter, $alphaFile, [
+    'content' => "# Alpha v2\nUpdated body.\n",
+    'oldAbsFile' => $alphaFile,
+    'oldRelFile' => 'content/cat-a/alpha-doc.md',
+    'newRelFile' => 'content/cat-a/alpha-doc.md',
+    'source' => 'api_publish',
+    'actor' => 'tester',
+    'event' => 'doc_replaced',
+]);
+assertTest(!empty($resNoop['success']) && $resNoop['changed'] === false, 'No-op replaceContent returns changed=false');
+assertTest(count(RevisionManager::listRevisions($docId)) === 1, 'No-op replaceContent does not create duplicate revision snapshot');
+
+// Binary PDF revision detection
+$pdfDocId = 'doc_0123456789abcdef';
+$pdfFile = $tempDir . '/content/cat-a/sample.pdf';
+file_put_contents($pdfFile, "%PDF-1.4\n\xFF\xFE\x00\x01binarypdfbytes");
+$pdfChapter = ['docId' => $pdfDocId, 'slug' => 'sample-pdf', 'file' => 'content/cat-a/sample.pdf', 'type' => 'pdf', 'status' => 'published'];
+RevisionManager::snapshot($pdfChapter, $pdfFile, ['source' => 'ui_replace', 'actor' => 'tester']);
+$pdfRevs = RevisionManager::listRevisions($pdfDocId);
+assertTest(count($pdfRevs) === 1, 'Binary PDF snapshot created');
+$pdfRevDetail = RevisionManager::getRevision($pdfDocId, $pdfRevs[0]['revId']);
+assertTest($pdfRevDetail && $pdfRevDetail['isBinary'] === true && $pdfRevDetail['content'] === null, 'Binary PDF revision marks isBinary=true and content=null');
+assertTest(is_file($pdfRevDetail['bakPath']), 'Binary PDF snapshot keeps valid bakPath on disk');
 
 // 3. Lock migration on file relocation
 echo "\n--- 3. LockManager::migrateLock ---\n";
@@ -157,6 +183,74 @@ assertTest(!empty($restoreRes['success']), 'Category restore succeeds');
 assertTest(file_exists($tempDir . '/content/cat-a/alpha-doc.md'), 'Restored category files returned to content/');
 assertTest(Navigation::findCategoryById($config['books'], 'cat-a') !== null, 'Restored category present in qwiki.json');
 assertTest(count(TrashManager::listTrash()) === 0, 'Trash is empty after restore');
+
+// 5. TrashManager: Collision Guard & Revision Purge on Permanent Delete
+echo "\n--- 5. TrashManager: Collision Guard & Revision Purge ---\n";
+$alphaChapter['docId'] = $docId;
+$docTrash = TrashManager::trashChapter($alphaChapter, 'cat-a', 'tester', 'ui_delete');
+Navigation::deleteChapterFromNode($config['books'][0], 'alpha-doc');
+Config::save($config);
+
+// Simulate a colliding chapter with the same slug & file created while trashed
+$config['books'][0]['items'][] = [
+    'docId' => 'doc_fedcba9876543210',
+    'title' => 'Colliding Alpha',
+    'slug' => 'alpha-doc',
+    'type' => 'markdown',
+    'file' => 'content/cat-a/alpha-doc.md',
+    'status' => 'published',
+];
+file_put_contents($alphaFile, "# Colliding Doc\n");
+$collisionRestore = TrashManager::restoreItem($config, $docTrash['trashId'], 'tester');
+assertTest(empty($collisionRestore['success']), 'TrashManager::restoreItem rejects colliding slug/file');
+assertTest(strpos(file_get_contents($alphaFile), 'Colliding Doc') !== false, 'Colliding file on disk was not overwritten');
+
+// Purging trashed doc cleans up data/revisions/{docId}
+assertTest(is_dir($tempDir . '/data/revisions/' . $docId), 'Revisions directory exists before purge');
+$purgeRes = TrashManager::purgeItem($docTrash['trashId'], 'tester');
+assertTest(!empty($purgeRes['success']), 'TrashManager::purgeItem succeeds');
+assertTest(!is_dir($tempDir . '/data/revisions/' . $docId), 'TrashManager::purgeItem removes orphaned revision directory');
+
+// 6. Security: .htaccess dual Apache 2.2 + 2.4 guards
+echo "\n--- 6. Security: .htaccess Apache 2.2 + 2.4 Guards ---\n";
+$trashHt = @file_get_contents($tempDir . '/data/trash/.htaccess');
+$revHt = @file_get_contents($tempDir . '/data/revisions/.htaccess');
+assertTest(is_string($trashHt) && strpos($trashHt, 'Require all denied') !== false && strpos($trashHt, 'Deny from all') !== false, 'Trash .htaccess enforces Apache 2.2 + 2.4 deny rules');
+assertTest(is_string($revHt) && strpos($revHt, 'Require all denied') !== false && strpos($revHt, 'Deny from all') !== false, 'Revisions .htaccess enforces Apache 2.2 + 2.4 deny rules');
+
+// 7. Extension Handler JSON Output (tool-revisions)
+echo "\n--- 7. Revision Handler JSON Output ---\n";
+require_once __DIR__ . '/../lib/Core/Auth.php';
+\Qwiki\Core\Auth::startSession();
+$_SESSION['qwiki_instance'] = \Qwiki\Core\Auth::getInstanceIdentifier();
+$_SESSION['qwiki_user'] = ['username' => 'tester', 'role' => 'admin'];
+
+// Add sample-pdf chapter into config for handler lookup
+$config['books'][0]['items'][] = [
+    'docId' => $pdfDocId,
+    'title' => 'Sample PDF',
+    'slug' => 'sample-pdf',
+    'type' => 'pdf',
+    'file' => 'content/cat-a/sample.pdf',
+    'status' => 'published',
+];
+Config::save($config);
+
+$action = 'ext_revisions_list';
+$_REQUEST['slug'] = 'sample-pdf';
+ob_start();
+include __DIR__ . '/../assets/extensions/tool-revisions/handler.php';
+$listOut = ob_get_clean();
+$listJson = json_decode($listOut, true);
+assertTest(is_array($listJson) && !empty($listJson['success']) && count($listJson['revisions']) === 1, 'ext_revisions_list echoes valid JSON with revisions');
+
+$action = 'ext_revisions_get';
+$_REQUEST['revId'] = $pdfRevs[0]['revId'];
+ob_start();
+include __DIR__ . '/../assets/extensions/tool-revisions/handler.php';
+$getOut = ob_get_clean();
+$getJson = json_decode($getOut, true);
+assertTest(is_array($getJson) && !empty($getJson['success']) && ($getJson['revision']['isBinary'] ?? false) === true && $getJson['revision']['content'] === null, 'ext_revisions_get safely serializes binary revision without failing json_encode');
 
 // Cleanup temp directory
 function rrmdir($dir) {

@@ -270,10 +270,22 @@ if ($action === 'delete_chapter' || $action === 'delete_doc') {
         exit;
     }
 
-    if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+    if (Config::isChapterProtected($slug, $config['books'] ?? []) || Config::isChapterAncestorProtected($slug, $config['books'] ?? [])) {
         http_response_code(403);
         echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
         exit;
+    }
+
+    $permanent = !empty($_POST['permanent']) && ($_POST['permanent'] === '1' || $_POST['permanent'] === 'true');
+    $parentBook = null;
+    $chapterToDelete = Navigation::findChapterBySlug($config['books'] ?? [], $slug, $parentBook);
+    if ($chapterToDelete && !empty($chapterToDelete['file'])) {
+        LockManager::releaseLock($chapterToDelete['file'], '', 'api_publish', true);
+    }
+    $trashId = null;
+    if ($chapterToDelete && !$permanent) {
+        $manifest = TrashManager::trashChapter($chapterToDelete, $parentBook['id'] ?? $bookId, 'api_publish', 'api_delete');
+        $trashId = $manifest['trashId'] ?? null;
     }
 
     $deleted = false;
@@ -310,16 +322,42 @@ if ($action === 'delete_chapter' || $action === 'delete_doc') {
 
     if ($deleted) {
         Config::save($config);
-        if (!empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
+        if ($permanent && !empty($deletedFile) && strpos($deletedFile, 'content/') === 0) {
             $baseDir = Config::getBaseDir();
             $filePath = Config::safePath($baseDir, $deletedFile);
             if ($filePath && file_exists($filePath) && is_file($filePath)) {
                 @unlink($filePath);
             }
+            if (($chapterToDelete['type'] ?? '') === 'form') {
+                $subRel = preg_replace('/\.form\.json$/i', '.submissions.json', $deletedFile);
+                $subAbs = ($subRel && $subRel !== $deletedFile) ? Config::safePath($baseDir, $subRel) : null;
+                if ($subAbs && is_file($subAbs)) {
+                    @unlink($subAbs);
+                }
+            }
         }
+        if ($permanent && !empty($chapterToDelete['docId'])) {
+            $revManagerPath = __DIR__ . '/../assets/extensions/tool-revisions/RevisionManager.php';
+            if (is_file($revManagerPath)) {
+                require_once $revManagerPath;
+                if (class_exists('\Qwiki\Extensions\Revisions\RevisionManager')) {
+                    \Qwiki\Extensions\Revisions\RevisionManager::purgeDocRevisions($chapterToDelete['docId']);
+                }
+            }
+        }
+        AuditLogger::logMutation($permanent ? 'doc_deleted' : 'doc_trashed', 200, [
+            'slug' => $slug,
+            'docId' => $chapterToDelete['docId'] ?? '',
+            'file' => $deletedFile ?? '',
+            'bookId' => $parentBook['id'] ?? $bookId,
+            'trashId' => $trashId ?? '',
+            'source' => 'api_publish',
+        ], 'api_publish');
         echo json_encode([
             'success' => true,
             'deleted' => true,
+            'trashed' => !$permanent,
+            'trashId' => $trashId,
             'slug' => $slug,
             'file' => $deletedFile
         ]);
@@ -629,8 +667,22 @@ if (!empty($providedShareKey)) {
         if (empty($providedSlug) || $providedSlug === ($chapterByShare['slug'] ?? '')) {
             $baseSlug = $chapterByShare['slug'] ?? $baseSlug;
         }
-        if (!empty($parentOfShare['id'])) {
+        if (!empty($parentOfShare['id']) && $parentOfShare['id'] !== $targetNodeId) {
             $targetNodeId = $parentOfShare['id'];
+            foreach ($config['books'] as $b) {
+                $resolvedShareFolder = find_target_folder($b, $targetNodeId);
+                if ($resolvedShareFolder !== null) {
+                    $resolvedAbs = Config::safePath($contentRoot, $resolvedShareFolder);
+                    if ($resolvedAbs && (!$realContentRoot || strpos($resolvedAbs, $realContentRoot) === 0)) {
+                        $targetFolder = $resolvedShareFolder;
+                        $targetAbsDir = $resolvedAbs;
+                        if (!is_dir($targetAbsDir)) {
+                            @mkdir($targetAbsDir, 0755, true);
+                        }
+                    }
+                    break;
+                }
+            }
         }
     }
 }
@@ -663,6 +715,21 @@ if ($allowOverwrite || $existingChapter !== null) {
 
 $targetRelFile = 'content/' . trim($targetFolder, '/') . '/' . $slug . $ext;
 
+$docStatus = strtolower(trim($_POST['status'] ?? ''));
+if (!in_array($docStatus, Navigation::VALID_STATUSES, true)) {
+    $docStatus = ($existingChapter && !empty($existingChapter['status']) && in_array($existingChapter['status'], Navigation::VALID_STATUSES, true))
+        ? $existingChapter['status']
+        : Navigation::DEFAULT_STATUS;
+}
+
+$cleanOnPublish = false;
+if (isset($_POST['clean_source'])) {
+    $cVal = $_POST['clean_source'];
+    if ($cVal === true || $cVal === 'true' || $cVal === '1' || $cVal === 1) {
+        $cleanOnPublish = true;
+    }
+}
+
 // 6. Content Sanitization & Preparation
 $image = '';
 if ($type === 'html') {
@@ -682,6 +749,7 @@ if ($type === 'html') {
     }
 
     $sanitizedContent = Config::ensureHtmlBaseHref($sanitizedContent, $targetRelFile);
+    $sanitizedContent = DocumentService::applyHtmlStatusToContent($sanitizedContent, $docStatus, $cleanOnPublish);
 } else {
     $sanitizedContent = sanitize_markdown($content);
 }
@@ -739,30 +807,19 @@ $chapterData = [
     'shareKey' => $shareKey
 ];
 
-$docStatus = strtolower(trim($_POST['status'] ?? ''));
-if (!in_array($docStatus, Navigation::VALID_STATUSES, true)) {
-    $docStatus = Navigation::DEFAULT_STATUS;
-}
 $chapterData['status'] = $docStatus;
 $chapterData['statusUpdatedAt'] = date('c');
 $chapterData['statusUpdatedBy'] = 'api';
 
 if (!empty($_POST['approver'])) {
     $chapterData['approver'] = trim($_POST['approver']);
+} elseif ($existingChapter && !empty($existingChapter['approver'])) {
+    $chapterData['approver'] = $existingChapter['approver'];
 }
 if (!empty($_POST['approverNote']) || !empty($_POST['note'])) {
     $chapterData['approverNote'] = trim($_POST['approverNote'] ?? $_POST['note'] ?? '');
-}
-
-if ($type === 'html' && file_exists($targetAbsFile)) {
-    $cleanOnPublish = false;
-    if (isset($_POST['clean_source'])) {
-        $cVal = $_POST['clean_source'];
-        if ($cVal === true || $cVal === 'true' || $cVal === '1' || $cVal === 1) {
-            $cleanOnPublish = true;
-        }
-    }
-    Navigation::sanitizeHtmlDocumentStatus($targetAbsFile, $docStatus, $cleanOnPublish);
+} elseif ($existingChapter && !empty($existingChapter['approverNote'])) {
+    $chapterData['approverNote'] = $existingChapter['approverNote'];
 }
 
 if (!$publicShareable) {

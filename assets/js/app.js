@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-llm-keys', modalId: 'llm-keys-modal' },
+    { btnId: 'btn-trash-bin', modalId: 'trash-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
     { btnId: 'btn-subwikis', modalId: 'subwikis-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' },
@@ -35,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (modalId === 'llm-keys-modal') {
           loadLlmKeysList();
+        }
+        if (modalId === 'trash-modal') {
+          loadTrashList();
         }
         if (modalId === 'subwikis-modal') {
           loadSubwikisList();
@@ -128,6 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const shareKeyInput = document.getElementById('edit-chapter-share-key');
             if (shareKeyInput) {
               shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
+            }
+            const statusSelect = document.getElementById('edit-chapter-status');
+            if (statusSelect) {
+              statusSelect.value = btnMeta.getAttribute('data-status') || 'published';
             }
             const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
             if (regenKeyHidden) {
@@ -1243,6 +1251,263 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Delete Category
+  function openDeleteCategoryConfirmModal(bookId, bookTitle, confirmData) {
+    const confirmModal = document.getElementById('delete-category-confirm-modal');
+    if (!confirmModal) {
+      alert('Delete category failed: ' + (confirmData.error || 'Confirmation modal unavailable'));
+      return;
+    }
+    const counts = confirmData.counts || { documents: 0, categories: 0 };
+    const targets = Array.isArray(confirmData.targetCategories) ? confirmData.targetCategories : [];
+
+    const idHidden = document.getElementById('delete-cat-confirm-id');
+    const summaryEl = document.getElementById('delete-cat-confirm-summary');
+    const modeTrash = document.getElementById('delete-cat-mode-trash');
+    const modeMove = document.getElementById('delete-cat-mode-move');
+    const targetSelect = document.getElementById('delete-cat-target-select');
+
+    if (idHidden) idHidden.value = bookId;
+    if (summaryEl) {
+      summaryEl.textContent = `Category "${bookTitle}" contains ${counts.documents || 0} document(s) and ${counts.categories || 0} sub-category(ies). Choose how to proceed:`;
+    }
+    if (modeTrash) modeTrash.checked = true;
+    if (modeMove) modeMove.disabled = targets.length === 0 && (counts.documents || 0) > 0;
+    if (targetSelect) {
+      targetSelect.replaceChildren();
+      if ((counts.documents || 0) === 0 && (counts.categories || 0) > 0) {
+        const rootOpt = document.createElement('option');
+        rootOpt.value = '__root__';
+        rootOpt.textContent = 'Promote sub-categories to Top Level';
+        targetSelect.appendChild(rootOpt);
+      }
+      targets.forEach((t) => {
+        const opt = document.createElement('option');
+        opt.value = t.id || '';
+        opt.textContent = t.path || t.title || t.id || '';
+        targetSelect.appendChild(opt);
+      });
+      targetSelect.disabled = true;
+    }
+
+    const editBookModal = document.getElementById('edit-book-modal');
+    if (editBookModal) editBookModal.classList.remove('open');
+    confirmModal.classList.add('open');
+  }
+
+  const deleteCatConfirmForm = document.getElementById('delete-category-confirm-form');
+  if (deleteCatConfirmForm) {
+    const modeTrashRadio = document.getElementById('delete-cat-mode-trash');
+    const modeMoveRadio = document.getElementById('delete-cat-mode-move');
+    const targetSelectEl = document.getElementById('delete-cat-target-select');
+    const syncDeleteCatRadios = () => {
+      if (targetSelectEl && modeMoveRadio) {
+        targetSelectEl.disabled = !modeMoveRadio.checked;
+      }
+    };
+    if (modeTrashRadio) modeTrashRadio.addEventListener('change', syncDeleteCatRadios);
+    if (modeMoveRadio) modeMoveRadio.addEventListener('change', syncDeleteCatRadios);
+
+    deleteCatConfirmForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const idHidden = document.getElementById('delete-cat-confirm-id');
+      const submitBtn = document.getElementById('btn-confirm-delete-cat');
+      const bookId = idHidden ? idHidden.value.trim() : '';
+      const selectedMode = (modeMoveRadio && modeMoveRadio.checked) ? 'move_contents' : 'trash';
+      const targetBookId = (targetSelectEl && !targetSelectEl.disabled) ? targetSelectEl.value : '';
+
+      if (!bookId) return;
+      if (selectedMode === 'move_contents' && !targetBookId) {
+        alert('Please select a target category.');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Processing...';
+      }
+
+      const fd = new FormData();
+      fd.append('action', 'delete_book');
+      fd.append('bookId', bookId);
+      fd.append('mode', selectedMode);
+      if (selectedMode === 'move_contents') {
+        fd.append('targetBookId', targetBookId);
+      }
+
+      try {
+        const res = await fetch('api/admin.php?action=delete_book', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = 'index.php';
+        } else {
+          alert('Delete category failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Delete category request failed');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Proceed';
+        }
+      }
+    });
+  }
+
+  // Trash Bin UI Loader & Handlers
+  async function loadTrashList() {
+    const statusEl = document.getElementById('trash-modal-status');
+    const listEl = document.getElementById('trash-items-list');
+    const emptyBtn = document.getElementById('btn-empty-trash');
+    if (!statusEl || !listEl) return;
+
+    statusEl.textContent = 'Loading trashed items...';
+    listEl.replaceChildren();
+    if (emptyBtn) emptyBtn.style.display = 'none';
+
+    try {
+      const res = await fetch('api/admin.php?action=trash_list');
+      const data = await res.json();
+      if (!data.success) {
+        statusEl.textContent = data.error || 'Failed to load Trash Bin.';
+        return;
+      }
+      const items = Array.isArray(data.items) ? data.items : [];
+      statusEl.textContent = `${items.length} trashed item(s).`;
+      if (emptyBtn) {
+        emptyBtn.style.display = items.length > 0 ? 'inline-block' : 'none';
+      }
+      if (items.length === 0) {
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.color = 'var(--text-muted)';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.padding = '1.5rem 0';
+        emptyMsg.textContent = 'Trash is empty.';
+        listEl.appendChild(emptyMsg);
+        return;
+      }
+
+      items.forEach((item) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.gap = '0.75rem';
+        row.style.padding = '0.75rem 0.9rem';
+        row.style.border = '1px solid var(--border-color)';
+        row.style.borderRadius = '6px';
+        row.style.flexWrap = 'wrap';
+
+        const metaCol = document.createElement('div');
+        metaCol.style.minWidth = '200px';
+        metaCol.style.flex = '1';
+
+        const titleEl = document.createElement('div');
+        titleEl.style.fontWeight = '600';
+        titleEl.textContent = `${item.kind === 'category' ? '📁' : '📄'} ${item.title || item.slug || item.bookId || item.trashId}`;
+
+        const subEl = document.createElement('div');
+        subEl.style.fontSize = '0.8rem';
+        subEl.style.color = 'var(--text-muted)';
+        subEl.style.marginTop = '0.2rem';
+        const idLabel = item.kind === 'category'
+          ? `Category • ${item.documentCount || 0} doc(s), ${item.categoryCount || 0} sub(s)`
+          : `Document (${item.slug || ''})`;
+        subEl.textContent = `${idLabel} • Deleted ${item.deletedAt || ''} by ${item.deletedBy || 'admin'}`;
+
+        metaCol.appendChild(titleEl);
+        metaCol.appendChild(subEl);
+
+        const actionsCol = document.createElement('div');
+        actionsCol.style.display = 'flex';
+        actionsCol.style.gap = '0.45rem';
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'btn btn-outline btn-sm';
+        restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', async () => {
+          restoreBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('action', 'trash_restore');
+          fd.append('trashId', item.trashId || '');
+          try {
+            const r = await fetch('api/admin.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) {
+              window.location.reload();
+            } else {
+              alert('Restore failed: ' + (d.error || 'Unknown error'));
+              restoreBtn.disabled = false;
+            }
+          } catch (e) {
+            alert('Restore request failed');
+            restoreBtn.disabled = false;
+          }
+        });
+
+        const purgeBtn = document.createElement('button');
+        purgeBtn.type = 'button';
+        purgeBtn.className = 'btn btn-outline btn-danger-text btn-sm';
+        purgeBtn.textContent = 'Delete Forever';
+        purgeBtn.addEventListener('click', async () => {
+          if (!confirm(`Permanently delete "${item.title || item.trashId}" and its stored revision snapshots? This cannot be undone.`)) {
+            return;
+          }
+          purgeBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('action', 'trash_purge');
+          fd.append('trashId', item.trashId || '');
+          try {
+            const r = await fetch('api/admin.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) {
+              loadTrashList();
+            } else {
+              alert('Delete failed: ' + (d.error || 'Unknown error'));
+              purgeBtn.disabled = false;
+            }
+          } catch (e) {
+            alert('Delete request failed');
+            purgeBtn.disabled = false;
+          }
+        });
+
+        actionsCol.appendChild(restoreBtn);
+        actionsCol.appendChild(purgeBtn);
+        row.appendChild(metaCol);
+        row.appendChild(actionsCol);
+        listEl.appendChild(row);
+      });
+    } catch (err) {
+      statusEl.textContent = 'Error loading Trash Bin.';
+    }
+  }
+
+  const emptyTrashBtn = document.getElementById('btn-empty-trash');
+  if (emptyTrashBtn) {
+    emptyTrashBtn.addEventListener('click', async () => {
+      if (!confirm('Permanently delete all items in Trash Bin and their revision histories? This cannot be undone.')) {
+        return;
+      }
+      emptyTrashBtn.disabled = true;
+      const fd = new FormData();
+      fd.append('action', 'trash_empty');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          loadTrashList();
+        } else {
+          alert('Empty Trash failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Empty Trash request failed');
+      } finally {
+        emptyTrashBtn.disabled = false;
+      }
+    });
+  }
+
   const deleteBookBtn = document.getElementById('btn-delete-book');
   if (deleteBookBtn) {
     deleteBookBtn.addEventListener('click', async () => {
@@ -1274,6 +1539,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.success) {
           window.location.href = 'index.php';
+        } else if (data.requiresConfirmation) {
+          openDeleteCategoryConfirmModal(bookId, bookTitle, data);
         } else {
           alert('Delete category failed: ' + (data.error || 'Unknown error'));
         }
@@ -1347,6 +1614,9 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const formData = new FormData(form);
       formData.append('action', actionName);
+      if (window.SoftLock && typeof window.SoftLock.getTabId === 'function' && !formData.has('tab_id')) {
+        formData.append('tab_id', window.SoftLock.getTabId());
+      }
 
       // Encode content fields as base64 to bypass WAFs
       if (formData.has('content')) {
@@ -1432,6 +1702,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const formData = new FormData(originalForm);
           formData.append('action', 'upload_file');
           formData.append('conflictAction', 'replace');
+          if (window.SoftLock && typeof window.SoftLock.getTabId === 'function' && !formData.has('tab_id')) {
+            formData.append('tab_id', window.SoftLock.getTabId());
+          }
           const res = await fetch('api/admin.php', { method: 'POST', body: formData });
           const data = await res.json();
           if (data.success) {

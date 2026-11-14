@@ -6,6 +6,8 @@ use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
 use Qwiki\Core\LockManager;
 use Qwiki\Core\Navigation;
+use Qwiki\Core\DocumentService;
+use Qwiki\Core\AuditLogger;
 
 if (!class_exists('Qwiki\Core\Navigation')) {
     $navCandidates = [
@@ -19,6 +21,12 @@ if (!class_exists('Qwiki\Core\Navigation')) {
             break;
         }
     }
+}
+if (!class_exists('Qwiki\Core\DocumentService') && file_exists(dirname(__DIR__, 3) . '/lib/Core/DocumentService.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/DocumentService.php';
+}
+if (!class_exists('Qwiki\Core\AuditLogger') && file_exists(dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php';
 }
 
 if (!Auth::isAdmin()) {
@@ -134,7 +142,42 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
 
     $content = ensure_html_base_href($content, $file);
 
-    if (file_put_contents($absolutePath, $content) === false) {
+    $cfg = Config::load();
+    $targetChapter = null;
+    $docIdAdded = false;
+    $findAndAssignDocId = function(&$nodes) use (&$findAndAssignDocId, $file, &$targetChapter, &$docIdAdded) {
+        foreach ($nodes as &$node) {
+            if (($node['file'] ?? '') === $file) {
+                if (empty($node['docId'])) {
+                    Navigation::ensureDocId($node);
+                    $docIdAdded = true;
+                }
+                $targetChapter = $node;
+                return true;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if ($findAndAssignDocId($node['items'])) return true;
+            }
+        }
+        return false;
+    };
+    $findAndAssignDocId($cfg['books']);
+    if (!$targetChapter) {
+        $targetChapter = ['slug' => basename($file, '.html'), 'file' => $file, 'type' => 'html', 'status' => Navigation::DEFAULT_STATUS];
+        Navigation::ensureDocId($targetChapter);
+    }
+
+    $content = DocumentService::applyHtmlStatusToContent($content, $targetChapter['status'] ?? Navigation::DEFAULT_STATUS, false);
+    $saveRes = DocumentService::replaceContent($targetChapter, $absolutePath, [
+        'content' => $content,
+        'oldAbsFile' => $absolutePath,
+        'oldRelFile' => $file,
+        'newRelFile' => $file,
+        'source' => 'ui_html_save',
+        'actor' => $username,
+        'event' => 'doc_saved',
+    ]);
+    if (empty($saveRes['success'])) {
         echo json_encode(['success' => false, 'error' => 'Failed to save HTML file to disk']);
         return;
     }
@@ -149,9 +192,8 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
         preg_match('/<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*(?:name=["\']description["\']|property=["\']og:description["\'])/i', $content, $mDesc)) {
         $foundDesc = trim(html_entity_decode($mDesc[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
+    $descUpdated = false;
     if (!empty($foundDesc)) {
-        $cfg = Config::load();
-        $descUpdated = false;
         $syncDesc = function(&$nodes) use (&$syncDesc, $file, $foundDesc, &$descUpdated) {
             foreach ($nodes as &$node) {
                 if (($node['file'] ?? '') === $file) {
@@ -167,9 +209,9 @@ if ($action === 'save_html' || $action === 'ext_html_save') {
             }
         };
         $syncDesc($cfg['books']);
-        if ($descUpdated) {
-            Config::save($cfg);
-        }
+    }
+    if ($docIdAdded || $descUpdated) {
+        Config::save($cfg);
     }
 
     echo json_encode(['success' => true, 'file' => $file]);
@@ -251,6 +293,7 @@ if (!is_writable($contentDir)) {
     return;
 }
 
+$slug = Navigation::generateUniqueSlug($slug, $config['books'], $contentDir, 'html');
 $filePath = 'content/' . $targetFolder . '/' . $slug . '.html';
 $absolutePath = $baseDir . '/' . $filePath;
 
@@ -283,6 +326,7 @@ $chapterData = [
     'file' => $filePath,
     'shareKey' => $shareKey
 ];
+Navigation::ensureDocId($chapterData);
 if (!empty($description)) {
     $chapterData['description'] = $description;
 }
@@ -317,6 +361,17 @@ foreach ($config['books'] as &$book) {
 }
 
 if ($inserted && Config::save($config)) {
+    if (class_exists('Qwiki\Core\AuditLogger')) {
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $chapterData['docId'] ?? '',
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'file' => $filePath,
+            'type' => 'html',
+            'source' => 'ui_html_create'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
+    }
     $baseUrl = Config::getBaseUrl();
     echo json_encode([
         'success' => true,

@@ -66,6 +66,24 @@ class DocumentService {
             ? hash_file('sha256', $oldAbsFile)
             : null;
 
+        // Avoid redundant snapshots & overwrites when bytes and destination path are identical
+        if ($sha256Before !== null && $oldAbsFile === $targetAbsFile) {
+            $incomingHash = null;
+            if (array_key_exists('content', $options) && $options['content'] !== null) {
+                $incomingHash = hash('sha256', (string)$options['content']);
+            } elseif (!empty($options['tmpFile']) && is_file($options['tmpFile'])) {
+                $incomingHash = hash_file('sha256', $options['tmpFile']);
+            }
+            if ($incomingHash !== null && hash_equals($sha256Before, $incomingHash)) {
+                return [
+                    'success' => true,
+                    'sha256Before' => $sha256Before,
+                    'sha256After' => $sha256Before,
+                    'changed' => false,
+                ];
+            }
+        }
+
         if (is_string($oldAbsFile) && $oldAbsFile !== '' && file_exists($oldAbsFile) && is_file($oldAbsFile)) {
             self::runPreWriteHooks($chapter, $oldAbsFile, [
                 'source' => $options['source'] ?? 'unknown',
@@ -159,16 +177,7 @@ class DocumentService {
      * @param bool $cleanSource If true and status is 'published', permanently purges draft nodes
      * @return bool
      */
-    public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
-        if (!file_exists($absFilePath) || !is_file($absFilePath) || !is_writable($absFilePath)) {
-            return false;
-        }
-
-        $content = file_get_contents($absFilePath);
-        if ($content === false) {
-            return false;
-        }
-
+    public static function applyHtmlStatusToContent(string $content, string $newStatus, bool $cleanSource = false): string {
         $cleanStatus = htmlspecialchars(strtolower(trim($newStatus)), ENT_QUOTES, 'UTF-8');
 
         // 1. Update or inject data-qwiki-status on the <html ...> element
@@ -198,7 +207,21 @@ class DocumentService {
             $content = preg_replace('/<(?:div|section|p|span|aside|header|footer|article|table)\b[^>]*(?:\bdata-qwiki-draft\b|\bclass=["\'][^"\']*\bqwiki-draft\b[^"\']*["\'])[^>]*>[\s\S]*?<\/(?:div|section|p|span|aside|header|footer|article|table)>\s*/is', '', $content);
         }
 
-        return (file_put_contents($absFilePath, $content) !== false);
+        return $content;
+    }
+
+    public static function sanitizeHtmlDocumentStatus(string $absFilePath, string $newStatus, bool $cleanSource = false): bool {
+        if (!file_exists($absFilePath) || !is_file($absFilePath) || !is_writable($absFilePath)) {
+            return false;
+        }
+
+        $content = file_get_contents($absFilePath);
+        if ($content === false) {
+            return false;
+        }
+
+        $updated = self::applyHtmlStatusToContent($content, $newStatus, $cleanSource);
+        return (file_put_contents($absFilePath, $updated) !== false);
     }
 
     /**

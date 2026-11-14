@@ -5,6 +5,19 @@
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
 use Qwiki\Core\Navigation;
+use Qwiki\Core\DocumentService;
+use Qwiki\Core\LockManager;
+use Qwiki\Core\AuditLogger;
+
+if (!class_exists('Qwiki\Core\DocumentService') && file_exists(dirname(__DIR__, 3) . '/lib/Core/DocumentService.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/DocumentService.php';
+}
+if (!class_exists('Qwiki\Core\LockManager') && file_exists(dirname(__DIR__, 3) . '/lib/Core/LockManager.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/LockManager.php';
+}
+if (!class_exists('Qwiki\Core\AuditLogger') && file_exists(dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php';
+}
 
 $baseDir = Config::getBaseDir();
 $action = $action ?? $_REQUEST['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
@@ -326,6 +339,7 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
         }
     }
 
+    $slug = Navigation::generateUniqueSlug($slug, $config['books'], $contentDir, 'form.json');
     $filePath = 'content/' . $targetFolder . '/' . $slug . '.form.json';
     $absolutePath = $baseDir . '/' . $filePath;
 
@@ -387,6 +401,7 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
         'type' => 'form',
         'file' => $filePath
     ];
+    Navigation::ensureDocId($chapterData);
 
     $inserted = false;
     foreach ($config['books'] as &$book) {
@@ -397,6 +412,15 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
     }
 
     if ($inserted && Config::save($config)) {
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $chapterData['docId'] ?? '',
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'file' => $filePath,
+            'type' => 'form',
+            'source' => 'ui_form_create'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
         echo json_encode([
             'success' => true,
             'slug' => $slug,
@@ -430,32 +454,75 @@ if ($action === 'save_form_schema' || $action === 'ext_form_save_schema') {
         return;
     }
 
+    $actor = Auth::getCurrentUser()['username'] ?? 'admin';
+    $tabId = trim($_POST['tab_id'] ?? '');
+    if (!empty($tabId)) {
+        $lockCheck = LockManager::verifyOrRejectSave($file, $tabId, $actor);
+        if (empty($lockCheck['allowed'])) {
+            echo json_encode(['success' => false, 'error' => $lockCheck['error'] ?? 'Document is locked by another editor.']);
+            return;
+        }
+    }
+
     $schema = json_decode($schemaRaw, true);
     if (!is_array($schema)) {
         echo json_encode(['success' => false, 'error' => 'Invalid JSON schema payload']);
         return;
     }
 
+    $config = Config::load();
+    $slug = basename($file, '.form.json');
+    $targetChapter = null;
+    $docIdAdded = false;
+    $findFormChapter = function(&$nodes) use (&$findFormChapter, $file, &$targetChapter, &$docIdAdded) {
+        foreach ($nodes as &$node) {
+            if (($node['file'] ?? '') === $file) {
+                if (empty($node['docId'])) {
+                    Navigation::ensureDocId($node);
+                    $docIdAdded = true;
+                }
+                $targetChapter = $node;
+                return true;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if ($findFormChapter($node['items'])) return true;
+            }
+        }
+        return false;
+    };
+    $findFormChapter($config['books']);
+    if (!$targetChapter) {
+        $targetChapter = ['slug' => $slug, 'file' => $file, 'type' => 'form'];
+        Navigation::ensureDocId($targetChapter);
+    }
+
     $jsonStr = json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (file_put_contents($absolutePath, $jsonStr, LOCK_EX) === false) {
+    $saveRes = DocumentService::replaceContent($targetChapter, $absolutePath, [
+        'content' => $jsonStr,
+        'oldAbsFile' => $absolutePath,
+        'oldRelFile' => $file,
+        'newRelFile' => $file,
+        'source' => 'ui_form_save',
+        'actor' => $actor,
+        'event' => 'doc_saved',
+    ]);
+    if (empty($saveRes['success'])) {
         echo json_encode(['success' => false, 'error' => 'Failed to save form schema']);
         return;
     }
 
     // Sync title in qwiki.json if title changed
+    $updated = false;
     if (!empty($schema['title'])) {
-        $config = Config::load();
-        $slug = basename($file, '.form.json');
-        $updated = false;
         foreach ($config['books'] as &$book) {
             if (form_update_chapter_title($book, $slug, $schema['title'])) {
                 $updated = true;
                 break;
             }
         }
-        if ($updated) {
-            Config::save($config);
-        }
+    }
+    if ($docIdAdded || $updated) {
+        Config::save($config);
     }
 
     echo json_encode(['success' => true]);

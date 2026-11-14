@@ -12,7 +12,8 @@ class TrashManager {
         }
         $htaccess = $trashDir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Order allow,deny\nDeny from all\n");
+            $htContent = "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+            @file_put_contents($htaccess, $htContent);
         }
         return $trashDir;
     }
@@ -50,6 +51,15 @@ class TrashManager {
         $files = [];
         if (!empty($node['file']) && strpos($node['file'], 'content/') === 0) {
             $files[] = $node['file'];
+            if (($node['type'] ?? '') === 'form') {
+                $subRel = preg_replace('/\.form\.json$/i', '.submissions.json', $node['file']);
+                if ($subRel && $subRel !== $node['file']) {
+                    $absSub = Config::safePath(Config::getBaseDir(), $subRel);
+                    if ($absSub && is_file($absSub)) {
+                        $files[] = $subRel;
+                    }
+                }
+            }
         }
         if (!empty($node['items']) && is_array($node['items'])) {
             foreach ($node['items'] as $item) {
@@ -59,6 +69,62 @@ class TrashManager {
             }
         }
         return array_values(array_unique($files));
+    }
+
+    /**
+     * Collects all category IDs, chapter slugs, and docIds within a node subtree or node list.
+     */
+    private static function collectTreeIdentifiers(array $nodes): array {
+        $ids = [];
+        $slugs = [];
+        $docIds = [];
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+            if (!empty($node['id'])) {
+                $ids[] = (string)$node['id'];
+            }
+            if (!empty($node['slug'])) {
+                $slugs[] = (string)$node['slug'];
+            }
+            if (!empty($node['docId'])) {
+                $docIds[] = (string)$node['docId'];
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $sub = self::collectTreeIdentifiers($node['items']);
+                $ids = array_merge($ids, $sub['ids']);
+                $slugs = array_merge($slugs, $sub['slugs']);
+                $docIds = array_merge($docIds, $sub['docIds']);
+            }
+        }
+        return [
+            'ids' => array_values(array_unique($ids)),
+            'slugs' => array_values(array_unique($slugs)),
+            'docIds' => array_values(array_unique($docIds)),
+        ];
+    }
+
+    private static function purgeManifestRevisions(array $manifest): void {
+        $revManagerPath = dirname(__DIR__, 2) . '/assets/extensions/tool-revisions/RevisionManager.php';
+        if (!is_file($revManagerPath)) {
+            return;
+        }
+        require_once $revManagerPath;
+        if (!class_exists('\Qwiki\Extensions\Revisions\RevisionManager') || !method_exists('\Qwiki\Extensions\Revisions\RevisionManager', 'purgeDocRevisions')) {
+            return;
+        }
+        $docIds = [];
+        if (!empty($manifest['docId'])) {
+            $docIds[] = (string)$manifest['docId'];
+        }
+        if (!empty($manifest['node']) && is_array($manifest['node'])) {
+            $collected = self::collectTreeIdentifiers([$manifest['node']]);
+            $docIds = array_merge($docIds, $collected['docIds']);
+        }
+        foreach (array_unique($docIds) as $docId) {
+            if ($docId !== '') {
+                \Qwiki\Extensions\Revisions\RevisionManager::purgeDocRevisions($docId);
+            }
+        }
     }
 
     /**
@@ -183,18 +249,36 @@ class TrashManager {
         }
 
         $baseDir = Config::getBaseDir();
+        if (!isset($config['books']) || !is_array($config['books'])) {
+            $config['books'] = [];
+        }
+
+        // Collision checks before touching disk or config
+        $existingIds = self::collectTreeIdentifiers($config['books']);
+        $restoreIds = self::collectTreeIdentifiers([$manifest['node']]);
+        $collidingCats = array_values(array_intersect($existingIds['ids'], $restoreIds['ids']));
+        if (!empty($collidingCats)) {
+            return ['success' => false, 'error' => "Cannot restore: category ID '{$collidingCats[0]}' already exists."];
+        }
+        $collidingSlugs = array_values(array_intersect($existingIds['slugs'], $restoreIds['slugs']));
+        if (!empty($collidingSlugs)) {
+            return ['success' => false, 'error' => "Cannot restore: document slug '{$collidingSlugs[0]}' already exists."];
+        }
+        foreach (($manifest['files'] ?? []) as $relFile) {
+            $destAbs = Config::safePath($baseDir, $relFile);
+            if ($destAbs && file_exists($destAbs)) {
+                return ['success' => false, 'error' => "Cannot restore: target file '{$relFile}' already exists on disk."];
+            }
+        }
+
         $filesDir = $entryDir . '/files';
         foreach (($manifest['files'] ?? []) as $relFile) {
             $srcAbs = $filesDir . '/' . $relFile;
-            $destAbs = $baseDir . '/' . $relFile;
+            $destAbs = Config::safePath($baseDir, $relFile) ?: ($baseDir . '/' . $relFile);
             if (is_file($srcAbs)) {
                 @mkdir(dirname($destAbs), 0755, true);
                 @rename($srcAbs, $destAbs) || (@copy($srcAbs, $destAbs) && @unlink($srcAbs));
             }
-        }
-
-        if (!isset($config['books']) || !is_array($config['books'])) {
-            $config['books'] = [];
         }
 
         $node = $manifest['node'];
@@ -257,6 +341,13 @@ class TrashManager {
         if (!is_dir($entryDir)) {
             return ['success' => false, 'error' => 'Trash item not found'];
         }
+        $manifestFile = $entryDir . '/manifest.json';
+        if (is_file($manifestFile)) {
+            $manifest = json_decode(@file_get_contents($manifestFile), true);
+            if (is_array($manifest)) {
+                self::purgeManifestRevisions($manifest);
+            }
+        }
         self::removeDirRecursive($entryDir);
         if (class_exists('\Qwiki\Core\AuditLogger')) {
             AuditLogger::logMutation('trash_purged', 200, ['trashId' => $safeId], $actor);
@@ -275,6 +366,13 @@ class TrashManager {
             if ($d === '.' || $d === '..' || $d === '.htaccess') continue;
             $path = $trashDir . '/' . $d;
             if (is_dir($path)) {
+                $manifestFile = $path . '/manifest.json';
+                if (is_file($manifestFile)) {
+                    $manifest = json_decode(@file_get_contents($manifestFile), true);
+                    if (is_array($manifest)) {
+                        self::purgeManifestRevisions($manifest);
+                    }
+                }
                 self::removeDirRecursive($path);
                 $count++;
             }

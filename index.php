@@ -45,7 +45,7 @@ if (empty($apiRequestedPath)) {
         }
     }
 }
-if (is_string($apiRequestedPath) && preg_match('#(^|/)content(/|$)#i', $apiRequestedPath)) {
+if (is_string($apiRequestedPath) && preg_match('#(^|/)(content|data)(/|$)#i', $apiRequestedPath)) {
     http_response_code(403);
     echo "Access denied.";
     exit;
@@ -365,6 +365,7 @@ if (!$isShareMode && !$shareError) {
             }
         }
 
+        $isDocumentNotFound = false;
         if ($activeChapter && !Navigation::isChapterVisibleForStatus($activeChapter, $isAdmin)) {
             $activeChapter = null;
         }
@@ -374,6 +375,11 @@ if (!$isShareMode && !$shareError) {
         } elseif ($activeChapter) {
             $breadcrumbsTrail = $dummyTrail;
             $activePathIds = array_unique(array_merge([$activeBook['id'] ?? ''], $dummyIds));
+        } elseif (!empty($requestedChapterSlug)) {
+            // Do not silently fall back to first document when an explicit document route is missing or draft/archived
+            $isDocumentNotFound = true;
+            http_response_code(404);
+            $breadcrumbsTrail = [['title' => 'Document Not Found', 'id' => '']];
         } else {
             // Fallback to first document in the active book
             if (!empty($activeBook['items'])) {
@@ -398,10 +404,10 @@ if (!$isShareMode && !$shareError) {
     }
 }
 
-// Block direct access to content/ path if routed here
-if (!empty($rawPath) && preg_match('#(^|/)content(/|$)#i', $rawPath)) {
+// Block direct access to content/ or data/ path if routed here
+if (!empty($rawPath) && preg_match('#(^|/)(content|data)(/|$)#i', $rawPath)) {
     http_response_code(403);
-    echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content repository is restricted.</p></body></html>";
+    echo "<!DOCTYPE html><html><head><title>Access Restricted</title></head><body><h1>403 Forbidden</h1><p>Direct access to content or data repository is restricted.</p></body></html>";
     exit;
 }
 
@@ -746,6 +752,10 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                 <span class="dropdown-item-icon">🤖</span>
                                 <span class="dropdown-item-text">LLM & API Access</span>
                             </button>
+                            <button class="dropdown-item" id="btn-trash-bin">
+                                <span class="dropdown-item-icon">🗑️</span>
+                                <span class="dropdown-item-text">Trash Bin</span>
+                            </button>
                             <?php if (!$isSubwiki): ?>
                                 <button class="dropdown-item" id="btn-subwikis">
                                     <span class="dropdown-item-icon">🌐</span>
@@ -1088,6 +1098,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-allow-comments="<?= isset($activeChapter['allowComments']) ? ($activeChapter['allowComments'] ? 'enabled' : 'disabled') : 'inherit' ?>"
                                             data-allow-talk="<?= isset($activeChapter['allowTalk']) ? ($activeChapter['allowTalk'] ? 'enabled' : 'disabled') : 'inherit' ?>"
                                             data-share-key="<?= htmlspecialchars($activeChapter['shareKey'] ?? '') ?>"
+                                            data-status="<?= htmlspecialchars($activeChapter['status'] ?? 'published') ?>"
                                             data-book-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-category-id="<?= htmlspecialchars($currentCategoryId) ?>"
                                             data-doc-readonly="<?= (!empty($activeChapter['readOnly']) || (isset($activeChapter['editable']) && $activeChapter['editable'] === false) || !empty($activeChapter['locked'])) ? '1' : '0' ?>"
@@ -1104,6 +1115,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                                     </button>
                                 <?php endif; ?>
+                                <?php if ($extManager->isExtensionEnabled('revisions') && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'html', 'pdf', 'form'])): ?>
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="Revision History">
+                                        🕒
+                                    </button>
+                                <?php endif; ?>
+                                <?php $extManager->renderChapterHeaderUtilityButtons($isAdmin); ?>
                                 <?php if (!$isPageReadOnly): ?>
                                     <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
@@ -1172,6 +1189,13 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <?php endif; ?>
                 </nav>
                 <?php endif; ?>
+            <?php elseif (!empty($isDocumentNotFound)): ?>
+                <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
+                    <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
+                    <h2>Document Not Found</h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The requested document does not exist or is not published for public viewing.</p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                </div>
             <?php else: ?>
                 <div class="content-body">
                     <h1>No Document Selected</h1>
@@ -1209,6 +1233,8 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php require $templatesDir . '/modals/llm_keys.php'; ?>
             <?php require $templatesDir . '/modals/create_category.php'; ?>
             <?php require $templatesDir . '/modals/edit_category.php'; ?>
+            <?php require $templatesDir . '/modals/delete_category_confirm.php'; ?>
+            <?php require $templatesDir . '/modals/trash.php'; ?>
             <?php require $templatesDir . '/modals/edit_link.php'; ?>
             <?php require $templatesDir . '/modals/create_chapter.php'; ?>
             <?php if ($activeChapter): ?>

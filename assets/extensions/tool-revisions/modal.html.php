@@ -13,7 +13,10 @@
                 <div class="revisions-preview">
                     <div class="revisions-preview-header">
                         <span id="ext-revisions-preview-title">Preview</span>
-                        <button type="button" id="ext-revisions-restore-btn" class="btn btn-primary btn-sm" style="display:none;">Restore This Version</button>
+                        <div style="display:flex; gap:0.5rem; align-items:center;">
+                            <a id="ext-revisions-download-btn" class="btn btn-outline btn-sm" style="display:none;" download>Download</a>
+                            <button type="button" id="ext-revisions-restore-btn" class="btn btn-primary btn-sm" style="display:none;">Restore This Version</button>
+                        </div>
                     </div>
                     <pre id="ext-revisions-preview-code" class="revisions-preview-code">Select a revision on the left.</pre>
                 </div>

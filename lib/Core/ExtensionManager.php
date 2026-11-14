@@ -337,7 +337,10 @@ class ExtensionManager {
                     }
                     $utility = $util;
                     try {
-                        include $handlerFile;
+                        $handlerResult = include $handlerFile;
+                        if (is_array($handlerResult)) {
+                            echo json_encode($handlerResult, JSON_INVALID_UTF8_SUBSTITUTE);
+                        }
                     } catch (\Throwable $e) {
                         error_log("Extension [{$id}] action error: " . $e->getMessage());
                         echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
@@ -362,7 +365,10 @@ class ExtensionManager {
                     }
                     $pageType = $pt;
                     try {
-                        include $handlerFile;
+                        $handlerResult = include $handlerFile;
+                        if (is_array($handlerResult)) {
+                            echo json_encode($handlerResult, JSON_INVALID_UTF8_SUBSTITUTE);
+                        }
                     } catch (\Throwable $e) {
                         error_log("Extension [{$id}] action error: " . $e->getMessage());
                         echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
@@ -468,6 +474,23 @@ class ExtensionManager {
             $title = htmlspecialchars($util['title'] ?? ucfirst($id));
             $btnId = 'btn-util-' . htmlspecialchars($id);
             echo "<button class='dropdown-item' id='{$btnId}'><span class='dropdown-item-icon'>{$icon}</span> <span class='dropdown-item-text'>{$title}</span></button>\n";
+        }
+    }
+
+    public function renderChapterHeaderUtilityButtons($isAdmin = true) {
+        $this->discover();
+        foreach ($this->getEnabledUtilities() as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
+            $placement = $util['placement'] ?? 'dropdown';
+            if ($placement !== 'chapter_header') {
+                continue;
+            }
+            $icon = $util['icon'] ?? '⚡';
+            $title = htmlspecialchars($util['title'] ?? ucfirst($id));
+            $btnId = 'btn-chapter-' . htmlspecialchars($id);
+            echo "<button type='button' class='btn btn-outline btn-sm' id='{$btnId}' title='{$title}'>{$icon}</button>\n";
         }
     }
 }

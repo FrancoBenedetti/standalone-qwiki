@@ -15,7 +15,8 @@ class RevisionManager {
         }
         $htaccess = $dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "Order allow,deny\nDeny from all\n");
+            $htContent = "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n";
+            @file_put_contents($htaccess, $htContent);
         }
         return $dir;
     }
@@ -39,7 +40,9 @@ class RevisionManager {
         }
 
         $docDir = self::getDocDir($docId);
-        $revId = date('Ymd_His') . '_' . substr(bin2hex(random_bytes(3)), 0, 6);
+        list($usec, $sec) = explode(' ', microtime());
+        $microStr = substr(str_pad((string)(int)round((float)$usec * 1000000), 6, '0', STR_PAD_LEFT), 0, 6);
+        $revId = date('Ymd_His', (int)$sec) . '_' . $microStr . '_' . substr(bin2hex(random_bytes(3)), 0, 6);
         $bakFile = $docDir . '/' . $revId . '.bak';
         $metaFile = $docDir . '/' . $revId . '.json';
 
@@ -100,8 +103,35 @@ class RevisionManager {
         $meta = json_decode(@file_get_contents($metaFile), true);
         if (!is_array($meta)) return null;
         $meta['bakPath'] = $bakFile;
-        $meta['content'] = @file_get_contents($bakFile);
+        $rawContent = @file_get_contents($bakFile);
+        $isBinaryType = (($meta['type'] ?? '') === 'pdf');
+        $isValidUtf8 = is_string($rawContent) && (function_exists('mb_check_encoding') ? mb_check_encoding($rawContent, 'UTF-8') : (preg_match('//u', $rawContent) === 1));
+        if ($isBinaryType || !$isValidUtf8) {
+            $meta['isBinary'] = true;
+            $meta['content'] = null;
+        } else {
+            $meta['isBinary'] = false;
+            $meta['content'] = $rawContent;
+        }
         return $meta;
+    }
+
+    public static function purgeDocRevisions(string $docId): bool {
+        if ($docId === '') return false;
+        $safeId = preg_replace('/[^a-zA-Z0-9_-]/', '_', $docId);
+        $docDir = self::getRevisionsRoot() . '/' . $safeId;
+        if (!is_dir($docDir)) {
+            return true;
+        }
+        $items = @scandir($docDir) ?: [];
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $docDir . '/' . $item;
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+        return @rmdir($docDir);
     }
 
     public static function pruneRevisions(string $docId, int $maxKeep): void {

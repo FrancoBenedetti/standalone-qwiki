@@ -610,7 +610,7 @@ class LlmAccess {
             $config = Config::load();
             $fullChapter = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
 
-            if ($fullChapter) {
+            if ($fullChapter && Navigation::isChapterVisibleForStatus($fullChapter, false)) {
                 $resolvedType = self::detectItemType($fullChapter);
                 if (!self::isTypePermitted($resolvedType, $keyRecord)) {
                     return [

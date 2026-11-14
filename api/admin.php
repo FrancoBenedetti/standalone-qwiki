@@ -116,6 +116,13 @@ if (!function_exists('relocate_document_file')) {
 
         if (file_exists($origAbsFile) && $destAbsFile !== $origAbsFile) {
             if (@rename($origAbsFile, $destAbsFile)) {
+                if (preg_match('/\.form\.json$/i', $origAbsFile) && preg_match('/\.form\.json$/i', $destAbsFile)) {
+                    $origSub = preg_replace('/\.form\.json$/i', '.submissions.json', $origAbsFile);
+                    $destSub = preg_replace('/\.form\.json$/i', '.submissions.json', $destAbsFile);
+                    if ($origSub && $destSub && file_exists($origSub) && $origSub !== $destSub) {
+                        @rename($origSub, $destSub);
+                    }
+                }
                 return $newRelFile;
             }
         } elseif (!file_exists($origAbsFile)) {
@@ -631,10 +638,31 @@ switch ($action) {
         $actor = Auth::getCurrentUser()['username'] ?? 'admin';
 
         if (($counts['documents'] > 0 || $counts['categories'] > 0) && !in_array($deleteMode, ['trash', 'move_contents'], true)) {
+            $excludedIds = [$bookId => true];
+            $collectExcluded = function ($node) use (&$excludedIds, &$collectExcluded) {
+                foreach (($node['items'] ?? []) as $item) {
+                    if (is_array($item) && !empty($item['id'])) {
+                        $excludedIds[$item['id']] = true;
+                        $collectExcluded($item);
+                    }
+                }
+            };
+            $collectExcluded($targetCat);
+            $targetCategories = [];
+            foreach (Navigation::getCategoryHierarchy($config['books'] ?? []) as $catItem) {
+                if (!isset($excludedIds[$catItem['id'] ?? ''])) {
+                    $targetCategories[] = [
+                        'id' => $catItem['id'],
+                        'title' => $catItem['title'],
+                        'path' => $catItem['path'] ?? $catItem['title'],
+                    ];
+                }
+            }
             echo json_encode([
                 'success' => false,
                 'requiresConfirmation' => true,
                 'counts' => $counts,
+                'targetCategories' => $targetCategories,
                 'error' => "Category contains {$counts['documents']} document(s) and {$counts['categories']} sub-category(ies). Choose 'trash' or 'move_contents'."
             ]);
             exit;
@@ -646,8 +674,62 @@ switch ($action) {
                 echo json_encode(['success' => false, 'error' => 'A valid target category is required to move contents.']);
                 exit;
             }
+
+            // Ensure target is not inside the category being deleted
+            $nestedParentDummy = '';
+            if ($moveTargetId !== '__root__') {
+                $destCat = Navigation::findCategoryById($config['books'] ?? [], $moveTargetId, $nestedParentDummy);
+                if (!$destCat) {
+                    echo json_encode(['success' => false, 'error' => 'Target category does not exist.']);
+                    exit;
+                }
+                if (Navigation::findCategoryById([$targetCat], $moveTargetId, $nestedParentDummy)) {
+                    echo json_encode(['success' => false, 'error' => 'Cannot move contents into a sub-category of the deleted category.']);
+                    exit;
+                }
+            } else {
+                // Moving direct non-link documents to root is invalid because root only holds categories/links
+                foreach (($targetCat['items'] ?? []) as $childItem) {
+                    $isFolder = (($childItem['type'] ?? '') === 'folder' || isset($childItem['id']));
+                    $isLink = (($childItem['type'] ?? '') === 'link');
+                    if (!$isFolder && !$isLink) {
+                        echo json_encode(['success' => false, 'error' => 'Documents cannot be moved to root; choose a target category.']);
+                        exit;
+                    }
+                }
+            }
+
+            $destBaseFolder = ($moveTargetId === '__root__')
+                ? 'content'
+                : (get_category_folder($config['books'], $moveTargetId) ?: ('content/' . $moveTargetId));
+
+            $relocateSubtreeFiles = function (&$node, $folderPath) use (&$relocateSubtreeFiles, $baseDir) {
+                if (($node['type'] ?? '') === 'folder' || isset($node['id'])) {
+                    $nodeId = $node['id'] ?? 'sub';
+                    $subFolder = rtrim($folderPath, '/') . '/' . $nodeId;
+                    $node['folder'] = $subFolder;
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        foreach ($node['items'] as &$subItem) {
+                            $relocateSubtreeFiles($subItem, $subFolder);
+                        }
+                        unset($subItem);
+                    }
+                } else {
+                    Navigation::ensureDocId($node);
+                    $origRelFile = $node['file'] ?? '';
+                    if (!empty($origRelFile) && strpos($origRelFile, 'content/') === 0) {
+                        $newRelFile = relocate_document_file($baseDir, $origRelFile, $folderPath);
+                        if ($newRelFile && $newRelFile !== $origRelFile) {
+                            LockManager::migrateLock($origRelFile, $newRelFile);
+                            $node['file'] = $newRelFile;
+                        }
+                    }
+                }
+            };
+
             $movedCount = 0;
             foreach (($targetCat['items'] ?? []) as $childItem) {
+                $relocateSubtreeFiles($childItem, $destBaseFolder);
                 if (($childItem['type'] ?? '') === 'folder' || isset($childItem['id'])) {
                     if ($moveTargetId === '__root__') {
                         $config['books'][] = $childItem;
@@ -738,6 +820,7 @@ switch ($action) {
             'type' => 'markdown',
             'file' => $targetRelFile
         ];
+        Navigation::ensureDocId($chapterData);
         if (isset($_POST['allowComments'])) {
             $commentsVal = strtolower(trim((string)$_POST['allowComments']));
             if ($commentsVal === 'enabled' || $commentsVal === '1' || $commentsVal === 'true') {
@@ -843,10 +926,14 @@ switch ($action) {
             }
         }
         $publicShareable = isset($_POST['publicShareable']) ? ($_POST['publicShareable'] === '1' || $_POST['publicShareable'] === 'true') : true;
+        $actor = Auth::getCurrentUser()['username'] ?? 'admin';
+        $tabId = trim($_POST['tab_id'] ?? '');
+        $lockFailure = null;
+        $statusChangeInfo = null;
 
         $updateResult = find_chapter_and_update($config['books'], $slug, function(&$foundChapter, &$foundParentNode, $topBookId) use (
             $title, $type, $url, $editUrl, $publicShareable, $theme, $description, $image, $newSlug, $slug,
-            $targetBookId, $baseDir, &$config, $readOnly
+            $targetBookId, $baseDir, &$config, $readOnly, $actor, $tabId, &$lockFailure, &$statusChangeInfo
         ) {
             $currentParentId = $foundParentNode['id'] ?? $topBookId;
             $destBookId = (!empty($targetBookId)) ? $targetBookId : $currentParentId;
@@ -908,10 +995,12 @@ switch ($action) {
             }
             if (isset($_POST['status'])) {
                 $statusInput = strtolower(trim($_POST['status']));
-                if (in_array($statusInput, Navigation::VALID_STATUSES, true)) {
+                $prevStatus = $foundChapter['status'] ?? Navigation::DEFAULT_STATUS;
+                if (in_array($statusInput, Navigation::VALID_STATUSES, true) && $statusInput !== $prevStatus) {
                     $foundChapter['status'] = $statusInput;
                     $foundChapter['statusUpdatedAt'] = date('c');
-                    $foundChapter['statusUpdatedBy'] = Auth::getCurrentUser()['username'] ?? 'admin';
+                    $foundChapter['statusUpdatedBy'] = $actor;
+                    $statusChangeInfo = ['from' => $prevStatus, 'to' => $statusInput];
                 }
             }
             if (!empty($_POST['regenerateShareKey'])) {
@@ -922,13 +1011,19 @@ switch ($action) {
             Navigation::ensureDocId($foundChapter);
             $origRelFile = $foundChapter['file'] ?? '';
             if (isset($_FILES['replacement_file']) && $_FILES['replacement_file']['error'] === UPLOAD_ERR_OK) {
+                if (!empty($origRelFile)) {
+                    $lockCheck = LockManager::verifyOrRejectSave($origRelFile, $tabId, $actor);
+                    if (empty($lockCheck['allowed'])) {
+                        $lockFailure = $lockCheck;
+                        return false;
+                    }
+                }
                 $replFileName = basename($_FILES['replacement_file']['name']);
                 $replExt = strtolower(pathinfo($replFileName, PATHINFO_EXTENSION));
                 if (in_array($replExt, ['md', 'pdf'])) {
                     $newRelFile = $destCategoryFolder . '/' . $newSlug . '.' . $replExt;
                     $newAbsFile = $baseDir . '/' . $newRelFile;
                     $oldAbsFile = !empty($origRelFile) ? Config::safePath($baseDir, $origRelFile) : null;
-                    $actor = Auth::getCurrentUser()['username'] ?? 'admin';
                     $replRes = DocumentService::replaceContent($foundChapter, $newAbsFile, [
                         'tmpFile' => $_FILES['replacement_file']['tmp_name'],
                         'moveCallback' => 'safe_move_uploaded_file',
@@ -952,9 +1047,20 @@ switch ($action) {
                 $ext = pathinfo($origRelFile, PATHINFO_EXTENSION);
                 $newFileName = ($newSlug !== $slug) ? ($newSlug . ($ext ? '.' . $ext : '')) : basename($origRelFile);
                 $newRelFile = relocate_document_file($baseDir, $origRelFile, $destCategoryFolder, $newFileName);
+                if ($newRelFile && $newRelFile !== $origRelFile) {
+                    LockManager::migrateLock($origRelFile, $newRelFile);
+                }
                 $foundChapter['file'] = $newRelFile;
             }
             $foundChapter['slug'] = $newSlug;
+
+            // Sync embedded HTML status attribute if status changed
+            if ($statusChangeInfo && ($foundChapter['type'] ?? '') === 'html' && !empty($foundChapter['file'])) {
+                $htmlAbs = Config::safePath($baseDir, $foundChapter['file']);
+                if ($htmlAbs && is_file($htmlAbs)) {
+                    DocumentService::sanitizeHtmlDocumentStatus($htmlAbs, $statusChangeInfo['to'], false);
+                }
+            }
 
             $finalBookId = $topBookId;
 
@@ -991,6 +1097,17 @@ switch ($action) {
             ];
         });
 
+        if ($lockFailure) {
+            http_response_code(423);
+            echo json_encode([
+                'success' => false,
+                'code' => 'LOCK_CONFLICT',
+                'lockedBy' => $lockFailure['lockedBy'] ?? 'Unknown',
+                'error' => $lockFailure['error'] ?? 'Document is locked by another editor.'
+            ]);
+            exit;
+        }
+
         if (!$updateResult) {
             echo json_encode(['success' => false, 'error' => 'Document entry not found']);
             exit;
@@ -1001,7 +1118,15 @@ switch ($action) {
                 'slug' => $updateResult['slug'] ?? $slug,
                 'title' => $title,
                 'bookId' => $updateResult['bookId'] ?? ''
-            ]);
+            ], $actor);
+            if ($statusChangeInfo) {
+                AuditLogger::logMutation('status_changed', 200, [
+                    'slug' => $updateResult['slug'] ?? $slug,
+                    'from' => $statusChangeInfo['from'],
+                    'to' => $statusChangeInfo['to'],
+                    'source' => 'ui_edit_modal'
+                ], $actor);
+            }
             echo json_encode([
                 'success' => true,
                 'bookId' => $updateResult['bookId'],
@@ -1097,6 +1222,10 @@ switch ($action) {
         $chapter = Navigation::findChapterBySlug($config['books'], $slug);
         if (!$chapter) {
             echo json_encode(['success' => false, 'error' => 'Document not found']);
+            exit;
+        }
+        if (!Navigation::isChapterVisibleForStatus($chapter, Auth::isAdmin())) {
+            echo json_encode(['success' => false, 'error' => 'Draft and archived documents cannot be publicly shared.']);
             exit;
         }
         $shareKey = $chapter['shareKey'] ?? '';
@@ -1375,24 +1504,58 @@ switch ($action) {
             $foundParent = null;
             $existingDoc = Navigation::findChapterBySlug($config['books'], $baseSlug, $foundParent);
             $oldRelFile = $existingDoc['file'] ?? '';
+            $actor = Auth::getCurrentUser()['username'] ?? 'admin';
+            $tabId = trim($_POST['tab_id'] ?? '');
+
+            if (!empty($oldRelFile)) {
+                $lockCheck = LockManager::verifyOrRejectSave($oldRelFile, $tabId, $actor);
+                if (empty($lockCheck['allowed'])) {
+                    http_response_code(423);
+                    echo json_encode([
+                        'success' => false,
+                        'code' => 'LOCK_CONFLICT',
+                        'lockedBy' => $lockCheck['lockedBy'] ?? 'Unknown',
+                        'error' => $lockCheck['error'] ?? 'Document is locked by another editor.'
+                    ]);
+                    exit;
+                }
+            }
 
             $destRelFile = $targetRelFile;
             $destAbsFile = $targetAbsFile;
+            $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
+            $docId = '';
+            if ($existingDoc) {
+                $docId = Navigation::ensureDocId($existingDoc);
+            } else {
+                $tempCh = ['slug' => $baseSlug, 'type' => $docType, 'file' => $destRelFile];
+                $docId = Navigation::ensureDocId($tempCh);
+                $existingDoc = $tempCh;
+            }
+            $oldAbsFile = !empty($oldRelFile) ? Config::safePath($baseDir, $oldRelFile) : null;
 
-            if (safe_move_uploaded_file($_FILES['document']['tmp_name'], $destAbsFile)) {
-                if (!empty($oldRelFile) && $oldRelFile !== $destRelFile && file_exists($baseDir . '/' . $oldRelFile)) {
-                    @unlink($baseDir . '/' . $oldRelFile);
-                }
+            $replRes = DocumentService::replaceContent($existingDoc, $destAbsFile, [
+                'tmpFile' => $_FILES['document']['tmp_name'],
+                'moveCallback' => 'safe_move_uploaded_file',
+                'oldAbsFile' => $oldAbsFile,
+                'oldRelFile' => $oldRelFile,
+                'newRelFile' => $destRelFile,
+                'source' => 'ui_upload_replace',
+                'actor' => $actor,
+                'event' => 'doc_replaced',
+                'extraAudit' => ['type' => $docType],
+            ]);
 
-                $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
-                if ($existingDoc) {
-                    find_chapter_and_update($config['books'], $baseSlug, function(&$ch) use ($title, $docType, $destRelFile) {
-                        if (!empty($title)) $ch['title'] = $title;
-                        $ch['type'] = $docType;
-                        $ch['file'] = $destRelFile;
-                    });
-                } else {
+            if (!empty($replRes['success'])) {
+                $foundInTree = find_chapter_and_update($config['books'], $baseSlug, function(&$ch) use ($title, $docType, $destRelFile, $docId) {
+                    $ch['docId'] = $docId;
+                    if (!empty($title)) $ch['title'] = $title;
+                    $ch['type'] = $docType;
+                    $ch['file'] = $destRelFile;
+                });
+                if (!$foundInTree) {
                     $chapterData = [
+                        'docId' => $docId,
                         'title' => $title,
                         'slug' => $baseSlug,
                         'type' => $docType,
@@ -1407,7 +1570,7 @@ switch ($action) {
                 Config::save($config);
                 echo json_encode(['success' => true, 'bookId' => $foundParent['id'] ?? $bookId, 'slug' => $baseSlug, 'action' => 'replaced']);
             } else {
-                echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
+                echo json_encode(['success' => false, 'error' => $replRes['error'] ?? 'Failed to move uploaded file']);
             }
             break;
         }
@@ -1435,12 +1598,22 @@ switch ($action) {
                 'type' => $docType,
                 'file' => $finalRelFile
             ];
+            Navigation::ensureDocId($chapterData);
             foreach ($config['books'] as &$book) {
                 if (insert_chapter_into_node($book, $bookId, $chapterData)) {
                     break;
                 }
             }
             Config::save($config);
+            AuditLogger::logMutation('doc_created', 200, [
+                'docId' => $chapterData['docId'],
+                'slug' => $slug,
+                'title' => $title,
+                'bookId' => $bookId,
+                'file' => $finalRelFile,
+                'type' => $docType,
+                'source' => 'ui_upload'
+            ], Auth::getCurrentUser()['username'] ?? 'admin');
             echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug, 'action' => 'created']);
         } else {
             echo json_encode(['success' => false, 'error' => 'Failed to move uploaded file']);
@@ -1487,8 +1660,23 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Document not found']);
             exit;
         }
-        Navigation::ensureDocId($chapter);
         $existingRelFile = $chapter['file'] ?? '';
+        $actor = Auth::getCurrentUser()['username'] ?? 'admin';
+        $tabId = trim($_POST['tab_id'] ?? '');
+        if (!empty($existingRelFile)) {
+            $lockCheck = LockManager::verifyOrRejectSave($existingRelFile, $tabId, $actor);
+            if (empty($lockCheck['allowed'])) {
+                http_response_code(423);
+                echo json_encode([
+                    'success' => false,
+                    'code' => 'LOCK_CONFLICT',
+                    'lockedBy' => $lockCheck['lockedBy'] ?? 'Unknown',
+                    'error' => $lockCheck['error'] ?? 'Document is locked by another editor.'
+                ]);
+                exit;
+            }
+        }
+        $docId = Navigation::ensureDocId($chapter);
         $targetRelDir = !empty($existingRelFile) ? dirname($existingRelFile) : (get_category_folder($config['books'], $parentBook['id'] ?? '') ?: ('content/' . ($parentBook['id'] ?? '')));
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
         if (!is_dir($targetAbsDir)) {
@@ -1497,7 +1685,6 @@ switch ($action) {
         $targetRelFile = $targetRelDir . '/' . $slug . '.' . $ext;
         $targetAbsFile = $baseDir . '/' . $targetRelFile;
         $oldAbsFile = !empty($existingRelFile) ? Config::safePath($baseDir, $existingRelFile) : null;
-        $actor = Auth::getCurrentUser()['username'] ?? 'admin';
 
         $replRes = DocumentService::replaceContent($chapter, $targetAbsFile, [
             'tmpFile' => $_FILES['document']['tmp_name'],
@@ -1516,8 +1703,8 @@ switch ($action) {
         }
 
         $docType = ($ext === 'pdf') ? 'pdf' : 'markdown';
-        find_chapter_and_update($config['books'], $slug, function(&$ch) use ($docType, $targetRelFile) {
-            Navigation::ensureDocId($ch);
+        find_chapter_and_update($config['books'], $slug, function(&$ch) use ($docId, $docType, $targetRelFile) {
+            $ch['docId'] = $docId;
             $ch['type'] = $docType;
             $ch['file'] = $targetRelFile;
         });
@@ -1551,12 +1738,20 @@ switch ($action) {
             'url' => $url,
             'editUrl' => $editUrl
         ];
+        Navigation::ensureDocId($chapterData);
         foreach ($config['books'] as &$book) {
             if (insert_chapter_into_node($book, $bookId, $chapterData)) {
                 break;
             }
         }
         Config::save($config);
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $chapterData['docId'],
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'type' => 'gdoc'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
         echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         break;
 
@@ -1589,6 +1784,7 @@ switch ($action) {
         if (!empty($description)) {
             $linkData['description'] = $description;
         }
+        Navigation::ensureDocId($linkData);
 
         if (empty($bookId)) {
             $config['books'][] = $linkData;
@@ -1605,6 +1801,13 @@ switch ($action) {
             }
         }
         Config::save($config);
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $linkData['docId'],
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'type' => 'link'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
         echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         break;
 
@@ -1658,6 +1861,7 @@ switch ($action) {
         if (!empty($description)) {
             $remoteData['description'] = $description;
         }
+        Navigation::ensureDocId($remoteData);
 
         if (empty($bookId)) {
             $config['books'][] = $remoteData;
@@ -1674,6 +1878,13 @@ switch ($action) {
             }
         }
         Config::save($config);
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $remoteData['docId'],
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'type' => 'remote'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
         echo json_encode(['success' => true, 'bookId' => $bookId, 'slug' => $slug]);
         break;
 
@@ -1717,7 +1928,7 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Item slug is required']);
             exit;
         }
-        if (Config::isChapterProtected($slug, $config['books'] ?? [])) {
+        if (Config::isChapterProtected($slug, $config['books'] ?? []) || Config::isChapterAncestorProtected($slug, $config['books'] ?? [])) {
             echo json_encode(['success' => false, 'error' => 'This document is protected and cannot be deleted.']);
             exit;
         }
@@ -1726,6 +1937,10 @@ switch ($action) {
         $chapterToDelete = Navigation::findChapterBySlug($config['books'] ?? [], $slug, $parentBook);
         $actor = Auth::getCurrentUser()['username'] ?? 'admin';
         $trashId = null;
+
+        if ($chapterToDelete && !empty($chapterToDelete['file'])) {
+            LockManager::releaseLock($chapterToDelete['file'], '', $actor, true);
+        }
 
         if ($chapterToDelete && !$permanent) {
             $manifest = TrashManager::trashChapter($chapterToDelete, $parentBook['id'] ?? $bookId, $actor, 'ui_delete');
@@ -1752,6 +1967,22 @@ switch ($action) {
             $filePath = Config::safePath($baseDir, $deletedFile);
             if ($filePath && file_exists($filePath) && is_file($filePath)) {
                 @unlink($filePath);
+            }
+            if (($chapterToDelete['type'] ?? '') === 'form') {
+                $subRel = preg_replace('/\.form\.json$/i', '.submissions.json', $deletedFile);
+                $subAbs = ($subRel && $subRel !== $deletedFile) ? Config::safePath($baseDir, $subRel) : null;
+                if ($subAbs && is_file($subAbs)) {
+                    @unlink($subAbs);
+                }
+            }
+        }
+        if ($permanent && !empty($chapterToDelete['docId'])) {
+            $revManagerPath = __DIR__ . '/../assets/extensions/tool-revisions/RevisionManager.php';
+            if (is_file($revManagerPath)) {
+                require_once $revManagerPath;
+                if (class_exists('\Qwiki\Extensions\Revisions\RevisionManager')) {
+                    \Qwiki\Extensions\Revisions\RevisionManager::purgeDocRevisions($chapterToDelete['docId']);
+                }
             }
         }
         if ($deleted) {
@@ -1801,6 +2032,14 @@ switch ($action) {
         if (isset($_POST['shareImageUrl'])) $config['shareImageUrl'] = $shareImageUrl;
         $config['feedItemCount'] = $feedItemCount;
         $config['feedAccessToken'] = $feedAccessToken;
+
+        if (isset($_POST['revisionsMaxPerDoc'])) {
+            $maxPerDoc = max(1, min(200, (int)$_POST['revisionsMaxPerDoc']));
+            if (!isset($config['revisions']) || !is_array($config['revisions'])) {
+                $config['revisions'] = [];
+            }
+            $config['revisions']['maxPerDoc'] = $maxPerDoc;
+        }
 
         if (isset($_POST['twoFactorPolicy'])) {
             $twoFactorPolicy = trim($_POST['twoFactorPolicy']);
@@ -1915,12 +2154,15 @@ switch ($action) {
                         if (isset($node['items'])) {
                             $mergedNode['items'] = $node['items'];
                         }
-                        $categoryFolder = $mergedNode['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $categoryFolder = !empty($parentFolder) ? ($parentFolder . '/' . $nodeId) : ($mergedNode['folder'] ?? ('content/' . $nodeId));
+                        if ($isRoot && strpos($categoryFolder, 'content/' . $nodeId) !== 0) {
+                            $categoryFolder = 'content/' . $nodeId;
+                        }
                         $mergedNode['folder'] = $categoryFolder;
                         $currentFolder = $categoryFolder;
                     } elseif ($nodeId !== null) {
                         $mergedNode = $node;
-                        $categoryFolder = $node['folder'] ?? (!empty($parentFolder) ? $parentFolder . '/' . $nodeId : 'content/' . $nodeId);
+                        $categoryFolder = !empty($parentFolder) ? ($parentFolder . '/' . $nodeId) : ($node['folder'] ?? ('content/' . $nodeId));
                         $mergedNode['folder'] = $categoryFolder;
                         $currentFolder = $categoryFolder;
                     } elseif ($nodeSlug !== null && isset($existingDocuments[$nodeSlug])) {
@@ -2348,7 +2590,7 @@ switch ($action) {
             $rootFolder = '';
             // Protect persistent user data, subwikis, and prevent dev/test artifacts from polluting production
             $excludes = [
-                'content/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/',
+                'content/', 'data/', 'uploads/', 'qwiki.json', 'users.json', 'wikis/',
                 'tests/', 'node_modules/', 'AGENTS.md', 'package.json', 'package-lock.json',
                 'demo-reload.php', '.git', '.github', '.gitignore', '.gitattributes', 'tools/build-release.sh'
             ];

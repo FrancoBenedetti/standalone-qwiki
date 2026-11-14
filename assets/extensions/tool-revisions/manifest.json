@@ -10,6 +10,7 @@
   "actions": [
     "ext_revisions_list",
     "ext_revisions_get",
+    "ext_revisions_download",
     "ext_revisions_restore"
   ],
   "styles": ["style.css"],
