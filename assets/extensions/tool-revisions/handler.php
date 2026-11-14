@@ -19,9 +19,13 @@ if (empty($slug)) {
     return ['success' => false, 'error' => 'Document slug is required'];
 }
 
-$chapter = Navigation::findChapterBySlug($config['books'] ?? [], $slug);
+$docIdCreated = false;
+$chapter = Navigation::ensureDocIdForChapter($config['books'], $slug, $docIdCreated);
 if (!$chapter) {
     return ['success' => false, 'error' => 'Document not found'];
+}
+if ($docIdCreated) {
+    Config::save($config);
 }
 
 $docId = $chapter['docId'] ?? '';

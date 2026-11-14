@@ -1,4 +1,4 @@
-(function () {
+function initRevisionsExtension() {
     const modal = document.getElementById('ext-revisions-modal');
     if (!modal) return;
 
@@ -92,8 +92,14 @@
 
     function openRevisionsModal() {
         const dropdown = document.getElementById('user-dropdown-menu');
-        if (dropdown) dropdown.classList.remove('active');
-        modal.classList.add('active');
+        if (dropdown) {
+            dropdown.classList.remove('open', 'active');
+        }
+        if (window.QwikiModals && typeof window.QwikiModals.open === 'function') {
+            window.QwikiModals.open('ext-revisions-modal');
+        } else {
+            modal.classList.add('open');
+        }
         loadRevisions();
     }
 
@@ -109,9 +115,15 @@
     });
 
     const observer = new MutationObserver(() => {
-        if (modal.classList.contains('active') || modal.style.display === 'flex') {
+        if (modal.classList.contains('open') || modal.classList.contains('active')) {
             loadRevisions();
         }
     });
     observer.observe(modal, { attributes: true, attributeFilter: ['class', 'style'] });
-})();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRevisionsExtension);
+} else {
+    initRevisionsExtension();
+}

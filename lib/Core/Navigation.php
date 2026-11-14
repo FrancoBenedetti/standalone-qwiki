@@ -948,6 +948,39 @@ class Navigation {
     }
 
     /**
+     * Finds a chapter in $books by slug or relative file path, ensures it has a docId,
+     * and returns the chapter node. Sets $created = true if a new docId was assigned.
+     */
+    public static function ensureDocIdForChapter(array &$books, string $slugOrFile, bool &$created = false): ?array {
+        $needle = ltrim(str_replace('\\', '/', trim($slugOrFile)), '/');
+        if ($needle === '') {
+            return null;
+        }
+        foreach ($books as &$node) {
+            if (!is_array($node)) continue;
+            $isFolder = (isset($node['type']) && $node['type'] === 'folder') || !empty($node['items']);
+            if (!$isFolder) {
+                $chSlug = (string)($node['slug'] ?? '');
+                $chFile = ltrim(str_replace('\\', '/', (string)($node['file'] ?? '')), '/');
+                if ($chSlug === $needle || ($chFile !== '' && $chFile === $needle)) {
+                    if (empty($node['docId'])) {
+                        $created = true;
+                    }
+                    self::ensureDocId($node);
+                    return $node;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $found = self::ensureDocIdForChapter($node['items'], $slugOrFile, $created);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Checks whether a chapter should be visible to the current user based on lifecycle status.
      * Draft and archived documents are hidden from non-admins.
      */

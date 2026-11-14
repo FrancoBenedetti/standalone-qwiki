@@ -1274,7 +1274,11 @@ switch ($action) {
             }
         }
 
-        $chapterMeta = !empty($slug) ? Navigation::findChapterBySlug($config['books'] ?? [], $slug) : null;
+        $docIdCreated = false;
+        $chapterMeta = Navigation::ensureDocIdForChapter($config['books'], !empty($slug) ? $slug : $relFile, $docIdCreated);
+        if ($docIdCreated) {
+            Config::save($config);
+        }
         if (!$chapterMeta) {
             $chapterMeta = ['slug' => $slug, 'file' => $relFile];
         }
@@ -1483,6 +1487,7 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'Document not found']);
             exit;
         }
+        Navigation::ensureDocId($chapter);
         $existingRelFile = $chapter['file'] ?? '';
         $targetRelDir = !empty($existingRelFile) ? dirname($existingRelFile) : (get_category_folder($config['books'], $parentBook['id'] ?? '') ?: ('content/' . ($parentBook['id'] ?? '')));
         $targetAbsDir = $baseDir . '/' . $targetRelDir;
