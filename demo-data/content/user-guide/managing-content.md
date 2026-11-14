@@ -6,13 +6,13 @@ As an Admin, you have full control over the documentation tree and content direc
 
 ## ➕ Creating New Documents
 
-Click the **`New Document`** button at the top of the sidebar navigation (or **`+ Cat`** to add a category):
+Click the **`New Document`** button at the top of the sidebar navigation (or **`+ Cat`** to add a category). Select your **Target Category / Folder** once at the top of the modal—it stays synchronized across all document type tabs:
 1. **Markdown (`.md`)**: Write new Markdown using the Toast UI WYSIWYG editor or import an existing `.md` file.
 2. **HTML Pages (`.html`)**: Design rich interactive pages using the built-in **SunEditor** WYSIWYG editor, switch to raw code view with automatic two-way synchronization, use **`Ctrl+S`** / **`Cmd+S`** to save quickly, or upload an existing `.html` file.
 3. **Interactive Forms (`.form.json`)**: Build native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email notifications, webhooks, anti-spam honeypots, and CSV submission export.
 4. **Upload PDF / Files**: Upload `.pdf` documents directly to the wiki tree. If a file with the same identifier already exists, an interactive conflict resolution modal lets you either replace the existing document in-place or upload as a copy with an auto-incremented slug.
 5. **Google Docs (`gdoc`)**: Embed any published Google Doc URL with automatic formatting and theme integration.
-6. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation.
+6. **Web Links (`link`)**: Add external websites or same-domain hyperlinks directly into the sidebar navigation, with an optional **Place at Top Level (Sidebar Root)** checkbox to place links alongside top-level categories.
 7. **Remote Sharelinks (`remote`)**: Transclude a document from another Qwiki instance using its public `?share=...` link. The document is rendered natively, cached locally, and locked as read-only (Single Source of Truth).
 
 ---
@@ -34,8 +34,31 @@ You can add hyperlinks to external locations or internal pages directly into the
 - **Markdown Documents**: Click **`✏️ Edit Content`** in the top right toolbar to open the inline visual editor with live markdown preview.
 - **HTML Documents**: Click **`✏️ Edit HTML`** in the document viewer toolbar to open SunEditor, format text, modify tables, or tweak raw HTML code. Edits in Code View mode sync automatically on save.
 - **Interactive Form Documents**: Click **`⚙️ Edit Form Builder`** or **`📊 View Submissions`** in the document viewer toolbar to tweak fields, configure outgoing webhooks, or inspect respondent submissions with 1-click CSV export.
-- **Document Metadata & Category Relocation**: Click **`⚙️ Edit Details`** to change the document title, custom slug, category/folder, individual CSS theme, short description, or social preview image. The current category is accurately prefilled in the hierarchical selector (even for deep nested folders), preventing accidental folder resets when saving title or metadata updates. Moving a document to another category automatically relocates the physical file on disk (e.g. into `content/<target-folder>/`), renames it if the slug changed, resolves any naming clashes with numeric suffixes, and updates `qwiki.json`.
-- **In-Place File Replacement**: Click the **`Replace Document Content`** toolbar button to upload a revised file and overwrite the active document's contents on disk without breaking existing bookmarks, permissions, or share keys.
+- **Document Metadata, Lifecycle & Category Relocation**: Click **`⚙️ Edit Details`** to open the tabbed document settings modal (**General**, **Display & SEO**, **Sharing & Access**, and conditional **Collaboration**). Change the document title, custom slug, category/folder, lifecycle status (`Published`, `In Review`, `Draft`, `Archived`), individual CSS theme, short description, social preview image, or lock/sharing controls. Moving a document to another category automatically relocates the physical file on disk (along with any form `.submissions.json` companion and active soft-lock), renames it if the slug changed, resolves any naming clashes with numeric suffixes, and updates `qwiki.json`.
+- **In-Place File Replacement**: Click the **`Replace Document Content`** toolbar button to upload a revised file and overwrite the active document's contents on disk without breaking existing bookmarks, permissions, `docId` revision history, or share keys.
+
+---
+
+## 🧭 Reading Canvas & Navigation Controls
+
+- **Collapsible Sidebars**: Click the left navigation toggle or right Table of Contents toggle in the document header toolbar—or press **`[`** and **`]`** on your keyboard—to collapse either sidebar. Collapse states persist in `localStorage`, centering and widening the reading canvas automatically.
+- **Chapter Pagers & Header Arrows**: Move sequentially through chapters using the bottom-of-page **Previous / Next Chapter** cards or the compact quick-flip arrows in the document header toolbar.
+
+---
+
+## 📢 GFM Markdown Alert Callouts
+
+Highlight notes, warnings, and critical notices using GitHub-style alert blockquotes:
+
+```markdown
+> [!NOTE]
+> Useful context that readers should know.
+
+> [!WARNING] Custom Alert Title
+> Callout blocks support optional custom titles, SVG icons, and theme-adaptive styling.
+```
+
+Supported types include `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`, and aliases (`[!INFO]`, `[!HINT]`, `[!SUCCESS]`, `[!DANGER]`, `[!ALERT]`, `[!FAIL]`).
 
 ---
 
@@ -98,7 +121,8 @@ Standalone Qwiki natively renders Mermaid diagrams directly from standard fenced
 1. **Diverse Diagram Models**: Create flowcharts, sequence diagrams, state machines, entity-relationship diagrams, class hierarchies, user journeys, mindmaps, quadrants, and timelines.
 2. **Natural Width & Legibility**: Wide diagrams retain their sharp, uncompressed native scale without shrinking into miniature boxes.
 3. **Responsive Horizontal Scrolling**: If a diagram exceeds the article column width, the container provides smooth, touch-friendly horizontal scrolling (`overflow-x: auto`) aligned to the start.
-4. **Instant Theme Re-Rendering**: Diagrams adapt instantly when switching between dark and light themes without requiring page reloads.
+4. **Interactive Diagram Toolbar & Lightbox**: Every rendered Mermaid diagram includes a floating toolbar to zoom inline (`+` / `−` / `100%`), download the diagram as a `.svg` file, or **Expand** into a full-screen lightbox viewer supporting mouse-wheel zoom, click-and-drag panning, and `Esc` dismissal.
+5. **Instant Theme Re-Rendering**: Diagrams adapt instantly when switching between dark and light themes without requiring page reloads.
 
 ---
 
@@ -172,9 +196,32 @@ Standalone Qwiki provides robust protection mechanisms to safeguard critical art
 
 - **UI Lock Toggle**: Lock or unlock individual documents directly from the **Edit Details** modal (`⚙️ Edit Details`) — no need to manually edit `qwiki.json`. The lock toggle immediately hides the edit (`✏️ Edit Content`) and delete buttons, replacing them with a **Protected Document** badge. Unchecking the toggle cleanly restores full editing capabilities.
 - **Ancestor Inheritance**: Documents inside a directly locked category automatically inherit read-only protection. Their lock toggle in Edit Details is disabled with a note indicating the lock comes from a parent category. Individual documents cannot be unlocked while their containing category is locked.
-- **Direct Category Lock**: Click the category edit icon (`⚙️`) and toggle **Lock Category (Prevent Deletion)**. Directly locked categories cannot be deleted, and all nested documents inside them automatically inherit read-only protection.
+- **Direct Category Lock**: Click the category edit icon (`⚙️`) to open the tabbed Category Settings modal (**General**, **Access & Security**, **Feeds & Features**). Under **Access & Security**, toggle **Lock Category (Prevent Deletion)**. Directly locked categories cannot be deleted, and all nested documents inside them automatically inherit read-only protection.
 - **Cascading Deletion Safety Net**: Any category or folder containing protected documents automatically inherits deletion protection across all hierarchy levels. Even when a protected document is deeply nested within subfolders, parent folders cannot be deleted.
 - **Visual Lock Indicators**: Protected categories display a lock icon (`🔒`) in the navigation sidebar. In the Edit Category modal, the deletion button is replaced with a **Protected Category** badge.
+
+---
+
+## 🗑️ Trash Bin & Safe Deletion
+
+To prevent accidental data loss, Standalone Qwiki uses reversible soft deletion (`data/trash/`):
+
+- **Soft-Deleting Documents**: Clicking the trash icon (`🗑️`) on a document moves its entry, physical file, and any interactive form `.submissions.json` companion safely to the **Trash Bin** instead of deleting permanently.
+- **Deleting Non-Empty Categories**: When deleting a category that contains documents or subcategories, Qwiki displays a confirmation dialog with two choices:
+  1. **Move category & contents to Trash**: Safely archives the entire category subtree and its files in the Trash Bin.
+  2. **Move contents to another category first**: Relocates all documents, subcategories, and active edit locks to a chosen destination category before deleting the empty folder.
+- **Restoring & Purging**: Open **🗑️ Trash Bin** from the header administration dropdown to restore deleted items (with collision checks against existing categories/files), purge individual items, or click **Empty Trash Permanently** (which also removes associated revision snapshots).
+
+---
+
+## 🕒 Document Revision History
+
+When the **Revision History** extension (`tool-revisions`) is enabled, Qwiki automatically snapshots existing documents before every edit, file replacement, form/HTML save, or headless overwrite (skipping duplicate snapshots when content is unchanged):
+
+1. Click the **`🕒`** button in the document toolbar (or click **🕒 View Revision & Replacement History** inside **Edit Document Entry Details ➔ General**).
+2. Select any timestamped revision on the left to preview its text contents or inspect binary file metadata (size and SHA-256 hash).
+3. Click **Download** to download the raw `.bak` snapshot, or click **Restore This Version** to revert the document (guarded by active soft-locks and automatically snapshotting the current version first).
+4. Adjust the maximum snapshots retained per document (`1–200`, default `20`) in **⚙️ Settings ➔ 🌐 General**.
 
 ---
 
@@ -260,7 +307,7 @@ External automation scripts, CI/CD pipelines, and internal tools can publish doc
 - **Document Management & Lifecycle Actions**:
   - `action=set_status` (or `update_status`): Updates the lifecycle state of a document (`status: "draft" | "review" | "published" | "archived"`). Supports `approver`, `approverNote`, and `clean_source=true` (which strips draft watermarks, boundary comment blocks, and review dockets from disk upon publishing).
   - `action=list_chapters` (or `get_chapters`): Lists all chapters within a given category (`bookId`) or across the entire wiki with full metadata.
-  - `action=delete_chapter` (or `remove_chapter`): Removes a chapter node from navigation and purges its file from disk.
+  - `action=delete_chapter` (or `remove_chapter`): Moves the chapter node and file into `data/trash/` by default (`TrashManager`) for safe recovery. Pass `permanent=true` to permanently delete the file from disk and purge its revision history.
   - `action=resolve_share_key`: Resolves a 16-hex `shareKey` to the document's canonical slug, book, and web URLs.
   - In-place updates: Pass `update=true` (or `overwrite=true`) and optional `slug` to update existing documents in place without breaking URLs or share keys.
 - **Supported Formats**:

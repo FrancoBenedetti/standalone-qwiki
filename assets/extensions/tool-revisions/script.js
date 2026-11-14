@@ -137,21 +137,12 @@ function initRevisionsExtension() {
     });
 
     function openRevisionsModal() {
-        const dropdown = document.getElementById('user-dropdown-menu');
-        if (dropdown) {
-            dropdown.classList.remove('open', 'active', 'show');
-        }
         if (window.QwikiModals && typeof window.QwikiModals.open === 'function') {
             window.QwikiModals.open('ext-revisions-modal');
         } else {
             modal.classList.add('open');
         }
         // MutationObserver handles loading on the closed -> open transition
-    }
-
-    const btnHeader = document.getElementById('btn-util-revisions');
-    if (btnHeader) {
-        btnHeader.addEventListener('click', openRevisionsModal);
     }
 
     document.addEventListener('click', (e) => {

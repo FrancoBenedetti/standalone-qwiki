@@ -9,7 +9,7 @@ Standalone Qwiki provides a comprehensive Admin Suite to configure site access, 
 To change site visibility and settings:
 1. Click **`⚙️ Settings`** in the header menu to open the tabbed administration dialog.
 2. Navigate between the dedicated configuration tabs:
-   - **🌐 General**: Portal title, logo text/image, default theme, theme editor, default landing category, and navigation badges.
+   - **🌐 General**: Portal title, logo text/image, default theme, theme editor, default landing category, revision history retention (`revisionsMaxPerDoc`, 1–200 snapshots per document, default 20), and navigation badges.
    - **🔒 Access & Security**: Portal visibility (Public vs. Private) and Two-Factor Authentication policy.
    - **🧩 Extensions**: Enable or disable page types and utilities for this wiki.
    - **📧 Email (SMTP)**: Outbound socket SMTP credentials and test connection dispatch.
@@ -28,7 +28,7 @@ Standalone Qwiki enables administrators to manage which extensions are active on
 1. Click **`⚙️ Settings` ➔ `🧩 Extensions`**.
 2. Toggle individual extensions on or off:
    - **Page Type Extensions** (`HTML Document`, `Interactive Form`): Custom document creation and specialized viewer renderers.
-   - **Tools & Utilities** (`Document Comments`, `Image Gallery`, `Document Postbox`, `Backup & Export`, `Activity Log`, `Gemini Assistant`, `Visual Chart`): Productive workflow tools and background utilities.
+   - **Tools & Utilities** (`Document Comments`, `Talk Pages`, `Revision History`, `Image Gallery`, `Document Postbox`, `Backup & Export`, `Activity Log`, `Gemini Assistant`, `Visual Chart`): Productive workflow tools and background utilities. When optional collaboration extensions (`Document Comments`, `Talk Pages`) are disabled, their controls are automatically hidden from document and category modals while preserving existing category settings.
 3. **Optimized Frontend Assets**: Disabling unused extensions prevents their client scripts and stylesheets (such as SunEditor or Gemini assistants) from loading on pages, keeping your portal lightweight and fast.
 4. **Soft Read-Only Protection for Page Types**: If an administrator disables a page type extension (like HTML or Form) on a wiki with existing documents:
    - Existing documents remain fully viewable in **read-only mode** with an advisory notice.
@@ -122,7 +122,15 @@ Standalone Qwiki provides a key-authenticated, scoped API for Large Language Mod
 
 - When a new version of Qwiki is released, an **`🎉 Update Available!`** button appears in the admin menu.
 - Click to view the release notes directly from GitHub and install core updates with one click.
-- User data (`content/`, `uploads/`, `qwiki.json`, `users.json`) and custom extensions (`assets/extensions/`) are always safely preserved.
+- User data (`content/`, `data/`, `uploads/`, `qwiki.json`, `users.json`) and custom extensions (`assets/extensions/`) are always safely preserved.
+
+---
+
+## 🗑️ Trash Bin & Deleted Item Recovery
+
+1. Click **`🗑️ Trash Bin`** in the header administration menu.
+2. Inspect soft-deleted documents and categories (including original folder paths, deletion timestamps, and form submission companions).
+3. Click **Restore** to reinstate an item into the navigation tree (blocked automatically if a category or file path collision exists), **Purge** to remove an individual entry permanently, or **Empty Trash Permanently** to clear all trashed items and their associated revision histories.
 
 ---
 

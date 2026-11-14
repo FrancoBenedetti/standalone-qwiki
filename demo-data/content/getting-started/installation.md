@@ -75,12 +75,16 @@ Your wiki tree, settings, and navigation are stored in `qwiki.json`:
 Drop any extension folder into `assets/extensions/{extension-name}/`:
 - **`page-html`**: Native HTML documents with the SunEditor visual WYSIWYG editor.
 - **`page-form`**: Native flat-file interactive forms, surveys, and RSVPs with submission management.
+- **`tool-activity-log`**: Native audit and access log dashboard with filtering and CSV export.
 - **`tool-ai-visuals`**: Vector chart and flow diagram generator.
+- **`tool-backup`**: 1-click full and selective backup archive exporter (including `content/`, `data/`, `uploads/`, and configs).
+- **`tool-comments`**: Threaded chapter and category discussions with Markdown formatting.
 - **`tool-gallery`**: Media and image assets gallery for browsing and inserting uploaded images.
-- **`tool-postbox`**: Editorial document transfer and desktop CLI pipeline.
-- **`tool-backup`**: 1-click full and selective backup archive exporter.
 - **`tool-gemini-assistant`**: Gemini AI Assistant for automated metadata, SEO descriptions, and social preview cards.
-- Custom extensions are automatically discovered and safely preserved during 1-click core updates.
+- **`tool-postbox`**: Editorial document transfer and desktop CLI pipeline.
+- **`tool-revisions`**: Per-document revision history, preview, download, and 1-click restore.
+- **`tool-talk`**: Wikipedia-style editorial talk pages companion discussions.
+- Custom extensions are automatically discovered, managed per wiki in **Settings ➔ Extensions**, and safely preserved during 1-click core updates.
 
 ---
 

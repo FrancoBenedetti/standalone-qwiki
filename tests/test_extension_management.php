@@ -219,8 +219,29 @@ try {
     @unlink($subwikiDir . '/qwiki.json');
     @rmdir($subwikiDir);
 
+    // -------------------------------------------------------------
+    // 8. Utility Button Placement Filtering
+    // -------------------------------------------------------------
+    echo "\n8. Testing Utility Button Placement Filtering:\n";
+    $allEnabledConfig = json_decode($originalConfigContent, true);
+    unset($allEnabledConfig['extensions']);
+    file_put_contents($configFile, json_encode($allEnabledConfig, JSON_PRETTY_PRINT));
 
+    ob_start();
+    $extManager->renderHeaderUtilityButtons(true);
+    $headerUtilHtml = ob_get_clean();
 
+    assert_test(strpos($headerUtilHtml, 'btn-util-comments') === false, "renderHeaderUtilityButtons() omits content_footer utility 'comments'");
+    assert_test(strpos($headerUtilHtml, 'btn-util-talk') === false, "renderHeaderUtilityButtons() omits content_tabs utility 'talk'");
+    assert_test(strpos($headerUtilHtml, 'btn-util-revisions') === false, "renderHeaderUtilityButtons() omits document_toolbar utility 'revisions'");
+    assert_test(strpos($headerUtilHtml, 'btn-util-gallery') !== false, "renderHeaderUtilityButtons() includes header_menu utility 'gallery'");
+    assert_test(strpos($headerUtilHtml, 'btn-util-backup') !== false, "renderHeaderUtilityButtons() includes header_menu utility 'backup'");
+
+    ob_start();
+    $extManager->renderChapterHeaderUtilityButtons(true);
+    $chapterUtilHtml = ob_get_clean();
+
+    assert_test(strpos($chapterUtilHtml, 'btn-chapter-talk') === false, "renderChapterHeaderUtilityButtons() omits dead 'talk' button");
 
 } finally {
     // Restore original config

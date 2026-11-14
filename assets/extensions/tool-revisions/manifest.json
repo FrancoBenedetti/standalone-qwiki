@@ -4,7 +4,7 @@
   "adminOnly": true,
   "title": "Revision History",
   "icon": "🕒",
-  "placement": "header_menu",
+  "placement": "document_toolbar",
   "modal": "modal.html.php",
   "handler": "handler.php",
   "actions": [

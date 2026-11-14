@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.16] - VaultFlow - 2026-11-14
+
+### 🛡️ Document Lifecycle Enforcement, Safe Deletion & Revision Tracking
+- **Non-Admin Status Visibility Gating (`lib/Core/Navigation.php`, `index.php`, `api/feed.php`, `api/search.php`, `api/admin.php`, `lib/Core/LlmAccess.php`)**: Enforced `Navigation::isChapterVisibleForStatus()` across sidebar navigation, front-controller direct routing (returning 404 for hidden drafts/archived pages instead of falling back), sequential chapter pagers, search results, RSS/Atom feeds, share-link generation/access, and LLM API retrieval so `draft` and `archived` documents remain hidden from non-admins.
+- **Immutable `docId` Identity & Unified `DocumentService` (`lib/Core/DocumentService.php`, `lib/Core/Navigation.php`, `lib/Core/LockManager.php`)**: Added lazy `docId` assignment (`Navigation::ensureDocIdForChapter()`) to preserve document identity across moves and renames, routed UI edits, file replacements, form/HTML saves, revision restores, and headless `api/publish.php` overwrites through `DocumentService::replaceContent()` with SHA-256 change detection (skipping duplicate snapshots when content is unchanged), centralized HTML `data-qwiki-status` synchronization, and active soft-lock migration on file relocation.
+- **Reversible Trash Bin & Safe Category Deletion (`lib/Core/TrashManager.php`, `templates/modals/trash.php`, `templates/modals/delete_category_confirm.php`, `api/admin.php`, `api/publish.php`)**: Added `data/trash/` soft-deletion for chapters (including `.submissions.json` companions for forms) and non-empty categories via a confirmation modal (`Move category & contents to Trash` or `Move contents to another category first`). Added the admin **🗑️ Trash Bin** modal with collision-checked restore, individual purge, and `Empty Trash Permanently` actions, plus ancestor lock enforcement. Headless `api/publish.php` `delete_chapter` now soft-deletes via `TrashManager` by default unless `permanent=true` is passed.
+- **Document Revision History Extension (`assets/extensions/tool-revisions/`, `templates/modals/settings.php`)**: Added the optional `tool-revisions` utility extension (`placement: document_toolbar`, **🕒 Revision History**) keyed by `docId`, capturing pre-write `.bak` + `.json` snapshots in `data/revisions/{docId}/`. Supports text preview, binary metadata inspection, raw `.bak` download, 1-click lock-verified restore, automatic purge on permanent deletion or trash emptying, and configurable retention (`revisions.maxPerDoc` / `revisionsMaxPerDoc`, default 20, range 1–200) in **Settings ➔ General**.
+- **`data/` Isolation, Backups & Extension Placement Cleanup (`index.php`, `lib/Core/ExtensionManager.php`, `assets/extensions/tool-backup/`, `lib/Core/DemoManager.php`)**: Protected `data/` subdirectories with dual Apache 2.2/2.4 `.htaccess` guards and `index.php` direct-routing blocks, excluded `data/` during self-updates while including it in full backups, cleared `data/trash` and `data/revisions` on demo resets, and filtered `ExtensionManager::renderHeaderUtilityButtons()` to `dropdown` / `header_menu` placements (keeping `content_footer`, `content_tabs`, and `document_toolbar` tools out of the user dropdown).
+
+---
+
 ## [1.20.15] - CanvasFlow - 2026-11-13
 
 ### ✨ Reading Canvas, Navigation & Authoring UX Enhancements

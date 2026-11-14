@@ -4,7 +4,7 @@
   "adminOnly": false,
   "title": "Talk Pages",
   "icon": "🗣️",
-  "placement": "chapter_header",
+  "placement": "content_tabs",
   "description": "Wikipedia-style editorial discussion and debate pages for chapters.",
   "handler": "handler.php",
   "actions": [

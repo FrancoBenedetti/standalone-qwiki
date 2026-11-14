@@ -16,9 +16,10 @@
   - **Loom**: Instant screencast video playback directly from share links.
   - **HTML5 Direct Video**: Native player for `.mp4`, `.webm`, `.ogg`, and `.mov` files with controls and download links.
   - **Subtitles & Captions**: Add a custom title using Markdown link syntax `[Video Title](https://...)` or image syntax `![Video Title](video.mp4)` to display an italicized caption below the player.
-- **Native Mermaid & Diagram Flowcharts**: Embed responsive flowcharts, sequence diagrams, state machines, class diagrams, entity-relationship diagrams, mindmaps, and timelines directly using standard fenced code blocks (` ```mermaid `). Wide diagrams automatically preserve full natural legibility with responsive horizontal scrolling without shrinking into unreadable miniatures.
+- **Native Mermaid & Diagram Flowcharts**: Embed responsive flowcharts, sequence diagrams, state machines, class diagrams, entity-relationship diagrams, mindmaps, and timelines directly using standard fenced code blocks (` ```mermaid `). Wide diagrams preserve full natural legibility with responsive horizontal scrolling and include a floating diagram toolbar for inline zoom (`+`/`−`/`100%`), SVG download, and an **Expand** lightbox supporting pan, mouse-wheel zoom, and `Esc` dismissal.
+- **Native GFM Markdown Alert Callouts**: Render GitHub-style blockquotes (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`, plus aliases `[!INFO]`, `[!HINT]`, `[!SUCCESS]`, `[!DANGER]`, `[!ALERT]`, `[!FAIL]`) with crisp SVG icons, optional custom labels, and theme-adaptive styling.
 - **📐 Mathematical Formulas & LaTeX/KaTeX Rendering**: Natively format inline math (`$x_1 + x_2$`), display equation blocks (`$$...$$`), and convert LaTeX shorthand symbols (`$to$`, `\to`, `\approx`, `\alpha`, `\le`) seamlessly across both Markdown content and Mermaid diagrams with dark/light mode adaptation and responsive horizontal scrolling.
-- **Protected Markdown + HTML Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, and custom badges. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization and style loss (with refined detection allowing benign line breaks like `<br>`).
+- **Protected Markdown + HTML / Math Mode**: Automatically detects raw HTML blocks, inline styling, CSS grids, custom badges, and LaTeX math expressions. Locks the editor into Markdown mode with synchronized live preview to prevent WYSIWYG tag sanitization, style loss, and TeX escaping (while allowing benign line breaks like `<br>`).
 
 ### B. HTML Documents (`.html`)
 - Native sandboxed HTML embedding with interactive JavaScript execution and isolated styling.
@@ -81,10 +82,11 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## ↔️ 5. Resizable Sidebar Menu Width
+## ↔️ 5. Resizable Sidebars, Collapsible Reading Canvas & Chapter Pagers
 
-- Drag the **right edge of the sidebar** to widen or narrow the navigation panel (between `200px` and `550px`).
-- Your preferred width is saved in `localStorage` and remembered across sessions.
+- **Resizable Left Sidebar**: Drag the **right edge of the sidebar** to widen or narrow the navigation panel (between `200px` and `550px`). Your preferred width is saved in `localStorage`.
+- **Collapsible Left & Right Sidebars**: Toggle the left navigation sidebar (`[`) and right Table of Contents (`]`) from the document header toolbar or via keyboard shortcuts. Collapse states persist in `localStorage`, centering and widening the reading canvas (`1180px` / `1360px`) for distraction-free reading.
+- **Chapter Navigation Pagers & Header Arrows**: Dedicated bottom-of-page **Previous / Next Chapter** cards and compact quick-flip arrows in the document header toolbar provide sequential category reading without cluttering the Table of Contents.
 
 ---
 
@@ -256,6 +258,7 @@ External automation pipelines, CI/CD runners, and AI agents can publish self-con
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
 - **OpenGraph & Metadata Auto-Extraction**: Automatically extracts `<meta name="description">` and `<meta property="og:image">` tags into `qwiki.json` node metadata.
 - **Image & Video Asset Ingestion**: Headless endpoints (`action=upload_asset`, `upload_media`, `upload_image`) accept web graphics (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp` routed to `uploads/images/`) and video files (`mp4`, `webm`, `ogg`, `ogv`, `mov` routed to `uploads/videos/`), returning canonical URLs for direct embedding in markdown and HTML documents.
+- **Lifecycle, Safe Deletion & Revision Integration**: Overwrites route through `DocumentService::replaceContent()` (preserving approval metadata and capturing pre-write snapshots), while `action=delete_chapter` soft-deletes into `data/trash/` by default unless `permanent=true` is specified.
 
 ---
 
@@ -280,9 +283,10 @@ Comprehensive account security and self-service recovery engineered without exte
 Standalone Qwiki includes a comprehensive document lifecycle management architecture designed for editorial teams, regulatory compliance, and headless publishing pipelines:
 
 - **Four Lifecycle States**: Documents advance through `Draft` (📝), `In Review` (🔍), `Published` (🚀), and `Archived` (📦) states, tracked in `qwiki.json` with timestamp and updater audit trails.
-- **Interactive Header Controls**: Document toolbars include a status dropdown menu allowing administrators to instantly transition document states with live UI badges.
-- **Sidebar Status Indicators**: Non-published documents display distinct visual status indicators (`●`) in the left navigation menu for logged-in administrators, making draft and pending documents easy to track.
-- **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML document to `Published` can automatically and permanently strip draft watermarks, review dockets, boundary comment blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`), checklists, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while setting root `<html data-qwiki-status="published">`.
+- **Strict Non-Admin Visibility Gating**: `Draft` and `Archived` documents are automatically hidden from non-admin visitors and viewers across sidebar navigation, direct URL routing (returning `404` instead of falling back), sequential chapter pagers, search results, RSS/Atom feeds, public share link generation/viewing, and LLM API retrieval.
+- **Interactive Modal & Toolbar Controls**: Administrators can transition document status directly in **Edit Document Entry Details ➔ General** (within the tabbed, extension-aware Document and Category settings modals) or via status dropdown controls, with live sidebar status indicators (`●`) for non-published documents.
+- **Immutable `docId` Identity & Unified `DocumentService`**: Documents receive a persistent `docId` identifier preserved across category moves, renames, and tree reordering. All UI edits, file replacements, form/HTML saves, and headless `api/publish.php` overwrites route through `DocumentService::replaceContent()` with SHA-256 change tracking and atomic HTML `data-qwiki-status` metadata synchronization.
+- **Automated Source Sanitization (`clean_source`)**: Transitioning an HTML or Markdown document to `Published` can automatically and permanently strip draft watermarks, review dockets, boundary comment blocks (`<!-- QWIKI_DRAFT_START -->...<!-- QWIKI_DRAFT_END -->`), checklists, and internal notes (`[data-qwiki-draft]`, `.qwiki-draft`, `.qwiki-watermark`, `.watermark-draft`) from disk while updating `<html data-qwiki-status="published">`.
 - **Headless Status Transitions**: Automation pipelines and AI agents can manage document statuses programmatically via `action=set_status` (in `api/publish.php`) or `action=set_chapter_status` (in `api/admin.php`).
 
 ---
@@ -335,3 +339,25 @@ Standalone Qwiki includes a Wikipedia-inspired Talk Pages extension (`tool-talk`
 - **Opt-in Cascading Enablement (Disabled by Default)**: Talk pages are opt-in per Category (disabled by default). When an admin activates Talk Pages on a category, all documents in that category gain a discussion page, while individual documents can explicitly override to `Inherit from category (Default)`, `Enabled`, or `Disabled`.
 - **Zero-Database Flat-File Markdown**: Discussions are stored in isolated, `.htaccess`-protected flat Markdown files under `data/talk/` using atomic file locking (`flock(..., LOCK_EX)`) to guarantee zero-ops portability and Git backup compatibility.
 - **LLM & AI Agent Token Retrieval**: Autonomous AI agents can query chapter discussion pages via `api/llm.php?mode=talk&slug=<slug>` (in structured JSON or Markdown transcripts) or embedded into document payloads with `mode=doc&include_talk=1`.
+
+---
+
+## 🗑️ 26. Reversible Trash Bin & Safe Deletion
+
+Standalone Qwiki protects against accidental content loss with a flat-file soft-delete and recovery engine (`TrashManager`):
+
+- **Non-Destructive Document & Form Deletion**: Deleting a document in the UI or via headless `api/publish.php` (unless `permanent=true` is specified) archives its metadata and physical files—including interactive form `.submissions.json` companions—into `.htaccess`-protected `data/trash/` storage rather than permanently erasing them.
+- **Safe Non-Empty Category Deletion**: Deleting a category that contains documents or subcategories opens an interactive confirmation dialog offering two safe options: **Move category & contents to Trash** or **Move contents to another category first** (relocating files, subdirectories, and active edit locks before removing the empty folder).
+- **Admin Trash Bin Modal**: Open **🗑️ Trash Bin** from the header administration dropdown to inspect deleted items, **Restore** documents or categories back to the wiki tree (with automatic collision checks preventing overwrites of existing categories or files), **Purge** individual entries permanently, or **Empty Trash Permanently**.
+- **Protected Ancestor Enforcement**: Locked documents and categories containing protected descendants cannot be trashed or deleted.
+
+---
+
+## 🕒 27. Document Revision History (`tool-revisions`)
+
+Standalone Qwiki includes an optional per-document version history extension (`tool-revisions`) keyed by immutable `docId`:
+
+- **Automatic Pre-Write Snapshots**: Whenever an existing Markdown, HTML, PDF, or Form document is modified via inline editing, file replacement, form/HTML saving, or headless `api/publish.php` overwrites, `DocumentService` captures a `.bak` snapshot and metadata manifest under `.htaccess`-protected `data/revisions/{docId}/` (skipping redundant snapshots when content bytes are unchanged).
+- **Preview, Binary Inspection & Raw Download**: Launch **🕒 Revision History** from the document toolbar or **Edit Document Entry Details ➔ General** to browse chronological snapshots with actor and source attribution, preview text diffs/contents, inspect binary file metadata (size and SHA-256 hash), or download raw `.bak` snapshots.
+- **1-Click Lock-Verified Restore**: Revert any document to a previous snapshot with one click; Qwiki verifies active `LockManager` soft-locks and automatically snapshots the current state before restoring.
+- **Configurable Retention & Cleanup**: Configure the maximum snapshots retained per document (`revisionsMaxPerDoc`, default `20`, range `1–200`) in **⚙️ Settings ➔ 🌐 General**. Revision histories are automatically purged when a document is permanently deleted or emptied from Trash.

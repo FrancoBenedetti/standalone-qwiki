@@ -467,7 +467,7 @@ class ExtensionManager {
                 continue;
             }
             $placement = $util['placement'] ?? 'dropdown';
-            if ($placement === 'chapter_header') {
+            if (!in_array($placement, ['dropdown', 'header_menu'], true)) {
                 continue;
             }
             $icon = $util['icon'] ?? '⚡';

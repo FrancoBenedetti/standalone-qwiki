@@ -50,12 +50,12 @@ Admins can control whether documentation is publicly readable or requires authen
 
 - **Zero Database Requirement**: Operates completely standalone using file-based JSON configuration (`qwiki.json`) and user store (`users.json`). No MySQL or MariaDB setup needed!
 - **🗣️ Wikipedia-Style Editorial Talk Pages**: Zero-database companion discussions (`tool-talk`) providing dedicated editorial talk pages for chapters, accessible header tab switching (`[ 📄 Document | 🗣️ Discussion (N) ]`), structured topics, raw Markdown refactoring and archiving, opt-in cascading enablement, and scoped LLM Access Token retrieval.
-- **🧩 Per-Wiki Extension Management & Tabbed Settings**: Restructured administration modal with categorized tabs (General, Access & Security, Extensions, Email SMTP, Feeds & Integrations) and fine-grained extension toggles. Administrators can curate active page types and utilities per wiki or subwiki with frontend asset stripping (including heavy CDN scripts like SunEditor) and soft read-only protection for legacy documents.
+- **🧩 Per-Wiki Extension Management & Tabbed Settings**: Restructured administration, document, and category settings modals with categorized tabs, dynamic extension suppression, and fine-grained extension toggles. Administrators can curate active page types and utilities per wiki or subwiki with frontend asset stripping (including heavy CDN scripts like SunEditor) and soft read-only protection for legacy documents.
 - **💬 Chapter & Category Threaded Discussions**: Zero-database commenting extension (`tool-comments`) enabling authenticated users to participate in 1-level threaded chapter discussions with restricted Markdown formatting, live preview, XSS sanitization, author editability, and LLM Access Token retrieval.
 - **🌐 Documentation Subwiki Mirroring & Sync**: Seamlessly mirror and update official Qwiki documentation in a designated subwiki (`/docs/` or custom slug) with automatic terminal-free web synchronization and strict anti-overwrite data guards protecting custom user documentation.
 - **🧩 Self-Contained Extension System**: Easily extend Qwiki with custom page types (such as raw HTML, interactive dashboards, or custom widgets) and agentic backend utilities (such as AI diagram & chart generators) packaged self-contained in `assets/extensions/`.
 - **Multi-Format Support**:
-  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks & custom styles). Supports mathematical formulas and LaTeX/KaTeX equations (`$...$`, `$$...$$`), automatic symbol shorthand normalization (`$to$`, `\to`, `\approx`, `\alpha`), direct image uploading, importing existing local Markdown files, auto-embedded playable videos, and native Mermaid diagram flowcharts with uncompressed scaling and responsive horizontal scrolling.
+  - **Markdown (`.md`)**: Server-side parsing via Parsedown with an inline Toast UI editor (featuring automatic protected mode for raw HTML blocks and LaTeX math). Supports native GitHub-style alert callouts (`[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`), mathematical formulas and LaTeX/KaTeX equations (`$...$`, `$$...$$`), automatic symbol shorthand normalization (`$to$`, `\to`, `\approx`, `\alpha`), direct image uploading, importing existing local Markdown files, auto-embedded playable videos, and native Mermaid diagram flowcharts with inline zoom, SVG download, and an interactive pan/zoom lightbox.
   - **HTML Pages (`.html`)**: Native sandboxed HTML embedding with built-in **SunEditor WYSIWYG visual editor** and raw code view toggle for creating and in-place editing of `.html` pages.
   - **Interactive Forms (`.form.json`)**: Native flat-file surveys, feedback forms, and event RSVPs with a visual drag-and-drop builder, field presets, email alerts, webhooks, anti-spam honeypots, and CSV submission exports.
   - **Google Docs (`gdoc`)**: Embed published Google Docs URLs with automatic HTML cleaning and theme integration. Automatically appends `?embedded=true` if omitted.
@@ -64,8 +64,8 @@ Admins can control whether documentation is publicly readable or requires authen
 - **✨ Agentic Visual & Chart Generator**: Integrated visual generator producing vector Bar Charts, Line Trends, Pie/Donut Charts, Process Flows, and Status Badges. Generates standalone SVG files saved directly to `uploads/` and inserts Markdown snippets with 1 click.
 - **🔍 Advanced Search**: Real-time server-side search across document titles, descriptions, and file contents across all registered page types (Markdown, HTML, Forms, etc.), respecting category visibility rules.
 - **🌓 Instant Zero-Flicker Theming**: Server-side cookie sync paired with immediate synchronous head script execution eliminates all flash-of-unstyled-theme (FOUC) when switching pages in light or dark mode.
-- **📑 Auto-Generated Table of Contents**: Markdown pages automatically generate a responsive, expandable/collapsible sidebar for easy navigation of long documents, complete with scroll tracking.
-- **🧭 Seamless Article Navigation**: Context-aware `Next` and `Previous` buttons appear dynamically to let you read through categories without returning to the sidebar.
+- **📑 Collapsible Reading Canvas & Table of Contents**: Markdown pages automatically generate a responsive Table of Contents sidebar with scroll tracking. Both the left navigation sidebar (`[`) and right TOC (`]`) collapse smoothly with `localStorage` persistence, dynamically centering and widening the reading canvas (`1180px` / `1360px`).
+- **🧭 Seamless Chapter Navigation**: Bottom-of-page **Previous / Next Chapter** pager cards and compact header quick-flip arrows let readers move sequentially through categories without returning to the sidebar.
 - **🔗 Universal Clean URLs & SEO Routing**: Utilizes beautiful, SEO-friendly clean URLs (e.g., `/category/document`) that resolve automatically across Apache (`mod_rewrite` enabled or disabled), Nginx, and PHP CLI dev server.
 - **🔗 Full-Screen Secure Sharing & Social Cards**: Generate unguessable 16-hexadecimal share links (`?share=...`) to share any document directly in distraction-free full-screen reader mode (even from private portals). Supports 1-click social sharing (𝕏, LinkedIn, Facebook, WhatsApp, Telegram, Slack), rich Open Graph / Twitter Card previews, document-specific descriptions and banners, and instant admin revocation.
 - **🌐 Navigation Hyperlinks & Smart Tab Routing**: Embed external and internal hyperlinks directly into the navigation tree at root level or nested inside categories. Features automatic tab routing (`target="_blank" rel="noopener noreferrer"` for external domains, `target="_self"` for same-domain), status indicator badges, drag-and-drop reordering, and search integration.
@@ -89,7 +89,9 @@ Admins can control whether documentation is publicly readable or requires authen
 - **🔄 Smart Upload Conflict Resolution & In-Place Replacement**: Automatically intercepts filename and slug collisions during file uploads, providing 1-click options to either replace document content in-place (preserving URLs, categories, custom themes, and share tokens) or upload as a copy with auto-incremented slugs. Features a dedicated "Replace Document Content" toolbar button.
 - **🌐 Federated Remote Documents & Cross-Wiki Transclusion**: Transclude and render documents hosted on external Qwiki instances via public sharelinks (`type: "remote"`). Enforces Single Source of Truth read-only protection against local divergence, provides enterprise SSRF defense, automatically rewrites relative asset paths to origin canonical URLs, caches payloads locally with offline stale fallback, and features an instant admin sync button.
 - **🚀 Headless Publishing API, Category Provisioning & Media Uploads**: External automation pipelines and AI agents can programmatically publish self-contained HTML reports and Markdown articles headlessly via `api/publish.php` using either site-wide API keys or scoped LLM access keys (`qwk_llm_...`). Supports dynamic top-level and nested category creation (`action=create_category`), category discovery (`action=list_categories`), and idempotent metadata updates. Includes authorized multi-media asset uploads (`upload_asset`, `upload_media`, `upload_image`) partitioning web images into `uploads/images/` and video files (`mp4`, `webm`, `mov`, etc.) into `uploads/videos/`. Safely preserves `<style>`, `@media print`, SVG, and meta tags while neutralizing XSS vectors, automatically generates cryptographic 16-character share keys with ready-to-use share URLs, resolves `<base href>` path depths, and binds multilingual companion translations.
-- **🏷️ Document Lifecycle Status Architecture & Release Publishing**: Manage documentation through distinct workflow states (`Draft`, `In Review`, `Published`, `Archived`) with interactive toolbar dropdowns, real-time status badges, and admin sidebar status indicators. Features automated source sanitization that strips draft watermarks and review dockets upon release (`clean_source`), along with headless API endpoints for programmatic status transitions (`set_status`), chapter listing (`list_chapters`), chapter deletion (`delete_chapter`), and share key resolution (`resolve_share_key`).
+- **🏷️ Document Lifecycle Status Architecture & Visibility Gating**: Manage documentation through distinct workflow states (`Draft`, `In Review`, `Published`, `Archived`) with interactive status controls, sidebar status indicators, and strict non-admin gating that hides `Draft` and `Archived` documents across navigation, direct URLs (returning 404), search, RSS feeds, share links, and LLM retrieval. Features automated source sanitization (`clean_source`) on release, HTML `data-qwiki-status` synchronization, immutable `docId` tracking, and headless API lifecycle endpoints (`set_status`, `list_chapters`, `delete_chapter`, `resolve_share_key`).
+- **🗑️ Reversible Trash Bin & Safe Category Deletion**: Deletions from the UI or headless API move documents (including form `.submissions.json` companions) and non-empty categories safely into `.htaccess`-protected `data/trash/` storage by default. Non-empty category deletions prompt admins to either move contents to Trash or relocate them to another category first, while the **Trash Bin** modal provides collision-checked restoration and permanent purging.
+- **🕒 Document Revision History (`tool-revisions`)**: Automatic pre-write `.bak` snapshotting keyed by persistent `docId` across inline edits, HTML/form saves, file replacements, and headless `api/publish.php` overwrites (with SHA-256 deduplication). Admins can preview text revisions, inspect binary metadata, download raw snapshots, perform lock-verified 1-click restores, and configure per-document retention (`revisionsMaxPerDoc`) in Settings.
 - **🛡️ Native Two-Factor Authentication (2FA / RFC 6238 TOTP)**: Zero-dependency pure PHP TOTP engine compatible with Google Authenticator, Bitwarden, 1Password, and Aegis. Features client-side SVG QR codes (`assets/js/qrcode.min.js`), 8 single-use hashed recovery codes, configurable wiki policies (`Optional`, `Required for Admins`, `Required for All`, `Disabled`), and an emergency CLI recovery tool (`bin/reset-2fa.php`).
 - **🔑 Stateless Password Reset & Pure Socket SMTP**: Secure self-service account recovery via mathematically signed stateless HMAC-SHA256 tokens (0 disk writes, auto-invalidated on password change), 24-hour offline admin reset links, robust server diagnostic logging, and a pure socket SMTP client supporting STARTTLS/SSL with credential retention and interactive test tooling.
 - **📜 Activity & Access Log Engine & Audit Dashboard**: Built-in non-blocking append-only JSON Lines logging (`content/.logs/activity-YYYY-MM.jsonl` protected by `.htaccess`) tracking authentication, share link visits, document and category mutations, and administrative operations. Features an interactive admin audit modal (`📜 Activity & Access Log`) with metric overview cards, real-time event filtering, full-text search, top shared document analytics, configurable GDPR IP privacy modes (`hash`, `masked`, `raw`), automated log retention pruning, and 1-click CSV export.
@@ -201,21 +203,28 @@ standalone-qwiki/
 │   └── extensions/            # Self-contained drop-in extensions
 │       ├── page-html/         # HTML Page Type (SunEditor WYSIWYG)
 │       ├── page-form/         # Interactive Flat-File Forms & Surveys
+│       ├── tool-activity-log/ # Audit & Access Log Viewer
 │       ├── tool-ai-visuals/   # AI Visual & Chart Generator Utility
-│       ├── tool-gallery/      # Media & Image Assets Gallery
-│       ├── tool-postbox/      # Editorial Document Transfer & Desktop Pipeline
 │       ├── tool-backup/       # Full & Selective Backup Archive Exporter
-│       └── tool-gemini-assistant/ # Gemini AI Assistant & Social Card Generator
+│       ├── tool-comments/     # Threaded Chapter Comments
+│       ├── tool-gallery/      # Media & Image Assets Gallery
+│       ├── tool-gemini-assistant/ # Gemini AI Assistant & Social Card Generator
+│       ├── tool-postbox/      # Editorial Document Transfer & Desktop Pipeline
+│       ├── tool-revisions/    # Per-Document Version History & 1-Click Restore
+│       └── tool-talk/         # Wikipedia-Style Editorial Talk Pages
 ├── demo-data/                 # Auto-Setup templates for fresh installs
 │   ├── content/               # Demo documentation files
 │   └── qwiki-default.json     # Demo wiki tree structure
 ├── lib/
 │   ├── Core/
+│   │   ├── AuditLogger.php    # Append-only JSONL security & mutation audit log
 │   │   ├── Auth.php           # Session, authentication, and RBAC
 │   │   ├── Config.php         # Config persistence and path validation
+│   │   ├── DocumentService.php # Unified atomic write, hash tracking & pre-write hooks
 │   │   ├── LlmAccess.php      # LLM tree indexing, token estimation, and scope guard
-│   │   ├── Navigation.php     # Tree traversal, breadcrumbs, next/prev links
+│   │   ├── Navigation.php     # Tree traversal, breadcrumbs, status gating, next/prev links
 │   │   ├── RemoteContentManager.php # Federated cross-wiki document caching & SSRF guard
+│   │   ├── TrashManager.php   # Soft-deletion, collision-checked restore & purge engine
 │   │   └── ExtensionManager.php # Dynamic discovery and hook registry
 │   ├── Parsedown.php          # Markdown parser
 │   └── simple_html_dom.php    # HTML DOM cleaner for Google Docs
@@ -224,6 +233,7 @@ standalone-qwiki/
 
 (Generated after first run)
 ├── content/                   # Live documentation content store
+├── data/                      # Protected runtime data (trash/, revisions/, comments/, talk/)
 ├── uploads/                   # Live uploaded media & generated visuals
 ├── qwiki.json                 # Live wiki tree structure configuration
 └── users.json                 # Live file-based user store & Bcrypt password hashes

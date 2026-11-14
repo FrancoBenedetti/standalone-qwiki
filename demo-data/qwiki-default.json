@@ -190,5 +190,8 @@
     },
     "ipPrivacyMode": "hash",
     "logRetentionDays": 30,
-    "frontmatter": "collapse"
+    "frontmatter": "collapse",
+    "revisions": {
+        "maxPerDoc": 20
+    }
 }
