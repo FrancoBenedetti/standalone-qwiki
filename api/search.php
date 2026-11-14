@@ -6,6 +6,7 @@ require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
+use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 
 Auth::startSession();

@@ -501,6 +501,127 @@ body {
   color: var(--text-primary);
 }
 
+/* In-Document Search Term Highlights & Match Navigation Bar */
+::highlight(qwiki-search) {
+  background-color: #fef08a;
+  color: #0f172a;
+  text-decoration: underline dotted 1px rgba(15, 23, 42, 0.45);
+}
+
+::highlight(qwiki-search-active) {
+  background-color: #fb923c;
+  color: #0f172a;
+  text-decoration: underline solid 2px #0f172a;
+}
+
+mark.qwiki-search-mark {
+  background-color: #fef08a;
+  color: #0f172a;
+  text-decoration: underline dotted 1px rgba(15, 23, 42, 0.45);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+mark.qwiki-search-mark.qwiki-search-mark-active {
+  background-color: #fb923c;
+  color: #0f172a;
+  text-decoration: underline solid 2px #0f172a;
+}
+
+.search-highlight-bar {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.8rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 9999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  font-size: 0.8125rem;
+  max-width: calc(100vw - 2rem);
+}
+
+.search-highlight-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+  margin-right: 0.15rem;
+}
+
+.search-highlight-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.search-highlight-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.search-highlight-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .search-highlight-bar {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    right: 1rem;
+  }
+}
+
+@media (forced-colors: active) {
+  ::highlight(qwiki-search),
+  mark.qwiki-search-mark {
+    background-color: Mark;
+    color: MarkText;
+  }
+
+  ::highlight(qwiki-search-active),
+  mark.qwiki-search-mark.qwiki-search-mark-active {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  .search-highlight-bar {
+    border: 1px solid ButtonText;
+  }
+}
+
+@media print {
+  .search-highlight-bar {
+    display: none !important;
+  }
+
+  ::highlight(qwiki-search),
+  ::highlight(qwiki-search-active),
+  mark.qwiki-search-mark,
+  mark.qwiki-search-mark.qwiki-search-mark-active {
+    background-color: transparent !important;
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}
+
 /* Sidebar Content Authoring Actions (Notion/Linear Pattern) */
 .sidebar-actions {
   padding: 0.65rem 1rem;
