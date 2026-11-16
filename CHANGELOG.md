@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.19] - RelayFlow - 2026-11-16
+
+### ✉️ Form Notification & PHP `mail()` Reliability
+- **Unified Form Notification Dispatch (`assets/extensions/page-form/handler.php`)**: Routed contact/form submission email notifications through `Qwiki\Core\Mailer::send()` instead of an isolated inline `mail()` call, respecting `smtp.fromEmail` / `smtp.fromName` settings, falling back cleanly to native PHP `mail()` when SMTP is disabled, and preserving `Reply-To` from submitted email fields.
+- **Native PHP `mail()` Header & Error Hardening (`lib/Core/Mailer.php`)**: Removed the trailing newline in `$headersStr` (`implode(PHP_EOL, ...)`) that caused premature header termination on Unix `sendmail` / MTAs, removed `Auto-Submitted: auto-generated` to prevent silent mail-server filtering, deduplicated case-insensitive custom headers (e.g. `Reply-To`, `X-Mailer`), added RFC 5322 address quoting and UTF-8 MIME subject encoding, fixed `:port` stripping in `Mailer::getDefaultFromEmail()`, and added `error_get_last()` capture/logging when `mail()` fails.
+
 ## [1.20.18] - PrismFlow - 2026-11-16
 
 ### 🎨 Interactive Form Light/Dark Theme & Modal Fixes

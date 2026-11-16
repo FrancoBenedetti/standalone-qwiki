@@ -8,6 +8,7 @@ use Qwiki\Core\Navigation;
 use Qwiki\Core\DocumentService;
 use Qwiki\Core\LockManager;
 use Qwiki\Core\AuditLogger;
+use Qwiki\Core\Mailer;
 
 if (!class_exists('Qwiki\Core\DocumentService') && file_exists(dirname(__DIR__, 3) . '/lib/Core/DocumentService.php')) {
     require_once dirname(__DIR__, 3) . '/lib/Core/DocumentService.php';
@@ -17,6 +18,9 @@ if (!class_exists('Qwiki\Core\LockManager') && file_exists(dirname(__DIR__, 3) .
 }
 if (!class_exists('Qwiki\Core\AuditLogger') && file_exists(dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php')) {
     require_once dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php';
+}
+if (!class_exists('Qwiki\Core\Mailer') && file_exists(dirname(__DIR__, 3) . '/lib/Core/Mailer.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/Mailer.php';
 }
 
 $baseDir = Config::getBaseDir();
@@ -205,28 +209,8 @@ if ($action === 'submit_form' || $action === 'ext_form_submit') {
 
     // F. Optional Notifications (Email & Webhook)
     if (!empty($schema['notificationEmail']) && filter_var($schema['notificationEmail'], FILTER_VALIDATE_EMAIL)) {
-        $rawHost = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
-        if (strpos($rawHost, ':') !== false) {
-            $rawHost = explode(':', $rawHost)[0];
-        }
-        $cleanHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $rawHost);
-        if (empty($cleanHost) || $cleanHost === 'localhost') {
-            $cleanHost = 'qwiki.local';
-        }
-
-        $senderEmail = $config['systemEmail'] ?? $config['senderEmail'] ?? ("noreply@" . $cleanHost);
-        if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
-            $senderEmail = "noreply@" . $cleanHost;
-        }
-
-        $wikiTitle = $config['title'] ?? 'Qwiki';
-        $fromName = preg_match('/^[\x20-\x7E]+$/', $wikiTitle)
-            ? '"' . addcslashes($wikiTitle, '"\\') . '"'
-            : '=?UTF-8?B?' . base64_encode($wikiTitle) . '?=';
-
         $formTitle = $schema['title'] ?? 'Form';
-        $subjectRaw = "[Qwiki Form] New Submission: " . $formTitle;
-        $subject = '=?UTF-8?B?' . base64_encode($subjectRaw) . '?=';
+        $subject = "[Qwiki Form] New Submission: " . $formTitle;
 
         $body = "A new form response was submitted on {$timestamp}.\n\n";
         $body .= "Form: " . $formTitle . "\n";
@@ -248,27 +232,24 @@ if ($action === 'submit_form' || $action === 'ext_form_submit') {
             $body .= "• {$fLabel}: {$ans}\n";
         }
 
-        $headers = [];
-        $headers[] = "From: {$fromName} <{$senderEmail}>";
-        $headers[] = "Reply-To: " . (!empty($replyToEmail) ? "<{$replyToEmail}>" : "<{$senderEmail}>");
-        $headers[] = "Date: " . date('r');
-        $headers[] = "Message-ID: <" . time() . "." . bin2hex(random_bytes(8)) . "@{$cleanHost}>";
-        $headers[] = "MIME-Version: 1.0";
-        $headers[] = "Content-Type: text/plain; charset=UTF-8";
-        $headers[] = "Content-Transfer-Encoding: 8bit";
-        $headers[] = "X-Mailer: Qwiki Form Notifications";
-        $headers[] = "Auto-Submitted: auto-generated";
-
-        $headersStr = implode("\r\n", $headers) . "\r\n";
-
-        // Dispatch with envelope sender parameter (-f) to match Return-Path with From header
-        $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr, "-f" . $senderEmail);
-        if (!$sent) {
-            // Fallback without 5th parameter if host environment restricts extra parameters
-            $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr);
+        $customHeaders = [
+            'X-Mailer' => 'Qwiki Form Notifications',
+        ];
+        if (!empty($replyToEmail)) {
+            $customHeaders['Reply-To'] = "<{$replyToEmail}>";
         }
-        if (!$sent) {
-            error_log("Qwiki Form: Unable to dispatch notification email to {$schema['notificationEmail']}. Check server MTA / sendmail configuration.");
+        $configuredFrom = $config['smtp']['fromEmail'] ?? '';
+        if (empty($configuredFrom)) {
+            $legacySender = $config['systemEmail'] ?? $config['senderEmail'] ?? '';
+            if (!empty($legacySender) && filter_var($legacySender, FILTER_VALIDATE_EMAIL)) {
+                $customHeaders['From'] = Mailer::formatAddress($legacySender, $config['title'] ?? 'Qwiki');
+            }
+        }
+
+        $mailRes = Mailer::send($schema['notificationEmail'], $subject, $body, $customHeaders);
+        if (empty($mailRes['success'])) {
+            $errMsg = $mailRes['error'] ?? 'Unknown mail dispatch error.';
+            error_log("Qwiki Form: Unable to dispatch notification email to {$schema['notificationEmail']}: {$errMsg}");
         }
     }
 
