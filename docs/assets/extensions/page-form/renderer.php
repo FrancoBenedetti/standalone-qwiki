@@ -89,7 +89,7 @@ $fields = $schema['fields'] ?? [];
                 </div>
             </div>
         <?php else: ?>
-            <div id="form-feedback-area" style="display: none;"></div>
+            <div id="form-feedback-area" role="status" aria-live="polite" style="display: none;"></div>
 
             <form id="qwiki-rendered-form" data-file="<?= htmlspecialchars($relFile) ?>" novalidate>
                 <input type="hidden" name="action" value="ext_form_submit">
@@ -184,8 +184,8 @@ $fields = $schema['fields'] ?? [];
 
 <?php if ($isAdmin): ?>
     <!-- Submissions Viewer Modal -->
-    <div id="modal-form-submissions" class="modal" style="display: none;">
-        <div class="modal-content form-submissions-modal-dialog">
+    <div id="modal-form-submissions" class="modal-overlay">
+        <div class="modal-card form-submissions-modal-dialog">
             <div class="modal-header">
                 <h3 id="modal-form-submissions-title">Submissions</h3>
                 <button type="button" class="modal-close" id="btn-close-submissions-modal">&times;</button>
@@ -196,7 +196,7 @@ $fields = $schema['fields'] ?? [];
                     <div style="display: flex; gap: 0.5rem;">
                         <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-submissions">🔄 Refresh</button>
                         <a href="api/admin.php?action=ext_form_export_csv&file=<?= urlencode($relFile) ?>" class="btn btn-outline btn-sm" id="btn-modal-export-csv">📥 Download CSV</a>
-                        <button type="button" class="btn btn-danger btn-sm" id="btn-clear-all-submissions" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">🗑️ Clear All</button>
+                        <button type="button" class="btn form-btn-danger btn-sm" id="btn-clear-all-submissions">🗑️ Clear All</button>
                     </div>
                 </div>
                 <div class="form-submissions-table-wrap">
@@ -209,8 +209,8 @@ $fields = $schema['fields'] ?? [];
     </div>
 
     <!-- Edit Form Schema Modal -->
-    <div id="modal-edit-form-schema" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 760px; width: 90%;">
+    <div id="modal-edit-form-schema" class="modal-overlay">
+        <div class="modal-card" style="max-width: 760px; width: 95%;">
             <div class="modal-header">
                 <h3>✏️ Edit Form Design & Settings</h3>
                 <button type="button" class="modal-close" id="btn-close-edit-schema-modal">&times;</button>

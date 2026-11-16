@@ -2,15 +2,70 @@
  * Standalone Qwiki - Native Flat-File Form Extension Stylesheet
  */
 
+/* Scoped theme tokens & native UI color-scheme adaptation */
+.form-page-container,
+#modal-form-submissions,
+#modal-edit-form-schema,
+#tab-ext-form {
+    color-scheme: dark;
+    --form-surface: var(--bg-card, #1e293b);
+    --form-input-bg: var(--bg-primary, #0f172a);
+    --form-builder-input-bg: var(--bg-secondary, #1e293b);
+    --form-text: var(--text-primary, #f8fafc);
+    --form-text-secondary: var(--text-secondary, #94a3b8);
+    --form-border: var(--border-color, #334155);
+    --form-control-border: #64748b;
+    --form-control-border-hover: #94a3b8;
+    --form-placeholder: #94a3b8;
+    --form-required: #f87171;
+    --form-focus-ring: rgba(99, 102, 241, 0.25);
+    --form-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="light"] .form-page-container,
+[data-theme="light"] #modal-form-submissions,
+[data-theme="light"] #modal-edit-form-schema,
+[data-theme="light"] #tab-ext-form {
+    color-scheme: light;
+    --form-surface: var(--bg-card, #ffffff);
+    --form-input-bg: var(--bg-primary, #f8fafc);
+    --form-builder-input-bg: var(--bg-secondary, #ffffff);
+    --form-text: var(--text-primary, #0f172a);
+    --form-text-secondary: var(--text-secondary, #475569);
+    --form-border: var(--border-color, #e2e8f0);
+    --form-control-border: #64748b;
+    --form-control-border-hover: #475569;
+    --form-placeholder: #64748b;
+    --form-required: #dc2626;
+    --form-focus-ring: rgba(79, 70, 229, 0.2);
+    --form-card-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+@supports (color: color-mix(in srgb, red 50%, transparent)) {
+    .form-page-container,
+    #modal-form-submissions,
+    #modal-edit-form-schema,
+    #tab-ext-form {
+        --form-focus-ring: color-mix(in srgb, var(--accent-color, #6366f1) 25%, transparent);
+    }
+}
+
+.form-page-container .text-muted,
+#modal-form-submissions .text-muted,
+#modal-edit-form-schema .text-muted,
+#tab-ext-form .text-muted {
+    color: var(--form-text-secondary);
+}
+
 /* 1. Badge */
 .badge-form {
     background: rgba(245, 158, 11, 0.18);
-    color: #f59e0b;
+    color: #fbbf24;
 }
 
 [data-theme="light"] .badge-form {
     background: rgba(245, 158, 11, 0.15);
-    color: #d97706;
+    color: #b45309;
 }
 
 /* 2. Page Container */
@@ -19,6 +74,7 @@
     max-width: 780px;
     margin: 0 auto;
     padding: 1rem 0 3rem 0;
+    color: var(--form-text);
 }
 
 /* 3. Admin Toolbar */
@@ -26,8 +82,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--card-bg, #1a1a1a);
-    border: 1px solid var(--border-color, #333);
+    background: var(--form-surface);
+    border: 1px solid var(--form-border);
     border-radius: 8px;
     padding: 0.6rem 1rem;
     margin-bottom: 1.75rem;
@@ -43,15 +99,15 @@
 
 .form-submission-count-badge {
     font-size: 0.85rem;
-    color: var(--text-muted, #888);
-    background: var(--bg-color, #111);
+    color: var(--form-text-secondary);
+    background: var(--form-input-bg);
     padding: 0.25rem 0.6rem;
     border-radius: 12px;
-    border: 1px solid var(--border-color, #333);
+    border: 1px solid var(--form-border);
 }
 
 .form-submission-count-badge strong {
-    color: var(--text-color, #eee);
+    color: var(--form-text);
 }
 
 .form-admin-actions {
@@ -63,32 +119,38 @@
 
 /* 4. Form Card */
 .form-card {
-    background: var(--card-bg, #1e1e1e);
-    border: 1px solid var(--border-color, #333);
+    background: var(--form-surface);
+    border: 1px solid var(--form-border);
     border-radius: 10px;
     padding: 2rem;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--form-card-shadow);
+    color: var(--form-text);
 }
 
 .form-header {
     margin-bottom: 1.75rem;
     padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--form-border);
 }
 
 .form-header h1.form-title {
     margin: 0 0 0.5rem 0;
+    padding-bottom: 0;
+    border-bottom: none;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--text-color, #fff);
+    color: var(--form-text);
     line-height: 1.3;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
 }
 
 .form-header .form-desc {
     margin: 0;
     font-size: 0.95rem;
     line-height: 1.5;
-    color: var(--text-muted, #aaa);
+    color: var(--form-text-secondary);
 }
 
 /* 5. Form Groups & Inputs */
@@ -101,44 +163,107 @@
     margin-bottom: 0.4rem;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--text-color, #ddd);
+    color: var(--form-text);
 }
 
 .form-required-star {
-    color: #ef4444;
+    color: var(--form-required);
     margin-left: 0.2rem;
 }
 
 .form-help-text {
-    font-size: 0.8rem;
-    color: var(--text-muted, #888);
-    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    color: var(--form-text-secondary);
+    margin-top: 0.35rem;
+    line-height: 1.4;
 }
 
 .form-page-container input.form-control,
 .form-page-container select.form-control,
-.form-page-container textarea.form-control {
+.form-page-container textarea.form-control,
+#modal-form-submissions input.form-control,
+#modal-edit-form-schema input.form-control,
+#modal-edit-form-schema select.form-control,
+#modal-edit-form-schema textarea.form-control,
+#tab-ext-form input.form-control,
+#tab-ext-form select.form-control,
+#tab-ext-form textarea.form-control {
     width: 100%;
     padding: 0.65rem 0.85rem;
-    font-size: 0.95rem;
+    font-size: max(1rem, 0.95rem);
+    line-height: 1.5;
     font-family: inherit;
-    color: var(--text-color, #fff);
-    background: var(--bg-color, #121212);
-    border: 1px solid var(--border-color, #3a3a3a);
+    color: var(--form-text);
+    background: var(--form-input-bg);
+    border: 1px solid var(--form-control-border);
     border-radius: 6px;
     box-sizing: border-box;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.form-page-container input.form-control:focus,
-.form-page-container select.form-control:focus,
-.form-page-container textarea.form-control:focus {
-    outline: none;
-    border-color: var(--primary-color, #3b82f6);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+.form-field-card input.form-control,
+.form-field-card select.form-control,
+.form-field-card textarea.form-control {
+    background: var(--form-builder-input-bg);
 }
 
-.form-page-container textarea.form-control {
+.form-page-container input.form-control::placeholder,
+.form-page-container textarea.form-control::placeholder,
+#modal-form-submissions input.form-control::placeholder,
+#modal-edit-form-schema input.form-control::placeholder,
+#modal-edit-form-schema textarea.form-control::placeholder,
+#tab-ext-form input.form-control::placeholder,
+#tab-ext-form textarea.form-control::placeholder {
+    color: var(--form-placeholder);
+    opacity: 1;
+}
+
+.form-page-container input.form-control:hover,
+.form-page-container select.form-control:hover,
+.form-page-container textarea.form-control:hover,
+#modal-form-submissions input.form-control:hover,
+#modal-edit-form-schema input.form-control:hover,
+#modal-edit-form-schema select.form-control:hover,
+#modal-edit-form-schema textarea.form-control:hover,
+#tab-ext-form input.form-control:hover,
+#tab-ext-form select.form-control:hover,
+#tab-ext-form textarea.form-control:hover {
+    border-color: var(--form-control-border-hover);
+}
+
+.form-page-container input.form-control:focus,
+.form-page-container select.form-control:focus,
+.form-page-container textarea.form-control:focus,
+#modal-form-submissions input.form-control:focus,
+#modal-edit-form-schema input.form-control:focus,
+#modal-edit-form-schema select.form-control:focus,
+#modal-edit-form-schema textarea.form-control:focus,
+#tab-ext-form input.form-control:focus,
+#tab-ext-form select.form-control:focus,
+#tab-ext-form textarea.form-control:focus {
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+    border-color: var(--primary-color, #6366f1);
+    box-shadow: 0 0 0 3px var(--form-focus-ring);
+}
+
+.form-page-container input.form-control:focus-visible,
+.form-page-container select.form-control:focus-visible,
+.form-page-container textarea.form-control:focus-visible,
+#modal-form-submissions input.form-control:focus-visible,
+#modal-edit-form-schema input.form-control:focus-visible,
+#modal-edit-form-schema select.form-control:focus-visible,
+#modal-edit-form-schema textarea.form-control:focus-visible,
+#tab-ext-form input.form-control:focus-visible,
+#tab-ext-form select.form-control:focus-visible,
+#tab-ext-form textarea.form-control:focus-visible {
+    outline: 2px solid var(--primary-color, #6366f1);
+    outline-offset: 1px;
+}
+
+.form-page-container textarea.form-control,
+#modal-edit-form-schema textarea.form-control,
+#tab-ext-form textarea.form-control {
     min-height: 110px;
     resize: vertical;
 }
@@ -148,26 +273,39 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-top: 0.25rem;
+    margin-top: 0.35rem;
 }
 
 .form-option-item {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.6rem;
     cursor: pointer;
-    font-size: 0.92rem;
-    color: var(--text-color, #eee);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: var(--form-text);
+    padding: 0.15rem 0;
     user-select: none;
 }
 
 .form-option-item input[type="radio"],
-.form-option-item input[type="checkbox"] {
-    width: 17px;
-    height: 17px;
+.form-option-item input[type="checkbox"],
+#modal-edit-form-schema input[type="checkbox"],
+#tab-ext-form input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
     margin: 0;
     cursor: pointer;
-    accent-color: var(--primary-color, #3b82f6);
+    accent-color: var(--primary-color, #6366f1);
+    flex-shrink: 0;
+}
+
+.form-option-item input[type="radio"]:focus-visible,
+.form-option-item input[type="checkbox"]:focus-visible,
+#modal-edit-form-schema input[type="checkbox"]:focus-visible,
+#tab-ext-form input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--primary-color, #6366f1);
+    outline-offset: 2px;
 }
 
 /* 7. Alerts */
@@ -179,25 +317,43 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    line-height: 1.4;
+    line-height: 1.45;
 }
 
 .form-alert-success {
-    background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.14);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+[data-theme="light"] .form-alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #065f46;
+    border-color: rgba(5, 150, 105, 0.35);
 }
 
 .form-alert-danger {
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+[data-theme="light"] .form-alert-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.35);
 }
 
 .form-alert-info {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    border: 1px solid rgba(147, 197, 253, 0.35);
+}
+
+[data-theme="light"] .form-alert-info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #1e40af;
+    border-color: rgba(37, 99, 235, 0.35);
 }
 
 .form-alert-icon {
@@ -220,12 +376,14 @@
 
 .form-success-card h2 {
     margin: 0 0 0.75rem 0;
+    border-bottom: none;
+    padding-bottom: 0;
     font-size: 1.6rem;
-    color: var(--text-color, #fff);
+    color: var(--form-text);
 }
 
 .form-success-card p {
-    color: var(--text-muted, #aaa);
+    color: var(--form-text-secondary);
     font-size: 1rem;
     max-width: 500px;
     margin: 0 auto 1.5rem auto;
@@ -235,7 +393,7 @@
 .form-submit-actions {
     margin-top: 1.75rem;
     padding-top: 1rem;
-    border-top: 1px solid var(--border-color, #333);
+    border-top: 1px solid var(--form-border);
     display: flex;
     justify-content: flex-end;
     align-items: center;
@@ -245,6 +403,26 @@
 .btn-submitting {
     opacity: 0.75;
     pointer-events: none;
+}
+
+.form-btn-danger {
+    background: rgba(239, 68, 68, 0.14);
+    color: #fca5a5;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.form-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.24);
+}
+
+[data-theme="light"] .form-btn-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+    border-color: rgba(220, 38, 38, 0.35);
+}
+
+[data-theme="light"] .form-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.18);
 }
 
 /* 10. Field Builder in Admin Modal */
@@ -259,16 +437,17 @@
 }
 
 .form-field-card {
-    background: var(--bg-color, #181818);
-    border: 1px solid var(--border-color, #333);
+    background: var(--form-input-bg);
+    border: 1px solid var(--form-border);
     border-radius: 6px;
     padding: 0.85rem;
     position: relative;
     transition: border-color 0.15s ease;
+    color: var(--form-text);
 }
 
 .form-field-card:hover {
-    border-color: var(--border-color-hover, #555);
+    border-color: var(--primary-color, #6366f1);
 }
 
 .form-field-header {
@@ -278,7 +457,11 @@
     margin-bottom: 0.6rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-muted, #aaa);
+    color: var(--form-text-secondary);
+}
+
+.form-field-header strong {
+    color: var(--form-text);
 }
 
 .form-field-controls {
@@ -300,33 +483,41 @@
     font-size: 0.9rem;
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
-    color: var(--text-muted, #aaa);
+    color: var(--form-text-secondary);
     transition: background 0.15s ease, color 0.15s ease;
 }
 
 .form-field-actions button:hover {
-    background: var(--border-color, #333);
-    color: var(--text-color, #fff);
+    background: var(--bg-card-hover, rgba(148, 163, 184, 0.18));
+    color: var(--form-text);
 }
 
 .form-field-actions button.btn-remove-field:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--form-required);
 }
 
-/* 11. Submissions Viewer Modal */
+/* 11. Submissions & Edit Modals */
+#modal-form-submissions .modal-header h3,
+#modal-edit-form-schema .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--form-text);
+}
+
 .form-submissions-modal-dialog {
     max-width: 960px !important;
-    width: 90% !important;
+    width: 92% !important;
 }
 
 .form-submissions-table-wrap {
     max-height: 520px;
     overflow-x: auto;
     overflow-y: auto;
-    border: 1px solid var(--border-color, #333);
+    border: 1px solid var(--form-border);
     border-radius: 6px;
     margin-top: 1rem;
+    background: var(--form-surface);
 }
 
 .form-submissions-table {
@@ -334,35 +525,57 @@
     border-collapse: collapse;
     font-size: 0.88rem;
     text-align: left;
+    color: var(--form-text);
 }
 
 .form-submissions-table th,
 .form-submissions-table td {
     padding: 0.65rem 0.85rem;
-    border-bottom: 1px solid var(--border-color, #333);
+    border-bottom: 1px solid var(--form-border);
     vertical-align: top;
     white-space: normal;
 }
 
 .form-submissions-table th {
-    background: var(--bg-color, #181818);
+    background: var(--form-input-bg);
     font-weight: 600;
-    color: var(--text-muted, #aaa);
+    color: var(--form-text-secondary);
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
 .form-submissions-table tr:hover td {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-[data-theme="light"] .form-submissions-table tr:hover td {
-    background: rgba(0, 0, 0, 0.02);
+    background: var(--bg-card-hover, rgba(148, 163, 184, 0.08));
 }
 
 .form-submission-empty {
     text-align: center;
     padding: 3rem 1rem;
-    color: var(--text-muted, #888);
+    color: var(--form-text-secondary);
+}
+
+/* 12. Forced Colors Mode (Windows High Contrast) */
+@media (forced-colors: active) {
+    .form-card,
+    .form-admin-toolbar,
+    .form-field-card,
+    .form-alert,
+    .form-submissions-table-wrap {
+        border: 1px solid CanvasText;
+    }
+
+    .form-page-container .form-control,
+    #modal-form-submissions .form-control,
+    #modal-edit-form-schema .form-control,
+    #tab-ext-form .form-control {
+        border: 1px solid ButtonBorder;
+    }
+
+    .form-page-container .form-control:focus-visible,
+    #modal-form-submissions .form-control:focus-visible,
+    #modal-edit-form-schema .form-control:focus-visible,
+    #tab-ext-form .form-control:focus-visible {
+        outline: 2px solid Highlight;
+    }
 }

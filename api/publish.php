@@ -37,12 +37,14 @@ if (empty($providedKey)) {
 }
 
 $isAuthorized = false;
+$llmKeyRecord = null;
 if (!empty($publishApiKey) && hash_equals((string)$publishApiKey, $providedKey)) {
     $isAuthorized = true;
 } elseif (!empty($llmKeys)) {
     $llmVal = LlmAccess::validateKey($providedKey);
     if (!empty($llmVal['valid'])) {
         $isAuthorized = true;
+        $llmKeyRecord = $llmVal['key'] ?? null;
         if (!empty($llmVal['key']['id'])) {
             LlmAccess::updateLastUsed($llmVal['key']['id']);
         }
@@ -446,6 +448,206 @@ if ($action === 'resolve_share_key' || $action === 'get_chapter_by_share_key' ||
     }
 }
 
+if ($action === 'get_doc' || $action === 'pull_doc' || $action === 'get_chapter') {
+    $reqSlug = trim((string)($_POST['slug'] ?? $_GET['slug'] ?? ''));
+    $reqShareKey = trim((string)($_POST['shareKey'] ?? $_GET['shareKey'] ?? ''));
+    $reqBookId = trim((string)($_POST['bookId'] ?? $_GET['bookId'] ?? ''));
+    $reqFile = trim((string)($_POST['file'] ?? $_GET['file'] ?? ''));
+
+    $rawIncComments = $_POST['include_comments'] ?? $_GET['include_comments'] ?? '1';
+    $includeComments = !($rawIncComments === '0' || $rawIncComments === 'false' || $rawIncComments === false);
+    $rawIncTalk = $_POST['include_talk'] ?? $_GET['include_talk'] ?? '1';
+    $includeTalk = !($rawIncTalk === '0' || $rawIncTalk === 'false' || $rawIncTalk === false);
+
+    if (empty($reqSlug) && empty($reqShareKey) && empty($reqFile)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'slug, shareKey, or file is required']);
+        exit;
+    }
+
+    $matchedChapter = null;
+    $matchedParent = null;
+
+    if (!empty($reqShareKey)) {
+        $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $reqShareKey, $matchedParent);
+    } elseif (!empty($reqSlug)) {
+        if (!empty($reqBookId)) {
+            $findInBook = function(array $nodes, string $targetBookId, string $targetSlug, $inTargetBook = false, $curParent = null) use (&$findInBook) {
+                foreach ($nodes as $node) {
+                    $isFolder = (isset($node['type']) && $node['type'] === 'folder') || !empty($node['items']);
+                    if ($isFolder) {
+                        $nowInBook = $inTargetBook || (($node['id'] ?? '') === $targetBookId);
+                        $nextParent = (($node['id'] ?? '') === $targetBookId) ? $node : ($curParent ?: $node);
+                        if (!empty($node['items']) && is_array($node['items'])) {
+                            $res = $findInBook($node['items'], $targetBookId, $targetSlug, $nowInBook, $nextParent);
+                            if ($res !== null) return $res;
+                        }
+                    } elseif ($inTargetBook && ($node['slug'] ?? '') === $targetSlug) {
+                        return ['chapter' => $node, 'parent' => $curParent];
+                    }
+                }
+                return null;
+            };
+            $scopedMatch = $findInBook($config['books'] ?? [], $reqBookId, $reqSlug);
+            if ($scopedMatch !== null) {
+                $matchedChapter = $scopedMatch['chapter'];
+                $matchedParent = $scopedMatch['parent'];
+            }
+        }
+        if ($matchedChapter === null) {
+            $matchedChapter = Navigation::findChapterBySlug($config['books'] ?? [], $reqSlug, $matchedParent);
+        }
+    } elseif (!empty($reqFile)) {
+        $findByFile = function(array $nodes, string $targetFile, $curParent = null) use (&$findByFile) {
+            foreach ($nodes as $node) {
+                $isFolder = (isset($node['type']) && $node['type'] === 'folder') || !empty($node['items']);
+                if ($isFolder) {
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $res = $findByFile($node['items'], $targetFile, $node);
+                        if ($res !== null) return $res;
+                    }
+                } elseif (($node['file'] ?? '') === $targetFile) {
+                    return ['chapter' => $node, 'parent' => $curParent];
+                }
+            }
+            return null;
+        };
+        $fileMatch = $findByFile($config['books'] ?? [], $reqFile);
+        if ($fileMatch !== null) {
+            $matchedChapter = $fileMatch['chapter'];
+            $matchedParent = $fileMatch['parent'];
+        }
+    }
+
+    if ($matchedChapter === null) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Chapter not found']);
+        exit;
+    }
+
+    $resolvedSlug = $matchedChapter['slug'] ?? '';
+    $resolvedBookId = (!empty($reqBookId) && $matchedParent && ($matchedParent['id'] ?? '') === $reqBookId)
+        ? $reqBookId
+        : (Navigation::findChapterParentId($config['books'] ?? [], $resolvedSlug) ?? ($matchedParent['id'] ?? ''));
+
+    if ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all') {
+        if (strcasecmp((string)$llmKeyRecord['category'], (string)$resolvedBookId) !== 0) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'error' => 'API key is not authorized for this category']);
+            exit;
+        }
+    }
+
+    $baseDir = Config::getBaseDir();
+    $baseUrl = Config::getBaseUrl();
+    $relFile = $matchedChapter['file'] ?? '';
+    $absFile = !empty($relFile) ? Config::safePath($baseDir, $relFile) : null;
+
+    if (!$absFile || !is_file($absFile)) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Document source file not found on disk']);
+        exit;
+    }
+
+    $rawContent = file_get_contents($absFile);
+    $sha256 = hash_file('sha256', $absFile);
+    $mtime = filemtime($absFile) ?: time();
+    $sizeBytes = filesize($absFile) ?: 0;
+    $docType = strtolower($matchedChapter['type'] ?? (preg_match('/\.(html|htm)$/i', $relFile) ? 'html' : 'markdown'));
+
+    $lockStatus = LockManager::checkLock($relFile);
+    $isProtected = Config::isChapterProtected($resolvedSlug, $config['books'] ?? [])
+        || Config::isChapterAncestorProtected($resolvedSlug, $config['books'] ?? []);
+
+    $sKey = $matchedChapter['shareKey'] ?? '';
+    $docPayload = [
+        'docId' => $matchedChapter['docId'] ?? '',
+        'bookId' => $resolvedBookId,
+        'slug' => $resolvedSlug,
+        'title' => $matchedChapter['title'] ?? '',
+        'type' => $docType,
+        'file' => $relFile,
+        'status' => $matchedChapter['status'] ?? Navigation::DEFAULT_STATUS,
+        'description' => $matchedChapter['description'] ?? '',
+        'shareKey' => $sKey,
+        'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
+        'url' => $baseUrl . urlencode($resolvedBookId) . '/' . urlencode($resolvedSlug),
+        'publicShareable' => !isset($matchedChapter['publicShareable']) ? true : (bool)$matchedChapter['publicShareable'],
+        'allowComments' => $matchedChapter['allowComments'] ?? null,
+        'allowTalk' => $matchedChapter['allowTalk'] ?? null,
+        'approver' => $matchedChapter['approver'] ?? '',
+        'approverNote' => $matchedChapter['approverNote'] ?? '',
+        'statusUpdatedAt' => $matchedChapter['statusUpdatedAt'] ?? null,
+        'statusUpdatedBy' => $matchedChapter['statusUpdatedBy'] ?? null,
+        'translations' => $matchedChapter['translations'] ?? null,
+        'isProtected' => $isProtected,
+        'sha256' => $sha256,
+        'sizeBytes' => $sizeBytes,
+        'mtime' => $mtime,
+        'dateModified' => date('c', $mtime),
+        'lock' => $lockStatus,
+        'content' => $rawContent,
+    ];
+
+    if ($includeComments) {
+        $commentServicePath = $baseDir . '/assets/extensions/tool-comments/CommentService.php';
+        if (!is_file($commentServicePath)) {
+            $commentServicePath = __DIR__ . '/../assets/extensions/tool-comments/CommentService.php';
+        }
+        if (is_file($commentServicePath)) {
+            require_once $commentServicePath;
+            $commentsEnabled = \Qwiki\Extension\Comments\CommentService::isCommentsEnabled($resolvedBookId, $resolvedSlug, $config);
+            $commentsData = \Qwiki\Extension\Comments\CommentService::getComments($resolvedBookId, $resolvedSlug);
+            $commentsList = $commentsData['comments'] ?? [];
+            $commentsCount = 0;
+            foreach ($commentsList as $c) {
+                if (empty($c['isDeleted'])) $commentsCount++;
+                if (!empty($c['replies']) && is_array($c['replies'])) {
+                    foreach ($c['replies'] as $r) {
+                        if (empty($r['isDeleted'])) $commentsCount++;
+                    }
+                }
+            }
+            $docPayload['commentsEnabled'] = $commentsEnabled;
+            $docPayload['commentsCount'] = $commentsCount;
+            $docPayload['commentsUpdatedAt'] = $commentsData['updatedAt'] ?? null;
+            $docPayload['comments'] = $commentsList;
+        } else {
+            $docPayload['commentsEnabled'] = false;
+            $docPayload['commentsCount'] = 0;
+            $docPayload['comments'] = [];
+        }
+    }
+
+    if ($includeTalk) {
+        $talkServicePath = $baseDir . '/assets/extensions/tool-talk/TalkService.php';
+        if (!is_file($talkServicePath)) {
+            $talkServicePath = __DIR__ . '/../assets/extensions/tool-talk/TalkService.php';
+        }
+        if (is_file($talkServicePath)) {
+            require_once $talkServicePath;
+            $talkEnabled = \Qwiki\Extension\Talk\TalkService::isTalkEnabled($resolvedBookId, $resolvedSlug, $config);
+            $talkTopics = \Qwiki\Extension\Talk\TalkService::getTopics($resolvedBookId, $resolvedSlug);
+            $talkRaw = \Qwiki\Extension\Talk\TalkService::getRawContent($resolvedBookId, $resolvedSlug);
+            $docPayload['talkEnabled'] = $talkEnabled;
+            $docPayload['talkTopicsCount'] = count($talkTopics);
+            $docPayload['talkTopics'] = $talkTopics;
+            $docPayload['talkRaw'] = $talkRaw;
+        } else {
+            $docPayload['talkEnabled'] = false;
+            $docPayload['talkTopicsCount'] = 0;
+            $docPayload['talkTopics'] = [];
+            $docPayload['talkRaw'] = '';
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'document' => $docPayload
+    ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
+}
+
 if ($action === 'set_status' || $action === 'update_status') {
     $identifier = trim($_POST['shareKey'] ?? $_POST['slug'] ?? $_POST['file'] ?? $_GET['shareKey'] ?? $_GET['slug'] ?? '');
     $newStatus = strtolower(trim($_POST['status'] ?? $_GET['status'] ?? ''));
@@ -767,10 +969,52 @@ $chapterForWrite = $existingChapter ?? [
 ];
 $chapterForWrite['docId'] = $docId;
 
+$oldAbsFile = ($existingChapter && !empty($existingChapter['file']))
+    ? Config::safePath(Config::getBaseDir(), $existingChapter['file'])
+    : $targetAbsFile;
+
+$rawForce = $_POST['force'] ?? '';
+$forceOverwrite = ($rawForce === true || $rawForce === 'true' || $rawForce === '1' || $rawForce === 1);
+$expectedSha256 = strtolower(trim((string)($_POST['expectedSha256'] ?? $_POST['expected_sha256'] ?? $_POST['ifMatch'] ?? '')));
+
+if ($existingChapter !== null && !$forceOverwrite) {
+    $lockTargetRel = !empty($existingChapter['file']) ? $existingChapter['file'] : $targetRelFile;
+    $activeLock = LockManager::checkLock($lockTargetRel);
+    if (!empty($activeLock['locked'])) {
+        http_response_code(423);
+        echo json_encode([
+            'success' => false,
+            'code' => 'LOCKED_BY_OTHER',
+            'lockedBy' => $activeLock['user'] ?? 'Unknown',
+            'expiresIn' => $activeLock['expiresIn'] ?? 0,
+            'error' => "Document is currently locked in the editor by '" . ($activeLock['user'] ?? 'Unknown') . "' (expires in " . ($activeLock['expiresIn'] ?? 0) . "s). Pass force=1 to override.",
+        ]);
+        exit;
+    }
+
+    if ($expectedSha256 !== '') {
+        $hashCheckFile = ($oldAbsFile && is_file($oldAbsFile)) ? $oldAbsFile : (is_file($targetAbsFile) ? $targetAbsFile : null);
+        if ($hashCheckFile !== null) {
+            $actualSha256 = strtolower((string)hash_file('sha256', $hashCheckFile));
+            if (!hash_equals($expectedSha256, $actualSha256)) {
+                http_response_code(409);
+                echo json_encode([
+                    'success' => false,
+                    'code' => 'CONFLICT_SHA256_MISMATCH',
+                    'expectedSha256' => $expectedSha256,
+                    'actualSha256' => $actualSha256,
+                    'error' => 'Document has changed on the remote wiki since it was pulled (SHA-256 mismatch). Pull and merge remote changes before re-uploading, or pass force=1 to overwrite.',
+                ]);
+                exit;
+            }
+        }
+    }
+}
+
 // Write the document file via unified DocumentService (tracks sha256 + pre-write hooks + audit log)
 $writeRes = DocumentService::replaceContent($chapterForWrite, $targetAbsFile, [
     'content' => $sanitizedContent,
-    'oldAbsFile' => ($existingChapter && !empty($existingChapter['file'])) ? Config::safePath(Config::getBaseDir(), $existingChapter['file']) : $targetAbsFile,
+    'oldAbsFile' => $oldAbsFile,
     'oldRelFile' => $existingChapter['file'] ?? '',
     'newRelFile' => $targetRelFile,
     'source' => 'api_publish',
@@ -872,6 +1116,7 @@ if ($saved && Config::save($config)) {
     echo json_encode([
         'success' => true,
         'updated' => $isUpdated,
+        'docId' => $docId,
         'bookId' => $bookId,
         'slug' => $slug,
         'file' => $targetRelFile,
@@ -879,6 +1124,8 @@ if ($saved && Config::save($config)) {
         'shareKey' => $shareKey,
         'status' => $docStatus,
         'statusUpdatedAt' => $chapterData['statusUpdatedAt'],
+        'sha256' => $writeRes['sha256After'] ?? null,
+        'changed' => $writeRes['changed'] ?? true,
         'shareUrl' => $shareUrl,
         'url' => $url
     ]);

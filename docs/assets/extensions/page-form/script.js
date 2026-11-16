@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function render() {
             containerEl.innerHTML = '';
             if (fields.length === 0) {
-                containerEl.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: var(--text-muted); font-size: 0.88rem;">No fields yet. Click "+ Add Field" above to create one.</div>';
+                containerEl.innerHTML = '<div style="text-align:center; padding: 1.5rem; color: var(--text-secondary); font-size: 0.88rem;">No fields yet. Click "+ Add Field" above to create one.</div>';
                 if (onChangeCallback) onChangeCallback(fields);
                 return;
             }
@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let cachedData = null;
 
         function loadSubmissions() {
-            contentArea.innerHTML = '<div style="text-align:center; padding: 2rem; color: var(--text-muted);">Loading submissions...</div>';
+            contentArea.innerHTML = '<div style="text-align:center; padding: 2rem; color: var(--text-secondary);">Loading submissions...</div>';
             
             fetch(`api/admin.php?action=ext_form_get_submissions&file=${encodeURIComponent(relFile)}`)
                 .then(res => res.json())
@@ -532,7 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const subData = sub.data || {};
                 html += `
                     <tr data-id="${escapeHtml(sub.id)}">
-                        <td style="font-size: 0.82rem; color: var(--text-muted);">${escapeHtml(sub.created_at || '')}</td>
+                        <td style="font-size: 0.82rem; color: var(--text-secondary);">${escapeHtml(sub.created_at || '')}</td>
                         <td><span class="badge" style="font-size: 0.75rem;">${escapeHtml(sub.submitted_by || 'guest')}</span></td>
                         ${fields.map(f => {
                             const val = subData[f.id] ?? '';
@@ -540,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return `<td>${escapeHtml(displayVal)}</td>`;
                         }).join('')}
                         <td style="text-align: center;">
-                            <button type="button" class="btn-delete-submission" data-id="${escapeHtml(sub.id)}" title="Delete this response" style="background:none; border:none; color: #ef4444; cursor:pointer; font-size: 1rem; padding: 0.2rem;">🗑️</button>
+                            <button type="button" class="btn-delete-submission" data-id="${escapeHtml(sub.id)}" title="Delete this response" style="background:none; border:none; color: var(--form-required, #ef4444); cursor:pointer; font-size: 1rem; padding: 0.2rem;">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -580,13 +580,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         btnViewSubmissions.addEventListener('click', () => {
-            modalSubmissions.style.display = 'flex';
+            if (window.QwikiApp && window.QwikiApp.modals) {
+                window.QwikiApp.modals.open('modal-form-submissions');
+            } else {
+                modalSubmissions.classList.add('open');
+            }
             loadSubmissions();
         });
 
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
-                modalSubmissions.style.display = 'none';
+                if (window.QwikiApp && window.QwikiApp.modals) {
+                    window.QwikiApp.modals.close('modal-form-submissions');
+                } else {
+                    modalSubmissions.classList.remove('open');
+                }
             });
         }
 
@@ -660,7 +668,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         btnEditSchema.addEventListener('click', () => {
-            modalEditSchema.style.display = 'flex';
+            if (window.QwikiApp && window.QwikiApp.modals) {
+                window.QwikiApp.modals.open('modal-edit-form-schema');
+            } else {
+                modalEditSchema.classList.add('open');
+            }
             fetch(`api/admin.php?action=ext_form_get_schema&file=${encodeURIComponent(relFile)}`)
                 .then(r => r.json())
                 .then(res => {
@@ -679,7 +691,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         });
 
-        const closeModal = () => { modalEditSchema.style.display = 'none'; };
+        const closeModal = () => {
+            if (window.QwikiApp && window.QwikiApp.modals) {
+                window.QwikiApp.modals.close('modal-edit-form-schema');
+            } else {
+                modalEditSchema.classList.remove('open');
+            }
+        };
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
         if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 

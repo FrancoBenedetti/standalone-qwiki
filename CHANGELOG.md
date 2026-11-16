@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.18] - PrismFlow - 2026-11-16
+
+### 🎨 Interactive Form Light/Dark Theme & Modal Fixes
+- **Theme Token Alignment (`assets/extensions/page-form/style.css`, `docs/assets/extensions/page-form/style.css`)**: Replaced undefined `--card-bg`, `--bg-color`, and `--border-color-hover` references with Qwiki's standard `--bg-card`, `--bg-primary`, `--bg-secondary`, `--text-primary`, `--text-secondary`, and `--border-color` tokens. Eliminated dark-on-dark unreadable text in light mode and harmonized dark mode surfaces with Qwiki's slate palette.
+- **Native UI Adaptation & WCAG Contrast (`assets/extensions/page-form/style.css`)**: Scoped `color-scheme: dark` and `[data-theme="light"]` `color-scheme: light` so native checkboxes, radio buttons, and `<select>` dropdowns match the active theme. Raised secondary text, placeholders, required indicators, light/dark alert variants, danger buttons (`.form-btn-danger`), and input borders (`>= 3:1` non-text contrast) to WCAG AA standards, added `@media (forced-colors: active)` and `:focus-visible` outlines, and shielded `.form-title` from content-theme heading overrides.
+- **Admin Modal Overlay Wiring (`assets/extensions/page-form/renderer.php`, `assets/extensions/page-form/script.js`)**: Switched `#modal-form-submissions` and `#modal-edit-form-schema` from unstyled `.modal` / `.modal-content` classes to Qwiki's `.modal-overlay` / `.modal-card` and `QwikiApp.modals` lifecycle (enabling backdrop click, `Esc` dismissal, and `aria-live="polite"` submission feedback), with synced `docs/` assets and automated theme/contrast tests (`tests/test_form_styling_themes.php`).
+
+### 🔄 Headless Publish API Pull & Optimistic Concurrency
+- **Document Pull Endpoint (`api/publish.php`)**: Added `action=get_doc` (and `pull_doc` / `get_chapter` aliases) supporting category/slug or `shareKey` lookup, returning current content, status, SHA-256 hash, lock state, comments, and talk page data while respecting scoped LLM key category boundaries.
+- **Optimistic Concurrency & Lock Guard (`api/publish.php`, `tests/test_publish_pull_and_concurrency.php`)**: Added `expectedSha256` verification returning `CONFLICT_SHA256_MISMATCH` (`actualSha256`) on stale writes, plus active UI lock enforcement returning HTTP 423 (`LOCKED_BY_OTHER`) unless `force=1` is supplied.
+
+---
+
 ## [1.20.17] - BeaconFlow - 2026-11-14
 
 ### 🔍 Search Reliability & In-Document Highlighting
