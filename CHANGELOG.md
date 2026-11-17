@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.20] - MetaFlow - 2026-11-17
+
+### 🌐 OpenGraph Metadata & 404 Routing Fixes
+- **Clean Markdown OG Snippet Extraction (`lib/Core/MetadataManager.php`)**: Added `MetadataManager::extractMarkdownSnippet()` to strip Markdown syntax (fenced code blocks, images, links, horizontal rules, tables, blockquotes, lists, inline code, and leading H1 when body text follows) without stripping intra-word hyphens or underscores (e.g. `mobile-first`, `DOC_PORTAL_2026`).
+- **Explicit 404 Handling for Unknown Routes & Static Files (`index.php`, `.htaccess`)**: Returned HTTP `404` and a `Document Not Found` state when an explicit top-level book/route does not match any allowed folder instead of falling back to the homepage, and extended the `.htaccess` missing-asset 404 rule to include `.txt` and `.xml` requests.
+- **Regression Coverage (`tests/test_og_metadata.php`)**: Added automated tests verifying `extractMarkdownSnippet()` formatting/hyphen preservation and `Document Not Found` rendering for unknown 1-segment routes.
+
 ## [1.20.19] - RelayFlow - 2026-11-16
 
 ### ✉️ Form Notification & PHP `mail()` Reliability
