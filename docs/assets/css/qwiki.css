@@ -137,12 +137,24 @@ body {
 }
 
 .brand-logo img,
-.share-bar-brand img {
+.share-bar-brand img,
+.auth-gateway-brand img {
   width: auto;
   max-width: 100%;
-  height: auto;
   object-fit: contain;
   display: block;
+}
+
+.brand-logo img {
+  height: 42px;
+}
+
+.share-bar-brand img {
+  height: 24px;
+}
+
+.auth-gateway-brand img {
+  height: 36px;
 }
 
 .brand-logo:hover img {
