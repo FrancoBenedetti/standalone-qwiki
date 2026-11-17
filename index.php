@@ -1107,6 +1107,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                             data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
                                             data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                            data-og-title="<?= htmlspecialchars($activeChapter['ogTitle'] ?? '') ?>"
                                             data-description="<?= htmlspecialchars($activeChapter['description'] ?? '') ?>"
                                             data-image="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>"
                                             data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"

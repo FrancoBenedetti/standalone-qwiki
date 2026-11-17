@@ -892,6 +892,7 @@ switch ($action) {
         $url = trim($_POST['url'] ?? '');
         $editUrl = trim($_POST['editUrl'] ?? '');
         $theme = trim($_POST['theme'] ?? '');
+        $ogTitle = trim($_POST['ogTitle'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $image = trim($_POST['image'] ?? '');
         $targetBookId = trim($_POST['targetBookId'] ?? '');
@@ -982,6 +983,11 @@ switch ($action) {
                 $foundChapter['theme'] = $theme;
             } else {
                 unset($foundChapter['theme']);
+            }
+            if ($ogTitle !== '') {
+                $foundChapter['ogTitle'] = $ogTitle;
+            } else {
+                unset($foundChapter['ogTitle']);
             }
             if ($description !== '') {
                 $foundChapter['description'] = $description;

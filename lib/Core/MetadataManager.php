@@ -38,7 +38,8 @@ class MetadataManager {
 
         $siteTitle = $config['title'] ?? 'Standalone Qwiki';
         $docTitle = $activeChapter['title'] ?? ($shareError ? 'Document Share' : 'Documentation');
-        $ogTitle = $docTitle . ' - ' . $siteTitle;
+        $customOgTitle = trim($activeChapter['ogTitle'] ?? '');
+        $ogTitle = $customOgTitle !== '' ? $customOgTitle : ($docTitle . ' - ' . $siteTitle);
 
         $rawDesc = trim($activeChapter['description'] ?? '');
         $htmlFileContent = '';
@@ -163,6 +164,7 @@ class MetadataManager {
      */
     public static function renderTags(array $meta): string {
         $html = '    <link rel="canonical" href="' . htmlspecialchars($meta['canonicalUrl']) . '">' . "\n";
+        $html .= '    <meta name="description" content="' . htmlspecialchars($meta['description']) . '">' . "\n";
         $html .= '    <meta property="og:site_name" content="' . htmlspecialchars($meta['siteTitle']) . '">' . "\n";
         $html .= '    <meta property="og:type" content="article">' . "\n";
         $html .= '    <meta property="og:title" content="' . htmlspecialchars($meta['ogTitle']) . '">' . "\n";

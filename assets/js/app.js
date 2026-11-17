@@ -109,6 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (catSelect && curBookId) catSelect.value = curBookId;
 
             populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+            const ogTitleInput = document.getElementById('edit-chapter-og-title');
+            if (ogTitleInput && btnMeta.hasAttribute('data-og-title')) {
+              ogTitleInput.value = btnMeta.getAttribute('data-og-title') || '';
+            }
             const descInput = document.getElementById('edit-chapter-description');
             if (descInput && btnMeta.hasAttribute('data-description')) {
               descInput.value = btnMeta.getAttribute('data-description') || '';

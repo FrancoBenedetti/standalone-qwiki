@@ -780,6 +780,11 @@ class Navigation {
                         } elseif (array_key_exists('theme', $updatedData)) {
                             unset($ch['theme']);
                         }
+                        if (isset($updatedData['ogTitle']) && $updatedData['ogTitle'] !== '') {
+                            $ch['ogTitle'] = $updatedData['ogTitle'];
+                        } elseif (array_key_exists('ogTitle', $updatedData)) {
+                            unset($ch['ogTitle']);
+                        }
                         if (isset($updatedData['description']) && $updatedData['description'] !== '') {
                             $ch['description'] = $updatedData['description'];
                         } elseif (array_key_exists('description', $updatedData)) {

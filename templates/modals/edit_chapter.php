@@ -129,6 +129,11 @@ Last status update: <?= htmlspecialchars($activeChapter['statusUpdatedAt']) ?><?
 </div>
 
 <div class="form-group">
+<label class="form-label" for="edit-chapter-og-title">Social Media Title (Optional)</label>
+<input type="text" name="ogTitle" id="edit-chapter-og-title" class="form-control" value="<?= htmlspecialchars($activeChapter['ogTitle'] ?? '') ?>" placeholder="Overrides document title in social share previews">
+</div>
+
+<div class="form-group">
 <label class="form-label" for="edit-chapter-description">Short Description (for social sharing)</label>
 <textarea name="description" id="edit-chapter-description" class="form-control" style="min-height: 80px;"><?= htmlspecialchars($activeChapter['description'] ?? '') ?></textarea>
 </div>

@@ -70,6 +70,17 @@ function insert_chapter_into_node(&$node, $targetFolderId, $chapterData) {
     return Navigation::insertChapterIntoNode($node, $targetFolderId, $chapterData);
 }
 
+function validate_theme_filename($rawTheme) {
+    $themeFile = basename(trim((string)$rawTheme));
+    if ($themeFile === '') {
+        return '';
+    }
+    if (!preg_match('/^theme-[a-zA-Z0-9-]+\.css$/', $themeFile)) {
+        return false;
+    }
+    return $themeFile;
+}
+
 // 2. Dispatch Action
 $action = trim($_POST['action'] ?? $_GET['action'] ?? 'publish_doc');
 
@@ -119,13 +130,162 @@ if ($action === 'upload_image' || $action === 'upload_asset' || $action === 'upl
     exit;
 }
 
-if ($action === 'create_category' || $action === 'add_book') {
+if ($action === 'list_themes') {
+    $baseDir = Config::getBaseDir();
+    $themes = [];
+    $coreDir = dirname(__DIR__) . '/assets/css/';
+    $localUploadsDir = $baseDir . '/uploads/themes/';
+    $localAssetsDir = $baseDir . '/assets/css/';
+
+    foreach ([$coreDir, $localAssetsDir, $localUploadsDir] as $dir) {
+        if (is_dir($dir)) {
+            $files = scandir($dir);
+            if (is_array($files)) {
+                foreach ($files as $f) {
+                    if (preg_match('/^theme-.*\.css$/', $f) && !in_array($f, $themes, true)) {
+                        $themes[] = $f;
+                    }
+                }
+            }
+        }
+    }
+
+    sort($themes);
+    echo json_encode([
+        'success' => true,
+        'siteTheme' => $config['theme'] ?? 'theme-default.css',
+        'themes' => $themes
+    ]);
+    exit;
+}
+
+if ($action === 'get_theme') {
+    $themeFile = validate_theme_filename($_POST['theme'] ?? $_GET['theme'] ?? '');
+    if ($themeFile === '' || $themeFile === false) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid or missing theme filename (must match theme-*.css)']);
+        exit;
+    }
+
+    $baseDir = Config::getBaseDir();
+    $localUploadsPath = $baseDir . '/uploads/themes/' . $themeFile;
+    $localAssetsPath = $baseDir . '/assets/css/' . $themeFile;
+    $corePath = dirname(__DIR__) . '/assets/css/' . $themeFile;
+
+    if (file_exists($localUploadsPath)) {
+        echo json_encode(['success' => true, 'theme' => $themeFile, 'content' => file_get_contents($localUploadsPath), 'is_custom' => true]);
+    } elseif (file_exists($localAssetsPath)) {
+        echo json_encode(['success' => true, 'theme' => $themeFile, 'content' => file_get_contents($localAssetsPath), 'is_custom' => !defined('QWIKI_BASE_DIR')]);
+    } elseif (file_exists($corePath)) {
+        echo json_encode(['success' => true, 'theme' => $themeFile, 'content' => file_get_contents($corePath), 'is_custom' => false]);
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Theme not found']);
+    }
+    exit;
+}
+
+if ($action === 'save_theme' || $action === 'upload_theme') {
+    if ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Category-scoped API key cannot upload site themes']);
+        exit;
+    }
+
+    $rawTheme = $_POST['theme'] ?? '';
+    $content = $_POST['content'] ?? '';
+    if (isset($_POST['content_base64'])) {
+        $decoded = base64_decode((string)$_POST['content_base64'], true);
+        if ($decoded !== false) {
+            $content = $decoded;
+        }
+    }
+
+    $fileKey = isset($_FILES['theme']) ? 'theme' : (isset($_FILES['file']) ? 'file' : (isset($_FILES['css']) ? 'css' : null));
+    if ($fileKey && $_FILES[$fileKey]['error'] === UPLOAD_ERR_OK) {
+        if ($rawTheme === '') {
+            $rawTheme = basename($_FILES[$fileKey]['name']);
+        }
+        $content = file_get_contents($_FILES[$fileKey]['tmp_name']);
+    }
+
+    $themeFile = validate_theme_filename($rawTheme);
+    if ($themeFile === '' || $themeFile === false || trim((string)$content) === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid theme parameters: theme must match theme-*.css and CSS content must be non-empty']);
+        exit;
+    }
+
+    if (strlen((string)$content) > 512 * 1024) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Theme CSS exceeds maximum allowed size (512 KB)']);
+        exit;
+    }
+
+    $baseDir = Config::getBaseDir();
+    $saveDir = $baseDir . '/uploads/themes';
+    if (!defined('QWIKI_BASE_DIR') && is_dir($baseDir . '/assets/css')) {
+        $saveDir = $baseDir . '/assets/css';
+    }
+    if (!is_dir($saveDir)) {
+        @mkdir($saveDir, 0755, true);
+    }
+
+    $path = $saveDir . '/' . $themeFile;
+    if (file_put_contents($path, $content) !== false) {
+        echo json_encode([
+            'success' => true,
+            'theme' => $themeFile,
+            'url' => Config::getThemeUrl($themeFile)
+        ]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to save theme CSS']);
+    }
+    exit;
+}
+
+if ($action === 'set_site_theme') {
+    if ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Category-scoped API key cannot modify site theme']);
+        exit;
+    }
+
+    $themeFile = validate_theme_filename($_POST['theme'] ?? '');
+    if ($themeFile === false) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid theme filename (must match theme-*.css)']);
+        exit;
+    }
+    if ($themeFile === '') {
+        $themeFile = 'theme-default.css';
+    }
+
+    $config['theme'] = $themeFile;
+    if (Config::save($config)) {
+        echo json_encode(['success' => true, 'theme' => $themeFile]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Failed to update qwiki.json']);
+    }
+    exit;
+}
+
+if ($action === 'create_category' || $action === 'add_book' || $action === 'update_category' || $action === 'edit_category') {
     $catId = Config::makeSlug($_POST['id'] ?? $_POST['bookId'] ?? $_POST['title'] ?? '');
     $catTitle = trim($_POST['title'] ?? '');
     $catDesc = trim($_POST['description'] ?? '');
     $parentId = trim($_POST['parentId'] ?? '');
+    $hasThemeParam = isset($_POST['theme']);
+    $catTheme = $hasThemeParam ? validate_theme_filename($_POST['theme']) : '';
+    if ($catTheme === false) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid category theme filename (must match theme-*.css)']);
+        exit;
+    }
 
-    if (empty($catTitle) || empty($catId)) {
+    if (empty($catId) || (empty($catTitle) && !in_array($action, ['update_category', 'edit_category'], true))) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Category title and ID are required']);
         exit;
@@ -133,11 +293,24 @@ if ($action === 'create_category' || $action === 'add_book') {
 
     if (Navigation::isSlugTaken($catId, $config['books'] ?? [])) {
         $updated = false;
-        $updateFn = function(&$nodes) use (&$updateFn, $catId, $catTitle, $catDesc, &$updated) {
+        $resolvedTitle = $catTitle;
+        $resolvedDesc = $catDesc;
+        $resolvedTheme = '';
+        $updateFn = function(&$nodes) use (&$updateFn, $catId, $catTitle, $catDesc, $hasThemeParam, $catTheme, &$updated, &$resolvedTitle, &$resolvedDesc, &$resolvedTheme) {
             foreach ($nodes as &$node) {
                 if (($node['id'] ?? '') === $catId) {
                     if (!empty($catTitle)) $node['title'] = $catTitle;
                     if ($catDesc !== '') $node['description'] = $catDesc;
+                    if ($hasThemeParam) {
+                        if ($catTheme !== '') {
+                            $node['theme'] = $catTheme;
+                        } else {
+                            unset($node['theme']);
+                        }
+                    }
+                    $resolvedTitle = $node['title'] ?? $catTitle;
+                    $resolvedDesc = $node['description'] ?? $catDesc;
+                    $resolvedTheme = $node['theme'] ?? '';
                     $updated = true;
                     return;
                 }
@@ -154,10 +327,17 @@ if ($action === 'create_category' || $action === 'add_book') {
         echo json_encode([
             'success' => true,
             'bookId' => $catId,
-            'title' => $catTitle,
-            'description' => $catDesc,
+            'title' => $resolvedTitle,
+            'description' => $resolvedDesc,
+            'theme' => $resolvedTheme,
             'message' => ($action === 'update_category' || $action === 'edit_category') ? 'Category updated' : 'Category already exists'
         ]);
+        exit;
+    }
+
+    if (empty($catTitle)) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Category not found']);
         exit;
     }
 
@@ -193,6 +373,9 @@ if ($action === 'create_category' || $action === 'add_book') {
         if ($catDesc !== '') {
             $newNode['description'] = $catDesc;
         }
+        if ($hasThemeParam && $catTheme !== '') {
+            $newNode['theme'] = $catTheme;
+        }
 
         $inserted = false;
         foreach ($config['books'] as &$book) {
@@ -223,6 +406,9 @@ if ($action === 'create_category' || $action === 'add_book') {
         if ($catDesc !== '') {
             $newNode['description'] = $catDesc;
         }
+        if ($hasThemeParam && $catTheme !== '') {
+            $newNode['theme'] = $catTheme;
+        }
 
         if (!isset($config['books']) || !is_array($config['books'])) {
             $config['books'] = [];
@@ -236,6 +422,7 @@ if ($action === 'create_category' || $action === 'add_book') {
             'bookId' => $catId,
             'title' => $catTitle,
             'description' => $catDesc,
+            'theme' => ($hasThemeParam && $catTheme !== '') ? $catTheme : '',
             'folder' => $targetRelFolder
         ]);
         exit;
@@ -254,6 +441,7 @@ if ($action === 'list_categories' || $action === 'get_books') {
                 'id' => $book['id'] ?? '',
                 'title' => $book['title'] ?? '',
                 'description' => $book['description'] ?? '',
+                'theme' => $book['theme'] ?? '',
                 'folder' => $book['folder'] ?? ('content/' . ($book['id'] ?? ''))
             ];
         }
@@ -391,6 +579,7 @@ if ($action === 'list_chapters' || $action === 'get_chapters') {
                             'title' => $item['title'] ?? '',
                             'slug' => $slug,
                             'type' => $item['type'] ?? 'markdown',
+                            'theme' => $item['theme'] ?? '',
                             'file' => $item['file'] ?? '',
                             'shareKey' => $sKey,
                             'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
@@ -573,6 +762,7 @@ if ($action === 'get_doc' || $action === 'pull_doc' || $action === 'get_chapter'
         'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
         'url' => $baseUrl . urlencode($resolvedBookId) . '/' . urlencode($resolvedSlug),
         'publicShareable' => !isset($matchedChapter['publicShareable']) ? true : (bool)$matchedChapter['publicShareable'],
+        'theme' => $matchedChapter['theme'] ?? '',
         'allowComments' => $matchedChapter['allowComments'] ?? null,
         'allowTalk' => $matchedChapter['allowTalk'] ?? null,
         'approver' => $matchedChapter['approver'] ?? '',
@@ -731,8 +921,16 @@ if (!in_array($type, ['markdown', 'html'], true)) {
     $type = 'markdown';
 }
 
+$ogTitle = trim($_POST['ogTitle'] ?? ($_POST['og_title'] ?? ''));
 $description = trim($_POST['description'] ?? '');
 $providedShareKey = trim($_POST['shareKey'] ?? '');
+$hasThemeParam = isset($_POST['theme']);
+$providedTheme = $hasThemeParam ? validate_theme_filename($_POST['theme']) : '';
+if ($providedTheme === false) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => 'Invalid chapter theme filename (must match theme-*.css)']);
+    exit;
+}
 $publicShareable = true;
 if (isset($_POST['publicShareable'])) {
     $val = $_POST['publicShareable'];
@@ -1069,11 +1267,21 @@ if (!empty($_POST['approverNote']) || !empty($_POST['note'])) {
 if (!$publicShareable) {
     $chapterData['publicShareable'] = false;
 }
+if (!empty($ogTitle)) {
+    $chapterData['ogTitle'] = $ogTitle;
+}
 if (!empty($description)) {
     $chapterData['description'] = $description;
 }
 if (!empty($image)) {
     $chapterData['image'] = $image;
+}
+if ($hasThemeParam) {
+    if ($providedTheme !== '') {
+        $chapterData['theme'] = $providedTheme;
+    }
+} elseif ($existingChapter && !empty($existingChapter['theme'])) {
+    $chapterData['theme'] = $existingChapter['theme'];
 }
 
 // Validate optional translations metadata
@@ -1121,6 +1329,7 @@ if ($saved && Config::save($config)) {
         'slug' => $slug,
         'file' => $targetRelFile,
         'type' => $type,
+        'theme' => $chapterData['theme'] ?? '',
         'shareKey' => $shareKey,
         'status' => $docStatus,
         'statusUpdatedAt' => $chapterData['statusUpdatedAt'],

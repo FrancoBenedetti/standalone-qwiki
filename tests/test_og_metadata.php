@@ -182,6 +182,44 @@ $notFoundHtml = renderDocPage('nonexistent-route-slug', false);
 assertCondition("Unknown 1-segment route renders Document Not Found instead of homepage fallback",
     strpos($notFoundHtml, 'Document Not Found') !== false, $failures);
 
+// ----------------------------------------------------
+echo "\n--- 4. Social Media Title (ogTitle) Override & Meta Description Tests ---\n";
+
+$metaDefault = \Qwiki\Core\MetadataManager::resolveArticleMetadata(
+    ['title' => 'Services & Pricing', 'slug' => 'services', 'description' => 'Short SEO summary'],
+    ['id' => 'home'],
+    ['title' => 'Qwiki'],
+    'https://home.qwiki.wiki',
+    __DIR__ . '/..'
+);
+assertCondition("ogTitle defaults to '<Document Title> - <Site Title>' when ogTitle is unset",
+    $metaDefault['ogTitle'] === 'Services & Pricing - Qwiki', $failures);
+
+$metaCustom = \Qwiki\Core\MetadataManager::resolveArticleMetadata(
+    ['title' => 'Services & Pricing', 'ogTitle' => 'Enterprise Documentation Modernisation — Qwiki', 'slug' => 'services', 'description' => 'Short SEO summary'],
+    ['id' => 'home'],
+    ['title' => 'Qwiki'],
+    'https://home.qwiki.wiki',
+    __DIR__ . '/..'
+);
+assertCondition("Custom ogTitle overrides ogTitle while preserving short docTitle",
+    $metaCustom['ogTitle'] === 'Enterprise Documentation Modernisation — Qwiki' && $metaCustom['docTitle'] === 'Services & Pricing', $failures);
+
+$renderedTags = \Qwiki\Core\MetadataManager::renderTags($metaCustom);
+assertCondition("renderTags emits standard meta description, og:title, and twitter:title with override",
+    strpos($renderedTags, '<meta name="description" content="Short SEO summary">') !== false &&
+    strpos($renderedTags, '<meta property="og:title" content="Enterprise Documentation Modernisation — Qwiki">') !== false &&
+    strpos($renderedTags, '<meta name="twitter:title" content="Enterprise Documentation Modernisation — Qwiki">') !== false, $failures);
+
+update_chapter_in_node($testNode, 'technical-dossier-alfalfa', ['ogTitle' => 'Custom Social Title']);
+update_chapter_in_node($testNode, 'technical-dossier-alfalfa', ['shareKey' => 'xyz987']);
+assertCondition("Partial update preserves ogTitle",
+    ($testNode['items'][0]['ogTitle'] ?? '') === 'Custom Social Title', $failures);
+
+update_chapter_in_node($testNode, 'technical-dossier-alfalfa', ['ogTitle' => '']);
+assertCondition("Explicit clearing of ogTitle unsets ogTitle",
+    !isset($testNode['items'][0]['ogTitle']), $failures);
+
 echo "\n----------------------------------------------------\n";
 if ($failures === 0) {
     echo "🎉 ALL OG METADATA & CHAPTER PRESERVATION TESTS PASSED! (0 failures)\n";
