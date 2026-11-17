@@ -933,7 +933,7 @@ switch ($action) {
         $statusChangeInfo = null;
 
         $updateResult = find_chapter_and_update($config['books'], $slug, function(&$foundChapter, &$foundParentNode, $topBookId) use (
-            $title, $type, $url, $editUrl, $publicShareable, $theme, $description, $image, $newSlug, $slug,
+            $title, $type, $url, $editUrl, $publicShareable, $theme, $ogTitle, $description, $image, $newSlug, $slug,
             $targetBookId, $baseDir, &$config, $readOnly, $actor, $tabId, &$lockFailure, &$statusChangeInfo
         ) {
             $currentParentId = $foundParentNode['id'] ?? $topBookId;
