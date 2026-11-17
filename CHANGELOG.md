@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.21] - ThemeFlow - 2026-11-17
+
+### 🎨 Publish API Theme Management & Social Metadata
+- **Headless Theme API (`api/publish.php`, `tests/test_publish_theme_api.php`)**: Added `list_themes`, `get_theme`, `save_theme` (`upload_theme`), and `set_site_theme` actions with strict `theme-*.css` filename validation and category-scope permission checks.
+- **Custom Social Media Title & Meta Description (`lib/Core/MetadataManager.php`, `lib/Core/Navigation.php`, `api/admin.php`, `templates/modals/edit_chapter.php`, `index.php`, `assets/js/app.js`, `tests/test_og_metadata.php`)**: Added optional `ogTitle` ("Social Media Title") support across the chapter edit modal, admin API, and navigation tree, and rendered `<meta name="description">` alongside OpenGraph tags in `MetadataManager::renderTags()`.
+
 ## [1.20.20] - MetaFlow - 2026-11-17
 
 ### 🌐 OpenGraph Metadata & 404 Routing Fixes
