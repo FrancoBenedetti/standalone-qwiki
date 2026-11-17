@@ -53,12 +53,7 @@ class MetadataManager {
                     $rawDesc = (string)$fmData['metadata']['description'];
                 }
                 if (empty($rawDesc)) {
-                    $cleanSnippet = $fmData['body'];
-                    $cleanSnippet = preg_replace('/```[\s\S]*?```/', '', $cleanSnippet);
-                    $cleanSnippet = preg_replace('/!\[.*?\]\(.*?\)/', '', $cleanSnippet);
-                    $cleanSnippet = preg_replace('/\[(.*?)\]\(.*?\)/', '$1', $cleanSnippet);
-                    $cleanSnippet = preg_replace('/[#*_>`~=-]/', '', $cleanSnippet);
-                    $cleanSnippet = trim(preg_replace('/\s+/', ' ', strip_tags($cleanSnippet)));
+                    $cleanSnippet = self::extractMarkdownSnippet($fmData['body']);
                     if (!empty($cleanSnippet)) {
                         $rawDesc = (mb_strlen($cleanSnippet) > 160) ? mb_substr($cleanSnippet, 0, 157) . '...' : $cleanSnippet;
                     }
@@ -424,5 +419,30 @@ class MetadataManager {
         $html .= '</div>' . "\n";
 
         return $html;
+    }
+
+    /**
+     * Convert Markdown body into a plain-text summary snippet without stripping intra-word hyphens/underscores.
+     */
+    public static function extractMarkdownSnippet(string $markdown): string {
+        $text = preg_replace('/```[\s\S]*?```/', '', $markdown);
+        $text = preg_replace('/!\[.*?\]\(.*?\)/', '', $text);
+        $text = preg_replace('/\[(.*?)\]\(.*?\)/', '$1', $text);
+        $text = preg_replace('/^\s*[-*_]{3,}\s*$/m', '', $text);
+        $text = preg_replace('/^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*$/m', '', $text);
+
+        $withoutH1 = preg_replace('/^\s*#\s+[^\r\n]+[\r\n]*/', '', ltrim($text), 1);
+        $hasOtherText = trim(preg_replace('/\s+/', ' ', strip_tags(preg_replace('/^\s*#{1,6}\s+/m', '', $withoutH1)))) !== '';
+        if ($hasOtherText) {
+            $text = $withoutH1;
+        }
+
+        $text = preg_replace('/^\s*#{1,6}\s+/m', '', $text);
+        $text = preg_replace('/^\s*>+\s?/m', '', $text);
+        $text = preg_replace('/^\s*[-*+]\s+/m', '', $text);
+        $text = preg_replace('/^\s*\d+\.\s+/m', '', $text);
+        $text = str_replace(['`', '|'], ['', ' '], $text);
+        $text = preg_replace('/(?<!\w)[*_~]+|[*_~]+(?!\w)/', '', $text);
+        return trim(preg_replace('/\s+/', ' ', strip_tags($text)));
     }
 }

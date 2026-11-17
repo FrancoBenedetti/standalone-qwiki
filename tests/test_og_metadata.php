@@ -165,6 +165,23 @@ foreach ($afterShareConfig['books'][0]['items'] as $it) {
 assertCondition("get_or_create_share_key API does NOT wipe description from qwiki.json", 
     $savedDesc === 'Preserved Technical Description', $failures);
 
+// ----------------------------------------------------
+echo "\n--- 3. Markdown OG Snippet & 404 Routing Regression Tests ---\n";
+
+$mdSample = "# Tal-Tec Equipment Hub\n\nWelcome to the **mobile-first**, Zero-Database portal for `DOC_PORTAL_2026`.\n\n---\n\n- Built with [Qwiki Builder](https://qwiki.wiki) & _plain_ files.";
+$snippet = \Qwiki\Core\MetadataManager::extractMarkdownSnippet($mdSample);
+
+assertCondition("extractMarkdownSnippet drops leading H1 when body text follows",
+    strpos($snippet, 'Tal-Tec Equipment Hub') === false, $failures);
+assertCondition("extractMarkdownSnippet preserves intra-word hyphens and underscores",
+    strpos($snippet, 'mobile-first') !== false && strpos($snippet, 'Zero-Database') !== false && strpos($snippet, 'DOC_PORTAL_2026') !== false, $failures);
+assertCondition("extractMarkdownSnippet strips Markdown formatting tokens cleanly",
+    strpos($snippet, '**') === false && strpos($snippet, '`') === false && strpos($snippet, '---') === false && strpos($snippet, 'plain files.') !== false, $failures);
+
+$notFoundHtml = renderDocPage('nonexistent-route-slug', false);
+assertCondition("Unknown 1-segment route renders Document Not Found instead of homepage fallback",
+    strpos($notFoundHtml, 'Document Not Found') !== false, $failures);
+
 echo "\n----------------------------------------------------\n";
 if ($failures === 0) {
     echo "🎉 ALL OG METADATA & CHAPTER PRESERVATION TESTS PASSED! (0 failures)\n";

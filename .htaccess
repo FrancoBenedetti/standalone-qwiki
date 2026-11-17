@@ -11,7 +11,7 @@ DirectoryIndex index.php index.html
     RewriteRule (^|/)content(/|$) - [F,L]
 
     # Return 404 directly for missing static assets instead of routing to index.php
-    RewriteCond %{REQUEST_URI} \.(pdf|png|jpe?g|gif|svg|webp|ico|zip|docx?|xlsx?)$ [NC]
+    RewriteCond %{REQUEST_URI} \.(pdf|png|jpe?g|gif|svg|webp|ico|zip|docx?|xlsx?|txt|xml)$ [NC]
     RewriteCond %{QUERY_STRING} !view=raw [NC]
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ - [R=404,L]

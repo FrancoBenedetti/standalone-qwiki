@@ -302,7 +302,13 @@ if (!$isShareMode && !$shareError) {
         }
     }
 
-    if (!$activeBook && !empty($allowedBooks)) {
+    $isDocumentNotFound = false;
+
+    if (!$activeBook && !$isAccessRestricted && $hasExplicitRoute && !empty($requestedBookId)) {
+        $isDocumentNotFound = true;
+        http_response_code(404);
+        $breadcrumbsTrail = [['title' => 'Document Not Found', 'id' => '']];
+    } elseif (!$activeBook && !empty($allowedBooks)) {
         foreach ($allowedBooks as $b) {
             if (($b['type'] ?? 'folder') === 'folder') {
                 $activeBook = $b;
