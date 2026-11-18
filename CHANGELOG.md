@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.22] - LumenFlow - 2026-11-18
+
+### 🎨 SVG Brand Logo Sizing & Light-Mode Code/Diagram Styling
+- **Flex-Container SVG Brand Logo Fix (`assets/css/qwiki.css`, `docs/assets/css/qwiki.css`)**: Assigned explicit target heights (`42px` for `.brand-logo img`, `24px` for `.share-bar-brand img`, and `36px` for `.auth-gateway-brand img`) alongside `width: auto; max-width: 100%; object-fit: contain;` so percentage-sized SVGs (`width="100%" height="100%"` with only a `viewBox`) no longer collapse to `0px × 0px` inside shrink-to-fit `display: flex` containers while preserving aspect ratios and compact spacing next to subwiki separators.
+- **Light-Mode Preformatted Blocks & Box-Drawing Diagrams (`assets/css/qwiki.css`, `assets/js/app.js`)**: Introduced `--code-bg` and `--code-text` CSS variables so `.content-body pre` and `.content-body pre code` adapt cleanly between dark (`#0d1117` / `#e6edf3`) and light (`#f1f5f9` / `#0f172a`) themes, added a light-mode surface for `.qwiki-frontmatter-raw pre`, and styled Unicode box-drawing tables and Svgbob fallback blocks via `.pre-diagram` on `--bg-secondary` with a subtle shadow.
+
 ## [1.20.21] - ThemeFlow - 2026-11-17
 
 ### 🎨 Publish API Theme Management & Social Metadata
