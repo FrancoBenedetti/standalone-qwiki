@@ -4106,6 +4106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Unicode box-drawing diagrams & tables are rendered as crisp monospace pre blocks
       if (hasBoxChars && !isExplicitSvgbob) {
+        pre.classList.add('pre-diagram');
         pre.style.lineHeight = '1.0';
         pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         pre.style.letterSpacing = '0px';
@@ -4137,6 +4138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Fallback styling if Svgbob could not render
+        pre.classList.add('pre-diagram');
         pre.style.lineHeight = '1.0';
         pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         block.style.fontFamily = 'inherit';

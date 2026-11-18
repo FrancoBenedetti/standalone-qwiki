@@ -26,6 +26,8 @@
   --scrollbar-thumb: rgba(148, 163, 184, 0.22);
   --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
   --scrollbar-track: transparent;
+  --code-bg: #0d1117;
+  --code-text: #e6edf3;
 }
 
 [data-theme="light"] {
@@ -49,6 +51,8 @@
   --scrollbar-thumb: rgba(100, 116, 139, 0.22);
   --scrollbar-thumb-hover: rgba(100, 116, 139, 0.45);
   --scrollbar-track: transparent;
+  --code-bg: #f1f5f9;
+  --code-text: #0f172a;
 }
 
 /* Global Subtle Scrollbars */
@@ -1260,7 +1264,8 @@ mark.qwiki-search-mark.qwiki-search-mark-active {
 }
 
 .content-body pre {
-  background: #0d1117;
+  background: var(--code-bg);
+  color: var(--code-text);
   padding: 1.25rem;
   border-radius: var(--radius-md);
   overflow-x: auto;
@@ -1270,11 +1275,17 @@ mark.qwiki-search-mark.qwiki-search-mark-active {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
+.content-body pre.pre-diagram {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
 .content-body pre code {
   background: none;
   border: none;
   padding: 0;
-  color: #e6edf3;
+  color: inherit;
   line-height: inherit;
   font-family: inherit;
 }
@@ -2569,6 +2580,10 @@ body.mode-fullscreen .gdoc-container iframe {
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
   overflow-x: auto;
+}
+
+[data-theme="light"] .qwiki-frontmatter-raw pre {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 @media print {
