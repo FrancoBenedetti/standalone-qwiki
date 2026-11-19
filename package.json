@@ -1,4 +1,6 @@
 {
+  "private": true,
+  "license": "MIT",
   "dependencies": {
     "jsdom": "^30.0.1"
   }
