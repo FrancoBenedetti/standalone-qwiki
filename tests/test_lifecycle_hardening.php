@@ -252,6 +252,43 @@ $getOut = ob_get_clean();
 $getJson = json_decode($getOut, true);
 assertTest(is_array($getJson) && !empty($getJson['success']) && ($getJson['revision']['isBinary'] ?? false) === true && $getJson['revision']['content'] === null, 'ext_revisions_get safely serializes binary revision without failing json_encode');
 
+// 8. api/admin.php delete_book integration test for non-empty category
+echo "\n--- 8. api/admin.php delete_book Non-Empty Category Flow ---\n";
+$runAdminDeleteBook = function (array $postParams) use ($tempDir): array {
+    $runnerCode = sprintf(
+        'define("QWIKI_BASE_DIR", %s); ' .
+        'require_once %s; ' .
+        'require_once %s; ' .
+        '\Qwiki\Core\Config::init(QWIKI_BASE_DIR); ' .
+        '\Qwiki\Core\Auth::startSession(); ' .
+        '$_SESSION["qwiki_instance"] = \Qwiki\Core\Auth::getInstanceIdentifier(); ' .
+        '$_SESSION["qwiki_user"] = ["username" => "tester", "role" => "admin"]; ' .
+        '$_POST = %s; $_REQUEST = $_POST; ' .
+        'include %s;',
+        var_export($tempDir, true),
+        var_export(__DIR__ . '/../lib/Core/Config.php', true),
+        var_export(__DIR__ . '/../lib/Core/Auth.php', true),
+        var_export($postParams, true),
+        var_export(__DIR__ . '/../api/admin.php', true)
+    );
+    $cmd = 'php -r ' . escapeshellarg($runnerCode) . ' 2>&1';
+    $out = shell_exec($cmd);
+    $decoded = is_string($out) ? json_decode($out, true) : null;
+    return ['raw' => $out, 'json' => $decoded];
+};
+
+$step1 = $runAdminDeleteBook(['action' => 'delete_book', 'bookId' => 'cat-a']);
+assertTest(
+    is_array($step1['json']) && !empty($step1['json']['requiresConfirmation']) && is_array($step1['json']['targetCategories'] ?? null),
+    'delete_book on non-empty category returns requiresConfirmation and targetCategories JSON (got: ' . trim((string)$step1['raw']) . ')'
+);
+
+$step2 = $runAdminDeleteBook(['action' => 'delete_book', 'bookId' => 'cat-a', 'mode' => 'trash']);
+assertTest(
+    is_array($step2['json']) && !empty($step2['json']['success']) && !empty($step2['json']['trashed']),
+    'delete_book with mode=trash succeeds on non-empty category'
+);
+
 // Cleanup temp directory
 function rrmdir($dir) {
     if (!is_dir($dir)) return;

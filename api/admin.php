@@ -649,7 +649,7 @@ switch ($action) {
             };
             $collectExcluded($targetCat);
             $targetCategories = [];
-            foreach (Navigation::getCategoryHierarchy($config['books'] ?? []) as $catItem) {
+            foreach (Navigation::getCategoriesHierarchy($config['books'] ?? [], '', 0, null, true, true) as $catItem) {
                 if (!isset($excludedIds[$catItem['id'] ?? ''])) {
                     $targetCategories[] = [
                         'id' => $catItem['id'],

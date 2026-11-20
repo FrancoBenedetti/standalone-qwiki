@@ -500,6 +500,13 @@ class Navigation {
     }
 
     /**
+     * Alias for getCategoriesHierarchy (defaults to admin visibility when called from admin flows).
+     */
+    public static function getCategoryHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null, bool $isAdmin = true, bool $isViewer = true): array {
+        return self::getCategoriesHierarchy($nodes, $prefix, $depth, $parentFolder, $isAdmin, $isViewer);
+    }
+
+    /**
      * Checks if a slug is already taken across all categories and documents.
      */
     public static function isSlugTaken(string $slug, array $nodes, ?string $currentSlug = null): bool {
