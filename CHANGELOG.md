@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.23] - LicenseFlow - 2026-11-20
+
+### 📜 Licensing & Third-Party Attributions
+- **MIT License File (`LICENSE`)**: Added the standard MIT License file in the repository root (`Copyright (c) 2026 Franco Benedetti`) to formalize the open-source license declared in `README.md` and enable automated license detection.
+- **Third-Party Attributions (`THIRD_PARTY_LICENSES.md`)**: Documented upstream MIT copyright and permission notices for bundled libraries (`lib/Parsedown.php`, `lib/simple_html_dom.php`, and `assets/js/qrcode.min.js`).
+- **Package Metadata (`package.json`)**: Added `"private": true` and `"license": "MIT"` to `package.json`.
+
 ## [1.20.22] - LumenFlow - 2026-11-18
 
 ### 🎨 SVG Brand Logo Sizing & Light-Mode Code/Diagram Styling
