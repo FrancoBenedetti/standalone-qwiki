@@ -102,15 +102,23 @@ try {
         echo "FAIL: brand-header-group container missing in parent wiki\n";
         exit(1);
     }
-    if (strpos($parentHtml, 'class="brand-subwiki-badge"') !== false) {
-        echo "FAIL: brand-subwiki-badge must NOT be rendered in parent wiki\n";
+    if (strpos($parentHtml, 'class="brand-separator"') === false) {
+        echo "FAIL: brand-separator missing in parent wiki header\n";
         exit(1);
     }
-    if (strpos($parentHtml, 'class="brand-separator"') !== false) {
-        echo "FAIL: brand-separator must NOT be rendered in parent wiki\n";
+    if (strpos($parentHtml, 'class="brand-subwiki-badge"') === false) {
+        echo "FAIL: brand-subwiki-badge missing in parent wiki header\n";
         exit(1);
     }
-    echo "1. Parent wiki header renders logo without subwiki badge: PASS\n";
+    if (strpos($parentHtml, '<span class="subwiki-badge-title">MoWiki</span>') === false) {
+        echo "FAIL: Parent wiki title 'MoWiki' must appear in header badge\n";
+        exit(1);
+    }
+    if (strpos($parentHtml, '<span class="subwiki-badge-icon">📚</span>') === false) {
+        echo "FAIL: Wiki header badge must use 📚 icon\n";
+        exit(1);
+    }
+    echo "1. Parent wiki header renders logo and wiki name badge: PASS\n";
 
     // 4. Test Subwiki Header Rendering
     $_SERVER['SCRIPT_NAME'] = '/library/index.php';

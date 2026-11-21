@@ -151,13 +151,13 @@ When logged in as an **Admin**, drag handles (`⣿`) appear next to every menu i
 
 ---
 
-## 🌐 12. Subwiki Management & Collision Protection
+## 📚 12. Subwiki Management, Header Wiki Selector & Collision Protection
 
-- **Single-Level Subwiki Deployments**: Administrators in parent wikis can provision independent, single-level subwikis with dedicated admin accounts directly from the UI (`🌐 Subwikis`).
+- **Single-Level Subwiki Deployments**: Administrators in parent wikis can provision independent, single-level subwikis with dedicated admin accounts directly from the UI (`📚 Subwikis`).
 - **Bi-Directional Slug Collision Prevention**: Real-time validation ensures that new subwikis cannot shadow parent categories, and parent categories cannot share names with subwiki folders or reserved system directories.
 - **Logical Dashed Grouping**: Subwikis cannot deploy nested child wikis; hierarchical multi-team structures are grouped using dashed slugs (e.g. `engineering-electrical`, `engineering-mechanical`).
 - **Live Dynamic Parent Wiki Title**: Subwikis dynamically inspect the parent wiki's `qwiki.json` to reflect live parent wiki title renames on the sidebar "← Back to..." banner, eliminating stale names. Subwiki administrators can also configure custom parent titles and target URLs in Settings.
-- **Header Breadcrumbs & Brand Wayfinding**: In subwikis, the top-left header brand transforms into a dual-level breadcrumb: the company logo links directly back to the parent wiki, followed by a `/` separator and an interactive subwiki badge linking to the subwiki home. In distraction-free share mode, a complementary subwiki badge identifies content provenance.
+- **Always-Visible Header Wiki Name & GitHub-Style Wiki Selector**: Every wiki and subwiki clearly displays its title badge (`📚 [Wiki Name]`) next to the brand logo and `/` separator in the top header bar (and in distraction-free share mode). When **"Show Subwikis Selector in Header Bar"** (`showSubwikisInSidebar`) is enabled for a wiki, the header badge becomes an interactive GitHub-style context switcher dropdown featuring a real-time **"Find a wiki..."** search filter, document count badges, checkmark indicator for the active wiki, and keyboard navigation (`ArrowDown`/`ArrowUp`/`Enter`/`Escape`).
 - **Automated Cascading Updates**: When the parent wiki installs core updates, code changes (`lib/`, `assets/`, `api/`, `index.php`) are automatically pushed to all child subwikis while preserving child content, uploads, and accounts.
 - **Zero Broken Links & Image Normalization**: Background migration safely flattens any legacy nested subwikis and normalizes article image references.
 
@@ -362,3 +362,14 @@ Standalone Qwiki includes an optional per-document version history extension (`t
 - **Preview, Binary Inspection & Raw Download**: Launch **🕒 Revision History** from the document toolbar or **Edit Document Entry Details ➔ General** to browse chronological snapshots with actor and source attribution, preview text diffs/contents, inspect binary file metadata (size and SHA-256 hash), or download raw `.bak` snapshots.
 - **1-Click Lock-Verified Restore**: Revert any document to a previous snapshot with one click; Qwiki verifies active `LockManager` soft-locks and automatically snapshots the current state before restoring.
 - **Configurable Retention & Cleanup**: Configure the maximum snapshots retained per document (`revisionsMaxPerDoc`, default `20`, range `1–200`) in **⚙️ Settings ➔ 🌐 General**. Revision histories are automatically purged when a document is permanently deleted or emptied from Trash.
+
+---
+
+## 🌐 28. Multi-Language UI & Internationalization (`tool-language`)
+
+Standalone Qwiki includes a toggleable UI language and internationalization extension (`tool-language`) powered by `Qwiki\Core\Translator` and `assets/js/core/i18n.js`:
+
+- **Built-in Language Packs**: Ships with full interface translations for **English** (`en`), **Afrikaans** (`af`), and **Italian** (`it`) covering headers, navigation, authentication gateways, modals, extensions, and client-side notifications.
+- **Header, Auth & Share Bar Language Selector**: Renders a compact `🌐` language picker in the top bar (and on the login gateway and share bar) with instant `localStorage` and cookie synchronization (`qwiki_lang`).
+- **Toast UI Editor Locale Synchronization**: Automatically maps the active UI language to Toast UI Editor localization packs (`en-US`, `af`, `it-IT`) so Markdown toolbar tooltips and editor dialogs match the selected language.
+- **Zero-Overhead English Default & Per-Wiki Toggle**: When English is active or the **UI Language Selector** extension is disabled in **⚙️ Settings ➔ 🧩 Extensions**, Qwiki emits an empty JS dictionary and falls back directly to inline English defaults with zero runtime overhead.

@@ -1,6 +1,8 @@
 <?php
 namespace Qwiki\Core;
 
+require_once __DIR__ . '/Translator.php';
+
 class Navigation {
     public const VALID_STATUSES = ['draft', 'review', 'published', 'archived'];
     public const DEFAULT_STATUS = 'published';
@@ -201,20 +203,20 @@ class Navigation {
 
         echo "<a href='{$safeUrl}' {$targetAttr} class='nav-link nav-link-hyperlink {$depthClass}' {$docDragAttr}>";
         echo "<span class='nav-link-title-container'>";
-        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
         if ($depth === 0) echo "<span class='top-link-icon'>🔗</span> ";
         echo "{$safeTitle}</span>";
 
         echo "<span class='nav-link-actions-container'>";
         if ($isAdmin) {
-            echo "<button type='button' class='btn-edit-link-icon' data-book-id='" . htmlspecialchars($bookId) . "' data-slug='{$safeSlug}' data-title='{$safeTitle}' data-url='{$safeUrl}' data-description='{$chDesc}' data-visibility='" . htmlspecialchars($visibility) . "' title='Edit Link'>⚙️</button> ";
+            echo "<button type='button' class='btn-edit-link-icon' data-book-id='" . htmlspecialchars($bookId) . "' data-slug='{$safeSlug}' data-title='{$safeTitle}' data-url='{$safeUrl}' data-description='{$chDesc}' data-visibility='" . htmlspecialchars($visibility) . "' title='" . htmlspecialchars(\__('sidebar.edit_link', 'Edit Link')) . "'>⚙️</button> ";
         }
 
         if ($isAdmin || !$showDocTypesOnlyToAdmin) {
             if ($isExternal) {
-                echo "<span class='doc-badge badge-link' title='External Link (Opens in new tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg></span>";
+                echo "<span class='doc-badge badge-link' title='" . htmlspecialchars(\__('sidebar.external_link_title', 'External Link (Opens in new tab)')) . "'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg></span>";
             } else {
-                echo "<span class='doc-badge badge-internal-link' title='Internal Link (Opens in same tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path><path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path></svg></span>";
+                echo "<span class='doc-badge badge-internal-link' title='" . htmlspecialchars(\__('sidebar.internal_link_title', 'Internal Link (Opens in same tab)')) . "'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path><path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path></svg></span>";
             }
         }
         echo "</span>";
@@ -261,10 +263,12 @@ class Navigation {
         echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' data-category-id='{$safeNodeId}' {$draggableAttr}>";
         echo "<div class='nav-category-header'{$headerTitleAttr}>";
         echo "<span>";
-        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
         echo "{$icon} " . htmlspecialchars($nodeTitle);
         if ($isCatProtected) {
-            $lockTitle = $isCatDirectlyReadOnly ? 'Protected Category (Locked against deletion)' : 'Protected Category (Contains protected documents)';
+            $lockTitle = $isCatDirectlyReadOnly
+                ? \__('sidebar.protected_cat_locked', 'Protected Category (Locked against deletion)')
+                : \__('sidebar.protected_cat_contains', 'Protected Category (Contains protected documents)');
             echo " <span class='cat-lock-icon' title='" . htmlspecialchars($lockTitle) . "' style='font-size: 0.8rem; opacity: 0.8; vertical-align: middle;'>🔒</span>";
         }
         echo "</span>";
@@ -272,7 +276,7 @@ class Navigation {
         if ($isAdmin) {
             $catAllowComments = !empty($node['allowComments']) ? '1' : '0';
             $catAllowTalk = isset($node['allowTalk']) ? ($node['allowTalk'] ? '1' : '0') : '0';
-            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' data-book-allow-talk='{$catAllowTalk}' title='Edit Category'>⚙️</button> ";
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' data-book-allow-talk='{$catAllowTalk}' title='" . htmlspecialchars(\__('sidebar.edit_category', 'Edit Category')) . "'>⚙️</button> ";
         }
         echo "<span class='chevron-icon'>▾</span>";
         echo "</span>";
@@ -313,11 +317,12 @@ class Navigation {
 
                     echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
                     echo "<span>";
-                    if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+                    if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
                     echo htmlspecialchars($ch['title'] ?? '') . "</span>";
                     $chStatus = strtolower($ch['status'] ?? self::DEFAULT_STATUS);
                     if ($isAdmin && $chStatus !== self::DEFAULT_STATUS) {
-                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='Status: " . htmlspecialchars(ucfirst($chStatus)) . "'>●</span>";
+                        $statusLabel = \__('status.' . $chStatus, ucfirst($chStatus));
+                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='" . htmlspecialchars(\__('sidebar.status_title', 'Status: {status}', ['status' => $statusLabel])) . "'>●</span>";
                     }
 
                     if ($isAdmin || !$showDocTypesOnlyToAdmin) {
@@ -341,7 +346,7 @@ class Navigation {
                                 $iconSvg = htmlspecialchars($docType);
                             }
                         }
-                        echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars($badgeTitle) . " Document'>{$iconSvg}</span>";
+                        echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars(\__('sidebar.doc_type_badge', '{type} Document', ['type' => $badgeTitle])) . "'>{$iconSvg}</span>";
                     }
                     echo "</a>";
                 }

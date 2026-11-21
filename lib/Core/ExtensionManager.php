@@ -3,6 +3,7 @@ namespace Qwiki\Core;
 
 require_once __DIR__ . '/QwikiParsedown.php';
 require_once __DIR__ . '/MetadataManager.php';
+require_once __DIR__ . '/Translator.php';
 
 class ExtensionManager {
     private static $instance = null;
@@ -210,11 +211,12 @@ class ExtensionManager {
                 }
             }
             $escapedPdfUrl = htmlspecialchars($pdfViewUrl);
+            $downloadPdfLabel = htmlspecialchars(\__('doc.download_original_pdf', 'Download Original PDF'));
             return "
                 <div class=\"pdf-viewer-container\">
                     <iframe src=\"{$escapedPdfUrl}\" title=\"PDF Viewer\"></iframe>
                 </div>
-                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">Download Original PDF</a></p>
+                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">{$downloadPdfLabel}</a></p>
             ";
         }
 
@@ -264,9 +266,10 @@ class ExtensionManager {
                 $content = ob_get_clean();
 
                 if ($isReadOnly) {
-                    $extTitle = htmlspecialchars($ext['title'] ?? ucfirst($type));
+                    $extTitle = htmlspecialchars(\__('ext.' . $type . '.title', $ext['title'] ?? ucfirst($type)));
+                    $noticeMsg = \__('ext.readonly_banner_html', '<strong>Read-only mode:</strong> The <em>{title}</em> extension is disabled on this wiki. Editing is disabled.', ['title' => $extTitle]);
                     $notice = "<div class=\"alert alert-info\" style=\"margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;\">"
-                        . "<span>🔒</span> <span><strong>Read-only mode:</strong> The <em>{$extTitle}</em> extension is disabled on this wiki. Editing is disabled.</span>"
+                        . "<span>🔒</span> <span>{$noticeMsg}</span>"
                         . "</div>\n";
                     return $notice . $content;
                 }
@@ -430,7 +433,7 @@ class ExtensionManager {
         foreach ($this->getEnabledPageTypes() as $id => $ext) {
             $tabId = 'tab-ext-' . htmlspecialchars($id);
             $icon = $ext['icon'] ?? '📄';
-            $title = htmlspecialchars($ext['title'] ?? ucfirst($id));
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $ext['title'] ?? ucfirst($id)));
             echo "<button class='tab-btn' data-tab='{$tabId}'>{$icon} {$title}</button>\n";
         }
     }
@@ -471,7 +474,7 @@ class ExtensionManager {
                 continue;
             }
             $icon = $util['icon'] ?? '⚡';
-            $title = htmlspecialchars($util['title'] ?? ucfirst($id));
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $util['title'] ?? ucfirst($id)));
             $btnId = 'btn-util-' . htmlspecialchars($id);
             echo "<button class='dropdown-item' id='{$btnId}'><span class='dropdown-item-icon'>{$icon}</span> <span class='dropdown-item-text'>{$title}</span></button>\n";
         }
@@ -488,9 +491,28 @@ class ExtensionManager {
                 continue;
             }
             $icon = $util['icon'] ?? '⚡';
-            $title = htmlspecialchars($util['title'] ?? ucfirst($id));
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $util['title'] ?? ucfirst($id)));
             $btnId = 'btn-chapter-' . htmlspecialchars($id);
             echo "<button type='button' class='btn btn-outline btn-sm' id='{$btnId}' title='{$title}'>{$icon}</button>\n";
+        }
+    }
+
+    public function renderToolbarUtilityWidgets(bool $isAdmin = false, string $context = 'header'): void {
+        $this->discover();
+        foreach ($this->getEnabledUtilities() as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
+            $placement = $util['placement'] ?? 'dropdown';
+            if ($placement !== 'header_toolbar') {
+                continue;
+            }
+            $widgetFile = $util['base_dir'] . '/' . ($util['widget'] ?? 'widget.html.php');
+            if (file_exists($widgetFile)) {
+                $utility = $util;
+                $toolbarContext = $context;
+                include $widgetFile;
+            }
         }
     }
 }

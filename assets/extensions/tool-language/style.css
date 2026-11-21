@@ -1,0 +1,114 @@
+.qwiki-lang-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.qwiki-lang-wrap:hover,
+.qwiki-lang-wrap:focus-within {
+  background: var(--bg-card-hover);
+}
+
+.qwiki-lang-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.qwiki-lang-select {
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 0.1rem 0.15rem;
+  cursor: pointer;
+  outline: none;
+  max-width: 10rem;
+}
+
+.qwiki-lang-select option {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.share-bar-actions .qwiki-lang-wrap {
+  border-radius: 9999px;
+  background: var(--bg-card);
+  padding: 0.25rem 0.65rem;
+}
+
+.share-bar-actions .qwiki-lang-wrap:hover,
+.share-bar-actions .qwiki-lang-wrap:focus-within {
+  background: var(--bg-card-hover);
+}
+
+@supports (appearance: base-select) {
+  .qwiki-lang-select,
+  .qwiki-lang-select::picker(select) {
+    appearance: base-select;
+  }
+
+  .qwiki-lang-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .qwiki-lang-select::picker-icon {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+  }
+
+  .qwiki-lang-select::picker(select) {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.35rem;
+    margin-top: 0.35rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    min-width: 9rem;
+  }
+
+  .qwiki-lang-select option {
+    padding: 0.45rem 0.65rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .qwiki-lang-select option:hover,
+  .qwiki-lang-select option:focus-visible {
+    background-color: var(--bg-card-hover);
+  }
+
+  .qwiki-lang-select option::checkmark {
+    color: var(--accent-color);
+  }
+}
+
+@media (max-width: 640px) {
+  .qwiki-lang-wrap {
+    padding: 0.22rem 0.4rem;
+    gap: 0.2rem;
+  }
+  .qwiki-lang-select {
+    max-width: 6.2rem;
+    font-size: 0.76rem;
+  }
+}

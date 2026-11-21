@@ -1,24 +1,24 @@
 <div class="modal-overlay" id="ext-revisions-modal">
     <div class="modal-card" style="max-width: 780px;">
         <div class="modal-header">
-            <h3>🕒 Document Revision History</h3>
+            <h3>🕒 <?= htmlspecialchars(__('ext_revisions.modal_title', 'Document Revision History')) ?></h3>
             <button class="modal-close" data-close="ext-revisions-modal">&times;</button>
         </div>
         <div class="modal-body" style="padding: 1rem;">
             <div id="ext-revisions-status" style="margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text-muted);">
-                Select a revision to preview or restore.
+                <?= htmlspecialchars(__('ext_revisions.select_prompt', 'Select a revision to preview or restore.')) ?>
             </div>
             <div class="revisions-layout">
                 <div id="ext-revisions-list" class="revisions-list"></div>
                 <div class="revisions-preview">
                     <div class="revisions-preview-header">
-                        <span id="ext-revisions-preview-title">Preview</span>
+                        <span id="ext-revisions-preview-title"><?= htmlspecialchars(__('ext_revisions.preview', 'Preview')) ?></span>
                         <div style="display:flex; gap:0.5rem; align-items:center;">
-                            <a id="ext-revisions-download-btn" class="btn btn-outline btn-sm" style="display:none;" download>Download</a>
-                            <button type="button" id="ext-revisions-restore-btn" class="btn btn-primary btn-sm" style="display:none;">Restore This Version</button>
+                            <a id="ext-revisions-download-btn" class="btn btn-outline btn-sm" style="display:none;" download><?= htmlspecialchars(__('common.download', 'Download')) ?></a>
+                            <button type="button" id="ext-revisions-restore-btn" class="btn btn-primary btn-sm" style="display:none;"><?= htmlspecialchars(__('ext_revisions.restore_btn', 'Restore This Version')) ?></button>
                         </div>
                     </div>
-                    <pre id="ext-revisions-preview-code" class="revisions-preview-code">Select a revision on the left.</pre>
+                    <pre id="ext-revisions-preview-code" class="revisions-preview-code"><?= htmlspecialchars(__('ext_revisions.select_left', 'Select a revision on the left.')) ?></pre>
                 </div>
             </div>
         </div>

@@ -134,18 +134,18 @@ Standalone Qwiki provides a key-authenticated, scoped API for Large Language Mod
 
 ---
 
-## 🌐 Subwikis Management
+## 📚 Subwikis Management
 
 Standalone Qwiki supports single-level nested wikis (subwikis) deployed and managed directly from the parent wiki:
-1. Click **`🌐 Subwikis`** in the user menu.
+1. Click **`📚 Subwikis`** in the user menu.
 2. **Deploy Subwiki**: Enter the title, slug, and initial admin credentials.
    - **Dashed Grouping**: Use hyphens to group departments or topics cleanly (e.g. `engineering-electrical`, `engineering-mechanical`).
    - **Bi-Directional Collision Protection**: Subwiki slugs and parent category names are protected against clashing.
    - **Single-Level Depth**: Subwikis cannot deploy further child wikis.
 3. **Dynamic Parent Title & Navigation**: Subwikis display a prominent **`← Back to [Parent Title]`** banner in the sidebar. This title dynamically tracks renames made to the parent wiki in real-time, or can be customized along with the parent URL in the subwiki's Site Settings.
 4. **Automated Cascading Updates**: When updating the parent wiki, all deployed subwikis receive code updates automatically without requiring separate updater clicks.
-5. **Sidebar Subwiki Navigation**: In **Site Settings**, enable **"Show Subwikis in Left Sidebar Navigation"** to render a collapsible accordion of all subwikis in the left sidebar. Readers can navigate across subwikis based on their access permissions (public content remains accessible, private content remains shielded) and return seamlessly using the parent navigation banner.
-6. **Header Breadcrumbs & Brand Wayfinding**: When browsing within a subwiki, the header brand transforms into a dual-level breadcrumb: the company logo links back to the parent wiki, followed by a `/` separator and a subwiki badge linking to the subwiki home. When viewing shared documents in distraction-free share mode, a complementary subwiki provenance badge keeps readers oriented.
+5. **GitHub-Style Header Wiki Selector & Search**: In **Site Settings**, enable **"Show Subwikis Selector in Header Bar"** on a per-wiki basis to transform the header wiki name badge into an interactive context switcher dropdown. Readers can filter long subwiki lists in real time using the built-in **"Find a wiki..."** search input and switch directly between the parent wiki and any subwiki.
+6. **Header Breadcrumbs & Brand Wayfinding**: Every wiki and subwiki clearly displays its name badge next to the brand logo and `/` separator in the top header bar (and in the share mode top bar). In subwikis, the company logo links directly back to the parent wiki while the wiki badge identifies or switches the active subwiki.
 
 ---
 

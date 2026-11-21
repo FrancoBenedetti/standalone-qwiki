@@ -158,6 +158,48 @@ try {
     }
     echo "2. Child subwiki resolves siblings excluding self: PASS\n";
 
+    // 2b. Test getWikiSelectorItems in Parent and Child Contexts
+    Config::init($tempParent);
+    $parentSelectorItems = SubwikiManager::getWikiSelectorItems();
+    if (count($parentSelectorItems) !== 3) {
+        echo "FAIL: Expected 3 items (parent + 2 subwikis) in parent getWikiSelectorItems(), got " . count($parentSelectorItems) . "\n";
+        exit(1);
+    }
+    if (empty($parentSelectorItems[0]['isParent']) || empty($parentSelectorItems[0]['isCurrent'])) {
+        echo "FAIL: Expected first item in parent context to be parent and current\n";
+        exit(1);
+    }
+    if ($parentSelectorItems[0]['title'] !== 'Parent Documentation Portal') {
+        echo "FAIL: Expected parent selector item title 'Parent Documentation Portal', got '{$parentSelectorItems[0]['title']}'\n";
+        exit(1);
+    }
+
+    Config::init($alphaDir);
+    $alphaSelectorItems = SubwikiManager::getWikiSelectorItems();
+    if (count($alphaSelectorItems) !== 3) {
+        echo "FAIL: Expected 3 items (parent + current subwiki + sibling subwiki) in child getWikiSelectorItems(), got " . count($alphaSelectorItems) . "\n";
+        exit(1);
+    }
+    if (empty($alphaSelectorItems[0]['isParent']) || !empty($alphaSelectorItems[0]['isCurrent']) || $alphaSelectorItems[0]['url'] !== '../') {
+        echo "FAIL: Expected first item in child context to be parent with url '../'\n";
+        exit(1);
+    }
+    $foundCurrentSub = false;
+    $foundSiblingSub = false;
+    foreach ($alphaSelectorItems as $item) {
+        if (($item['slug'] ?? '') === 'subwiki-alpha' && !empty($item['isCurrent'])) {
+            $foundCurrentSub = true;
+        }
+        if (($item['slug'] ?? '') === 'subwiki-beta' && empty($item['isCurrent']) && $item['url'] === '../subwiki-beta/') {
+            $foundSiblingSub = true;
+        }
+    }
+    if (!$foundCurrentSub || !$foundSiblingSub) {
+        echo "FAIL: Expected child getWikiSelectorItems() to mark subwiki-alpha as current and subwiki-beta as sibling\n";
+        exit(1);
+    }
+    echo "2b. SubwikiManager::getWikiSelectorItems() resolves full wiki list in parent and child contexts: PASS\n";
+
     // 3. Test Settings Persistence via api/admin.php
     Config::init($tempParent);
     Auth::startSession();
@@ -228,10 +270,18 @@ try {
     $htmlDisabled = ob_get_clean();
 
     if (strpos($htmlDisabled, 'nav-subwikis-group') !== false) {
-        echo "FAIL: nav-subwikis-group must NOT be in HTML when showSubwikisInSidebar is false\n";
+        echo "FAIL: nav-subwikis-group must NOT be in HTML\n";
         exit(1);
     }
-    echo "4a. Sidebar accordion omitted when showSubwikisInSidebar = false: PASS\n";
+    if (strpos($htmlDisabled, 'brand-wiki-selector-menu') !== false) {
+        echo "FAIL: brand-wiki-selector-menu must NOT be in HTML when showSubwikisInSidebar is false\n";
+        exit(1);
+    }
+    if (strpos($htmlDisabled, '<span class="subwiki-badge-title">Parent Documentation Portal</span>') === false) {
+        echo "FAIL: Wiki title badge must still be displayed in header when showSubwikisInSidebar is false\n";
+        exit(1);
+    }
+    echo "4a. Header shows static wiki name and omits wiki selector when showSubwikisInSidebar = false: PASS\n";
 
     // 4b. When showSubwikisInSidebar is true:
     $updated2['showSubwikisInSidebar'] = true;
@@ -242,23 +292,31 @@ try {
     include __DIR__ . '/../index.php';
     $htmlEnabled = ob_get_clean();
 
-    if (strpos($htmlEnabled, 'nav-subwikis-group') === false) {
-        echo "FAIL: nav-subwikis-group MUST be present in sidebar HTML when showSubwikisInSidebar is true\n";
+    if (strpos($htmlEnabled, 'nav-subwikis-group') !== false) {
+        echo "FAIL: nav-subwikis-group must NOT be rendered in sidebar anymore\n";
+        exit(1);
+    }
+    if (strpos($htmlEnabled, 'id="brand-wiki-selector"') === false || strpos($htmlEnabled, 'id="brand-wiki-selector-menu"') === false) {
+        echo "FAIL: brand-wiki-selector dropdown MUST be present in header HTML when showSubwikisInSidebar is true\n";
+        exit(1);
+    }
+    if (strpos($htmlEnabled, 'id="wiki-selector-search"') === false) {
+        echo "FAIL: wiki-selector-search input MUST be present inside header wiki selector\n";
         exit(1);
     }
     if (strpos($htmlEnabled, 'Alpha Subwiki') === false || strpos($htmlEnabled, 'Beta Subwiki') === false) {
-        echo "FAIL: Both subwiki titles must be present in sidebar accordion\n";
+        echo "FAIL: Both subwiki titles must be present in header wiki selector\n";
         exit(1);
     }
     if (strpos($htmlEnabled, 'badge-subwiki-count') === false) {
-        echo "FAIL: badge-subwiki-count must be present in sidebar subwiki items\n";
+        echo "FAIL: badge-subwiki-count must be present in wiki selector items\n";
         exit(1);
     }
     if (strpos($htmlEnabled, 'name="showSubwikisInSidebar"') === false) {
         echo "FAIL: showSubwikisInSidebar checkbox must be present in settings modal\n";
         exit(1);
     }
-    echo "4b. Sidebar accordion renders with subwiki items and count badges: PASS\n";
+    echo "4b. Header renders GitHub-style wiki selector with search input, subwiki items, and count badges: PASS\n";
 
 } finally {
     // Cleanup temporary directory

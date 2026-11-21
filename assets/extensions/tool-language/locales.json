@@ -1,0 +1,20 @@
+{
+  "default": "en",
+  "languages": {
+    "en": {
+      "label": "English",
+      "shortLabel": "EN",
+      "tuiLocale": "en-US"
+    },
+    "af": {
+      "label": "Afrikaans",
+      "shortLabel": "AF",
+      "tuiLocale": "af"
+    },
+    "it": {
+      "label": "Italiano",
+      "shortLabel": "IT",
+      "tuiLocale": "it-IT"
+    }
+  }
+}

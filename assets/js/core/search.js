@@ -9,6 +9,8 @@ window.QwikiApp = window.QwikiApp || {};
 window.QwikiApp.search = (function() {
   'use strict';
 
+  const _t = (key, fallback, vars) => (typeof window !== 'undefined' && window.__t ? window.__t(key, fallback, vars) : fallback);
+
   const HIGHLIGHT_STORAGE_KEY = 'qwiki_search_highlight';
   const HIGHLIGHT_TTL_MS = 30 * 60 * 1000;
   const MAX_HIGHLIGHT_MATCHES = 500;
@@ -155,7 +157,7 @@ window.QwikiApp.search = (function() {
       highlightBarEl = document.createElement('div');
       highlightBarEl.className = 'search-highlight-bar';
       highlightBarEl.setAttribute('role', 'region');
-      highlightBarEl.setAttribute('aria-label', 'In-page search matches');
+      highlightBarEl.setAttribute('aria-label', _t('search.matches_aria', 'In-page search matches'));
 
       const countSpan = document.createElement('span');
       countSpan.className = 'search-highlight-count';
@@ -164,24 +166,24 @@ window.QwikiApp.search = (function() {
       const prevBtn = document.createElement('button');
       prevBtn.type = 'button';
       prevBtn.className = 'search-highlight-btn';
-      prevBtn.setAttribute('aria-label', 'Previous match');
-      prevBtn.title = 'Previous match (Shift+Enter)';
+      prevBtn.setAttribute('aria-label', _t('search.prev_match', 'Previous match'));
+      prevBtn.title = _t('search.prev_match_title', 'Previous match (Shift+Enter)');
       prevBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"></polyline></svg>';
       prevBtn.addEventListener('click', () => stepMatch(-1));
 
       const nextBtn = document.createElement('button');
       nextBtn.type = 'button';
       nextBtn.className = 'search-highlight-btn';
-      nextBtn.setAttribute('aria-label', 'Next match');
-      nextBtn.title = 'Next match (Enter)';
+      nextBtn.setAttribute('aria-label', _t('search.next_match', 'Next match'));
+      nextBtn.title = _t('search.next_match_title', 'Next match (Enter)');
       nextBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
       nextBtn.addEventListener('click', () => stepMatch(1));
 
       const closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.className = 'search-highlight-btn';
-      closeBtn.setAttribute('aria-label', 'Dismiss highlights');
-      closeBtn.title = 'Dismiss highlights';
+      closeBtn.setAttribute('aria-label', _t('search.dismiss', 'Dismiss highlights'));
+      closeBtn.title = _t('search.dismiss', 'Dismiss highlights');
       closeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
       closeBtn.addEventListener('click', () => clearHighlights());
 

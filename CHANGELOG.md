@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.24] - PolyglotFlow - 2026-11-21
+
+### 📚 GitHub-Style Header Wiki Selector & Unified Wiki Name Badges
+- **Always-Visible Header Wiki Name Badge (`index.php`, `assets/css/qwiki.css`)**: Both parent wikis and subwikis now render a `[Logo] / [📚 Wiki Name]` breadcrumb in `.brand-header-group` (and in `.share-bar-brand` during share mode), ensuring every wiki and subwiki is clearly identifiable by name even when a custom brand logo image replaces the logo text, while reserving the `🌐` globe icon exclusively for the UI language selector.
+- **GitHub-Style Header Context Switcher & Live Search (`lib/Core/SubwikiManager.php`, `index.php`, `assets/js/core/modals.js`, `assets/css/qwiki.css`, `templates/modals/settings.php`)**: Moved the per-wiki subwiki selector (`showSubwikisInSidebar`, **"Show Subwikis Selector in Header Bar"**) from the left sidebar accordion into the header bar, replacing the static wiki name badge with an interactive dropdown switcher (`#brand-wiki-selector`). Added `SubwikiManager::getWikiSelectorItems()` to resolve the complete wiki list (Parent Wiki + all Subwikis) from either a parent or child context, complete with a real-time **"Find a wiki..."** search filter (`#wiki-selector-search`), document count badges, active checkmark indicator, empty-state feedback, and keyboard navigation (`ArrowDown`/`ArrowUp`/`Enter`/`Escape`).
+
+### 🌐 Multi-Language UI & Internationalization (`tool-language`)
+- **Translation Engine & Extension (`lib/Core/Translator.php`, `assets/js/core/i18n.js`, `assets/extensions/tool-language/`)**: Added a zero-database UI localization system with server-side `__(...)` and client-side `window.__t(...)` helpers, `localStorage` and `qwiki_lang` cookie synchronization, Toast UI Editor locale mapping (`en-US`, `af`, `it-IT`), and a toggleable `language` utility extension rendering a `🌐` selector in the header, authentication gateway, and share bar.
+- **English, Afrikaans & Italian Language Packs (`assets/extensions/tool-language/locales/af.json`, `assets/extensions/tool-language/locales/it.json`, `bin/check-i18n.php`)**: Localized core templates, modals, administration dialogs, and extension views into Afrikaans (`af`) and Italian (`it`) with zero-overhead English fallback when disabled.
+
+### 🐛 Fixes & Regression Tests
+- **Non-Empty Category Deletion Fix (`lib/Core/Navigation.php`)**: Fixed a fatal argument error when deleting non-empty categories.
+- **Test Suites (`tests/test_wiki_selector.js`, `tests/sidebar_subwikis_test.php`, `tests/subwiki_header_breadcrumb_test.php`, `tests/test_language_i18n.php`, `tests/test_language_i18n.js`)**: Added automated unit and JSDOM integration tests for the GitHub-style header wiki selector, live search filtering, unified header badges, and multi-language UI translation engine.
+
 ## [1.20.23] - LicenseFlow - 2026-11-20
 
 ### 📜 Licensing & Third-Party Attributions

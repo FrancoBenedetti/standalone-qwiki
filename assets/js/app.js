@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const _t = (key, fallback, vars) => {
+    if (window.__t) return window.__t(key, fallback, vars);
+    let out = String(fallback);
+    if (vars && typeof vars === 'object') {
+      Object.keys(vars).forEach(k => { out = out.split('{' + k + '}').join(String(vars[k])); });
+    }
+    return out;
+  };
+
   // Initialize Core Subsystems
   if (window.QwikiApp) {
     if (window.QwikiApp.theme) window.QwikiApp.theme.init();
@@ -160,22 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
               if (isParentLocked) {
                 docReadOnlyInput.disabled = true;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'This document is inside a locked category and inherits its lock.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_parent', 'This document is inside a locked category and inherits its lock.');
                 }
               } else if (isDemoMode && isDocProtected) {
                 docReadOnlyInput.disabled = true;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Protected demo documents cannot be unlocked in demo mode.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_demo', 'Protected demo documents cannot be unlocked in demo mode.');
                 }
               } else if (isDocReadOnly) {
                 docReadOnlyInput.disabled = false;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Uncheck to unlock this document and allow edits/deletion.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_unlock', 'Uncheck to unlock this document and allow edits/deletion.');
                 }
               } else {
                 docReadOnlyInput.disabled = false;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Protected documents cannot be edited or deleted.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_default', 'Protected documents cannot be edited or deleted.');
                 }
               }
             }
@@ -1364,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const emptyBtn = document.getElementById('btn-empty-trash');
     if (!statusEl || !listEl) return;
 
-    statusEl.textContent = 'Loading trashed items...';
+    statusEl.textContent = _t('js.trash_loading', 'Loading trashed items...');
     listEl.replaceChildren();
     if (emptyBtn) emptyBtn.style.display = 'none';
 
@@ -1372,11 +1381,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('api/admin.php?action=trash_list');
       const data = await res.json();
       if (!data.success) {
-        statusEl.textContent = data.error || 'Failed to load Trash Bin.';
+        statusEl.textContent = data.error || _t('js.trash_load_failed', 'Failed to load Trash Bin.');
         return;
       }
       const items = Array.isArray(data.items) ? data.items : [];
-      statusEl.textContent = `${items.length} trashed item(s).`;
+      statusEl.textContent = _t('js.trash_count', '{count} trashed item(s).', { count: items.length });
       if (emptyBtn) {
         emptyBtn.style.display = items.length > 0 ? 'inline-block' : 'none';
       }
@@ -1385,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         emptyMsg.style.color = 'var(--text-muted)';
         emptyMsg.style.textAlign = 'center';
         emptyMsg.style.padding = '1.5rem 0';
-        emptyMsg.textContent = 'Trash is empty.';
+        emptyMsg.textContent = _t('js.trash_empty', 'Trash is empty.');
         listEl.appendChild(emptyMsg);
         return;
       }
@@ -1414,9 +1423,9 @@ document.addEventListener('DOMContentLoaded', () => {
         subEl.style.color = 'var(--text-muted)';
         subEl.style.marginTop = '0.2rem';
         const idLabel = item.kind === 'category'
-          ? `Category • ${item.documentCount || 0} doc(s), ${item.categoryCount || 0} sub(s)`
-          : `Document (${item.slug || ''})`;
-        subEl.textContent = `${idLabel} • Deleted ${item.deletedAt || ''} by ${item.deletedBy || 'admin'}`;
+          ? _t('js.trash_cat_meta', 'Category • {docs} doc(s), {subs} sub(s)', { docs: item.documentCount || 0, subs: item.categoryCount || 0 })
+          : _t('js.trash_doc_meta', 'Document ({slug})', { slug: item.slug || '' });
+        subEl.textContent = `${idLabel} • ` + _t('js.trash_deleted_by', 'Deleted {date} by {user}', { date: item.deletedAt || '', user: item.deletedBy || 'admin' });
 
         metaCol.appendChild(titleEl);
         metaCol.appendChild(subEl);
@@ -1428,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const restoreBtn = document.createElement('button');
         restoreBtn.type = 'button';
         restoreBtn.className = 'btn btn-outline btn-sm';
-        restoreBtn.textContent = 'Restore';
+        restoreBtn.textContent = _t('js.restore', 'Restore');
         restoreBtn.addEventListener('click', async () => {
           restoreBtn.disabled = true;
           const fd = new FormData();
@@ -1440,11 +1449,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (d.success) {
               window.location.reload();
             } else {
-              alert('Restore failed: ' + (d.error || 'Unknown error'));
+              alert(_t('js.restore_failed', 'Restore failed: {error}', { error: d.error || _t('js.unknown_error', 'Unknown error') }));
               restoreBtn.disabled = false;
             }
           } catch (e) {
-            alert('Restore request failed');
+            alert(_t('js.restore_req_failed', 'Restore request failed'));
             restoreBtn.disabled = false;
           }
         });
@@ -1452,9 +1461,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const purgeBtn = document.createElement('button');
         purgeBtn.type = 'button';
         purgeBtn.className = 'btn btn-outline btn-danger-text btn-sm';
-        purgeBtn.textContent = 'Delete Forever';
+        purgeBtn.textContent = _t('js.delete_forever', 'Delete Forever');
         purgeBtn.addEventListener('click', async () => {
-          if (!confirm(`Permanently delete "${item.title || item.trashId}" and its stored revision snapshots? This cannot be undone.`)) {
+          if (!confirm(_t('js.trash_purge_confirm', 'Permanently delete "{name}" and its stored revision snapshots? This cannot be undone.', { name: item.title || item.trashId }))) {
             return;
           }
           purgeBtn.disabled = true;
@@ -1467,11 +1476,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (d.success) {
               loadTrashList();
             } else {
-              alert('Delete failed: ' + (d.error || 'Unknown error'));
+              alert(_t('js.delete_failed', 'Delete failed: {error}', { error: d.error || _t('js.unknown_error', 'Unknown error') }));
               purgeBtn.disabled = false;
             }
           } catch (e) {
-            alert('Delete request failed');
+            alert(_t('js.delete_req_failed', 'Delete request failed'));
             purgeBtn.disabled = false;
           }
         });
@@ -1483,14 +1492,14 @@ document.addEventListener('DOMContentLoaded', () => {
         listEl.appendChild(row);
       });
     } catch (err) {
-      statusEl.textContent = 'Error loading Trash Bin.';
+      statusEl.textContent = _t('js.trash_load_error', 'Error loading Trash Bin.');
     }
   }
 
   const emptyTrashBtn = document.getElementById('btn-empty-trash');
   if (emptyTrashBtn) {
     emptyTrashBtn.addEventListener('click', async () => {
-      if (!confirm('Permanently delete all items in Trash Bin and their revision histories? This cannot be undone.')) {
+      if (!confirm(_t('js.trash_empty_confirm', 'Permanently delete all items in Trash Bin and their revision histories? This cannot be undone.'))) {
         return;
       }
       emptyTrashBtn.disabled = true;
@@ -1502,10 +1511,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           loadTrashList();
         } else {
-          alert('Empty Trash failed: ' + (data.error || 'Unknown error'));
+          alert(_t('js.trash_empty_failed', 'Empty Trash failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
         }
       } catch (err) {
-        alert('Empty Trash request failed');
+        alert(_t('js.trash_empty_req_failed', 'Empty Trash request failed'));
       } finally {
         emptyTrashBtn.disabled = false;
       }
@@ -1776,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData(loginForm);
       formData.append('action', 'login');
       const submitBtn = document.getElementById('btn-login-submit');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.logging_in', 'Logging in...'); }
 
       try {
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
@@ -1794,20 +1803,20 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
             const modalTitle = document.getElementById('login-modal-title');
-            if (modalTitle) modalTitle.textContent = 'Two-Factor Challenge';
+            if (modalTitle) modalTitle.textContent = _t('js.2fa_challenge', 'Two-Factor Challenge');
           } else if (data.require2fa_setup) {
-            alert('Two-Factor Authentication is enforced for your account policy. Please complete setup.');
+            alert(_t('js.2fa_enforced_setup', 'Two-Factor Authentication is enforced for your account policy. Please complete setup.'));
             window.location.reload();
           } else {
             window.location.reload();
           }
         } else {
-          alert('Login failed: ' + (data.error || 'Invalid credentials'));
+          alert(_t('js.login_failed', 'Login failed: {error}', { error: data.error || _t('js.invalid_credentials', 'Invalid credentials') }));
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Log In'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.log_in', 'Log In'); }
       }
     });
   }
@@ -1820,7 +1829,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!codeVal) return;
 
       const submitBtn = document.getElementById('btn-2fa-submit');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.verifying', 'Verifying...'); }
 
       const formData = new FormData();
       formData.append('action', 'verify_2fa');
@@ -1832,16 +1841,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           window.location.reload();
         } else {
-          alert('Verification failed: ' + (data.error || 'Invalid code'));
+          alert(_t('js.verification_failed', 'Verification failed: {error}', { error: data.error || _t('js.invalid_code', 'Invalid code') }));
           if (codeInput) {
             codeInput.value = '';
             codeInput.focus();
           }
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify & Continue'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.verify_continue', 'Verify & Continue'); }
       }
     });
 
@@ -1851,7 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
         login2faForm.style.display = 'none';
         if (loginForm) loginForm.style.display = 'block';
         const modalTitle = document.getElementById('login-modal-title');
-        if (modalTitle) modalTitle.textContent = 'Account Authentication';
+        if (modalTitle) modalTitle.textContent = _t('js.account_auth', 'Account Authentication');
       });
     }
 
@@ -1866,27 +1875,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const desc = document.getElementById('login-2fa-desc');
 
         if (usingRecoveryCode) {
-          btnToggleRecovery.textContent = 'Use authenticator code';
-          if (codeLabel) codeLabel.textContent = 'Emergency Recovery Code';
+          btnToggleRecovery.textContent = _t('js.use_auth_code', 'Use authenticator code');
+          if (codeLabel) codeLabel.textContent = _t('js.emergency_recovery_code', 'Emergency Recovery Code');
           if (codeInput) {
             codeInput.placeholder = 'xxxx-xxxx';
             codeInput.maxLength = 12;
             codeInput.value = '';
             codeInput.focus();
           }
-          if (heading) heading.textContent = 'Recovery Code Login';
-          if (desc) desc.textContent = 'Enter one of your 8 emergency backup codes.';
+          if (heading) heading.textContent = _t('js.recovery_login_title', 'Recovery Code Login');
+          if (desc) desc.textContent = _t('js.recovery_login_desc', 'Enter one of your 8 emergency backup codes.');
         } else {
-          btnToggleRecovery.textContent = 'Use recovery code';
-          if (codeLabel) codeLabel.textContent = 'Verification Code';
+          btnToggleRecovery.textContent = _t('js.use_recovery_code', 'Use recovery code');
+          if (codeLabel) codeLabel.textContent = _t('js.verification_code', 'Verification Code');
           if (codeInput) {
             codeInput.placeholder = '000000';
             codeInput.maxLength = 10;
             codeInput.value = '';
             codeInput.focus();
           }
-          if (heading) heading.textContent = 'Two-Factor Authentication';
-          if (desc) desc.textContent = 'Enter the 6-digit verification code from your authenticator app.';
+          if (heading) heading.textContent = _t('js.2fa_title', 'Two-Factor Authentication');
+          if (desc) desc.textContent = _t('js.2fa_desc', 'Enter the 6-digit verification code from your authenticator app.');
         }
       });
     }
@@ -1926,7 +1935,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!identifier) return;
 
       const submitBtn = document.getElementById('btn-submit-forgot');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.sending', 'Sending...'); }
 
       const formData = new FormData();
       formData.append('action', 'forgot_password');
@@ -1941,12 +1950,12 @@ document.addEventListener('DOMContentLoaded', () => {
           alertBox.style.background = 'rgba(16,185,129,0.1)';
           alertBox.style.border = '1px solid #10b981';
           alertBox.style.color = '#047857';
-          alertBox.textContent = data.message || 'If an account with that verified email exists, a reset link has been dispatched.';
+          alertBox.textContent = data.message || _t('js.forgot_sent', 'If an account with that verified email exists, a reset link has been dispatched.');
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Reset Link'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.send_reset_link', 'Send Reset Link'); }
       }
     });
   }
@@ -1966,7 +1975,7 @@ document.addEventListener('DOMContentLoaded', () => {
           statusBox.style.background = 'rgba(239,68,68,0.1)';
           statusBox.style.border = '1px solid #ef4444';
           statusBox.style.color = '#b91c1c';
-          statusBox.textContent = 'Password must be at least 4 characters long.';
+          statusBox.textContent = _t('js.pwd_min_length', 'Password must be at least 4 characters long.');
         }
         return;
       }
@@ -1977,13 +1986,13 @@ document.addEventListener('DOMContentLoaded', () => {
           statusBox.style.background = 'rgba(239,68,68,0.1)';
           statusBox.style.border = '1px solid #ef4444';
           statusBox.style.color = '#b91c1c';
-          statusBox.textContent = 'Passwords do not match.';
+          statusBox.textContent = _t('js.pwds_mismatch', 'Passwords do not match.');
         }
         return;
       }
 
       const submitBtn = document.getElementById('btn-submit-reset-password');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.saving', 'Saving...'); }
 
       const formData = new FormData(standaloneResetForm);
       formData.append('action', 'reset_password_submit');
@@ -1997,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.style.background = 'rgba(16,185,129,0.1)';
             statusBox.style.border = '1px solid #10b981';
             statusBox.style.color = '#047857';
-            statusBox.textContent = '✅ Password updated successfully! Redirecting...';
+            statusBox.textContent = '✅ ' + _t('js.pwd_updated_redirect', 'Password updated successfully! Redirecting...');
           }
           setTimeout(() => {
             window.location.href = window.location.pathname;
@@ -2008,13 +2017,13 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.style.background = 'rgba(239,68,68,0.1)';
             statusBox.style.border = '1px solid #ef4444';
             statusBox.style.color = '#b91c1c';
-            statusBox.textContent = data.error || 'Password reset failed.';
+            statusBox.textContent = data.error || _t('js.pwd_reset_failed', 'Password reset failed.');
           }
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.save_new_pwd_login', 'Save New Password & Log In'); }
         }
       } catch (err) {
-        alert('Server request failed');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+        alert(_t('js.server_req_failed', 'Server request failed'));
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.save_new_pwd_login', 'Save New Password & Log In'); }
       }
     });
   }
@@ -2682,8 +2691,8 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.style.alignItems = 'center';
           btn.style.justifyContent = 'center';
           btn.style.cursor = 'pointer';
-          btn.setAttribute('aria-label', 'Browse Image Gallery');
-          btn.title = 'Browse and select images from gallery';
+          btn.setAttribute('aria-label', _t('js.gallery_browse_aria', 'Browse Image Gallery'));
+          btn.title = _t('js.gallery_browse_title', 'Browse and select images from gallery');
           btn.innerHTML = '🖼️';
           btn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -2698,6 +2707,22 @@ document.addEventListener('DOMContentLoaded', () => {
           return btn;
         };
 
+        const i18nCfg = window.QWIKI_I18N_CONFIG || {};
+        let editorLangCode = 'en-US';
+        if (i18nCfg.enabled && i18nCfg.tuiLocale && i18nCfg.tuiLocale !== 'en-US' && typeof toastui.Editor.setLanguage === 'function') {
+          editorLangCode = i18nCfg.tuiLocale;
+          const tuiStrings = {};
+          const rawStrings = i18nCfg.strings || {};
+          Object.keys(rawStrings).forEach((k) => {
+            if (k.indexOf('tui.') === 0) {
+              tuiStrings[k.slice(4)] = rawStrings[k];
+            }
+          });
+          if (Object.keys(tuiStrings).length > 0) {
+            toastui.Editor.setLanguage(editorLangCode, tuiStrings);
+          }
+        }
+
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
@@ -2705,6 +2730,7 @@ document.addEventListener('DOMContentLoaded', () => {
           previewStyle: 'vertical',
           height: '600px',
           theme: isDark ? 'dark' : '',
+          language: editorLangCode,
           usageStatistics: false,
           hideModeSwitch: isProtectedMode,
           toolbarItems: [
@@ -2716,7 +2742,7 @@ document.addEventListener('DOMContentLoaded', () => {
             [
               {
                 name: 'gallery',
-                tooltip: 'Browse Image Gallery',
+                tooltip: _t('js.gallery_browse_aria', 'Browse Image Gallery'),
                 el: createGalleryToolbarButton()
               }
             ]
@@ -2733,10 +2759,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                   callback(data.url, data.alt || 'image');
                 } else {
-                  alert('Image upload failed: ' + (data.error || 'Unknown error'));
+                  alert(_t('js.image_upload_failed', 'Image upload failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
                 }
               } catch (err) {
-                alert('Network request failed during image upload');
+                alert(_t('js.image_upload_net_failed', 'Network request failed during image upload'));
               }
             }
           }
@@ -2752,7 +2778,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tuiEditor = new toastui.Editor(editorConfig);
           } catch (fatalErr) {
             console.error('Toast UI Editor fatal initialization error:', fatalErr);
-            alert('Failed to initialize document editor: ' + fatalErr.message);
+            alert(_t('js.editor_init_failed', 'Failed to initialize document editor: {error}', { error: fatalErr.message }));
             if (htmlNotice) htmlNotice.style.display = 'none';
             editActions.style.display = 'none';
             editorContainer.style.display = 'none';
@@ -2770,7 +2796,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
               const currentContent = tuiEditor.getMarkdown();
               if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent) || containsLatexMath(currentContent)) {
-                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains LaTeX math expressions, YAML frontmatter, or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
+                alert(_t('js.wysiwyg_blocked', '⚠️ Cannot switch to WYSIWYG mode: the document contains LaTeX math expressions, YAML frontmatter, or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.'));
                 return;
               }
             }
@@ -2861,13 +2887,13 @@ document.addEventListener('DOMContentLoaded', () => {
           window.location.reload();
         } else {
           if (data.code === 'LOCKED_BY_OTHER') {
-            alert('Save Blocked: ' + (data.error || 'The document lock belongs to another session.'));
+            alert(_t('js.save_blocked', 'Save Blocked: {error}', { error: data.error || _t('js.lock_other_session', 'The document lock belongs to another session.') }));
           } else {
-            alert('Save failed: ' + (data.error || 'Unknown error'));
+            alert(_t('js.save_failed', 'Save failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
           }
         }
       } catch (err) {
-        alert('Save request failed');
+        alert(_t('js.save_req_failed', 'Save request failed'));
       }
     });
 
@@ -2897,7 +2923,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteChapterBtn = document.getElementById('btn-delete-chapter');
   if (deleteChapterBtn) {
     deleteChapterBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this document entry from the wiki structure?')) {
+      if (!confirm(_t('js.delete_doc_confirm', 'Are you sure you want to delete this document entry from the wiki structure?'))) {
         return;
       }
       const bookId = deleteChapterBtn.getAttribute('data-book');
@@ -2914,10 +2940,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           window.location.href = `${encodeURIComponent(bookId)}`;
         } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
+          alert(_t('js.delete_failed', 'Delete failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
         }
       } catch (err) {
-        alert('Delete request failed');
+        alert(_t('js.delete_req_failed', 'Delete request failed'));
       }
     });
   }
@@ -2926,7 +2952,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteLinkBtn = document.getElementById('btn-delete-link');
   if (deleteLinkBtn) {
     deleteLinkBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this hyperlink?')) {
+      if (!confirm(_t('js.delete_link_confirm', 'Are you sure you want to delete this hyperlink?'))) {
         return;
       }
       const slug = document.getElementById('edit-link-slug-hidden')?.value;
@@ -3913,28 +3939,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnZoomOut = document.createElement('button');
       btnZoomOut.type = 'button';
       btnZoomOut.className = 'diagram-toolbar-btn';
-      btnZoomOut.title = 'Zoom Out';
+      btnZoomOut.title = _t('js.diagram_zoom_out', 'Zoom Out');
       btnZoomOut.textContent = '−';
       btnZoomOut.addEventListener('click', () => applyInlineScale(inlineScale - 0.2));
 
       const btnReset = document.createElement('button');
       btnReset.type = 'button';
       btnReset.className = 'diagram-toolbar-btn';
-      btnReset.title = 'Reset Zoom (100%)';
+      btnReset.title = _t('js.diagram_reset_zoom', 'Reset Zoom (100%)');
       btnReset.textContent = '100%';
       btnReset.addEventListener('click', () => applyInlineScale(1));
 
       const btnZoomIn = document.createElement('button');
       btnZoomIn.type = 'button';
       btnZoomIn.className = 'diagram-toolbar-btn';
-      btnZoomIn.title = 'Zoom In';
+      btnZoomIn.title = _t('js.diagram_zoom_in', 'Zoom In');
       btnZoomIn.textContent = '+';
       btnZoomIn.addEventListener('click', () => applyInlineScale(inlineScale + 0.2));
 
       const btnDownload = document.createElement('button');
       btnDownload.type = 'button';
       btnDownload.className = 'diagram-toolbar-btn';
-      btnDownload.title = 'Download SVG';
+      btnDownload.title = _t('js.diagram_download_svg', 'Download SVG');
       btnDownload.textContent = '📥';
       btnDownload.addEventListener('click', () => {
         const currentSvg = container.querySelector('svg');
@@ -3955,8 +3981,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnExpand = document.createElement('button');
       btnExpand.type = 'button';
       btnExpand.className = 'diagram-toolbar-btn diagram-toolbar-expand';
-      btnExpand.title = 'Expand Diagram in Fullscreen Lightbox';
-      btnExpand.textContent = '⛶ Expand';
+      btnExpand.title = _t('js.diagram_expand_title', 'Expand Diagram in Fullscreen Lightbox');
+      btnExpand.textContent = '⛶ ' + _t('js.diagram_expand', 'Expand');
       btnExpand.addEventListener('click', () => openMermaidLightbox(container));
 
       toolbar.append(btnZoomOut, btnReset, btnZoomIn, btnDownload, btnExpand);
@@ -4898,7 +4924,7 @@ document.addEventListener('DOMContentLoaded', () => {
           document.execCommand('copy');
         }
         const origText = btnCopyShareLink.textContent;
-        btnCopyShareLink.textContent = '✅ Copied!';
+        btnCopyShareLink.textContent = '✅ ' + _t('js.copied', 'Copied!');
         setTimeout(() => {
           btnCopyShareLink.textContent = origText;
         }, 2000);
@@ -4929,7 +4955,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const origText = btnModalSlack.textContent;
-      btnModalSlack.textContent = '✅ Copied for Slack!';
+      btnModalSlack.textContent = '✅ ' + _t('js.copied_slack', 'Copied for Slack!');
       setTimeout(() => {
         btnModalSlack.textContent = origText;
       }, 2000);
@@ -4955,12 +4981,12 @@ document.addEventListener('DOMContentLoaded', () => {
           updateShareStatusUI(data.publicShareable);
           btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
         } else {
-          alert('Failed to update sharing: ' + (data.error || 'Unknown error'));
+          alert(_t('js.share_update_failed', 'Failed to update sharing: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
           shareAdminTogglePublic.checked = !isPublic;
         }
       } catch (err) {
         console.error('Failed to update share settings:', err);
-        alert('Network error updating sharing status.');
+        alert(_t('js.share_update_net_err', 'Network error updating sharing status.'));
         shareAdminTogglePublic.checked = !isPublic;
       }
     });
@@ -4971,7 +4997,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnModalRegenerateShareKey.addEventListener('click', async () => {
       const slug = btnShareChapter.getAttribute('data-slug');
       if (!slug) return;
-      if (!confirm('Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.')) {
+      if (!confirm(_t('js.share_reset_confirm', 'Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.'))) {
         return;
       }
       const isPublic = shareAdminTogglePublic ? (shareAdminTogglePublic.checked ? 1 : 0) : 1;
@@ -4989,13 +5015,13 @@ document.addEventListener('DOMContentLoaded', () => {
           btnShareChapter.setAttribute('data-share-key', data.shareKey);
           btnShareChapter.setAttribute('data-share-url', data.shareUrl);
           updateShareStatusUI(data.publicShareable);
-          alert('✅ Share key reset successfully! The new link is ready to copy.');
+          alert(_t('js.share_reset_ok', '✅ Share key reset successfully! The new link is ready to copy.'));
         } else {
-          alert('Failed to reset key: ' + (data.error || 'Unknown error'));
+          alert(_t('js.share_reset_failed', 'Failed to reset key: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
         }
       } catch (err) {
         console.error('Failed to reset share key:', err);
-        alert('Network error while resetting share key.');
+        alert(_t('js.share_reset_net_err', 'Network error while resetting share key.'));
       }
     });
   }

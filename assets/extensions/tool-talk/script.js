@@ -4,6 +4,8 @@
 (function () {
   'use strict';
 
+  const _t = (k, f, v) => (typeof window !== 'undefined' && window.__t ? window.__t(k, f, v) : f);
+
   function initTalkPages() {
     const contentBody = document.getElementById('content-body');
     if (!contentBody) return;
@@ -67,14 +69,14 @@
     docBtn.className = 'doc-tab-btn doc-tab-active';
     docBtn.setAttribute('role', 'tab');
     docBtn.setAttribute('aria-selected', 'true');
-    docBtn.innerHTML = '📄 Document';
+    docBtn.innerHTML = escapeHtml(_t('ext_talk.tab_document', '📄 Document'));
 
     const talkBtn = document.createElement('button');
     talkBtn.id = 'tab-btn-talk';
     talkBtn.className = 'doc-tab-btn';
     talkBtn.setAttribute('role', 'tab');
     talkBtn.setAttribute('aria-selected', 'false');
-    talkBtn.innerHTML = `🗣️ Discussion <span class="doc-tab-badge" id="talk-topic-count">${talkData.topicsCount || 0}</span>`;
+    talkBtn.innerHTML = `${escapeHtml(_t('ext_talk.tab_discussion', '🗣️ Discussion'))} <span class="doc-tab-badge" id="talk-topic-count">${talkData.topicsCount || 0}</span>`;
 
     tabNav.appendChild(docBtn);
     tabNav.appendChild(talkBtn);
@@ -141,8 +143,8 @@
       const headerInfo = document.createElement('div');
       headerInfo.className = 'talk-header-info';
       headerInfo.innerHTML = `
-        <h2>🗣️ Editorial Discussion &amp; Debate</h2>
-        <p>Collaborative talk page for drafting changes, debate, and editorial consensus.</p>
+        <h2>${escapeHtml(_t('ext_talk.header_title', '🗣️ Editorial Discussion & Debate'))}</h2>
+        <p>${escapeHtml(_t('ext_talk.header_desc', 'Collaborative talk page for drafting changes, debate, and editorial consensus.'))}</p>
       `;
 
       const actionsBar = document.createElement('div');
@@ -151,7 +153,7 @@
       if (talkData.canPost && !isRawEditing && !isAddingTopic) {
         const btnNewTopic = document.createElement('button');
         btnNewTopic.className = 'btn btn-primary btn-sm';
-        btnNewTopic.innerHTML = '+ Add Topic';
+        btnNewTopic.textContent = _t('ext_talk.add_topic_btn', '+ Add Topic');
         btnNewTopic.addEventListener('click', () => {
           isAddingTopic = true;
           activeReplyTopicIndex = null;
@@ -163,7 +165,7 @@
       if (talkData.canEdit) {
         const btnToggleRaw = document.createElement('button');
         btnToggleRaw.className = 'btn btn-outline btn-sm';
-        btnToggleRaw.innerHTML = isRawEditing ? 'View Formatted Topics' : '✏️ Edit Raw Talk Page';
+        btnToggleRaw.textContent = isRawEditing ? _t('ext_talk.view_formatted_btn', 'View Formatted Topics') : _t('ext_talk.edit_raw_btn', '✏️ Edit Raw Talk Page');
         btnToggleRaw.addEventListener('click', () => {
           isRawEditing = !isRawEditing;
           isAddingTopic = false;
@@ -175,7 +177,7 @@
 
       const btnRefresh = document.createElement('button');
       btnRefresh.className = 'btn btn-outline btn-sm';
-      btnRefresh.title = 'Refresh Discussion';
+      btnRefresh.title = _t('ext_talk.refresh_title', 'Refresh Discussion');
       btnRefresh.innerHTML = '🔄';
       btnRefresh.addEventListener('click', () => reloadTalkData());
       actionsBar.appendChild(btnRefresh);
@@ -202,13 +204,13 @@
         emptyState.className = 'talk-empty-state';
         emptyState.innerHTML = `
           <div class="talk-empty-icon">💬</div>
-          <div class="talk-empty-title">No discussion topics yet</div>
-          <div class="talk-empty-desc">This talk page is currently empty. Start a conversation, propose revisions, or leave editorial notes for this chapter.</div>
+          <div class="talk-empty-title">${escapeHtml(_t('ext_talk.empty_title', 'No discussion topics yet'))}</div>
+          <div class="talk-empty-desc">${escapeHtml(_t('ext_talk.empty_desc', 'This talk page is currently empty. Start a conversation, propose revisions, or leave editorial notes for this chapter.'))}</div>
         `;
         if (talkData.canPost) {
           const btnStart = document.createElement('button');
           btnStart.className = 'btn btn-primary';
-          btnStart.innerHTML = '+ Start First Topic';
+          btnStart.textContent = _t('ext_talk.start_first_topic_btn', '+ Start First Topic');
           btnStart.addEventListener('click', () => {
             isAddingTopic = true;
             renderTalkWorkspace();
@@ -218,7 +220,7 @@
           const loginHint = document.createElement('p');
           loginHint.style.color = 'var(--text-muted)';
           loginHint.style.fontSize = '0.85rem';
-          loginHint.innerHTML = 'Sign in to start a topic or participate in the discussion.';
+          loginHint.textContent = _t('ext_talk.signin_hint', 'Sign in to start a topic or participate in the discussion.');
           emptyState.appendChild(loginHint);
         }
         talkContainer.appendChild(emptyState);
@@ -236,7 +238,7 @@
 
         const cardBody = document.createElement('div');
         cardBody.className = 'talk-topic-body';
-        cardBody.innerHTML = topic.html || '<p><em>No content.</em></p>';
+        cardBody.innerHTML = topic.html || `<p><em>${escapeHtml(_t('ext_talk.no_content', 'No content.'))}</em></p>`;
 
         const cardFooter = document.createElement('div');
         cardFooter.className = 'talk-topic-footer';
@@ -244,7 +246,7 @@
         if (talkData.canPost) {
           const btnReply = document.createElement('button');
           btnReply.className = 'btn btn-outline btn-sm';
-          btnReply.innerHTML = '↩️ Reply';
+          btnReply.textContent = _t('ext_talk.reply_btn', '↩️ Reply');
           btnReply.addEventListener('click', () => {
             activeReplyTopicIndex = (activeReplyTopicIndex === topic.index) ? null : topic.index;
             isAddingTopic = false;
@@ -263,11 +265,11 @@
           replyFormCard.className = 'talk-form-card';
           replyFormCard.style.margin = '1rem';
           replyFormCard.innerHTML = `
-            <div class="talk-form-title">Reply to "${escapeHtml(topic.title)}"</div>
-            <textarea class="form-control" id="talk-reply-input" rows="4" placeholder="Write your reply (Markdown supported)..." style="width: 100%;"></textarea>
+            <div class="talk-form-title">${escapeHtml(_t('ext_talk.reply_to_title', 'Reply to "{title}"', { title: topic.title }))}</div>
+            <textarea class="form-control" id="talk-reply-input" rows="4" placeholder="${escapeHtml(_t('ext_talk.reply_placeholder', 'Write your reply (Markdown supported)...'))}" style="width: 100%;"></textarea>
             <div class="talk-form-actions">
-              <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-reply">Cancel</button>
-              <button type="button" class="btn btn-primary btn-sm" id="btn-submit-reply">Post Reply</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-reply">${escapeHtml(_t('ext_talk.cancel', 'Cancel'))}</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-submit-reply">${escapeHtml(_t('ext_talk.post_reply_btn', 'Post Reply'))}</button>
             </div>
           `;
           card.appendChild(replyFormCard);
@@ -286,11 +288,11 @@
             btnSubmit.addEventListener('click', () => {
               const replyMsg = (textarea.value || '').trim();
               if (!replyMsg) {
-                alert('Please enter a reply message.');
+                alert(_t('ext_talk.enter_reply_msg', 'Please enter a reply message.'));
                 return;
               }
               btnSubmit.disabled = true;
-              btnSubmit.textContent = 'Posting...';
+              btnSubmit.textContent = _t('ext_talk.posting', 'Posting...');
 
               fetch('api/admin.php', {
                 method: 'POST',
@@ -309,15 +311,15 @@
                   activeReplyTopicIndex = null;
                   reloadTalkData();
                 } else {
-                  alert(resData.error || 'Failed to post reply.');
+                  alert(resData.error || _t('ext_talk.reply_failed', 'Failed to post reply.'));
                   btnSubmit.disabled = false;
-                  btnSubmit.textContent = 'Post Reply';
+                  btnSubmit.textContent = _t('ext_talk.post_reply_btn', 'Post Reply');
                 }
               })
               .catch(err => {
-                alert('Network error while posting reply.');
+                alert(_t('ext_talk.reply_network_error', 'Network error while posting reply.'));
                 btnSubmit.disabled = false;
-                btnSubmit.textContent = 'Post Reply';
+                btnSubmit.textContent = _t('ext_talk.post_reply_btn', 'Post Reply');
               });
             });
           }, 0);
@@ -331,18 +333,18 @@
       const formCard = document.createElement('div');
       formCard.className = 'talk-form-card';
       formCard.innerHTML = `
-        <div class="talk-form-title">+ Start a New Discussion Topic</div>
+        <div class="talk-form-title">${escapeHtml(_t('ext_talk.new_topic_heading', '+ Start a New Discussion Topic'))}</div>
         <div class="form-group" style="margin-bottom: 0.75rem;">
-          <label class="form-label">Topic Subject / Title</label>
-          <input type="text" id="talk-topic-title-input" class="form-control" placeholder="e.g. Proposed revision to Section 2" maxlength="120" required>
+          <label class="form-label">${escapeHtml(_t('ext_talk.topic_subject_label', 'Topic Subject / Title'))}</label>
+          <input type="text" id="talk-topic-title-input" class="form-control" placeholder="${escapeHtml(_t('ext_talk.topic_subject_placeholder', 'e.g. Proposed revision to Section 2'))}" maxlength="120" required>
         </div>
         <div class="form-group" style="margin-bottom: 0.75rem;">
-          <label class="form-label">Message (Markdown supported)</label>
-          <textarea id="talk-topic-msg-input" class="form-control" rows="5" placeholder="Explain the rationale, paste proposals, or ask questions..."></textarea>
+          <label class="form-label">${escapeHtml(_t('ext_talk.topic_message_label', 'Message (Markdown supported)'))}</label>
+          <textarea id="talk-topic-msg-input" class="form-control" rows="5" placeholder="${escapeHtml(_t('ext_talk.topic_message_placeholder', 'Explain the rationale, paste proposals, or ask questions...'))}"></textarea>
         </div>
         <div class="talk-form-actions">
-          <button type="button" class="btn btn-outline" id="btn-cancel-topic">Cancel</button>
-          <button type="button" class="btn btn-primary" id="btn-submit-topic">Create Topic</button>
+          <button type="button" class="btn btn-outline" id="btn-cancel-topic">${escapeHtml(_t('ext_talk.cancel', 'Cancel'))}</button>
+          <button type="button" class="btn btn-primary" id="btn-submit-topic">${escapeHtml(_t('ext_talk.create_topic_btn', 'Create Topic'))}</button>
         </div>
       `;
       container.appendChild(formCard);
@@ -365,19 +367,19 @@
           const message = (msgInput.value || '').trim();
 
           if (!title) {
-            alert('Please enter a topic title.');
+            alert(_t('ext_talk.enter_topic_title', 'Please enter a topic title.'));
             titleInput.focus();
             return;
           }
 
           if (!message) {
-            alert('Please enter a topic message.');
+            alert(_t('ext_talk.enter_topic_msg', 'Please enter a topic message.'));
             msgInput.focus();
             return;
           }
 
           btnSubmit.disabled = true;
-          btnSubmit.textContent = 'Creating...';
+          btnSubmit.textContent = _t('ext_talk.creating', 'Creating...');
 
           fetch('api/admin.php', {
             method: 'POST',
@@ -396,15 +398,15 @@
               isAddingTopic = false;
               reloadTalkData();
             } else {
-              alert(resData.error || 'Failed to create topic.');
+              alert(resData.error || _t('ext_talk.create_topic_failed', 'Failed to create topic.'));
               btnSubmit.disabled = false;
-              btnSubmit.textContent = 'Create Topic';
+              btnSubmit.textContent = _t('ext_talk.create_topic_btn', 'Create Topic');
             }
           })
           .catch(err => {
-            alert('Network error while creating topic.');
+            alert(_t('ext_talk.create_topic_network_error', 'Network error while creating topic.'));
             btnSubmit.disabled = false;
-            btnSubmit.textContent = 'Create Topic';
+            btnSubmit.textContent = _t('ext_talk.create_topic_btn', 'Create Topic');
           });
         });
       }, 0);
@@ -415,13 +417,13 @@
       editorCard.className = 'talk-raw-editor-card';
       editorCard.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-          <h3 style="margin: 0; font-size: 1.05rem; color: var(--text-primary);">Raw Talk Page Markdown</h3>
-          <small style="color: var(--text-muted);">Sections begin with <code>## Topic Name</code></small>
+          <h3 style="margin: 0; font-size: 1.05rem; color: var(--text-primary);">${escapeHtml(_t('ext_talk.raw_markdown_heading', 'Raw Talk Page Markdown'))}</h3>
+          <small style="color: var(--text-muted);">${_t('ext_talk.raw_markdown_hint_html', 'Sections begin with <code>## Topic Name</code>')}</small>
         </div>
         <textarea class="talk-raw-textarea" id="talk-raw-textarea">${escapeHtml(talkData.raw || '')}</textarea>
         <div class="talk-form-actions" style="margin-top: 1rem;">
-          <button type="button" class="btn btn-outline" id="btn-cancel-raw">Cancel</button>
-          <button type="button" class="btn btn-primary" id="btn-save-raw">Save Raw Markdown</button>
+          <button type="button" class="btn btn-outline" id="btn-cancel-raw">${escapeHtml(_t('ext_talk.cancel', 'Cancel'))}</button>
+          <button type="button" class="btn btn-primary" id="btn-save-raw">${escapeHtml(_t('ext_talk.save_raw_btn', 'Save Raw Markdown'))}</button>
         </div>
       `;
       container.appendChild(editorCard);
@@ -439,7 +441,7 @@
         btnSave.addEventListener('click', () => {
           const markdown = textarea.value;
           btnSave.disabled = true;
-          btnSave.textContent = 'Saving...';
+          btnSave.textContent = _t('ext_talk.saving', 'Saving...');
 
           fetch('api/admin.php', {
             method: 'POST',
@@ -457,15 +459,15 @@
               isRawEditing = false;
               reloadTalkData();
             } else {
-              alert(resData.error || 'Failed to save talk page.');
+              alert(resData.error || _t('ext_talk.save_raw_failed', 'Failed to save talk page.'));
               btnSave.disabled = false;
-              btnSave.textContent = 'Save Raw Markdown';
+              btnSave.textContent = _t('ext_talk.save_raw_btn', 'Save Raw Markdown');
             }
           })
           .catch(err => {
-            alert('Network error while saving raw talk page.');
+            alert(_t('ext_talk.save_raw_network_error', 'Network error while saving raw talk page.'));
             btnSave.disabled = false;
-            btnSave.textContent = 'Save Raw Markdown';
+            btnSave.textContent = _t('ext_talk.save_raw_btn', 'Save Raw Markdown');
           });
         });
       }, 0);

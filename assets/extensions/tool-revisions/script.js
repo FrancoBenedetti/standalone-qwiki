@@ -1,4 +1,5 @@
 function initRevisionsExtension() {
+    const _t = (k, f, v) => (typeof window !== 'undefined' && window.__t ? window.__t(k, f, v) : f);
     const modal = document.getElementById('ext-revisions-modal');
     if (!modal) return;
 
@@ -30,34 +31,34 @@ function initRevisionsExtension() {
         selectedRevId = '';
         restoreBtn.style.display = 'none';
         if (downloadBtn) downloadBtn.style.display = 'none';
-        previewTitleEl.textContent = 'Preview';
-        previewCodeEl.textContent = 'Select a revision on the left.';
+        previewTitleEl.textContent = _t('ext_revisions.preview', 'Preview');
+        previewCodeEl.textContent = _t('ext_revisions.select_left', 'Select a revision on the left.');
         if (!currentSlug) {
-            statusEl.textContent = 'No active document selected.';
+            statusEl.textContent = _t('ext_revisions.no_active_doc', 'No active document selected.');
             listEl.replaceChildren();
             const msg = document.createElement('div');
             msg.style.padding = '0.75rem';
             msg.style.color = 'var(--text-muted)';
-            msg.textContent = 'Open a document first.';
+            msg.textContent = _t('ext_revisions.open_doc_first', 'Open a document first.');
             listEl.appendChild(msg);
             return;
         }
-        statusEl.textContent = 'Loading revisions for "' + currentSlug + '"...';
+        statusEl.textContent = _t('ext_revisions.loading_for_slug', 'Loading revisions for "{slug}"...', { slug: currentSlug });
         try {
             const res = await fetch('api/admin.php?action=ext_revisions_list&slug=' + encodeURIComponent(currentSlug));
             const data = await res.json();
             if (!data.success) {
-                statusEl.textContent = data.error || 'Failed to load revisions.';
+                statusEl.textContent = data.error || _t('ext_revisions.load_failed', 'Failed to load revisions.');
                 return;
             }
             const revs = data.revisions || [];
-            statusEl.textContent = revs.length + ' revision(s) stored.';
+            statusEl.textContent = _t('ext_revisions.revs_stored', '{count} revision(s) stored.', { count: revs.length });
             listEl.replaceChildren();
             if (revs.length === 0) {
                 const empty = document.createElement('div');
                 empty.style.padding = '0.75rem';
                 empty.style.color = 'var(--text-muted)';
-                empty.textContent = 'No prior revisions yet.';
+                empty.textContent = _t('ext_revisions.no_prior_revs', 'No prior revisions yet.');
                 listEl.appendChild(empty);
                 return;
             }
@@ -77,14 +78,14 @@ function initRevisionsExtension() {
                 listEl.appendChild(btn);
             });
         } catch (err) {
-            statusEl.textContent = 'Error loading revisions.';
+            statusEl.textContent = _t('ext_revisions.load_error', 'Error loading revisions.');
         }
     }
 
     async function previewRevision(revId) {
         selectedRevId = revId;
-        previewTitleEl.textContent = 'Revision ' + revId;
-        previewCodeEl.textContent = 'Loading...';
+        previewTitleEl.textContent = _t('ext_revisions.rev_title', 'Revision {id}', { id: revId });
+        previewCodeEl.textContent = _t('ext_revisions.loading', 'Loading...');
         try {
             const res = await fetch('api/admin.php?action=ext_revisions_get&slug=' + encodeURIComponent(currentSlug) + '&revId=' + encodeURIComponent(revId));
             const data = await res.json();
@@ -103,12 +104,12 @@ function initRevisionsExtension() {
                 }
                 restoreBtn.style.display = 'inline-block';
             } else {
-                previewCodeEl.textContent = data.error || 'Unable to load revision.';
+                previewCodeEl.textContent = data.error || _t('ext_revisions.unable_load_rev', 'Unable to load revision.');
                 restoreBtn.style.display = 'none';
                 if (downloadBtn) downloadBtn.style.display = 'none';
             }
         } catch (e) {
-            previewCodeEl.textContent = 'Network error.';
+            previewCodeEl.textContent = _t('ext_revisions.network_error', 'Network error.');
             restoreBtn.style.display = 'none';
             if (downloadBtn) downloadBtn.style.display = 'none';
         }
@@ -116,7 +117,7 @@ function initRevisionsExtension() {
 
     restoreBtn.addEventListener('click', async () => {
         if (!currentSlug || !selectedRevId) return;
-        if (!confirm('Restore revision ' + selectedRevId + '? Current content will be snapshotted first.')) return;
+        if (!confirm(_t('ext_revisions.confirm_restore', 'Restore revision {id}? Current content will be snapshotted first.', { id: selectedRevId }))) return;
         const fd = new FormData();
         fd.append('action', 'ext_revisions_restore');
         fd.append('slug', currentSlug);
@@ -132,7 +133,7 @@ function initRevisionsExtension() {
         if (data.success) {
             window.location.reload();
         } else {
-            alert(data.error || 'Restore failed.');
+            alert(data.error || _t('ext_revisions.restore_failed', 'Restore failed.'));
         }
     });
 
