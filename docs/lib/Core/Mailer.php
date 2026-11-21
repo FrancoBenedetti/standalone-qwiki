@@ -38,40 +38,58 @@ class Mailer {
         $fromEmail = !empty($smtpConfig['fromEmail']) ? trim($smtpConfig['fromEmail']) : self::getDefaultFromEmail();
         $fromName  = !empty($smtpConfig['fromName']) ? trim($smtpConfig['fromName']) : 'Standalone Qwiki';
 
-        $cleanHost = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
-        if (empty($cleanHost)) $cleanHost = 'localhost';
+        $defaults = [
+            'From'                      => self::formatAddress($fromEmail, $fromName),
+            'Reply-To'                  => "<{$fromEmail}>",
+            'MIME-Version'              => '1.0',
+            'Content-Type'              => 'text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding' => '8bit',
+            'X-Mailer'                  => 'Standalone Qwiki Mailer',
+        ];
 
-        $headers = [];
-        $headers[] = "From: {$fromName} <{$fromEmail}>";
-        $headers[] = "Reply-To: <{$fromEmail}>";
-        $headers[] = "Date: " . date('r');
-        $headers[] = "Message-ID: <" . time() . "." . bin2hex(random_bytes(8)) . "@{$cleanHost}>";
-        $headers[] = "MIME-Version: 1.0";
-        $headers[] = "Content-Type: text/plain; charset=UTF-8";
-        $headers[] = "Content-Transfer-Encoding: 8bit";
-        $headers[] = "X-Mailer: Standalone Qwiki Mailer";
-        $headers[] = "Auto-Submitted: auto-generated";
+        $headerLines = self::buildHeaderLines($defaults, $customHeaders);
+        // PHP mail() adds the header/body separator itself; do not append a trailing newline.
+        $headersStr = implode(PHP_EOL, $headerLines);
+        $encodedSubject = self::encodeSubject($subject);
 
-        foreach ($customHeaders as $k => $v) {
-            $headers[] = "{$k}: {$v}";
+        $envelopeSender = self::extractEmailFromHeader(
+            $customHeaders['From'] ?? $customHeaders['from'] ?? '',
+            $fromEmail
+        );
+
+        $sent = false;
+        $lastError = '';
+        if (filter_var($envelopeSender, FILTER_VALIDATE_EMAIL)) {
+            error_clear_last();
+            $sent = @mail($to, $encodedSubject, $body, $headersStr, "-f" . $envelopeSender);
+            if (!$sent) {
+                $err = error_get_last();
+                if ($err && !empty($err['message'])) {
+                    $lastError = $err['message'];
+                }
+            }
         }
-
-        $headersStr = implode("\r\n", $headers) . "\r\n";
-
-        // Try with envelope sender -f parameter
-        $sent = @mail($to, $subject, $body, $headersStr, "-f" . $fromEmail);
         if (!$sent) {
             // Fallback without 5th parameter if host restricts extra arguments
-            $sent = @mail($to, $subject, $body, $headersStr);
+            error_clear_last();
+            $sent = @mail($to, $encodedSubject, $body, $headersStr);
+            if (!$sent) {
+                $err = error_get_last();
+                if ($err && !empty($err['message'])) {
+                    $lastError = $err['message'];
+                }
+            }
         }
 
         if ($sent) {
             return ['success' => true];
         }
 
+        error_log("Qwiki Mailer: Native mail() failed for {$to}" . ($lastError ? " ({$lastError})" : ""));
+
         return [
             'success' => false,
-            'error' => 'Native mail() dispatch failed. Check server MTA or configure SMTP in Settings.'
+            'error' => 'Native mail() dispatch failed' . ($lastError ? ": {$lastError}" : '. Check server MTA or configure SMTP in Settings.')
         ];
     }
 
@@ -211,26 +229,27 @@ class Mailer {
             }
 
             // 8. Headers and payload
-            $cleanHost = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
+            $rawHost = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+            if (strpos($rawHost, ':') !== false) {
+                $rawHost = explode(':', $rawHost)[0];
+            }
+            $cleanHost = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $rawHost);
             if (empty($cleanHost)) $cleanHost = 'localhost';
 
-            $headers = [];
-            $headers[] = "From: {$fromName} <{$fromEmail}>";
-            $headers[] = "To: <{$to}>";
-            $headers[] = "Reply-To: <{$fromEmail}>";
-            $headers[] = "Subject: {$subject}";
-            $headers[] = "Date: " . date('r');
-            $headers[] = "Message-ID: <" . time() . "." . bin2hex(random_bytes(8)) . "@{$cleanHost}>";
-            $headers[] = "MIME-Version: 1.0";
-            $headers[] = "Content-Type: text/plain; charset=UTF-8";
-            $headers[] = "Content-Transfer-Encoding: 8bit";
-            $headers[] = "X-Mailer: Standalone Qwiki SMTP Mailer";
-            $headers[] = "Auto-Submitted: auto-generated";
+            $defaults = [
+                'From'                      => self::formatAddress($fromEmail, $fromName),
+                'To'                        => "<{$to}>",
+                'Reply-To'                  => "<{$fromEmail}>",
+                'Subject'                   => self::encodeSubject($subject),
+                'Date'                      => date('r'),
+                'Message-ID'                => '<' . time() . '.' . bin2hex(random_bytes(8)) . "@{$cleanHost}>",
+                'MIME-Version'              => '1.0',
+                'Content-Type'              => 'text/plain; charset=UTF-8',
+                'Content-Transfer-Encoding' => '8bit',
+                'X-Mailer'                  => 'Standalone Qwiki SMTP Mailer',
+            ];
 
-            foreach ($customHeaders as $k => $v) {
-                $headers[] = "{$k}: {$v}";
-            }
-
+            $headers = self::buildHeaderLines($defaults, $customHeaders);
             $msgPayload = implode("\r\n", $headers) . "\r\n\r\n";
             // Normalize line endings to CRLF and perform dot-stuffing
             $normalizedBody = str_replace(["\r\n", "\r", "\n"], "\n", $body);
@@ -282,11 +301,81 @@ class Mailer {
      * Compute fallback from-email based on server environment.
      */
     public static function getDefaultFromEmail(): string {
-        $host = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
+        $rawHost = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+        if (strpos($rawHost, ':') !== false) {
+            $rawHost = explode(':', $rawHost)[0];
+        }
+        $host = preg_replace('/[^a-zA-Z0-9\.\-]/', '', $rawHost);
         if (empty($host) || $host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP)) {
             return 'no-reply@qwiki.local';
         }
-        $parts = explode(':', $host);
-        return 'no-reply@' . $parts[0];
+        return 'no-reply@' . $host;
+    }
+
+    /**
+     * Format an RFC 5322 address with safe quoting / UTF-8 MIME encoding.
+     */
+    public static function formatAddress(string $email, string $name = ''): string {
+        $cleanEmail = str_replace(["\r", "\n"], '', trim($email));
+        $cleanName  = str_replace(["\r", "\n"], '', trim($name));
+        if ($cleanName === '') {
+            return "<{$cleanEmail}>";
+        }
+        if (preg_match('/^[\x20-\x7E]+$/', $cleanName)) {
+            return '"' . addcslashes($cleanName, '"\\') . "\" <{$cleanEmail}>";
+        }
+        return '=?UTF-8?B?' . base64_encode($cleanName) . "?= <{$cleanEmail}>";
+    }
+
+    /**
+     * MIME-encode a subject line when it contains non-ASCII characters.
+     */
+    public static function encodeSubject(string $subject): string {
+        $clean = str_replace(["\r", "\n"], '', trim($subject));
+        if (preg_match('/[^\x20-\x7E]/', $clean)) {
+            return '=?UTF-8?B?' . base64_encode($clean) . '?=';
+        }
+        return $clean;
+    }
+
+    /**
+     * Merge default and custom headers case-insensitively without duplicates.
+     */
+    private static function buildHeaderLines(array $defaults, array $customHeaders): array {
+        $map = [];
+        foreach ($defaults as $k => $v) {
+            $cleanKey = str_replace(["\r", "\n", ":"], '', trim((string)$k));
+            $cleanVal = str_replace(["\r", "\n"], '', trim((string)$v));
+            $map[strtolower($cleanKey)] = ['name' => $cleanKey, 'value' => $cleanVal];
+        }
+        foreach ($customHeaders as $k => $v) {
+            $cleanKey = str_replace(["\r", "\n", ":"], '', trim((string)$k));
+            $cleanVal = str_replace(["\r", "\n"], '', trim((string)$v));
+            if ($cleanKey === '' || $cleanVal === '') {
+                continue;
+            }
+            $map[strtolower($cleanKey)] = ['name' => $cleanKey, 'value' => $cleanVal];
+        }
+        $lines = [];
+        foreach ($map as $entry) {
+            $lines[] = "{$entry['name']}: {$entry['value']}";
+        }
+        return $lines;
+    }
+
+    /**
+     * Extract a bare email address from a header value, or return fallback.
+     */
+    private static function extractEmailFromHeader(string $headerValue, string $fallback): string {
+        $trimmed = trim($headerValue);
+        if ($trimmed !== '') {
+            if (preg_match('/<([^>]+)>/', $trimmed, $matches) && filter_var(trim($matches[1]), FILTER_VALIDATE_EMAIL)) {
+                return trim($matches[1]);
+            }
+            if (filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                return $trimmed;
+            }
+        }
+        return $fallback;
     }
 }

@@ -3,6 +3,7 @@ namespace Qwiki\Core;
 
 require_once __DIR__ . '/QwikiParsedown.php';
 require_once __DIR__ . '/MetadataManager.php';
+require_once __DIR__ . '/Translator.php';
 
 class ExtensionManager {
     private static $instance = null;
@@ -71,6 +72,53 @@ class ExtensionManager {
         } elseif ($type === 'utility') {
             $this->utilities[$id] = $manifest;
         }
+    }
+
+    public function isExtensionEnabled(string $id): bool {
+        $config = Config::load();
+        $extensions = $config['extensions'] ?? [];
+        if (array_key_exists($id, $extensions)) {
+            return !empty($extensions[$id]);
+        }
+        return true;
+    }
+
+    public function getAllExtensions(): array {
+        $this->discover();
+        $all = [];
+        foreach ($this->pageTypes as $id => $ext) {
+            $ext['enabled'] = $this->isExtensionEnabled($id);
+            $ext['category'] = 'page_type';
+            $all[$id] = $ext;
+        }
+        foreach ($this->utilities as $id => $ext) {
+            $ext['enabled'] = $this->isExtensionEnabled($id);
+            $ext['category'] = 'utility';
+            $all[$id] = $ext;
+        }
+        return $all;
+    }
+
+    public function getEnabledPageTypes(): array {
+        $this->discover();
+        $enabled = [];
+        foreach ($this->pageTypes as $id => $ext) {
+            if ($this->isExtensionEnabled($id)) {
+                $enabled[$id] = $ext;
+            }
+        }
+        return $enabled;
+    }
+
+    public function getEnabledUtilities(): array {
+        $this->discover();
+        $enabled = [];
+        foreach ($this->utilities as $id => $ext) {
+            if ($this->isExtensionEnabled($id)) {
+                $enabled[$id] = $ext;
+            }
+        }
+        return $enabled;
     }
 
     public function getPageTypes() {
@@ -163,11 +211,12 @@ class ExtensionManager {
                 }
             }
             $escapedPdfUrl = htmlspecialchars($pdfViewUrl);
+            $downloadPdfLabel = htmlspecialchars(\__('doc.download_original_pdf', 'Download Original PDF'));
             return "
                 <div class=\"pdf-viewer-container\">
                     <iframe src=\"{$escapedPdfUrl}\" title=\"PDF Viewer\"></iframe>
                 </div>
-                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">Download Original PDF</a></p>
+                <p style=\"margin-top: 1rem;\"><a href=\"{$escapedPdfUrl}\" target=\"_blank\" class=\"btn btn-outline btn-sm\">{$downloadPdfLabel}</a></p>
             ";
         }
 
@@ -206,13 +255,26 @@ class ExtensionManager {
             $ext = $this->pageTypes[$type];
             $rendererFile = $ext['base_dir'] . '/' . ($ext['renderer'] ?? 'renderer.php');
             if (file_exists($rendererFile)) {
+                $isReadOnly = !$this->isExtensionEnabled($type);
                 ob_start();
                 // Pass variables into scope of included renderer
                 $chapter = $activeChapter;
                 $book = $activeBook;
                 $extension = $ext;
+                $isAdmin = \Qwiki\Core\Auth::isAdmin() && !$isReadOnly;
                 include $rendererFile;
-                return ob_get_clean();
+                $content = ob_get_clean();
+
+                if ($isReadOnly) {
+                    $extTitle = htmlspecialchars(\__('ext.' . $type . '.title', $ext['title'] ?? ucfirst($type)));
+                    $noticeMsg = \__('ext.readonly_banner_html', '<strong>Read-only mode:</strong> The <em>{title}</em> extension is disabled on this wiki. Editing is disabled.', ['title' => $extTitle]);
+                    $notice = "<div class=\"alert alert-info\" style=\"margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;\">"
+                        . "<span>🔒</span> <span>{$noticeMsg}</span>"
+                        . "</div>\n";
+                    return $notice . $content;
+                }
+
+                return $content;
             }
         }
 
@@ -269,9 +331,19 @@ class ExtensionManager {
             if (file_exists($handlerFile)) {
                 $supportedActions = $util['actions'] ?? [$id, 'ext_' . $id];
                 if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
+                    if (!$this->isExtensionEnabled($id)) {
+                        if (!headers_sent()) {
+                            http_response_code(403);
+                        }
+                        echo json_encode(['success' => false, 'error' => "Extension '{$id}' is disabled on this wiki"]);
+                        return true;
+                    }
                     $utility = $util;
                     try {
-                        include $handlerFile;
+                        $handlerResult = include $handlerFile;
+                        if (is_array($handlerResult)) {
+                            echo json_encode($handlerResult, JSON_INVALID_UTF8_SUBSTITUTE);
+                        }
                     } catch (\Throwable $e) {
                         error_log("Extension [{$id}] action error: " . $e->getMessage());
                         echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
@@ -287,9 +359,19 @@ class ExtensionManager {
             if (file_exists($handlerFile)) {
                 $supportedActions = $pt['actions'] ?? ['add_' . $id, 'create_' . $id, 'edit_' . $id, 'ext_' . $id];
                 if (in_array($action, $supportedActions) || strpos($action, 'ext_' . $id) === 0) {
+                    if (!$this->isExtensionEnabled($id)) {
+                        if (!headers_sent()) {
+                            http_response_code(403);
+                        }
+                        echo json_encode(['success' => false, 'error' => "Extension '{$id}' is disabled on this wiki"]);
+                        return true;
+                    }
                     $pageType = $pt;
                     try {
-                        include $handlerFile;
+                        $handlerResult = include $handlerFile;
+                        if (is_array($handlerResult)) {
+                            echo json_encode($handlerResult, JSON_INVALID_UTF8_SUBSTITUTE);
+                        }
                     } catch (\Throwable $e) {
                         error_log("Extension [{$id}] action error: " . $e->getMessage());
                         echo json_encode(['success' => false, 'error' => 'Extension error: ' . $e->getMessage()]);
@@ -307,7 +389,7 @@ class ExtensionManager {
         $styles = [];
         $scripts = [];
 
-        $all = array_merge($this->pageTypes, $this->utilities);
+        $all = array_merge($this->getEnabledPageTypes(), $this->getEnabledUtilities());
         foreach ($all as $ext) {
             if (!empty($ext['styles'])) {
                 foreach ((array)$ext['styles'] as $style) {
@@ -348,17 +430,17 @@ class ExtensionManager {
 
     public function renderAddDocumentTabs() {
         $this->discover();
-        foreach ($this->pageTypes as $id => $ext) {
+        foreach ($this->getEnabledPageTypes() as $id => $ext) {
             $tabId = 'tab-ext-' . htmlspecialchars($id);
             $icon = $ext['icon'] ?? '📄';
-            $title = htmlspecialchars($ext['title'] ?? ucfirst($id));
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $ext['title'] ?? ucfirst($id)));
             echo "<button class='tab-btn' data-tab='{$tabId}'>{$icon} {$title}</button>\n";
         }
     }
 
     public function renderAddDocumentForms($activeBook, $config, $categoryHierarchy = [], $currentCategoryId = '') {
         $this->discover();
-        foreach ($this->pageTypes as $id => $ext) {
+        foreach ($this->getEnabledPageTypes() as $id => $ext) {
             $tabId = 'tab-ext-' . htmlspecialchars($id);
             $modalFile = $ext['base_dir'] . '/' . ($ext['modal'] ?? 'modal.html.php');
             if (file_exists($modalFile)) {
@@ -372,7 +454,7 @@ class ExtensionManager {
 
     public function renderUtilityModals() {
         $this->discover();
-        foreach ($this->utilities as $id => $util) {
+        foreach ($this->getEnabledUtilities() as $id => $util) {
             $modalFile = $util['base_dir'] . '/' . ($util['modal'] ?? 'modal.html.php');
             if (file_exists($modalFile)) {
                 $utility = $util;
@@ -383,15 +465,54 @@ class ExtensionManager {
 
     public function renderHeaderUtilityButtons($isAdmin = true) {
         $this->discover();
-        foreach ($this->utilities as $id => $util) {
+        foreach ($this->getEnabledUtilities() as $id => $util) {
             if (!$isAdmin && !empty($util['adminOnly'])) {
                 continue;
             }
             $placement = $util['placement'] ?? 'dropdown';
+            if (!in_array($placement, ['dropdown', 'header_menu'], true)) {
+                continue;
+            }
             $icon = $util['icon'] ?? '⚡';
-            $title = htmlspecialchars($util['title'] ?? ucfirst($id));
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $util['title'] ?? ucfirst($id)));
             $btnId = 'btn-util-' . htmlspecialchars($id);
             echo "<button class='dropdown-item' id='{$btnId}'><span class='dropdown-item-icon'>{$icon}</span> <span class='dropdown-item-text'>{$title}</span></button>\n";
+        }
+    }
+
+    public function renderChapterHeaderUtilityButtons($isAdmin = true) {
+        $this->discover();
+        foreach ($this->getEnabledUtilities() as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
+            $placement = $util['placement'] ?? 'dropdown';
+            if ($placement !== 'chapter_header') {
+                continue;
+            }
+            $icon = $util['icon'] ?? '⚡';
+            $title = htmlspecialchars(\__('ext.' . $id . '.title', $util['title'] ?? ucfirst($id)));
+            $btnId = 'btn-chapter-' . htmlspecialchars($id);
+            echo "<button type='button' class='btn btn-outline btn-sm' id='{$btnId}' title='{$title}'>{$icon}</button>\n";
+        }
+    }
+
+    public function renderToolbarUtilityWidgets(bool $isAdmin = false, string $context = 'header'): void {
+        $this->discover();
+        foreach ($this->getEnabledUtilities() as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
+            $placement = $util['placement'] ?? 'dropdown';
+            if ($placement !== 'header_toolbar') {
+                continue;
+            }
+            $widgetFile = $util['base_dir'] . '/' . ($util['widget'] ?? 'widget.html.php');
+            if (file_exists($widgetFile)) {
+                $utility = $util;
+                $toolbarContext = $context;
+                include $widgetFile;
+            }
         }
     }
 }

@@ -3,6 +3,7 @@
 
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Auth.php';
+require_once __DIR__ . '/../lib/Core/Navigation.php';
 require_once __DIR__ . '/../lib/Core/LockManager.php';
 require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 

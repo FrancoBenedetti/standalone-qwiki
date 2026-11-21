@@ -4,6 +4,10 @@ namespace Qwiki\Core;
 require_once __DIR__ . '/QwikiParsedown.php';
 require_once __DIR__ . '/MetadataManager.php';
 require_once __DIR__ . '/Translator.php';
+require_once __DIR__ . '/Navigation.php';
+require_once __DIR__ . '/DocumentService.php';
+require_once __DIR__ . '/AuditLogger.php';
+require_once __DIR__ . '/Mailer.php';
 
 class ExtensionManager {
     private static $instance = null;

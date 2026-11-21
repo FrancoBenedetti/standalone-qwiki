@@ -144,6 +144,10 @@ if ($action === 'ext_backup_scan') {
     $uploadFiles = 0;
     $uploadsTree = backupScanDirectory($baseDir . '/uploads', $baseDir, $uploadBytes, $uploadFiles);
 
+    $dataBytes = 0;
+    $dataFiles = 0;
+    $dataTree = is_dir($baseDir . '/data') ? backupScanDirectory($baseDir . '/data', $baseDir, $dataBytes, $dataFiles) : [];
+
     $qwikiJsonFile = $baseDir . '/qwiki.json';
     $qwikiExists = file_exists($qwikiJsonFile);
     $qwikiSize = $qwikiExists ? filesize($qwikiJsonFile) : 0;
@@ -183,8 +187,8 @@ if ($action === 'ext_backup_scan') {
         }
     }
 
-    $totalFiles = $contentFiles + $uploadFiles + ($qwikiExists ? 1 : 0) + ($usersExists ? 1 : 0);
-    $totalBytes = $contentBytes + $uploadBytes + $qwikiSize + $usersSize;
+    $totalFiles = $contentFiles + $uploadFiles + $dataFiles + ($qwikiExists ? 1 : 0) + ($usersExists ? 1 : 0);
+    $totalBytes = $contentBytes + $uploadBytes + $dataBytes + $qwikiSize + $usersSize;
 
     echo json_encode([
         'success' => true,
@@ -199,6 +203,11 @@ if ($action === 'ext_backup_scan') {
                 'filesCount' => $uploadFiles,
                 'bytes' => $uploadBytes,
                 'formattedSize' => backupFormatBytes($uploadBytes)
+            ],
+            'data' => [
+                'filesCount' => $dataFiles,
+                'bytes' => $dataBytes,
+                'formattedSize' => backupFormatBytes($dataBytes)
             ],
             'qwikiJson' => [
                 'exists' => $qwikiExists,
@@ -217,7 +226,8 @@ if ($action === 'ext_backup_scan') {
         ],
         'tree' => [
             'content' => $contentTree,
-            'uploads' => $uploadsTree
+            'uploads' => $uploadsTree,
+            'data' => $dataTree
         ]
     ]);
     return;
@@ -255,6 +265,11 @@ if ($action === 'ext_backup_download') {
         // 4. Uploads directory
         if (is_dir($baseDir . '/uploads')) {
             backupCollectDirFiles($baseDir . '/uploads', $baseDir, $filesToAdd);
+        }
+
+        // 4b. Data directory (revisions, trash, audit metadata)
+        if (is_dir($baseDir . '/data')) {
+            backupCollectDirFiles($baseDir . '/data', $baseDir, $filesToAdd);
         }
 
         // 5. Subwikis

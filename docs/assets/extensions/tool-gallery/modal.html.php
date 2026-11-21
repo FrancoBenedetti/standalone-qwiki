@@ -10,34 +10,34 @@
     <div class="modal-card gallery-modal-card">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
-                <h3 style="margin: 0;">🖼️ Image Gallery</h3>
-                <span class="doc-badge badge-md" id="gallery-count-badge">0 images</span>
+                <h3 style="margin: 0;">🖼️ <?= htmlspecialchars(__('ext.gallery.title', 'Image Gallery')) ?></h3>
+                <span class="doc-badge badge-md" id="gallery-count-badge"><?= htmlspecialchars(__('ext_gallery.zero_images', '0 images')) ?></span>
             </div>
-            <button class="modal-close" data-close="modal-gallery" aria-label="Close">&times;</button>
+            <button class="modal-close" data-close="modal-gallery" aria-label="<?= htmlspecialchars(__('common.close', 'Close')) ?>">&times;</button>
         </div>
 
         <!-- Article Editor Active Banner -->
         <div id="gallery-editor-banner" class="gallery-editor-banner" style="display: none;">
             <div class="gallery-editor-banner-text">
                 <span class="gallery-editor-banner-icon">📝</span>
-                <span><strong>Article Editor Active:</strong> Browse images and click <strong>✓ Select</strong> to insert directly into your document.</span>
+                <span><?= __('ext_gallery.editor_banner_html', '<strong>Article Editor Active:</strong> Browse images and click <strong>✓ Select</strong> to insert directly into your document.') ?></span>
             </div>
-            <span class="doc-badge badge-md gallery-mode-badge">SELECT MODE</span>
+            <span class="doc-badge badge-md gallery-mode-badge"><?= htmlspecialchars(__('ext_gallery.select_mode', 'SELECT MODE')) ?></span>
         </div>
 
         <!-- Gallery Toolbar -->
         <div class="gallery-toolbar">
             <div class="gallery-search-box">
                 <span class="gallery-search-icon">🔍</span>
-                <input type="text" id="gallery-search-input" class="form-control gallery-search-field" placeholder="Search images by name or extension...">
+                <input type="text" id="gallery-search-input" class="form-control gallery-search-field" placeholder="<?= htmlspecialchars(__('ext_gallery.search_ph', 'Search images by name or extension...')) ?>">
                 <button type="button" id="gallery-search-clear" class="gallery-clear-btn" style="display: none;">&times;</button>
             </div>
             <div class="gallery-toolbar-actions">
                 <input type="file" id="gallery-file-input" accept="image/*" style="display: none;">
                 <button type="button" class="btn btn-primary btn-sm" id="btn-gallery-upload-trigger">
-                    <span>⬆️</span> Upload Image
+                    <span>⬆️</span> <?= htmlspecialchars(__('ext_gallery.upload_btn', 'Upload Image')) ?>
                 </button>
-                <button type="button" class="btn btn-outline btn-sm" id="btn-gallery-refresh" title="Refresh gallery">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-gallery-refresh" title="<?= htmlspecialchars(__('ext_gallery.refresh_title', 'Refresh gallery')) ?>">
                     🔄
                 </button>
             </div>
@@ -47,7 +47,7 @@
         <div id="gallery-dropzone" class="gallery-dropzone">
             <div class="gallery-dropzone-content">
                 <span style="font-size: 2rem;">📥</span>
-                <p>Drop images here to upload to <code>uploads/images/</code></p>
+                <p><?= __('ext_gallery.dropzone_html', 'Drop images here to upload to <code>uploads/images/</code>') ?></p>
             </div>
         </div>
 
@@ -56,14 +56,14 @@
             <!-- Loading Indicator -->
             <div id="gallery-loading" class="gallery-state-message">
                 <div class="gallery-spinner"></div>
-                <p>Loading uploaded images...</p>
+                <p><?= htmlspecialchars(__('ext_gallery.loading', 'Loading uploaded images...')) ?></p>
             </div>
 
             <!-- Empty State -->
             <div id="gallery-empty" class="gallery-state-message" style="display: none;">
                 <span style="font-size: 3rem; opacity: 0.6;">🖼️</span>
-                <h4>No images found</h4>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">No images uploaded yet. Upload an image above or drag and drop files here.</p>
+                <h4><?= htmlspecialchars(__('ext_gallery.empty_title', 'No images found')) ?></h4>
+                <p style="color: var(--text-muted); font-size: 0.9rem;"><?= htmlspecialchars(__('ext_gallery.empty_desc', 'No images uploaded yet. Upload an image above or drag and drop files here.')) ?></p>
             </div>
 
             <!-- Grid of Images -->
@@ -78,7 +78,7 @@
 <div class="modal-overlay" id="modal-gallery-delete" style="z-index: 1160;">
     <div class="modal-card gallery-delete-card">
         <div class="modal-header">
-            <h3 id="gallery-delete-title">🗑️ Delete Image</h3>
+            <h3 id="gallery-delete-title">🗑️ <?= htmlspecialchars(__('ext_gallery.delete_title', 'Delete Image')) ?></h3>
             <button class="modal-close" id="btn-gallery-delete-close">&times;</button>
         </div>
 
@@ -97,9 +97,9 @@
                 <div class="gallery-warning-badge">
                     <span style="font-size: 1.25rem;">⚠️</span>
                     <div>
-                        <strong id="gallery-warning-headline">Warning: This image is used in documents!</strong>
+                        <strong id="gallery-warning-headline"><?= htmlspecialchars(__('ext_gallery.in_use_warning', 'Warning: This image is used in documents!')) ?></strong>
                         <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem;">
-                            Deleting this image will cause broken images or missing visual content in the following location(s):
+                            <?= htmlspecialchars(__('ext_gallery.in_use_desc', 'Deleting this image will cause broken images or missing visual content in the following location(s):')) ?>
                         </p>
                     </div>
                 </div>
@@ -112,20 +112,20 @@
 
             <!-- Standard Unused Confirmation (Visible when image is NOT referenced) -->
             <div id="gallery-delete-safe-box" class="gallery-safe-box" style="display: none;">
-                <p>Are you sure you want to permanently delete this image from the server? This action cannot be undone.</p>
+                <p><?= htmlspecialchars(__('ext_gallery.delete_confirm', 'Are you sure you want to permanently delete this image from the server? This action cannot be undone.')) ?></p>
             </div>
 
             <!-- Checking State -->
             <div id="gallery-delete-checking" class="gallery-state-message" style="display: none; padding: 1rem 0;">
                 <div class="gallery-spinner"></div>
-                <p>Scanning documents for image references...</p>
+                <p><?= htmlspecialchars(__('ext_gallery.scanning_refs', 'Scanning documents for image references...')) ?></p>
             </div>
         </div>
 
         <!-- Modal Actions -->
         <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-            <button type="button" class="btn btn-outline btn-sm" id="btn-gallery-delete-cancel">Cancel</button>
-            <button type="button" class="btn btn-danger btn-sm" id="btn-gallery-delete-confirm">Delete Image</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-gallery-delete-cancel"><?= htmlspecialchars(__('common.cancel', 'Cancel')) ?></button>
+            <button type="button" class="btn btn-danger btn-sm" id="btn-gallery-delete-confirm"><?= htmlspecialchars(__('ext_gallery.delete_title', 'Delete Image')) ?></button>
         </div>
     </div>
 </div>
@@ -136,7 +136,7 @@
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
                 <span style="font-size: 1.2rem;">🔍</span>
-                <h3 id="gallery-preview-title" class="gallery-truncate" style="margin: 0;">Image Preview</h3>
+                <h3 id="gallery-preview-title" class="gallery-truncate" style="margin: 0;"><?= htmlspecialchars(__('ext_gallery.preview_title', 'Image Preview')) ?></h3>
             </div>
             <button class="modal-close" id="btn-gallery-preview-close">&times;</button>
         </div>
@@ -153,43 +153,43 @@
                     <span class="gallery-meta-tag" id="gallery-preview-meta-dim">1920x1080</span>
                     <span class="gallery-meta-tag" id="gallery-preview-meta-size">145 KB</span>
                     <span class="gallery-meta-tag" id="gallery-preview-meta-date">2026-09-02</span>
-                    <span class="gallery-meta-tag" id="gallery-preview-usage-tag" style="display: none;">In Use</span>
+                    <span class="gallery-meta-tag" id="gallery-preview-usage-tag" style="display: none;"><?= htmlspecialchars(__('ext_gallery.in_use_badge', 'In Use')) ?></span>
                 </div>
 
                 <div class="form-group" style="margin-top: 0.75rem;">
-                    <label class="form-label" style="font-size: 0.85rem;">Alt Text / Caption</label>
-                    <input type="text" id="gallery-preview-alt-input" class="form-control" placeholder="Image description">
+                    <label class="form-label" style="font-size: 0.85rem;"><?= htmlspecialchars(__('ext_gallery.alt_caption_label', 'Alt Text / Caption')) ?></label>
+                    <input type="text" id="gallery-preview-alt-input" class="form-control" placeholder="<?= htmlspecialchars(__('ext_gallery.alt_caption_ph', 'Image description')) ?>">
                 </div>
 
                 <!-- Markdown Snippet -->
                 <div class="form-group">
-                    <label class="form-label" style="font-size: 0.85rem;">Markdown Link</label>
+                    <label class="form-label" style="font-size: 0.85rem;"><?= htmlspecialchars(__('ext_gallery.md_link_label', 'Markdown Link')) ?></label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" id="gallery-preview-md-input" class="form-control gallery-code-input" readonly>
-                        <button type="button" class="btn btn-outline btn-sm" id="btn-copy-preview-md">Copy MD</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-copy-preview-md"><?= htmlspecialchars(__('ext_gallery.copy_md', 'Copy MD')) ?></button>
                     </div>
                 </div>
 
                 <!-- HTML Snippet -->
                 <div class="form-group">
-                    <label class="form-label" style="font-size: 0.85rem;">HTML Link</label>
+                    <label class="form-label" style="font-size: 0.85rem;"><?= htmlspecialchars(__('ext_gallery.html_link_label', 'HTML Link')) ?></label>
                     <div style="display: flex; gap: 0.5rem;">
                         <input type="text" id="gallery-preview-html-input" class="form-control gallery-code-input" readonly>
-                        <button type="button" class="btn btn-outline btn-sm" id="btn-copy-preview-html">Copy HTML</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-copy-preview-html"><?= htmlspecialchars(__('ext_gallery.copy_html', 'Copy HTML')) ?></button>
                     </div>
                 </div>
 
                 <!-- Action Footer -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                     <button type="button" class="btn btn-outline btn-sm btn-danger-text" id="btn-preview-delete">
-                        🗑️ Delete
+                        🗑️ <?= htmlspecialchars(__('common.delete', 'Delete')) ?>
                     </button>
                     <div style="display: flex; gap: 0.5rem;">
                         <button type="button" class="btn btn-primary btn-sm" id="btn-preview-insert-editor" style="display: none;">
-                            ✓ Select &amp; Insert
+                            ✓ <?= htmlspecialchars(__('ext_gallery.select_insert', 'Select & Insert')) ?>
                         </button>
                         <button type="button" class="btn btn-outline btn-sm" id="btn-preview-open-newtab">
-                            Open in New Tab ↗
+                            <?= htmlspecialchars(__('ext_gallery.open_new_tab', 'Open in New Tab ↗')) ?>
                         </button>
                     </div>
                 </div>

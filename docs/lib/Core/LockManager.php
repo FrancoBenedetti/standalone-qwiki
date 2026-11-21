@@ -318,4 +318,27 @@ class LockManager {
             'isSameUser' => (($lock['user'] ?? '') === $username)
         ];
     }
+
+    /**
+     * Migrates an active lock file when a document is relocated on disk.
+     */
+    public static function migrateLock($oldPath, $newPath) {
+        if (empty($oldPath) || empty($newPath) || $oldPath === $newPath) {
+            return;
+        }
+        $oldLockFile = self::getLockFilePath($oldPath);
+        if (!file_exists($oldLockFile)) {
+            return;
+        }
+        $newLockFile = self::getLockFilePath($newPath);
+        $raw = @file_get_contents($oldLockFile);
+        if ($raw) {
+            $data = json_decode($raw, true);
+            if (is_array($data)) {
+                $data['file'] = ltrim(str_replace('\\', '/', trim($newPath)), '/');
+                @file_put_contents($newLockFile, json_encode($data, JSON_PRETTY_PRINT), LOCK_EX);
+            }
+        }
+        @unlink($oldLockFile);
+    }
 }

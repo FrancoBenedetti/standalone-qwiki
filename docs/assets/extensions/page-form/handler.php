@@ -5,6 +5,23 @@
 use Qwiki\Core\Auth;
 use Qwiki\Core\Config;
 use Qwiki\Core\Navigation;
+use Qwiki\Core\DocumentService;
+use Qwiki\Core\LockManager;
+use Qwiki\Core\AuditLogger;
+use Qwiki\Core\Mailer;
+
+if (!class_exists('Qwiki\Core\DocumentService') && file_exists(dirname(__DIR__, 3) . '/lib/Core/DocumentService.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/DocumentService.php';
+}
+if (!class_exists('Qwiki\Core\LockManager') && file_exists(dirname(__DIR__, 3) . '/lib/Core/LockManager.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/LockManager.php';
+}
+if (!class_exists('Qwiki\Core\AuditLogger') && file_exists(dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/AuditLogger.php';
+}
+if (!class_exists('Qwiki\Core\Mailer') && file_exists(dirname(__DIR__, 3) . '/lib/Core/Mailer.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/Mailer.php';
+}
 
 $baseDir = Config::getBaseDir();
 $action = $action ?? $_REQUEST['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
@@ -192,28 +209,8 @@ if ($action === 'submit_form' || $action === 'ext_form_submit') {
 
     // F. Optional Notifications (Email & Webhook)
     if (!empty($schema['notificationEmail']) && filter_var($schema['notificationEmail'], FILTER_VALIDATE_EMAIL)) {
-        $rawHost = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
-        if (strpos($rawHost, ':') !== false) {
-            $rawHost = explode(':', $rawHost)[0];
-        }
-        $cleanHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $rawHost);
-        if (empty($cleanHost) || $cleanHost === 'localhost') {
-            $cleanHost = 'qwiki.local';
-        }
-
-        $senderEmail = $config['systemEmail'] ?? $config['senderEmail'] ?? ("noreply@" . $cleanHost);
-        if (!filter_var($senderEmail, FILTER_VALIDATE_EMAIL)) {
-            $senderEmail = "noreply@" . $cleanHost;
-        }
-
-        $wikiTitle = $config['title'] ?? 'Qwiki';
-        $fromName = preg_match('/^[\x20-\x7E]+$/', $wikiTitle)
-            ? '"' . addcslashes($wikiTitle, '"\\') . '"'
-            : '=?UTF-8?B?' . base64_encode($wikiTitle) . '?=';
-
         $formTitle = $schema['title'] ?? 'Form';
-        $subjectRaw = "[Qwiki Form] New Submission: " . $formTitle;
-        $subject = '=?UTF-8?B?' . base64_encode($subjectRaw) . '?=';
+        $subject = "[Qwiki Form] New Submission: " . $formTitle;
 
         $body = "A new form response was submitted on {$timestamp}.\n\n";
         $body .= "Form: " . $formTitle . "\n";
@@ -235,27 +232,24 @@ if ($action === 'submit_form' || $action === 'ext_form_submit') {
             $body .= "• {$fLabel}: {$ans}\n";
         }
 
-        $headers = [];
-        $headers[] = "From: {$fromName} <{$senderEmail}>";
-        $headers[] = "Reply-To: " . (!empty($replyToEmail) ? "<{$replyToEmail}>" : "<{$senderEmail}>");
-        $headers[] = "Date: " . date('r');
-        $headers[] = "Message-ID: <" . time() . "." . bin2hex(random_bytes(8)) . "@{$cleanHost}>";
-        $headers[] = "MIME-Version: 1.0";
-        $headers[] = "Content-Type: text/plain; charset=UTF-8";
-        $headers[] = "Content-Transfer-Encoding: 8bit";
-        $headers[] = "X-Mailer: Qwiki Form Notifications";
-        $headers[] = "Auto-Submitted: auto-generated";
-
-        $headersStr = implode("\r\n", $headers) . "\r\n";
-
-        // Dispatch with envelope sender parameter (-f) to match Return-Path with From header
-        $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr, "-f" . $senderEmail);
-        if (!$sent) {
-            // Fallback without 5th parameter if host environment restricts extra parameters
-            $sent = @mail($schema['notificationEmail'], $subject, $body, $headersStr);
+        $customHeaders = [
+            'X-Mailer' => 'Qwiki Form Notifications',
+        ];
+        if (!empty($replyToEmail)) {
+            $customHeaders['Reply-To'] = "<{$replyToEmail}>";
         }
-        if (!$sent) {
-            error_log("Qwiki Form: Unable to dispatch notification email to {$schema['notificationEmail']}. Check server MTA / sendmail configuration.");
+        $configuredFrom = $config['smtp']['fromEmail'] ?? '';
+        if (empty($configuredFrom)) {
+            $legacySender = $config['systemEmail'] ?? $config['senderEmail'] ?? '';
+            if (!empty($legacySender) && filter_var($legacySender, FILTER_VALIDATE_EMAIL)) {
+                $customHeaders['From'] = Mailer::formatAddress($legacySender, $config['title'] ?? 'Qwiki');
+            }
+        }
+
+        $mailRes = Mailer::send($schema['notificationEmail'], $subject, $body, $customHeaders);
+        if (empty($mailRes['success'])) {
+            $errMsg = $mailRes['error'] ?? 'Unknown mail dispatch error.';
+            error_log("Qwiki Form: Unable to dispatch notification email to {$schema['notificationEmail']}: {$errMsg}");
         }
     }
 
@@ -326,6 +320,7 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
         }
     }
 
+    $slug = Navigation::generateUniqueSlug($slug, $config['books'], $contentDir, 'form.json');
     $filePath = 'content/' . $targetFolder . '/' . $slug . '.form.json';
     $absolutePath = $baseDir . '/' . $filePath;
 
@@ -387,6 +382,7 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
         'type' => 'form',
         'file' => $filePath
     ];
+    Navigation::ensureDocId($chapterData);
 
     $inserted = false;
     foreach ($config['books'] as &$book) {
@@ -397,6 +393,15 @@ if ($action === 'create_form' || $action === 'ext_form_create') {
     }
 
     if ($inserted && Config::save($config)) {
+        AuditLogger::logMutation('doc_created', 200, [
+            'docId' => $chapterData['docId'] ?? '',
+            'slug' => $slug,
+            'title' => $title,
+            'bookId' => $bookId,
+            'file' => $filePath,
+            'type' => 'form',
+            'source' => 'ui_form_create'
+        ], Auth::getCurrentUser()['username'] ?? 'admin');
         echo json_encode([
             'success' => true,
             'slug' => $slug,
@@ -430,32 +435,75 @@ if ($action === 'save_form_schema' || $action === 'ext_form_save_schema') {
         return;
     }
 
+    $actor = Auth::getCurrentUser()['username'] ?? 'admin';
+    $tabId = trim($_POST['tab_id'] ?? '');
+    if (!empty($tabId)) {
+        $lockCheck = LockManager::verifyOrRejectSave($file, $tabId, $actor);
+        if (empty($lockCheck['allowed'])) {
+            echo json_encode(['success' => false, 'error' => $lockCheck['error'] ?? 'Document is locked by another editor.']);
+            return;
+        }
+    }
+
     $schema = json_decode($schemaRaw, true);
     if (!is_array($schema)) {
         echo json_encode(['success' => false, 'error' => 'Invalid JSON schema payload']);
         return;
     }
 
+    $config = Config::load();
+    $slug = basename($file, '.form.json');
+    $targetChapter = null;
+    $docIdAdded = false;
+    $findFormChapter = function(&$nodes) use (&$findFormChapter, $file, &$targetChapter, &$docIdAdded) {
+        foreach ($nodes as &$node) {
+            if (($node['file'] ?? '') === $file) {
+                if (empty($node['docId'])) {
+                    Navigation::ensureDocId($node);
+                    $docIdAdded = true;
+                }
+                $targetChapter = $node;
+                return true;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if ($findFormChapter($node['items'])) return true;
+            }
+        }
+        return false;
+    };
+    $findFormChapter($config['books']);
+    if (!$targetChapter) {
+        $targetChapter = ['slug' => $slug, 'file' => $file, 'type' => 'form'];
+        Navigation::ensureDocId($targetChapter);
+    }
+
     $jsonStr = json_encode($schema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    if (file_put_contents($absolutePath, $jsonStr, LOCK_EX) === false) {
+    $saveRes = DocumentService::replaceContent($targetChapter, $absolutePath, [
+        'content' => $jsonStr,
+        'oldAbsFile' => $absolutePath,
+        'oldRelFile' => $file,
+        'newRelFile' => $file,
+        'source' => 'ui_form_save',
+        'actor' => $actor,
+        'event' => 'doc_saved',
+    ]);
+    if (empty($saveRes['success'])) {
         echo json_encode(['success' => false, 'error' => 'Failed to save form schema']);
         return;
     }
 
     // Sync title in qwiki.json if title changed
+    $updated = false;
     if (!empty($schema['title'])) {
-        $config = Config::load();
-        $slug = basename($file, '.form.json');
-        $updated = false;
         foreach ($config['books'] as &$book) {
             if (form_update_chapter_title($book, $slug, $schema['title'])) {
                 $updated = true;
                 break;
             }
         }
-        if ($updated) {
-            Config::save($config);
-        }
+    }
+    if ($docIdAdded || $updated) {
+        Config::save($config);
     }
 
     echo json_encode(['success' => true]);

@@ -3,6 +3,8 @@ namespace Qwiki\Extension\Postbox;
 
 use Qwiki\Core\Config;
 use Qwiki\Core\SubwikiManager;
+use Qwiki\Core\Navigation;
+use Qwiki\Core\AuditLogger;
 
 class Envelope {
     const PROTOCOL_VERSION = '1.0';
@@ -547,6 +549,9 @@ class Envelope {
             'type' => $docType,
             'file' => $targetRelFile
         ];
+        if (class_exists('\Qwiki\Core\Navigation')) {
+            Navigation::ensureDocId($newChapter);
+        }
 
         // Metadata overrides or original doc metadata
         $description = isset($overrides['description']) ? trim($overrides['description']) : ($doc['description'] ?? '');
@@ -598,6 +603,19 @@ class Envelope {
         if (!Config::save($config)) {
             @unlink($targetAbsFile);
             return ['success' => false, 'error' => 'Failed to persist navigation changes to qwiki.json'];
+        }
+
+        if (class_exists('\Qwiki\Core\AuditLogger')) {
+            AuditLogger::logMutation('doc_ingested', 200, [
+                'docId' => $newChapter['docId'] ?? '',
+                'slug' => $slug,
+                'title' => $title,
+                'bookId' => $targetBookId,
+                'file' => $targetRelFile,
+                'type' => $docType,
+                'batchId' => $batchId,
+                'source' => 'postbox_ingest',
+            ]);
         }
 
         // 6. Remove document from inbox batch or delete batch if empty

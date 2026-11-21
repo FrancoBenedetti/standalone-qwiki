@@ -4,6 +4,8 @@
 (function () {
   'use strict';
 
+  const _t = (k, f, v) => (typeof window !== 'undefined' && window.__t ? window.__t(k, f, v) : f);
+
   function initComments() {
     const contentBody = document.getElementById('content-body');
     if (!contentBody) return;
@@ -67,7 +69,7 @@
       const now = new Date();
       const diffSecs = Math.floor((now - date) / 1000);
 
-      if (diffSecs < 60) return 'Just now';
+      if (diffSecs < 60) return _t('ext_comments.just_now', 'Just now');
       if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
       if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)}h ago`;
       if (diffSecs < 604800) return `${Math.floor(diffSecs / 86400)}d ago`;
@@ -117,29 +119,29 @@
     rootSection.innerHTML = `
       <div class="comments-header-bar">
         <div class="comments-title-group">
-          <h3 class="comments-title">💬 Document Comments</h3>
+          <h3 class="comments-title">${escapeHtml(_t('ext_comments.title', '💬 Document Comments'))}</h3>
           <span class="comments-count-pill" id="comments-count-badge">${getTotalCount(commentsState)}</span>
         </div>
         <button type="button" class="comments-toggle-btn" id="btn-toggle-comments">
-          <span id="comments-toggle-label">${isVisible ? 'Hide Comments' : 'Show Comments'}</span>
+          <span id="comments-toggle-label">${escapeHtml(isVisible ? _t('ext_comments.hide', 'Hide Comments') : _t('ext_comments.show', 'Show Comments'))}</span>
         </button>
       </div>
 
       <div class="comments-body-wrapper ${isVisible ? '' : 'collapsed'}" id="comments-body-wrapper">
         <div class="comment-composer-card">
           <div class="comment-composer-header">
-            <span>Signed in as <strong>${escapeHtml(currentUser.username)}</strong> (${escapeHtml(currentUser.role)})</span>
+            <span>${escapeHtml(_t('ext_comments.signed_in_as', 'Signed in as'))} <strong>${escapeHtml(currentUser.username)}</strong> (${escapeHtml(currentUser.role)})</span>
             <span id="comment-char-counter">0 / 2000</span>
           </div>
-          <textarea class="comment-textarea" id="main-comment-input" placeholder="Add a constructive comment, note or question in Markdown..."></textarea>
+          <textarea class="comment-textarea" id="main-comment-input" placeholder="${escapeHtml(_t('ext_comments.placeholder', 'Add a constructive comment, note or question in Markdown...'))}"></textarea>
           <div class="comment-preview-pane" id="main-comment-preview"></div>
           <div class="comment-composer-footer">
             <div class="comment-formatting-help">
-              <span>Supports **bold**, *italic*, <code>code</code>, lists &amp; links</span>
+              <span>${_t('ext_comments.formatting_help_html', 'Supports **bold**, *italic*, <code>code</code>, lists &amp; links')}</span>
             </div>
             <div class="comment-actions-group">
-              <button type="button" class="btn btn-outline btn-sm" id="btn-preview-main-comment">Preview</button>
-              <button type="button" class="btn btn-primary btn-sm" id="btn-submit-main-comment">Post Comment</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-preview-main-comment">${escapeHtml(_t('ext_comments.preview', 'Preview'))}</button>
+              <button type="button" class="btn btn-primary btn-sm" id="btn-submit-main-comment">${escapeHtml(_t('ext_comments.post_btn', 'Post Comment'))}</button>
             </div>
           </div>
         </div>
@@ -165,7 +167,7 @@
     toggleBtn.addEventListener('click', () => {
       isVisible = !isVisible;
       bodyWrapper.classList.toggle('collapsed', !isVisible);
-      toggleLabel.textContent = isVisible ? 'Hide Comments' : 'Show Comments';
+      toggleLabel.textContent = isVisible ? _t('ext_comments.hide', 'Hide Comments') : _t('ext_comments.show', 'Show Comments');
       localStorage.setItem(storageKey, isVisible ? 'true' : 'false');
     });
 
@@ -177,9 +179,9 @@
     // Markdown preview handler
     previewBtn.addEventListener('click', () => {
       const active = mainPreview.classList.toggle('active');
-      previewBtn.textContent = active ? 'Edit' : 'Preview';
+      previewBtn.textContent = active ? _t('ext_comments.edit', 'Edit') : _t('ext_comments.preview', 'Preview');
       if (active) {
-        mainPreview.innerHTML = parseClientMarkdown(mainInput.value || '*No content to preview*');
+        mainPreview.innerHTML = parseClientMarkdown(mainInput.value || _t('ext_comments.no_preview', '*No content to preview*'));
       }
     });
 
@@ -189,7 +191,7 @@
       if (!content) return;
 
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Posting...';
+      submitBtn.textContent = _t('ext_comments.posting', 'Posting...');
 
       const formData = new FormData();
       formData.append('action', 'ext_comments_add');
@@ -204,24 +206,24 @@
       .then(res => res.json())
       .then(resp => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Post Comment';
+        submitBtn.textContent = _t('ext_comments.post_btn', 'Post Comment');
         if (resp.success && resp.comment) {
           mainInput.value = '';
           charCounter.textContent = '0 / 2000';
           mainPreview.classList.remove('active');
-          previewBtn.textContent = 'Preview';
+          previewBtn.textContent = _t('ext_comments.preview', 'Preview');
 
           // Add to state and re-render
           commentsState.unshift(resp.comment);
           refreshStream();
         } else {
-          alert(resp.error || 'Failed to post comment.');
+          alert(resp.error || _t('ext_comments.post_failed', 'Failed to post comment.'));
         }
       })
       .catch(err => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Post Comment';
-        alert('Network error posting comment.');
+        submitBtn.textContent = _t('ext_comments.post_btn', 'Post Comment');
+        alert(_t('ext_comments.post_network_error', 'Network error posting comment.'));
       });
     });
 
@@ -237,7 +239,7 @@
     if (!comments || comments.length === 0) {
       container.innerHTML = `
         <div class="comment-empty-state">
-          <p>No comments on this chapter yet. Be the first to start the discussion!</p>
+          <p>${escapeHtml(_t('ext_comments.empty_state', 'No comments on this chapter yet. Be the first to start the discussion!'))}</p>
         </div>
       `;
       return;
@@ -255,7 +257,7 @@
 
       const initials = getInitials(comment.author);
       const relTime = formatRelativeTime(comment.createdAt);
-      const editedNotice = comment.updatedAt ? `<span class="comment-edited-tag" title="Edited on ${escapeHtml(comment.updatedAt)}">(edited)</span>` : '';
+      const editedNotice = comment.updatedAt ? `<span class="comment-edited-tag" title="Edited on ${escapeHtml(comment.updatedAt)}">${escapeHtml(_t('ext_comments.edited_tag', '(edited)'))}</span>` : '';
 
       card.innerHTML = `
         <div class="comment-meta-row">
@@ -273,10 +275,10 @@
 
         ${!comment.isDeleted ? `
           <div class="comment-card-footer">
-            <button type="button" class="comment-action-link" data-action="reply" data-id="${comment.id}">Reply</button>
+            <button type="button" class="comment-action-link" data-action="reply" data-id="${comment.id}">${escapeHtml(_t('ext_comments.reply', 'Reply'))}</button>
             ${canManage ? `
-              <button type="button" class="comment-action-link" data-action="edit" data-id="${comment.id}">Edit</button>
-              <button type="button" class="comment-action-link danger-action" data-action="delete" data-id="${comment.id}">Delete</button>
+              <button type="button" class="comment-action-link" data-action="edit" data-id="${comment.id}">${escapeHtml(_t('ext_comments.edit', 'Edit'))}</button>
+              <button type="button" class="comment-action-link danger-action" data-action="delete" data-id="${comment.id}">${escapeHtml(_t('ext_comments.delete', 'Delete'))}</button>
             ` : ''}
           </div>
         ` : ''}
@@ -299,7 +301,7 @@
           const canManageReply = isReplyAuthor || currentUser.isAdmin;
           const replyInitials = getInitials(reply.author);
           const replyRelTime = formatRelativeTime(reply.createdAt);
-          const replyEditedNotice = reply.updatedAt ? `<span class="comment-edited-tag" title="Edited on ${escapeHtml(reply.updatedAt)}">(edited)</span>` : '';
+          const replyEditedNotice = reply.updatedAt ? `<span class="comment-edited-tag" title="Edited on ${escapeHtml(reply.updatedAt)}">${escapeHtml(_t('ext_comments.edited_tag', '(edited)'))}</span>` : '';
 
           replyCard.innerHTML = `
             <div class="comment-meta-row">
@@ -317,8 +319,8 @@
 
             ${!reply.isDeleted && canManageReply ? `
               <div class="comment-card-footer">
-                <button type="button" class="comment-action-link" data-action="edit-reply" data-id="${reply.id}" data-parent="${comment.id}">Edit</button>
-                <button type="button" class="comment-action-link danger-action" data-action="delete-reply" data-id="${reply.id}">Delete</button>
+                <button type="button" class="comment-action-link" data-action="edit-reply" data-id="${reply.id}" data-parent="${comment.id}">${escapeHtml(_t('ext_comments.edit', 'Edit'))}</button>
+                <button type="button" class="comment-action-link danger-action" data-action="delete-reply" data-id="${reply.id}">${escapeHtml(_t('ext_comments.delete', 'Delete'))}</button>
               </div>
             ` : ''}
 
@@ -381,10 +383,10 @@
     container.style.display = 'block';
     container.innerHTML = `
       <div class="inline-reply-box">
-        <textarea class="comment-textarea" placeholder="Write a direct reply..." style="min-height: 70px;"></textarea>
+        <textarea class="comment-textarea" placeholder="${escapeHtml(_t('ext_comments.reply_placeholder', 'Write a direct reply...'))}" style="min-height: 70px;"></textarea>
         <div class="inline-actions">
-          <button type="button" class="btn btn-outline btn-sm btn-cancel-reply">Cancel</button>
-          <button type="button" class="btn btn-primary btn-sm btn-submit-reply">Post Reply</button>
+          <button type="button" class="btn btn-outline btn-sm btn-cancel-reply">${escapeHtml(_t('ext_comments.cancel', 'Cancel'))}</button>
+          <button type="button" class="btn btn-primary btn-sm btn-submit-reply">${escapeHtml(_t('ext_comments.post_reply_btn', 'Post Reply'))}</button>
         </div>
       </div>
     `;
@@ -402,7 +404,7 @@
 
       const submitBtn = container.querySelector('.btn-submit-reply');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Posting...';
+      submitBtn.textContent = _t('ext_comments.posting', 'Posting...');
 
       const formData = new FormData();
       formData.append('action', 'ext_comments_add');
@@ -420,14 +422,14 @@
           fetchCommentsAndRefresh(book, slug, onUpdate);
         } else {
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Post Reply';
-          alert(resp.error || 'Failed to post reply.');
+          submitBtn.textContent = _t('ext_comments.post_reply_btn', 'Post Reply');
+          alert(resp.error || _t('ext_comments.reply_failed', 'Failed to post reply.'));
         }
       })
       .catch(() => {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Post Reply';
-        alert('Network error posting reply.');
+        submitBtn.textContent = _t('ext_comments.post_reply_btn', 'Post Reply');
+        alert(_t('ext_comments.reply_network_error', 'Network error posting reply.'));
       });
     });
   }
@@ -443,8 +445,8 @@
       <div class="inline-edit-box">
         <textarea class="comment-textarea" style="min-height: 80px;">${escapeHtml(comment.content || '')}</textarea>
         <div class="inline-actions">
-          <button type="button" class="btn btn-outline btn-sm btn-cancel-edit">Cancel</button>
-          <button type="button" class="btn btn-primary btn-sm btn-save-edit">Save Changes</button>
+          <button type="button" class="btn btn-outline btn-sm btn-cancel-edit">${escapeHtml(_t('ext_comments.cancel', 'Cancel'))}</button>
+          <button type="button" class="btn btn-primary btn-sm btn-save-edit">${escapeHtml(_t('ext_comments.save_changes', 'Save Changes'))}</button>
         </div>
       </div>
     `;
@@ -462,7 +464,7 @@
 
       const saveBtn = container.querySelector('.btn-save-edit');
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
+      saveBtn.textContent = _t('ext_comments.saving', 'Saving...');
 
       const formData = new FormData();
       formData.append('action', 'ext_comments_edit');
@@ -479,20 +481,20 @@
           fetchCommentsAndRefresh(book, slug, onUpdate);
         } else {
           saveBtn.disabled = false;
-          saveBtn.textContent = 'Save Changes';
-          alert(resp.error || 'Failed to save comment.');
+          saveBtn.textContent = _t('ext_comments.save_changes', 'Save Changes');
+          alert(resp.error || _t('ext_comments.save_failed', 'Failed to save comment.'));
         }
       })
       .catch(() => {
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Changes';
-        alert('Network error saving comment.');
+        saveBtn.textContent = _t('ext_comments.save_changes', 'Save Changes');
+        alert(_t('ext_comments.save_network_error', 'Network error saving comment.'));
       });
     });
   }
 
   function handleDelete(commentId, book, slug, onUpdate) {
-    if (!confirm('Are you sure you want to delete this comment?')) {
+    if (!confirm(_t('ext_comments.confirm_delete', 'Are you sure you want to delete this comment?'))) {
       return;
     }
 
@@ -508,11 +510,11 @@
       if (resp.success) {
         fetchCommentsAndRefresh(book, slug, onUpdate);
       } else {
-        alert(resp.error || 'Failed to delete comment.');
+        alert(resp.error || _t('ext_comments.delete_failed', 'Failed to delete comment.'));
       }
     })
     .catch(() => {
-      alert('Network error deleting comment.');
+      alert(_t('ext_comments.delete_network_error', 'Network error deleting comment.'));
     });
   }
 

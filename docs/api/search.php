@@ -6,6 +6,7 @@ require_once __DIR__ . '/../lib/Core/ExtensionManager.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
+use Qwiki\Core\Navigation;
 use Qwiki\Core\ExtensionManager;
 
 Auth::startSession();
@@ -52,6 +53,7 @@ function search_node_tree($node, $query, $isAdmin, $isViewer, $baseDir, $extMana
                     if ($itemVis === 'admin_only') continue;
                     if ($itemVis === 'logged_in' && !$isViewer) continue;
                 }
+                if (!Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                 $isMatch = false;
 
                 // 1. Match title

@@ -3,9 +3,11 @@
 
 require_once __DIR__ . '/../lib/Core/Config.php';
 require_once __DIR__ . '/../lib/Core/Auth.php';
+require_once __DIR__ . '/../lib/Core/Navigation.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
+use Qwiki\Core\Navigation;
 
 Auth::startSession();
 
@@ -35,7 +37,7 @@ if (!empty($feedToken) && !$hasValidToken) {
 
 $isLoggedIn = Auth::isViewer() || Auth::isAdmin();
 $isViewer = $isLoggedIn || $hasValidToken;
-$isAdmin = Auth::isAdmin() || $hasValidToken;
+$isAdmin = Auth::isAdmin();
 
 // 2. If private portal mode is enabled, require authentication or a valid token
 if (!empty($config['requireLoginToView']) && !$isViewer) {
@@ -216,11 +218,13 @@ function gatherFeedItems($node, &$items, $bookId, $folderId, $isViewer = false, 
                 if ($itemIsFolder) {
                     gatherFeedItems($item, $items, $bookId, $item['id'] ?? $item['slug'] ?? $folderId, $isViewer, $isAdmin, $effectiveVis);
                 } else {
+                    if (!\Qwiki\Core\Navigation::isChapterVisibleForStatus($item, $isAdmin)) continue;
                     processSingleFeedItem($item, $items, $bookId, $folderId, $isViewer, $isAdmin, $effectiveVis);
                 }
             }
         }
     } else {
+        if (!Navigation::isChapterVisibleForStatus($nodeCopy, $isAdmin)) return;
         processSingleFeedItem($nodeCopy, $items, $bookId, $folderId, $isViewer, $isAdmin, $effectiveVis);
     }
 }

@@ -6,7 +6,7 @@
 $books = $config['books'] ?? [];
 ?>
 <div class="form-group">
-    <label class="form-label">Target Category / Folder</label>
+    <label class="form-label"><?= htmlspecialchars(__('chapter.target_category', 'Target Category / Folder')) ?></label>
     <select name="bookId" class="form-control" required>
         <?php if (!empty($categoryHierarchy)): ?>
             <?php foreach ($categoryHierarchy as $cat): ?>
@@ -27,29 +27,29 @@ $books = $config['books'] ?? [];
 </div>
 
 <div class="form-group">
-    <label class="form-label">Form Title</label>
-    <input type="text" name="title" id="form-create-title" class="form-control" placeholder="e.g. Feedback Survey, Contact Us, Registration" required>
+    <label class="form-label"><?= htmlspecialchars(__('ext_form.title_label', 'Form Title')) ?></label>
+    <input type="text" name="title" id="form-create-title" class="form-control" placeholder="<?= htmlspecialchars(__('ext_form.title_ph', 'e.g. Feedback Survey, Contact Us, Registration')) ?>" required>
 </div>
 
 <div class="form-group">
-    <label class="form-label">Starter Template</label>
+    <label class="form-label"><?= htmlspecialchars(__('ext_form.starter_template', 'Starter Template')) ?></label>
     <select id="form-create-template-select" class="form-control">
-        <option value="feedback">🌟 Feedback Survey (Ratings, Features, Comments)</option>
-        <option value="contact">✉️ Contact Us (Name, Email, Subject, Message)</option>
-        <option value="rsvp">📅 Event RSVP (Attendance, Dietary, Notes)</option>
-        <option value="blank">📄 Blank Form (Start from scratch)</option>
+        <option value="feedback">🌟 <?= htmlspecialchars(__('ext_form.tpl_feedback', 'Feedback Survey (Ratings, Features, Comments)')) ?></option>
+        <option value="contact">✉️ <?= htmlspecialchars(__('ext_form.tpl_contact', 'Contact Us (Name, Email, Subject, Message)')) ?></option>
+        <option value="rsvp">📅 <?= htmlspecialchars(__('ext_form.tpl_rsvp', 'Event RSVP (Attendance, Dietary, Notes)')) ?></option>
+        <option value="blank">📄 <?= htmlspecialchars(__('ext_form.tpl_blank', 'Blank Form (Start from scratch)')) ?></option>
     </select>
 </div>
 
 <div class="form-group">
-    <label class="form-label">Form Description / Instructions <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional)</span></label>
-    <textarea name="description" id="form-create-desc" class="form-control" style="min-height: 60px;" placeholder="Provide brief instructions or context for respondents..."></textarea>
+    <label class="form-label"><?= __('ext_form.desc_label_html', 'Form Description / Instructions <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional)</span>') ?></label>
+    <textarea name="description" id="form-create-desc" class="form-control" style="min-height: 60px;" placeholder="<?= htmlspecialchars(__('ext_form.desc_ph', 'Provide brief instructions or context for respondents...')) ?>"></textarea>
 </div>
 
 <div class="form-group">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <label class="form-label" style="margin-bottom: 0;">Form Fields</label>
-        <button type="button" class="btn btn-outline btn-sm" id="btn-add-field-create">+ Add Field</button>
+        <label class="form-label" style="margin-bottom: 0;"><?= htmlspecialchars(__('ext_form.fields_label', 'Form Fields')) ?></label>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-add-field-create"><?= htmlspecialchars(__('ext_form.add_field_btn', '+ Add Field')) ?></button>
     </div>
     
     <div id="form-builder-fields-create" class="form-builder-container">
@@ -58,30 +58,30 @@ $books = $config['books'] ?? [];
 </div>
 
 <details style="margin-bottom: 1.25rem; border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 0.75rem;">
-    <summary style="cursor: pointer; font-weight: 600; font-size: 0.9rem; user-select: none;">⚙️ Advanced Submission & Notification Settings</summary>
+    <summary style="cursor: pointer; font-weight: 600; font-size: 0.9rem; user-select: none;">⚙️ <?= htmlspecialchars(__('ext_form.advanced_settings', 'Advanced Submission & Notification Settings')) ?></summary>
     <div style="margin-top: 0.85rem; display: flex; flex-direction: column; gap: 0.75rem;">
         <div>
-            <label class="form-label">Submit Button Label</label>
-            <input type="text" id="form-create-submit-text" class="form-control" value="Submit">
+            <label class="form-label"><?= htmlspecialchars(__('ext_form.submit_btn_label', 'Submit Button Label')) ?></label>
+            <input type="text" id="form-create-submit-text" class="form-control" value="<?= htmlspecialchars(__('ext_form.submit_default', 'Submit')) ?>">
         </div>
         <div>
-            <label class="form-label">Success Message</label>
-            <input type="text" id="form-create-success-msg" class="form-control" value="Thank you! Your response has been recorded.">
+            <label class="form-label"><?= htmlspecialchars(__('ext_form.success_msg_label', 'Success Message')) ?></label>
+            <input type="text" id="form-create-success-msg" class="form-control" value="<?= htmlspecialchars(__('ext_form.success_default', 'Thank you! Your response has been recorded.')) ?>">
         </div>
         <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
             <label style="cursor: pointer; font-size: 0.9rem;">
-                <input type="checkbox" id="form-create-require-login"> Require Login to Submit
+                <input type="checkbox" id="form-create-require-login"> <?= htmlspecialchars(__('ext_form.require_login', 'Require Login to Submit')) ?>
             </label>
             <label style="cursor: pointer; font-size: 0.9rem;">
-                <input type="checkbox" id="form-create-allow-multiple" checked> Allow Multiple Submissions
+                <input type="checkbox" id="form-create-allow-multiple" checked> <?= htmlspecialchars(__('ext_form.allow_multiple', 'Allow Multiple Submissions')) ?>
             </label>
         </div>
         <div>
-            <label class="form-label">Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, alerts on new response)</span></label>
+            <label class="form-label"><?= __('ext_form.notify_email_html', 'Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, alerts on new response)</span>') ?></label>
             <input type="email" id="form-create-notify-email" class="form-control" placeholder="admin@example.com">
         </div>
         <div>
-            <label class="form-label">Outgoing Webhook URL <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, POST JSON to Slack / Discord / Zapier)</span></label>
+            <label class="form-label"><?= __('ext_form.webhook_url_html', 'Outgoing Webhook URL <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, POST JSON to Slack / Discord / Zapier)</span>') ?></label>
             <input type="url" id="form-create-webhook-url" class="form-control" placeholder="https://hooks.slack.com/services/...">
         </div>
     </div>
@@ -90,4 +90,4 @@ $books = $config['books'] ?? [];
 <!-- Serialized schema payload -->
 <input type="hidden" name="schema_json" id="form-create-schema-json" value="">
 
-<button type="submit" class="btn btn-primary" style="width: 100%;" id="btn-submit-create-form">📝 Create Form Document</button>
+<button type="submit" class="btn btn-primary" style="width: 100%;" id="btn-submit-create-form">📝 <?= htmlspecialchars(__('ext_form.create_btn', 'Create Form Document')) ?></button>

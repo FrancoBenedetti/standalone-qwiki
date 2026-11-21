@@ -241,6 +241,124 @@ assertTest(!empty($forcedOverLock['json']['success']), 'Allows lock override whe
 
 LockManager::releaseLock($relFile, 'browser-tab-99', 'gerhard', true);
 
+// 5. Tree Discovery (action=get_tree) & docId Move/Rename Reconciliation
+echo "\n--- 5. Tree Discovery & Immutable docId Move/Rename ---\n";
+$catSub = callPublishApi($tempDir, [
+    'action' => 'create_category',
+    'id' => 'sub-guides',
+    'title' => 'Sub Guides',
+    'parentId' => 'guides',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($catSub['json']['success']), 'Creates nested sub-category via API');
+
+$treeRes = callPublishApi($tempDir, [
+    'action' => 'get_tree',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($treeRes['json']['success']), 'get_tree succeeds');
+$catIds = array_column($treeRes['json']['categories'] ?? [], 'id');
+assertTest(in_array('guides', $catIds, true) && in_array('sub-guides', $catIds, true), 'get_tree returns recursive categories including nested sub-guides');
+$chMap = [];
+foreach ($treeRes['json']['chapters'] ?? [] as $ch) {
+    $chMap[$ch['slug']] = $ch;
+}
+assertTest(!empty($chMap['safety-guide']['docId']) && !empty($chMap['safety-guide']['sha256']), 'get_tree includes docId and sha256 for chapters');
+
+$safetyDocId = $chMap['safety-guide']['docId'];
+$moveRes = callPublishApi($tempDir, [
+    'bookId' => 'sub-guides',
+    'docId' => $safetyDocId,
+    'title' => 'Safety Guide Renamed',
+    'slug' => 'safety-guide-v2',
+    'content' => "# Safety Guide Renamed\nMoved to sub-guides.\n",
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($moveRes['json']['success']) && !empty($moveRes['json']['updated']), 'Updates and moves chapter across categories by immutable docId');
+assertTest(($moveRes['json']['docId'] ?? '') === $safetyDocId, 'Preserves original docId after rename and category move');
+
+$treeAfterMove = callPublishApi($tempDir, [
+    'action' => 'get_tree',
+], ['HTTP_X_API_KEY' => $apiKey]);
+$slugsAfterMove = array_column($treeAfterMove['json']['chapters'] ?? [], 'slug');
+assertTest(in_array('safety-guide-v2', $slugsAfterMove, true) && !in_array('safety-guide', $slugsAfterMove, true), 'Old slug removed from previous category and new slug active in target category');
+
+// 6. Headless JSON Form Publishing & Submission Monitoring API
+echo "\n--- 6. Headless JSON Form Publishing & Submission Monitoring ---\n";
+$formSchema = [
+    'title' => 'Equipment Inspection Form',
+    'description' => 'Daily operator safety checklist',
+    'submitButtonText' => 'Submit Checklist',
+    'fields' => [
+        ['id' => 'operator', 'label' => 'Operator Name', 'type' => 'text', 'required' => true],
+        ['id' => 'status', 'label' => 'Machine Status', 'type' => 'select', 'options' => ['Pass', 'Fail'], 'required' => true],
+    ]
+];
+
+$pubForm = callPublishApi($tempDir, [
+    'bookId' => 'guides',
+    'title' => 'Equipment Inspection Form',
+    'slug' => 'equipment-inspection',
+    'type' => 'form',
+    'content' => json_encode($formSchema),
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($pubForm['json']['success']) && ($pubForm['json']['type'] ?? '') === 'form', 'Publishes form chapter via api/publish.php');
+assertTest($pubForm['json']['file'] === 'content/guides/equipment-inspection.form.json', 'Saves form schema with .form.json extension');
+assertTest(file_exists($tempDir . '/content/guides/equipment-inspection.submissions.json'), 'Initializes companion .submissions.json file');
+
+// Simulate 2 visitor submissions in .submissions.json
+$subFileAbs = $tempDir . '/content/guides/equipment-inspection.submissions.json';
+$sub1 = ['id' => 'sub_aaa111', 'created_at' => '2026-11-20 09:00:00', 'ip_hash' => '111111111111', 'submitted_by' => 'guest', 'data' => ['operator' => 'Franco', 'status' => 'Pass']];
+$sub2 = ['id' => 'sub_bbb222', 'created_at' => '2026-11-21 10:30:00', 'ip_hash' => '222222222222', 'submitted_by' => 'gerhard', 'data' => ['operator' => 'Gerhard', 'status' => 'Pass']];
+file_put_contents($subFileAbs, json_encode($sub1) . "\n" . json_encode($sub2) . "\n");
+
+// Update form schema via API and verify existing submissions are preserved
+$formSchema['description'] = 'Updated daily checklist';
+$updForm = callPublishApi($tempDir, [
+    'bookId' => 'guides',
+    'title' => 'Equipment Inspection Form',
+    'slug' => 'equipment-inspection',
+    'type' => 'form',
+    'content' => json_encode($formSchema),
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($updForm['json']['success']) && !empty($updForm['json']['updated']), 'Updates form schema in-place');
+
+$listForms = callPublishApi($tempDir, [
+    'action' => 'list_forms',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($listForms['json']['success']) && ($listForms['json']['total'] ?? 0) === 1, 'list_forms returns published form');
+assertTest(($listForms['json']['forms'][0]['submissionsCount'] ?? 0) === 2, 'list_forms reports accurate submissionsCount after schema update');
+
+$getSubs = callPublishApi($tempDir, [
+    'action' => 'get_form_submissions',
+    'slug' => 'equipment-inspection',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($getSubs['json']['success']) && count($getSubs['json']['submissions'] ?? []) === 2, 'get_form_submissions retrieves all form responses');
+
+$getSubsSince = callPublishApi($tempDir, [
+    'action' => 'get_form_submissions',
+    'slug' => 'equipment-inspection',
+    'since_id' => 'sub_aaa111',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($getSubsSince['json']['success']) && count($getSubsSince['json']['submissions'] ?? []) === 1 && ($getSubsSince['json']['submissions'][0]['id'] ?? '') === 'sub_bbb222', 'get_form_submissions filters incrementally by since_id');
+
+$getSubsCsv = callPublishApi($tempDir, [
+    'action' => 'get_form_submissions',
+    'slug' => 'equipment-inspection',
+    'format' => 'csv',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($getSubsCsv['json']['success']) && strpos($getSubsCsv['json']['csv'] ?? '', 'Operator Name') !== false && strpos($getSubsCsv['json']['csv'] ?? '', 'Gerhard') !== false, 'get_form_submissions exports CSV with field headers and answers');
+
+$delSub = callPublishApi($tempDir, [
+    'action' => 'delete_form_submission',
+    'slug' => 'equipment-inspection',
+    'id' => 'sub_aaa111',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($delSub['json']['success']) && ($delSub['json']['remaining'] ?? -1) === 1, 'delete_form_submission deletes target response by ID');
+
+$clearSubs = callPublishApi($tempDir, [
+    'action' => 'clear_form_submissions',
+    'slug' => 'equipment-inspection',
+], ['HTTP_X_API_KEY' => $apiKey]);
+assertTest(!empty($clearSubs['json']['success']) && filesize($subFileAbs) === 0, 'clear_form_submissions empties submissions file');
+
 // Cleanup tempDir
 $it = new RecursiveDirectoryIterator($tempDir, RecursiveDirectoryIterator::SKIP_DOTS);
 $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);

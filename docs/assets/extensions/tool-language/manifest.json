@@ -1,0 +1,12 @@
+{
+  "id": "language",
+  "type": "utility",
+  "adminOnly": false,
+  "title": "UI Language Switcher",
+  "description": "Allow users to choose the interface language (English, Afrikaans, Italiano) and persist their selection in browser storage.",
+  "icon": "🌐",
+  "placement": "header_toolbar",
+  "widget": "widget.html.php",
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

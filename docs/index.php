@@ -11,6 +11,7 @@ require_once __DIR__ . '/lib/Core/QwikiParsedown.php';
 require_once __DIR__ . '/lib/Core/MetadataManager.php';
 require_once __DIR__ . '/lib/Core/DocumentService.php';
 require_once __DIR__ . '/lib/Core/AuditLogger.php';
+require_once __DIR__ . '/lib/Core/Translator.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -22,6 +23,7 @@ use Qwiki\Core\QwikiParsedown;
 use Qwiki\Core\MetadataManager;
 use Qwiki\Core\DocumentService;
 use Qwiki\Core\AuditLogger;
+use Qwiki\Core\Translator;
 
 Auth::startSession();
 if (!defined('QWIKI_VERSION')) {
@@ -65,6 +67,7 @@ if (is_string($apiRequestedPath) && (strpos($apiRequestedPath, 'api/') === 0 || 
 $config = Config::load();
 $baseDir = Config::getBaseDir();
 $extManager = ExtensionManager::getInstance();
+Translator::init($extManager);
 
 // User session evaluation
 $currentUser = Auth::getCurrentUser();
@@ -302,7 +305,13 @@ if (!$isShareMode && !$shareError) {
         }
     }
 
-    if (!$activeBook && !empty($allowedBooks)) {
+    $isDocumentNotFound = false;
+
+    if (!$activeBook && !$isAccessRestricted && $hasExplicitRoute && !empty($requestedBookId)) {
+        $isDocumentNotFound = true;
+        http_response_code(404);
+        $breadcrumbsTrail = [['title' => 'Document Not Found', 'id' => '']];
+    } elseif (!$activeBook && !empty($allowedBooks)) {
         foreach ($allowedBooks as $b) {
             if (($b['type'] ?? 'folder') === 'folder') {
                 $activeBook = $b;
@@ -502,13 +511,17 @@ $showDocTypesOnlyToAdmin = isset($config['showDocTypesOnlyToAdmin']) ? !empty($c
 $showPoweredBy = isset($config['showPoweredBy']) ? !empty($config['showPoweredBy']) : true;
 $showSubwikisInSidebar = !empty($config['showSubwikisInSidebar']);
 $sidebarSubwikis = $showSubwikisInSidebar ? SubwikiManager::getSidebarSubwikis($config) : [];
+$wikiSelectorItems = $showSubwikisInSidebar ? SubwikiManager::getWikiSelectorItems($config, $baseUrl) : [];
 
 // Collect Frontend Assets from Extensions
 $extensionAssets = $extManager->getFrontendAssets();
 $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'], ['light', 'dark']) ? $_COOKIE['qwiki_theme'] : 'dark';
+$activeLang = Translator::getActiveLang();
+$i18nEnabled = Translator::isEnabled();
+$availableLangCodes = array_keys(Translator::getAvailableLanguages());
 ?>
 <!DOCTYPE html>
-<html lang="en" data-theme="<?= $userTheme ?>" class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
+<html lang="<?= htmlspecialchars($activeLang) ?>" data-theme="<?= $userTheme ?>" class="<?= $isShareMode ? 'mode-fullscreen' : '' ?>">
 <head>
     <meta charset="UTF-8">
     <script>
@@ -522,6 +535,19 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 if (savedWidth) {
                     document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
                 }
+                <?php if ($i18nEnabled): ?>
+                var savedLang = localStorage.getItem('qwiki_lang');
+                var availableLangs = <?= json_encode(array_values($availableLangCodes)) ?>;
+                var serverLang = <?= json_encode($activeLang) ?>;
+                var hasLangCookie = /(?:^|;\s*)qwiki_lang=/.test(document.cookie || '');
+                if (savedLang && availableLangs.indexOf(savedLang) !== -1 && !hasLangCookie && savedLang !== serverLang) {
+                    if (!sessionStorage.getItem('qwiki_lang_sync')) {
+                        sessionStorage.setItem('qwiki_lang_sync', '1');
+                        document.cookie = 'qwiki_lang=' + encodeURIComponent(savedLang) + '; path=/; max-age=31536000; SameSite=Lax';
+                        window.location.reload();
+                    }
+                }
+                <?php endif; ?>
             } catch(e) {}
         })();
     </script>
@@ -530,16 +556,16 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <?php
         if (!$canViewContent) {
             if ($routeAction === 'reset_password') {
-                $pageDocTitle = 'Reset Password - ' . ($config['title'] ?? 'Documentation');
+                $pageDocTitle = __('page_title.reset_password', 'Reset Password') . ' - ' . ($config['title'] ?? __('common.documentation', 'Documentation'));
             } elseif ($routeAction === 'verify_email') {
-                $pageDocTitle = 'Email Verification - ' . ($config['title'] ?? 'Documentation');
+                $pageDocTitle = __('page_title.verify_email', 'Email Verification') . ' - ' . ($config['title'] ?? __('common.documentation', 'Documentation'));
             } else {
-                $pageDocTitle = ($config['title'] ?? 'Documentation') . ' — Sign In';
+                $pageDocTitle = ($config['title'] ?? __('common.documentation', 'Documentation')) . ' — ' . __('page_title.sign_in', 'Sign In');
             }
         } elseif (!empty($isAccessRestricted)) {
-            $pageDocTitle = 'Access Restricted - ' . ($config['title'] ?? 'Standalone Qwiki');
+            $pageDocTitle = __('access.restricted_title', 'Access Restricted') . ' - ' . ($config['title'] ?? 'Standalone Qwiki');
         } else {
-            $pageDocTitle = ($activeChapter['title'] ?? 'Documentation') . ' - ' . ($config['title'] ?? 'Standalone Qwiki');
+            $pageDocTitle = ($activeChapter['title'] ?? __('common.documentation', 'Documentation')) . ' - ' . ($config['title'] ?? 'Standalone Qwiki');
         }
     ?>
     <title><?= htmlspecialchars($pageDocTitle) ?></title>
@@ -602,102 +628,105 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             <span><?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? $config['title'] ?? 'Standalone Qwiki')) ?></span>
                         <?php endif; ?>
                     </div>
-                    <button type="button" class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
-                        <span class="theme-icon-dark">🌙</span>
-                        <span class="theme-icon-light" style="display: none;">☀️</span>
-                        <span class="theme-label" style="font-size: 0.8rem; margin-left: 0.25rem;">Theme</span>
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <?php $extManager->renderToolbarUtilityWidgets($isAdmin, 'auth'); ?>
+                        <button type="button" class="btn btn-outline btn-sm theme-toggle-btn" id="theme-toggle" aria-label="<?= htmlspecialchars(__('header.toggle_theme', 'Toggle theme')) ?>" title="<?= htmlspecialchars(__('header.toggle_theme', 'Toggle theme')) ?>">
+                            <span class="theme-icon-dark">🌙</span>
+                            <span class="theme-icon-light" style="display: none;">☀️</span>
+                            <span class="theme-label" style="font-size: 0.8rem; margin-left: 0.25rem;"><?= htmlspecialchars(__('header.theme', 'Theme')) ?></span>
+                        </button>
+                    </div>
                 </div>
                 <?php if ($routeAction === 'reset_password'): ?>
                     <div class="auth-gateway-header">
                         <div class="auth-gateway-icon">🔑</div>
-                        <h2 class="auth-gateway-title">Reset Account Password</h2>
+                        <h2 class="auth-gateway-title"><?= htmlspecialchars(__('auth.reset_title', 'Reset Account Password')) ?></h2>
                         <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
-                            <p class="auth-gateway-subtitle">Set a new password for account <strong><?= htmlspecialchars($resetPasswordValidation['username']) ?></strong>.</p>
+                            <p class="auth-gateway-subtitle"><?= __('auth.reset_subtitle_html', 'Set a new password for account <strong>{username}</strong>.', ['username' => htmlspecialchars($resetPasswordValidation['username'])]) ?></p>
                         <?php endif; ?>
                     </div>
                     <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
                         <form id="standalone-reset-password-form">
                             <input type="hidden" name="token" value="<?= htmlspecialchars($resetPasswordToken) ?>">
                             <div class="form-group" style="margin-bottom: 1rem;">
-                                <label class="form-label" for="reset-new-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">New Password (min 4 characters)</label>
-                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="Enter new password" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
+                                <label class="form-label" for="reset-new-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;"><?= htmlspecialchars(__('auth.new_password_min', 'New Password (min 4 characters)')) ?></label>
+                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="<?= htmlspecialchars(__('auth.enter_new_password', 'Enter new password')) ?>" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
                             </div>
                             <div class="form-group" style="margin-bottom: 1.25rem;">
-                                <label class="form-label" for="reset-confirm-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Confirm New Password</label>
-                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="Confirm new password" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
+                                <label class="form-label" for="reset-confirm-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;"><?= htmlspecialchars(__('auth.confirm_new_password', 'Confirm New Password')) ?></label>
+                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="<?= htmlspecialchars(__('auth.confirm_new_password_ph', 'Confirm new password')) ?>" required autocomplete="new-password" style="width: 100%; box-sizing: border-box;">
                             </div>
                             <div id="reset-password-status" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
-                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;">Save New Password</button>
+                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;"><?= htmlspecialchars(__('auth.save_new_password', 'Save New Password')) ?></button>
                         </form>
                     <?php else: ?>
                         <div style="padding: 1rem; background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 6px; color: #b91c1c; font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem;">
-                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? 'This password reset link is invalid or has expired.') ?>
+                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? __('auth.reset_link_invalid', 'This password reset link is invalid or has expired.')) ?>
                         </div>
                     <?php endif; ?>
                     <div style="text-align: center; margin-top: 1rem;">
-                        <a href="<?= htmlspecialchars($baseUrl) ?>" style="font-size: 0.85rem; color: var(--text-muted);">← Back to Sign In</a>
+                        <a href="<?= htmlspecialchars($baseUrl) ?>" style="font-size: 0.85rem; color: var(--text-muted);"><?= htmlspecialchars(__('auth.back_to_sign_in', '← Back to Sign In')) ?></a>
                     </div>
                 <?php elseif ($routeAction === 'verify_email'): ?>
                     <div class="auth-gateway-header">
                         <?php if ($emailVerificationResult && $emailVerificationResult['success']): ?>
                             <div class="auth-gateway-icon">✅</div>
-                            <h2 class="auth-gateway-title">Email Verified!</h2>
-                            <p class="auth-gateway-subtitle">Your email address <strong><?= htmlspecialchars($emailVerificationResult['email']) ?></strong> has been verified successfully.</p>
+                            <h2 class="auth-gateway-title"><?= htmlspecialchars(__('auth.email_verified_title', 'Email Verified!')) ?></h2>
+                            <p class="auth-gateway-subtitle"><?= __('auth.email_verified_subtitle_html', 'Your email address <strong>{email}</strong> has been verified successfully.', ['email' => htmlspecialchars($emailVerificationResult['email'])]) ?></p>
                         <?php else: ?>
                             <div class="auth-gateway-icon">⚠️</div>
-                            <h2 class="auth-gateway-title">Verification Failed</h2>
-                            <p class="auth-gateway-subtitle" style="color: #ef4444;"><?= htmlspecialchars($emailVerificationResult['error'] ?? 'This email verification link is invalid or has expired.') ?></p>
+                            <h2 class="auth-gateway-title"><?= htmlspecialchars(__('auth.verification_failed_title', 'Verification Failed')) ?></h2>
+                            <p class="auth-gateway-subtitle" style="color: #ef4444;"><?= htmlspecialchars($emailVerificationResult['error'] ?? __('auth.verify_link_invalid', 'This email verification link is invalid or has expired.')) ?></p>
                         <?php endif; ?>
                     </div>
-                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary" style="display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 0.65rem 1rem; font-weight: 600;">Continue to Sign In</a>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary" style="display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 0.65rem 1rem; font-weight: 600;"><?= htmlspecialchars(__('auth.continue_to_sign_in', 'Continue to Sign In')) ?></a>
                 <?php else: ?>
                 <div class="auth-gateway-header">
                     <div class="auth-gateway-icon">🔒</div>
-                    <h2 class="auth-gateway-title"><?= htmlspecialchars($config['title'] ?? 'Private Documentation Portal') ?></h2>
-                    <p class="auth-gateway-subtitle">Authentication is required to access this documentation portal.</p>
+                    <h2 class="auth-gateway-title"><?= htmlspecialchars($config['title'] ?? __('auth.private_portal_title', 'Private Documentation Portal')) ?></h2>
+                    <p class="auth-gateway-subtitle"><?= htmlspecialchars(__('auth.portal_required_subtitle', 'Authentication is required to access this documentation portal.')) ?></p>
                 </div>
 
                 <form id="login-form">
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label" for="login-username" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Username or Email</label>
-                        <input type="text" id="login-username" name="username" class="form-control" placeholder="Enter username or email" autocomplete="username" required style="width: 100%; box-sizing: border-box;">
+                        <label class="form-label" for="login-username" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;"><?= htmlspecialchars(__('auth.username_or_email', 'Username or Email')) ?></label>
+                        <input type="text" id="login-username" name="username" class="form-control" placeholder="<?= htmlspecialchars(__('auth.enter_username_or_email', 'Enter username or email')) ?>" autocomplete="username" required style="width: 100%; box-sizing: border-box;">
                     </div>
                     <div class="form-group" style="margin-bottom: 0.5rem;">
-                        <label class="form-label" for="login-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Password</label>
-                        <input type="password" id="login-password" name="password" class="form-control" placeholder="Enter password" autocomplete="current-password" required style="width: 100%; box-sizing: border-box;">
+                        <label class="form-label" for="login-password" style="display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;"><?= htmlspecialchars(__('auth.password', 'Password')) ?></label>
+                        <input type="password" id="login-password" name="password" class="form-control" placeholder="<?= htmlspecialchars(__('auth.enter_password', 'Enter password')) ?>" autocomplete="current-password" required style="width: 100%; box-sizing: border-box;">
                     </div>
                     <div style="text-align: right; margin-bottom: 1.25rem;">
-                        <button type="button" class="btn-link" id="btn-open-forgot-pwd" style="background: none; border: none; font-size: 0.8rem; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;">Forgot Password?</button>
+                        <button type="button" class="btn-link" id="btn-open-forgot-pwd" style="background: none; border: none; font-size: 0.8rem; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;"><?= htmlspecialchars(__('auth.forgot_password', 'Forgot Password?')) ?></button>
                     </div>
-                    <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;">Log In to Portal</button>
+                    <button type="submit" class="btn btn-primary" id="btn-login-submit" style="width: 100%; padding: 0.65rem 1rem; font-weight: 600;"><?= htmlspecialchars(__('auth.log_in_portal', 'Log In to Portal')) ?></button>
                 </form>
 
                 <form id="login-2fa-form" style="display: none;">
                     <div style="text-align: center; margin-bottom: 1.25rem;">
                         <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔒</div>
-                        <h4 style="margin: 0 0 0.25rem 0;" id="login-2fa-heading">Two-Factor Authentication</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" id="login-2fa-desc">Enter the 6-digit verification code from your authenticator app.</p>
+                        <h4 style="margin: 0 0 0.25rem 0;" id="login-2fa-heading"><?= htmlspecialchars(__('auth.2fa_title', 'Two-Factor Authentication')) ?></h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" id="login-2fa-desc"><?= htmlspecialchars(__('auth.2fa_desc', 'Enter the 6-digit verification code from your authenticator app.')) ?></p>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label" for="login-2fa-code" id="login-2fa-label" style="text-align: center; display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;">Verification Code</label>
+                        <label class="form-label" for="login-2fa-code" id="login-2fa-label" style="text-align: center; display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.35rem;"><?= htmlspecialchars(__('auth.verification_code', 'Verification Code')) ?></label>
                         <input type="text" id="login-2fa-code" name="code" class="form-control" placeholder="000000" maxlength="10" autocomplete="one-time-code" style="text-align: center; font-size: 1.25rem; letter-spacing: 0.2rem; font-family: monospace; width: 100%; box-sizing: border-box;" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" id="btn-2fa-submit" style="width: 100%; margin-bottom: 0.75rem; padding: 0.65rem 1rem; font-weight: 600;">Verify &amp; Continue</button>
+                    <button type="submit" class="btn btn-primary" id="btn-2fa-submit" style="width: 100%; margin-bottom: 0.75rem; padding: 0.65rem 1rem; font-weight: 600;"><?= htmlspecialchars(__('auth.verify_continue', 'Verify & Continue')) ?></button>
                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; margin-top: 0.5rem;">
-                        <button type="button" class="btn-link" id="btn-toggle-recovery-code" style="background: none; border: none; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;">Use recovery code</button>
-                        <button type="button" class="btn-link" id="btn-back-to-login" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0;">← Back to login</button>
+                        <button type="button" class="btn-link" id="btn-toggle-recovery-code" style="background: none; border: none; color: var(--primary-color, #6366f1); cursor: pointer; text-decoration: underline; padding: 0;"><?= htmlspecialchars(__('auth.use_recovery_code', 'Use recovery code')) ?></button>
+                        <button type="button" class="btn-link" id="btn-back-to-login" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0;"><?= htmlspecialchars(__('auth.back_to_login', '← Back to login')) ?></button>
                     </div>
                 </form>
                 <?php endif; ?>
 
                 <?php if ($isSubwiki): ?>
                     <div class="auth-gateway-footer">
-                        <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>">← Back to <?= htmlspecialchars($parentTitle) ?></a>
+                        <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>"><?= htmlspecialchars(__('nav.back_to_parent', '← Back to {title}', ['title' => $parentTitle])) ?></a>
                     </div>
                 <?php elseif ($showPoweredBy): ?>
                     <div class="auth-gateway-footer">
-                        Powered by <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer"><strong>Qwiki</strong></a>
+                        <?= __('common.powered_by_html', 'Powered by <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer"><strong>Qwiki</strong></a>') ?>
                     </div>
                 <?php endif; ?>
             </div>
@@ -707,11 +736,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <!-- App Header -->
     <header class="app-header">
         <div class="brand-container">
-            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle navigation">☰</button>
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="<?= htmlspecialchars(__('header.toggle_navigation', 'Toggle navigation')) ?>">☰</button>
             <div class="brand-header-group">
                 <?php 
                 $logoHref = $isSubwiki ? ($config['parentUrl'] ?? '../') : $baseUrl;
-                $logoTitle = $isSubwiki ? ('Back to ' . ($parentTitle ?: 'Parent Wiki')) : ($config['title'] ?? 'Home');
+                $logoTitle = $isSubwiki ? __('nav.back_to_parent', 'Back to {title}', ['title' => ($parentTitle ?: __('nav.parent_wiki', 'Parent Wiki'))]) : ($config['title'] ?? __('nav.home', 'Home'));
                 ?>
                 <a href="<?= htmlspecialchars($logoHref) ?>" class="brand-logo" title="<?= htmlspecialchars($logoTitle) ?>">
                     <?php if ($brandLogoUrl !== ''): ?>
@@ -720,76 +749,113 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         ⚡ <?= htmlspecialchars($isSubwiki && !empty($parentTitle) ? $parentTitle : ($config['logoText'] ?? 'QWIKI')) ?>
                     <?php endif; ?>
                 </a>
-                <?php if ($isSubwiki): ?>
-                    <span class="brand-separator" aria-hidden="true">/</span>
-                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="brand-subwiki-badge" title="Current Subwiki: <?= htmlspecialchars($config['title'] ?? 'Subwiki') ?>">
-                        <span class="subwiki-badge-icon">🌐</span>
-                        <span class="subwiki-badge-title"><?= htmlspecialchars($config['title'] ?? 'Subwiki') ?></span>
+                <?php
+                $currentWikiDisplayTitle = $config['title'] ?? ($isSubwiki ? __('common.subwiki', 'Subwiki') : __('common.documentation', 'Documentation'));
+                $currentWikiBadgeTooltip = $isSubwiki
+                    ? __('header.current_subwiki', 'Current Subwiki: {title}', ['title' => $currentWikiDisplayTitle])
+                    : __('header.current_wiki', 'Current Wiki: {title}', ['title' => $currentWikiDisplayTitle]);
+                ?>
+                <span class="brand-separator" aria-hidden="true">/</span>
+                <?php if ($showSubwikisInSidebar && count($wikiSelectorItems) > 1): ?>
+                    <div class="dropdown brand-wiki-selector" id="brand-wiki-selector">
+                        <button type="button" class="brand-subwiki-badge brand-wiki-selector-toggle" id="brand-wiki-selector-toggle" aria-haspopup="true" aria-expanded="false" title="<?= htmlspecialchars(__('header.switch_wiki', 'Switch wiki')) ?>">
+                            <span class="subwiki-badge-icon">📚</span>
+                            <span class="subwiki-badge-title"><?= htmlspecialchars($currentWikiDisplayTitle) ?></span>
+                            <span class="subwiki-badge-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <div class="dropdown-menu brand-wiki-selector-menu" id="brand-wiki-selector-menu" role="region" aria-label="<?= htmlspecialchars(__('header.switch_wiki', 'Switch wiki')) ?>">
+                            <div class="wiki-selector-header">
+                                <span><?= htmlspecialchars(__('header.switch_wiki', 'Switch wiki')) ?></span>
+                            </div>
+                            <div class="wiki-selector-search-wrap">
+                                <input type="search" id="wiki-selector-search" class="wiki-selector-search" placeholder="<?= htmlspecialchars(__('header.find_wiki_placeholder', 'Find a wiki...')) ?>" autocomplete="off" aria-label="<?= htmlspecialchars(__('header.find_wiki_placeholder', 'Find a wiki...')) ?>">
+                            </div>
+                            <div class="wiki-selector-list" id="wiki-selector-list">
+                                <?php foreach ($wikiSelectorItems as $wItem): ?>
+                                    <a href="<?= htmlspecialchars($wItem['url']) ?>" class="wiki-selector-item<?= !empty($wItem['isCurrent']) ? ' active' : '' ?>" data-wiki-title="<?= htmlspecialchars($wItem['title']) ?>" data-wiki-slug="<?= htmlspecialchars($wItem['slug'] ?? '') ?>" title="<?= htmlspecialchars($wItem['title']) ?>">
+                                        <span class="wiki-selector-check" aria-hidden="true"><?= !empty($wItem['isCurrent']) ? '✓' : '' ?></span>
+                                        <span class="wiki-selector-item-main">
+                                            <span class="wiki-selector-item-title"><?= htmlspecialchars($wItem['title']) ?></span>
+                                        </span>
+                                        <span class="badge-subwiki-count" title="<?= htmlspecialchars(__('sidebar.docs_count_title', '{count} Documents', ['count' => (int)($wItem['docCount'] ?? 0)])) ?>"><?= htmlspecialchars(__('sidebar.docs_count_short', '{count} docs', ['count' => (int)($wItem['docCount'] ?? 0)])) ?></span>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="wiki-selector-empty" id="wiki-selector-empty" style="display: none;">
+                                <?= htmlspecialchars(__('header.no_wikis_match', 'No matching wikis found')) ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="brand-subwiki-badge" title="<?= htmlspecialchars($currentWikiBadgeTooltip) ?>">
+                        <span class="subwiki-badge-icon">📚</span>
+                        <span class="subwiki-badge-title"><?= htmlspecialchars($currentWikiDisplayTitle) ?></span>
                     </a>
                 <?php endif; ?>
             </div>
         </div>
         <div class="header-actions">
-            <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙 Theme</button>
+            <?php $extManager->renderToolbarUtilityWidgets($isAdmin, 'header'); ?>
+            <button class="btn btn-outline btn-sm" id="theme-toggle" title="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>" aria-label="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>"><span aria-hidden="true">🌙</span><span class="theme-btn-label"><?= htmlspecialchars(__('header.theme', 'Theme')) ?></span></button>
             <?php if ($isViewer): ?>
                 <div class="dropdown">
                     <button class="btn btn-outline btn-sm dropdown-toggle" id="user-dropdown-toggle">
-                        <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.3rem;"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?></span> ▾
+                        <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.3rem;"><?= htmlspecialchars($currentUser['username'] ?? __('common.user', 'User')) ?></span> ▾
                     </button>
                     <div class="dropdown-menu">
                         <div class="dropdown-user-header">
                             <div class="dropdown-user-info">
-                                <span class="dropdown-user-name"><?= htmlspecialchars($currentUser['username'] ?? 'User') ?></span>
-                                <span class="dropdown-user-role"><?= $isAdmin ? 'Administrator' : 'Viewer' ?></span>
+                                <span class="dropdown-user-name"><?= htmlspecialchars($currentUser['username'] ?? __('common.user', 'User')) ?></span>
+                                <span class="dropdown-user-role"><?= $isAdmin ? htmlspecialchars(__('role.administrator', 'Administrator')) : htmlspecialchars(__('role.viewer', 'Viewer')) ?></span>
                             </div>
-                            <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.4rem;"><?= $isAdmin ? 'admin' : 'viewer' ?></span>
+                            <span class="doc-badge badge-md" style="margin: 0; padding: 0.1rem 0.4rem;"><?= $isAdmin ? htmlspecialchars(__('role.admin_badge', 'admin')) : htmlspecialchars(__('role.viewer_badge', 'viewer')) ?></span>
                         </div>
-                        <div class="dropdown-header">Tools & Utilities</div>
+                        <div class="dropdown-header"><?= htmlspecialchars(__('menu.tools_utilities', 'Tools & Utilities')) ?></div>
                         <?php $extManager->renderHeaderUtilityButtons($isAdmin); ?>
                         <div class="dropdown-divider"></div>
                         <?php if ($isAdmin): ?>
-                            <div class="dropdown-header">Administration</div>
+                            <div class="dropdown-header"><?= htmlspecialchars(__('menu.administration', 'Administration')) ?></div>
                             <button class="dropdown-item" id="btn-settings" data-theme="<?= htmlspecialchars($config['theme'] ?? 'theme-default.css') ?>">
                                 <span class="dropdown-item-icon">⚙️</span>
-                                <span class="dropdown-item-text">Settings</span>
+                                <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.settings', 'Settings')) ?></span>
                             </button>
                             <button class="dropdown-item" id="btn-users">
                                 <span class="dropdown-item-icon">👥</span>
-                                <span class="dropdown-item-text">Users</span>
+                                <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.users', 'Users')) ?></span>
                             </button>
                             <button class="dropdown-item" id="btn-llm-keys">
                                 <span class="dropdown-item-icon">🤖</span>
-                                <span class="dropdown-item-text">LLM & API Access</span>
+                                <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.llm_access', 'LLM & API Access')) ?></span>
                             </button>
                             <button class="dropdown-item" id="btn-trash-bin">
                                 <span class="dropdown-item-icon">🗑️</span>
-                                <span class="dropdown-item-text">Trash Bin</span>
+                                <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.trash_bin', 'Trash Bin')) ?></span>
                             </button>
                             <?php if (!$isSubwiki): ?>
                                 <button class="dropdown-item" id="btn-subwikis">
-                                    <span class="dropdown-item-icon">🌐</span>
-                                    <span class="dropdown-item-text">Subwikis</span>
+                                    <span class="dropdown-item-icon">📚</span>
+                                    <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.subwikis', 'Subwikis')) ?></span>
                                 </button>
                                 <button class="dropdown-item" id="btn-update-available" style="display: none; background-color: #f59e0b; color: #fff;">
                                     <span class="dropdown-item-icon">🎉</span>
-                                    <span class="dropdown-item-text">Update Available!</span>
+                                    <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.update_available', 'Update Available!')) ?></span>
                                 </button>
                             <?php endif; ?>
                             <div class="dropdown-divider"></div>
                         <?php endif; ?>
                         <button class="dropdown-item" id="btn-user-profile">
                             <span class="dropdown-item-icon">👤</span>
-                            <span class="dropdown-item-text">Account &amp; Security</span>
+                            <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.account_security', 'Account & Security')) ?></span>
                         </button>
                         <div class="dropdown-divider"></div>
                         <button class="dropdown-item text-danger" id="btn-logout">
                             <span class="dropdown-item-icon">🚪</span>
-                            <span class="dropdown-item-text">Logout</span>
+                            <span class="dropdown-item-text"><?= htmlspecialchars(__('menu.logout', 'Logout')) ?></span>
                         </button>
                     </div>
                 </div>
             <?php else: ?>
-                <button class="btn btn-outline btn-sm" id="btn-login">Login</button>
+                <button class="btn btn-outline btn-sm" id="btn-login"><?= htmlspecialchars(__('auth.login', 'Login')) ?></button>
             <?php endif; ?>
         </div>
     </header>
@@ -802,54 +868,53 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php else: ?>
                 ⚡ <?= htmlspecialchars($config['logoText'] ?? 'QWIKI') ?>
             <?php endif; ?>
-            <?php if ($isSubwiki): ?>
-                <span class="brand-separator" style="margin: 0 0.35rem; opacity: 0.6; font-size: 0.85rem;" aria-hidden="true">/</span>
-                <span class="brand-subwiki-badge-share" style="font-weight: 600; font-size: 0.82rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 0.25rem;">
-                    <span>🌐</span>
-                    <span><?= htmlspecialchars($config['title'] ?? 'Subwiki') ?></span>
-                </span>
-            <?php endif; ?>
+            <span class="brand-separator" style="margin: 0 0.35rem; opacity: 0.6; font-size: 0.85rem;" aria-hidden="true">/</span>
+            <span class="brand-subwiki-badge-share" style="font-weight: 600; font-size: 0.82rem; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 0.25rem;">
+                <span>📚</span>
+                <span><?= htmlspecialchars($config['title'] ?? ($isSubwiki ? __('common.subwiki', 'Subwiki') : __('common.documentation', 'Documentation'))) ?></span>
+            </span>
         </div>
-        <div class="share-bar-title"><?= htmlspecialchars($activeChapter['title'] ?? ($shareError ? 'Document Share' : 'Document')) ?></div>
+        <div class="share-bar-title"><?= htmlspecialchars($activeChapter['title'] ?? ($shareError ? __('share.doc_share', 'Document Share') : __('common.document', 'Document'))) ?></div>
         <div class="share-bar-actions">
             <?php if (!$shareError && $activeChapter): ?>
             <div class="dropdown" id="share-social-dropdown">
-                <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-share-social" title="Share Document">
+                <button class="btn btn-outline btn-sm dropdown-toggle" id="btn-share-social" title="<?= htmlspecialchars(__('share.share_document', 'Share Document')) ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-                    <span>Share</span>
+                    <span><?= htmlspecialchars(__('share.share', 'Share')) ?></span>
                 </button>
                 <div class="dropdown-menu" id="share-social-menu" style="min-width: 175px;">
                     <a href="https://twitter.com/intent/tweet?url=<?= urlencode($canonicalUrl) ?>&text=<?= urlencode($activeChapter['title'] ?? '') ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
-                        𝕏 Share on X
+                        <?= htmlspecialchars(__('share.on_x', '𝕏 Share on X')) ?>
                     </a>
                     <a href="https://www.linkedin.com/sharing/share-offsite/?url=<?= urlencode($canonicalUrl) ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
-                        💼 Share on LinkedIn
+                        <?= htmlspecialchars(__('share.on_linkedin', '💼 Share on LinkedIn')) ?>
                     </a>
                     <a href="https://www.facebook.com/sharer/sharer.php?u=<?= urlencode($canonicalUrl) ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
-                        📘 Share on Facebook
+                        <?= htmlspecialchars(__('share.on_facebook', '📘 Share on Facebook')) ?>
                     </a>
                     <a href="https://api.whatsapp.com/send?text=<?= urlencode(($activeChapter['title'] ?? '') . ' ' . $canonicalUrl) ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
-                        💬 Share on WhatsApp
+                        <?= htmlspecialchars(__('share.on_whatsapp', '💬 Share on WhatsApp')) ?>
                     </a>
                     <a href="https://t.me/share/url?url=<?= urlencode($canonicalUrl) ?>&text=<?= urlencode($activeChapter['title'] ?? '') ?>" target="_blank" rel="noopener noreferrer" class="dropdown-item">
-                        ✈️ Share on Telegram
+                        <?= htmlspecialchars(__('share.on_telegram', '✈️ Share on Telegram')) ?>
                     </a>
                     <button type="button" class="dropdown-item" id="btn-share-slack-bar" data-url="<?= htmlspecialchars($canonicalUrl) ?>" data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>">
-                        #️⃣ Share on Slack
+                        <?= htmlspecialchars(__('share.on_slack', '#️⃣ Share on Slack')) ?>
                     </button>
                     <div class="dropdown-divider"></div>
                     <button type="button" class="dropdown-item" id="btn-copy-bar-share" data-url="<?= htmlspecialchars($canonicalUrl) ?>">
-                        🔗 Copy Share Link
+                        <?= htmlspecialchars(__('share.copy_link', '🔗 Copy Share Link')) ?>
                     </button>
                 </div>
             </div>
             <?php endif; ?>
-            <button class="btn btn-outline btn-sm" id="theme-toggle" title="Toggle Dark/Light Mode">🌙</button>
-            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
+            <?php $extManager->renderToolbarUtilityWidgets($isAdmin, 'share'); ?>
+            <button class="btn btn-outline btn-sm" id="theme-toggle" title="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>">🌙</button>
+            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="<?= htmlspecialchars(__('doc.print_pdf', 'Print or Download as PDF')) ?>">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
             </button>
             <?php if ($isViewer && $activeBook && $activeChapter): ?>
-                <a href="<?= htmlspecialchars(urlencode($activeBook['id']) . '/' . urlencode($activeChapter['slug'])) ?>" class="btn btn-outline btn-sm" title="Open in Full Wiki">↗ Open in Wiki</a>
+                <a href="<?= htmlspecialchars(urlencode($activeBook['id']) . '/' . urlencode($activeChapter['slug'])) ?>" class="btn btn-outline btn-sm" title="<?= htmlspecialchars(__('share.open_in_wiki', 'Open in Full Wiki')) ?>"><?= htmlspecialchars(__('share.open_in_wiki_btn', '↗ Open in Wiki')) ?></a>
             <?php endif; ?>
         </div>
     </div>
@@ -859,11 +924,11 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php if (!$isShareMode): ?>
         <!-- Sidebar Navigation -->
         <aside class="app-sidebar" id="app-sidebar">
-            <div class="sidebar-resizer" id="sidebar-resizer" title="Drag right edge to resize sidebar"></div>
+            <div class="sidebar-resizer" id="sidebar-resizer" title="<?= htmlspecialchars(__('sidebar.resize_title', 'Drag right edge to resize sidebar')) ?>"></div>
             <div class="sidebar-search">
                 <div class="sidebar-search-wrapper">
-                    <input type="text" id="search-input" class="search-input" placeholder="Search documentation..." autocomplete="off">
-                    <button type="button" id="sidebar-search-clear" class="sidebar-search-clear" aria-label="Clear search" title="Clear search" style="display: none;">
+                    <input type="text" id="search-input" class="search-input" placeholder="<?= htmlspecialchars(__('sidebar.search_placeholder', 'Search documentation...')) ?>" autocomplete="off">
+                    <button type="button" id="sidebar-search-clear" class="sidebar-search-clear" aria-label="<?= htmlspecialchars(__('sidebar.clear_search', 'Clear search')) ?>" title="<?= htmlspecialchars(__('sidebar.clear_search', 'Clear search')) ?>" style="display: none;">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -875,19 +940,19 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <div class="subwiki-parent-banner">
                 <a href="<?= htmlspecialchars($config['parentUrl'] ?? '../') ?>">
                     <span>←</span>
-                    <span>Back to <?= htmlspecialchars($parentTitle) ?></span>
+                    <span><?= htmlspecialchars(__('nav.back_to_parent_short', 'Back to {title}', ['title' => $parentTitle])) ?></span>
                 </a>
             </div>
             <?php endif; ?>
             <?php if ($isAdmin): ?>
             <div class="sidebar-actions">
-                <button type="button" class="btn-sidebar-add-doc" id="btn-add-chapter" title="Create New Document">
+                <button type="button" class="btn-sidebar-add-doc" id="btn-add-chapter" title="<?= htmlspecialchars(__('sidebar.new_doc_title', 'Create New Document')) ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    <span>New Document</span>
+                    <span><?= htmlspecialchars(__('sidebar.new_doc', 'New Document')) ?></span>
                 </button>
-                <button type="button" class="btn-sidebar-add-cat" id="btn-add-book" title="Add New Category">
+                <button type="button" class="btn-sidebar-add-cat" id="btn-add-book" title="<?= htmlspecialchars(__('sidebar.new_cat_title', 'Add New Category')) ?>">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><line x1="12" y1="6" x2="12" y2="12"></line><line x1="9" y1="9" x2="15" y2="9"></line></svg>
-                    <span style="font-size: 0.75rem; font-weight: 600;">+ Cat</span>
+                    <span style="font-size: 0.75rem; font-weight: 600;"><?= htmlspecialchars(__('sidebar.new_cat_short', '+ Cat')) ?></span>
                 </button>
             </div>
             <?php endif; ?>
@@ -895,33 +960,12 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <?php foreach ($allowedBooks as $book): ?>
                     <?php Navigation::renderSidebarNode($book, $book['id'] ?? '', $activePathIds, $activeChapter['slug'] ?? '', 0, $isAdmin, $isViewer, $showDocTypesOnlyToAdmin, $extManager); ?>
                 <?php endforeach; ?>
-                <?php if ($showSubwikisInSidebar && !empty($sidebarSubwikis)): ?>
-                <div class="nav-category-item depth-0 nav-subwikis-group collapsed" data-category-id="subwikis">
-                    <div class="nav-category-header">
-                        <span>🌐 Subwikis</span>
-                        <span class="header-actions-inline">
-                            <span class="chevron-icon">▾</span>
-                        </span>
-                    </div>
-                    <div class="nav-document-list">
-                        <?php foreach ($sidebarSubwikis as $sub): ?>
-                            <a href="<?= htmlspecialchars($sub['url']) ?>" class="nav-link nav-subwiki-link" title="<?= htmlspecialchars($sub['title']) ?>">
-                                <span class="nav-link-title-container">
-                                    <span class="subwiki-item-icon">🌐</span>
-                                    <span><?= htmlspecialchars($sub['title']) ?></span>
-                                </span>
-                                <span class="badge-subwiki-count" title="<?= (int)$sub['docCount'] ?> Documents"><?= (int)$sub['docCount'] ?> docs</span>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
             </nav>
             <?php if ($showPoweredBy): ?>
             <div class="sidebar-footer">
-                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="Powered by Qwiki — Click to open qwiki.wiki in a new tab">
+                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="<?= htmlspecialchars(__('sidebar.powered_by_title', 'Powered by Qwiki — Click to open qwiki.wiki in a new tab')) ?>">
                     <span class="badge-icon">⚡</span>
-                    <span class="badge-text">Powered by <strong>Qwiki</strong></span>
+                    <span class="badge-text"><?= __('common.powered_by_html', 'Powered by <strong>Qwiki</strong>') ?></span>
                     <svg class="badge-external-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 </a>
             </div>
@@ -935,9 +979,9 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="content-body" style="max-width: 480px; margin: 3rem auto; padding: 2.5rem; background: var(--bg-surface, #fff); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
                     <div style="text-align: center; margin-bottom: 1.5rem;">
                         <div style="font-size: 2.75rem; margin-bottom: 0.5rem;">🔑</div>
-                        <h2 style="margin: 0 0 0.5rem 0;">Reset Account Password</h2>
+                        <h2 style="margin: 0 0 0.5rem 0;"><?= htmlspecialchars(__('auth.reset_title', 'Reset Account Password')) ?></h2>
                         <?php if ($resetPasswordValidation && $resetPasswordValidation['valid']): ?>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Set a new password for account <strong><?= htmlspecialchars($resetPasswordValidation['username']) ?></strong>.</p>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;"><?= __('auth.reset_subtitle_html', 'Set a new password for account <strong>{username}</strong>.', ['username' => htmlspecialchars($resetPasswordValidation['username'])]) ?></p>
                         <?php endif; ?>
                     </div>
 
@@ -945,22 +989,22 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         <form id="standalone-reset-password-form">
                             <input type="hidden" name="token" value="<?= htmlspecialchars($resetPasswordToken) ?>">
                             <div class="form-group" style="margin-bottom: 1.25rem;">
-                                <label class="form-label" for="reset-new-password">New Password (min 4 characters)</label>
-                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="Enter new password" required autocomplete="new-password">
+                                <label class="form-label" for="reset-new-password"><?= htmlspecialchars(__('auth.new_password_min', 'New Password (min 4 characters)')) ?></label>
+                                <input type="password" id="reset-new-password" name="newPassword" class="form-control" placeholder="<?= htmlspecialchars(__('auth.enter_new_password', 'Enter new password')) ?>" required autocomplete="new-password">
                             </div>
                             <div class="form-group" style="margin-bottom: 1.5rem;">
-                                <label class="form-label" for="reset-confirm-password">Confirm New Password</label>
-                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="Confirm new password" required autocomplete="new-password">
+                                <label class="form-label" for="reset-confirm-password"><?= htmlspecialchars(__('auth.confirm_new_password', 'Confirm New Password')) ?></label>
+                                <input type="password" id="reset-confirm-password" class="form-control" placeholder="<?= htmlspecialchars(__('auth.confirm_new_password_ph', 'Confirm new password')) ?>" required autocomplete="new-password">
                             </div>
                             <div id="reset-password-status" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
-                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%;">Save New Password &amp; Log In</button>
+                            <button type="submit" class="btn btn-primary" id="btn-submit-reset-password" style="width: 100%;"><?= htmlspecialchars(__('auth.save_new_password_login', 'Save New Password & Log In')) ?></button>
                         </form>
                     <?php else: ?>
                         <div style="padding: 1rem; background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 6px; color: #b91c1c; font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem;">
-                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? 'This password reset link is invalid or has expired.') ?>
+                            <?= htmlspecialchars($resetPasswordValidation['error'] ?? __('auth.reset_link_invalid', 'This password reset link is invalid or has expired.')) ?>
                         </div>
                         <div style="text-align: center;">
-                            <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Homepage</a>
+                            <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary"><?= htmlspecialchars(__('common.return_home', 'Return to Homepage')) ?></a>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -968,38 +1012,38 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                 <div class="content-body" style="max-width: 480px; margin: 3rem auto; padding: 2.5rem; text-align: center; background: var(--bg-surface, #fff); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
                     <?php if ($emailVerificationResult && $emailVerificationResult['success']): ?>
                         <div style="font-size: 3rem; margin-bottom: 0.75rem;">✅</div>
-                        <h2 style="margin: 0 0 0.75rem 0;">Email Verified!</h2>
+                        <h2 style="margin: 0 0 0.75rem 0;"><?= htmlspecialchars(__('auth.email_verified_title', 'Email Verified!')) ?></h2>
                         <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.75rem;">
-                            Your email address <strong><?= htmlspecialchars($emailVerificationResult['email']) ?></strong> has been verified successfully.
+                            <?= __('auth.email_verified_subtitle_html', 'Your email address <strong>{email}</strong> has been verified successfully.', ['email' => htmlspecialchars($emailVerificationResult['email'])]) ?>
                         </p>
                     <?php else: ?>
                         <div style="font-size: 3rem; margin-bottom: 0.75rem;">⚠️</div>
-                        <h2 style="margin: 0 0 0.75rem 0;">Verification Failed</h2>
+                        <h2 style="margin: 0 0 0.75rem 0;"><?= htmlspecialchars(__('auth.verification_failed_title', 'Verification Failed')) ?></h2>
                         <p style="color: #ef4444; font-size: 0.9rem; margin-bottom: 1.75rem;">
-                            <?= htmlspecialchars($emailVerificationResult['error'] ?? 'This email verification link is invalid or has expired.') ?>
+                            <?= htmlspecialchars($emailVerificationResult['error'] ?? __('auth.verify_link_invalid', 'This email verification link is invalid or has expired.')) ?>
                         </p>
                     <?php endif; ?>
-                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Continue to Documentation</a>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary"><?= htmlspecialchars(__('common.continue_to_docs', 'Continue to Documentation')) ?></a>
                 </div>
             <?php elseif ($shareError === 'not_found'): ?>
                 <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
                     <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
-                    <h2>Document Not Found</h2>
-                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The shared document could not be found or the link has expired.</p>
-                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                    <h2><?= htmlspecialchars(__('error.doc_not_found', 'Document Not Found')) ?></h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;"><?= htmlspecialchars(__('share.not_found_desc', 'The shared document could not be found or the link has expired.')) ?></p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary"><?= htmlspecialchars(__('common.return_to_docs', 'Return to Documentation')) ?></a>
                 </div>
             <?php elseif ($shareError === 'restricted'): ?>
                 <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
                     <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
-                    <h2>Public Sharing Disabled</h2>
-                    <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem;">The administrator has disabled public sharing for this document. If you have an authorized account, please log in to access this documentation.</p>
-                    <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In</button>
+                    <h2><?= htmlspecialchars(__('share.public_disabled_title', 'Public Sharing Disabled')) ?></h2>
+                    <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 2rem;"><?= htmlspecialchars(__('share.public_disabled_desc', 'The administrator has disabled public sharing for this document. If you have an authorized account, please log in to access this documentation.')) ?></p>
+                    <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')"><?= htmlspecialchars(__('auth.log_in', 'Log In')) ?></button>
                 </div>
             <?php elseif ($activeChapter || !empty($isAccessRestricted)): ?>
                 <?php if (!$isShareMode): ?>
                 <div class="content-header">
                     <div class="content-header-left" style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
-                        <button type="button" class="btn btn-outline btn-sm sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="Toggle Navigation Sidebar ([)" aria-label="Toggle Navigation Sidebar">
+                        <button type="button" class="btn btn-outline btn-sm sidebar-collapse-btn" id="btn-toggle-left-sidebar" title="<?= htmlspecialchars(__('doc.toggle_sidebar_title', 'Toggle Navigation Sidebar ([)')) ?>" aria-label="<?= htmlspecialchars(__('doc.toggle_sidebar_aria', 'Toggle Navigation Sidebar')) ?>">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                 <line x1="9" y1="3" x2="9" y2="21"></line>
@@ -1007,7 +1051,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                         </button>
                         <div class="breadcrumbs">
                         <?php if (!empty($isAccessRestricted)): ?>
-                            <span>Access Restricted</span>
+                            <span><?= htmlspecialchars(__('access.restricted_title', 'Access Restricted')) ?></span>
                         <?php else: ?>
                             <?php foreach ($breadcrumbsTrail as $index => $crumb): ?>
                                 <?php if ($index > 0): ?><span>/</span><?php endif; ?>
@@ -1030,37 +1074,37 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <div class="content-actions">
                         <div id="read-actions" style="display: flex; gap: 0.75rem; align-items: center;">
                             <?php if ($prevDoc || $nextDoc): ?>
-                                <div class="header-chapter-nav" role="group" aria-label="Chapter Navigation">
+                                <div class="header-chapter-nav" role="group" aria-label="<?= htmlspecialchars(__('doc.chapter_nav_aria', 'Chapter Navigation')) ?>">
                                     <?php if ($prevDoc): ?>
-                                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" title="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>" aria-label="Previous Chapter: <?= htmlspecialchars($prevDoc['title']) ?>">
+                                        <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="btn btn-outline btn-sm" title="<?= htmlspecialchars(__('doc.prev_chapter_title', 'Previous Chapter: {title}', ['title' => $prevDoc['title']])) ?>" aria-label="<?= htmlspecialchars(__('doc.prev_chapter_title', 'Previous Chapter: {title}', ['title' => $prevDoc['title']])) ?>">
                                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                         </a>
                                     <?php else: ?>
-                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No previous chapter" style="opacity: 0.4; pointer-events: none;">
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="<?= htmlspecialchars(__('doc.no_prev_chapter', 'No previous chapter')) ?>" style="opacity: 0.4; pointer-events: none;">
                                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                                         </span>
                                     <?php endif; ?>
                                     <?php if ($nextDoc): ?>
-                                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" title="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>" aria-label="Next Chapter: <?= htmlspecialchars($nextDoc['title']) ?>">
+                                        <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="btn btn-outline btn-sm" title="<?= htmlspecialchars(__('doc.next_chapter_title', 'Next Chapter: {title}', ['title' => $nextDoc['title']])) ?>" aria-label="<?= htmlspecialchars(__('doc.next_chapter_title', 'Next Chapter: {title}', ['title' => $nextDoc['title']])) ?>">
                                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                         </a>
                                     <?php else: ?>
-                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="No next chapter" style="opacity: 0.4; pointer-events: none;">
+                                        <span class="btn btn-outline btn-sm disabled" aria-disabled="true" title="<?= htmlspecialchars(__('doc.no_next_chapter', 'No next chapter')) ?>" style="opacity: 0.4; pointer-events: none;">
                                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                                         </span>
                                     <?php endif; ?>
                                 </div>
                             <?php endif; ?>
                             <?php if (($activeChapter['type'] ?? '') === 'gdoc' && !empty($activeChapter['editUrl'])): ?>
-                                <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Edit Google Doc">
+                                <a href="<?= htmlspecialchars($activeChapter['editUrl']) ?>" target="_blank" class="btn btn-outline btn-sm" title="<?= htmlspecialchars(__('doc.edit_gdoc', 'Edit Google Doc')) ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                 </a>
                             <?php endif; ?>
                             
-                            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="Print or Download as PDF">
+                            <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="<?= htmlspecialchars(__('doc.print_pdf', 'Print or Download as PDF')) ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             </button>
-                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="Toggle Table of Contents (])" aria-label="Toggle Table of Contents">
+                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="<?= htmlspecialchars(__('doc.toggle_toc_title', 'Toggle Table of Contents (])')) ?>" aria-label="<?= htmlspecialchars(__('doc.toggle_toc_aria', 'Toggle Table of Contents')) ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                                     <line x1="15" y1="3" x2="15" y2="21"></line>
@@ -1070,7 +1114,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             $chapterShareKey = $activeChapter['shareKey'] ?? '';
                             $chapterShareUrl = !empty($chapterShareKey) ? ($baseUrl . '?share=' . urlencode($chapterShareKey)) : '';
                             ?>
-                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="Share"
+                            <button class="btn btn-outline btn-sm" id="btn-share-chapter" title="<?= htmlspecialchars(__('share.share', 'Share')) ?>"
                                     data-slug="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>"
                                     data-title="<?= htmlspecialchars($activeChapter['title'] ?? '') ?>"
                                     data-share-key="<?= htmlspecialchars($chapterShareKey) ?>"
@@ -1080,20 +1124,20 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                             </button>
 
                             <?php if ($isPageReadOnly): ?>
-                                <span class="badge badge-secondary" title="This document is protected against modifications" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
+                                <span class="badge badge-secondary" title="<?= htmlspecialchars(__('doc.protected_title', 'This document is protected against modifications')) ?>" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem; font-size: 0.8rem; border-radius: 4px; opacity: 0.85;">
                                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                    <?= Config::isDemoMode() ? 'Protected Demo Page' : 'Protected Document' ?>
+                                    <?= Config::isDemoMode() ? htmlspecialchars(__('doc.protected_demo_badge', 'Protected Demo Page')) : htmlspecialchars(__('doc.protected_badge', 'Protected Document')) ?>
                                 </span>
                             <?php endif; ?>
 
                             <?php if ($isAdmin): ?>
                                 <?php if (!$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
-                                    <button class="btn btn-primary btn-sm" id="btn-edit-markdown" title="Edit Content">
+                                    <button class="btn btn-primary btn-sm" id="btn-edit-markdown" title="<?= htmlspecialchars(__('doc.edit_content', 'Edit Content')) ?>">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                     </button>
                                 <?php endif; ?>
                                 <?php if (!Config::isDemoMode() || !$isPageReadOnly): ?>
-                                    <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="Edit Details"
+                                    <button class="btn btn-outline btn-sm" id="btn-edit-chapter-meta" title="<?= htmlspecialchars(__('doc.edit_details', 'Edit Details')) ?>"
                                             data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
                                             data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
                                             data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>"
@@ -1101,6 +1145,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                             data-edit-url="<?= htmlspecialchars($activeChapter['editUrl'] ?? '') ?>"
                                             data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"
                                             data-theme="<?= htmlspecialchars($activeChapter['theme'] ?? '') ?>"
+                                            data-og-title="<?= htmlspecialchars($activeChapter['ogTitle'] ?? '') ?>"
                                             data-description="<?= htmlspecialchars($activeChapter['description'] ?? '') ?>"
                                             data-image="<?= htmlspecialchars($activeChapter['image'] ?? '') ?>"
                                             data-public-shareable="<?= (!isset($activeChapter['publicShareable']) || !empty($activeChapter['publicShareable'])) ? '1' : '0' ?>"
@@ -1117,7 +1162,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                     </button>
                                 <?php endif; ?>
                                 <?php if (!$isPageReadOnly && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'pdf'])): ?>
-                                    <button class="btn btn-outline btn-sm" id="btn-replace-document" title="Replace Document Content"
+                                    <button class="btn btn-outline btn-sm" id="btn-replace-document" title="<?= htmlspecialchars(__('doc.replace_content', 'Replace Document Content')) ?>"
                                             data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>"
                                             data-title="<?= htmlspecialchars($activeChapter['title']) ?>"
                                             data-type="<?= htmlspecialchars($activeChapter['type'] ?? 'markdown') ?>">
@@ -1125,29 +1170,29 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($extManager->isExtensionEnabled('revisions') && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'html', 'pdf', 'form'])): ?>
-                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="Revision History">
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="<?= htmlspecialchars(__('doc.revision_history', 'Revision History')) ?>">
                                         🕒
                                     </button>
                                 <?php endif; ?>
                                 <?php $extManager->renderChapterHeaderUtilityButtons($isAdmin); ?>
                                 <?php if (!$isPageReadOnly): ?>
-                                    <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="Delete Document" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                                    <button class="btn btn-outline btn-sm btn-danger-text" id="btn-delete-chapter" title="<?= htmlspecialchars(__('doc.delete_document', 'Delete Document')) ?>" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
                                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                     </button>
                                 <?php endif; ?>
-                                <button class="btn btn-outline btn-sm" id="btn-send-to-postbox" title="Send to Postbox..." data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
+                                <button class="btn btn-outline btn-sm" id="btn-send-to-postbox" title="<?= htmlspecialchars(__('doc.send_to_postbox', 'Send to Postbox...')) ?>" data-book="<?= htmlspecialchars($activeBook['id'] ?? '') ?>" data-slug="<?= htmlspecialchars($activeChapter['slug']) ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                                 </button>
                             <?php endif; ?>
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                         <div id="edit-actions" style="display: none; gap: 0.75rem; align-items: center;">
-                            <button type="button" class="btn btn-outline btn-sm" id="btn-editor-gallery" title="Browse and select images from gallery">
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-editor-gallery" title="<?= htmlspecialchars(__('editor.gallery_title', 'Browse and select images from gallery')) ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: text-bottom;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                                Image Gallery
+                                <?= htmlspecialchars(__('editor.image_gallery', 'Image Gallery')) ?>
                             </button>
-                            <button class="btn btn-outline btn-sm" id="btn-cancel-edit">Cancel</button>
-                            <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>">Save Changes</button>
+                            <button class="btn btn-outline btn-sm" id="btn-cancel-edit"><?= htmlspecialchars(__('common.cancel', 'Cancel')) ?></button>
+                            <button class="btn btn-primary btn-sm" id="btn-save-inline-markdown" data-file="<?= htmlspecialchars($activeChapter['file'] ?? '') ?>"><?= htmlspecialchars(__('editor.save_changes', 'Save Changes')) ?></button>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -1163,26 +1208,26 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <?php if (!empty($isAccessRestricted)): ?>
                         <div style="text-align: center; padding: 4rem 2rem;">
                             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
-                            <h2>Access Restricted</h2>
-                            <p style="color: var(--text-muted); margin-bottom: 2rem;">Authentication is required to view this document.</p>
-                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In to Access</button>
+                            <h2><?= htmlspecialchars(__('access.restricted_title', 'Access Restricted')) ?></h2>
+                            <p style="color: var(--text-muted); margin-bottom: 2rem;"><?= htmlspecialchars(__('access.restricted_desc', 'Authentication is required to view this document.')) ?></p>
+                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')"><?= htmlspecialchars(__('auth.log_in_access', 'Log In to Access')) ?></button>
                         </div>
                     <?php elseif ($canViewContent): ?>
                         <?= $renderedContent ?>
                     <?php else: ?>
                         <div style="text-align: center; padding: 4rem 2rem;">
                             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
-                            <h2>Private Documentation Portal</h2>
-                            <p style="color: var(--text-muted); margin-bottom: 2rem;">Authentication is required to view documentation content.</p>
-                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')">Log In to Access</button>
+                            <h2><?= htmlspecialchars(__('auth.private_portal_title', 'Private Documentation Portal')) ?></h2>
+                            <p style="color: var(--text-muted); margin-bottom: 2rem;"><?= htmlspecialchars(__('auth.portal_content_desc', 'Authentication is required to view documentation content.')) ?></p>
+                            <button class="btn btn-primary" onclick="document.getElementById('login-modal').classList.add('open')"><?= htmlspecialchars(__('auth.log_in_access', 'Log In to Access')) ?></button>
                         </div>
                     <?php endif; ?>
                 </div>
                 <?php if (!$isShareMode && empty($isAccessRestricted) && ($prevDoc || $nextDoc)): ?>
-                <nav class="chapter-pager" aria-label="Chapter navigation">
+                <nav class="chapter-pager" aria-label="<?= htmlspecialchars(__('doc.chapter_nav_aria', 'Chapter Navigation')) ?>">
                     <?php if ($prevDoc): ?>
                         <a href="<?= htmlspecialchars($prevDoc['url']) ?>" class="chapter-pager-card chapter-pager-prev">
-                            <span class="chapter-pager-label">&laquo; Previous Chapter</span>
+                            <span class="chapter-pager-label"><?= htmlspecialchars(__('doc.prev_chapter_pager', '« Previous Chapter')) ?></span>
                             <span class="chapter-pager-title"><?= htmlspecialchars($prevDoc['title']) ?></span>
                         </a>
                     <?php else: ?>
@@ -1190,7 +1235,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
                     <?php endif; ?>
                     <?php if ($nextDoc): ?>
                         <a href="<?= htmlspecialchars($nextDoc['url']) ?>" class="chapter-pager-card chapter-pager-next">
-                            <span class="chapter-pager-label">Next Chapter &raquo;</span>
+                            <span class="chapter-pager-label"><?= htmlspecialchars(__('doc.next_chapter_pager', 'Next Chapter »')) ?></span>
                             <span class="chapter-pager-title"><?= htmlspecialchars($nextDoc['title']) ?></span>
                         </a>
                     <?php else: ?>
@@ -1201,14 +1246,14 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
             <?php elseif (!empty($isDocumentNotFound)): ?>
                 <div class="content-body" style="text-align: center; padding: 4rem 1.5rem;">
                     <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔍</div>
-                    <h2>Document Not Found</h2>
-                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;">The requested document does not exist or is not published for public viewing.</p>
-                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary">Return to Documentation</a>
+                    <h2><?= htmlspecialchars(__('error.doc_not_found', 'Document Not Found')) ?></h2>
+                    <p style="color: var(--text-muted); max-width: 460px; margin: 0 auto 2rem;"><?= htmlspecialchars(__('error.doc_not_found_desc', 'The requested document does not exist or is not published for public viewing.')) ?></p>
+                    <a href="<?= htmlspecialchars($baseUrl) ?>" class="btn btn-primary"><?= htmlspecialchars(__('common.return_to_docs', 'Return to Documentation')) ?></a>
                 </div>
             <?php else: ?>
                 <div class="content-body">
-                    <h1>No Document Selected</h1>
-                    <p>Select a category or document from the sidebar to view content.</p>
+                    <h1><?= htmlspecialchars(__('doc.none_selected_title', 'No Document Selected')) ?></h1>
+                    <p><?= htmlspecialchars(__('doc.none_selected_desc', 'Select a category or document from the sidebar to view content.')) ?></p>
                 </div>
             <?php endif; ?>
         </main>
@@ -1216,7 +1261,7 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
         <?php if (!$isShareMode && !$shareError && empty($isAccessRestricted)): ?>
         <!-- Table of Contents Sidebar -->
         <aside class="app-toc" id="app-toc">
-            <div class="toc-header">Table of Contents</div>
+            <div class="toc-header"><?= htmlspecialchars(__('toc.header', 'Table of Contents')) ?></div>
             <div class="toc-content" id="toc-content"></div>
         </aside>
         <?php endif; ?>
@@ -1275,7 +1320,17 @@ $userTheme = isset($_COOKIE['qwiki_theme']) && in_array($_COOKIE['qwiki_theme'],
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/qrcode.min.js?v=<?= @filemtime(__DIR__ . '/assets/js/qrcode.min.js') ?: time() ?>"></script>
+    <script>
+        window.QWIKI_I18N_CONFIG = <?= json_encode([
+            'enabled' => $i18nEnabled,
+            'lang' => $activeLang,
+            'tuiLocale' => Translator::getToastUiLocale(),
+            'available' => array_values($availableLangCodes),
+            'strings' => Translator::getJsDictionary(),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    </script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/core/theme.js?v=<?= @filemtime(__DIR__ . '/assets/js/core/theme.js') ?: time() ?>"></script>
+    <script src="<?= htmlspecialchars($assetsUrl) ?>/js/core/i18n.js?v=<?= @filemtime(__DIR__ . '/assets/js/core/i18n.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/core/sidebar.js?v=<?= @filemtime(__DIR__ . '/assets/js/core/sidebar.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/core/search.js?v=<?= @filemtime(__DIR__ . '/assets/js/core/search.js') ?: time() ?>"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/core/modals.js?v=<?= @filemtime(__DIR__ . '/assets/js/core/modals.js') ?: time() ?>"></script>

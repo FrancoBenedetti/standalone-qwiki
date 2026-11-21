@@ -3,7 +3,7 @@ namespace Qwiki\Core;
 
 class LlmAccess {
     const KEY_PREFIX = 'qwk_llm_';
-    const VALID_DOC_TYPES = ['markdown', 'html', 'pdf', 'gdoc'];
+    const VALID_DOC_TYPES = ['markdown', 'html', 'pdf', 'gdoc', 'form'];
 
     /**
      * Retrieve all configured LLM access keys from qwiki.json
@@ -392,6 +392,9 @@ class LlmAccess {
         if (!empty($url) && preg_match('/docs\.google\.com|drive\.google\.com/i', $url)) {
             return 'gdoc';
         }
+        if (!empty($file) && preg_match('/\.form\.json($|\?|#)/i', $file)) {
+            return 'form';
+        }
         if (!empty($file) && preg_match('/\.(html|htm)($|\?|#)/i', $file)) {
             return 'html';
         }
@@ -400,6 +403,7 @@ class LlmAccess {
         }
 
         if (!empty($type)) {
+            if (in_array($type, ['form', 'form_json', 'json_form'])) return 'form';
             if (in_array($type, ['pdf', 'pdf_document', 'pdf-document'])) return 'pdf';
             if (in_array($type, ['gdoc', 'googledoc', 'google-doc'])) return 'gdoc';
             if (in_array($type, ['html', 'htm'])) return 'html';
@@ -702,6 +706,14 @@ class LlmAccess {
             $gdocUrl = $chapter['url'] ?? '';
             $content = "[Google Document]\nURL: " . $gdocUrl;
             $rawSize = strlen($content);
+        } elseif ($resolvedType === 'form') {
+            $safePath = Config::safePath($baseDir, $filePath);
+            if ($safePath && file_exists($safePath)) {
+                $content = file_get_contents($safePath);
+                $rawSize = strlen($content);
+            } else {
+                $content = '{}';
+            }
         }
 
         // Apply offset and limit if specified

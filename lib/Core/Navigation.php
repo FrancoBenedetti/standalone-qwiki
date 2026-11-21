@@ -407,6 +407,41 @@ class Navigation {
         return null;
     }
 
+    public static function findChapterByDocId(array $books, string $docId, &$parentBook = null) {
+        if (empty($docId)) {
+            return null;
+        }
+        foreach ($books as $book) {
+            $found = self::findChapterByDocIdInNode($book, $docId, $parentBook);
+            if ($found) {
+                if ($parentBook === null) {
+                    $parentBook = $book;
+                }
+                return $found;
+            }
+        }
+        return null;
+    }
+
+    private static function findChapterByDocIdInNode(array $node, string $docId, &$parentBook = null) {
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (!isset($item['type']) || ($item['type'] !== 'folder' && $item['type'] !== 'link')) {
+                    if (isset($item['docId']) && $item['docId'] === $docId) {
+                        $parentBook = $node;
+                        return $item;
+                    }
+                } elseif (isset($item['type']) && $item['type'] === 'folder') {
+                    $found = self::findChapterByDocIdInNode($item, $docId, $parentBook);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private static function findChapterByShareKeyInNode(array $node, string $shareKey) {
         if (!empty($node['items']) && is_array($node['items'])) {
             foreach ($node['items'] as $item) {
@@ -882,7 +917,8 @@ class Navigation {
             foreach ($node['items'] as &$it) {
                 $isSlugMatch = ((!isset($it['type']) || $it['type'] !== 'folder') && ($it['slug'] ?? '') === ($chapterData['slug'] ?? ''));
                 $isShareMatch = (!empty($chapterData['shareKey']) && ($it['shareKey'] ?? '') === $chapterData['shareKey']);
-                if ($isSlugMatch || $isShareMatch) {
+                $isDocIdMatch = (!empty($chapterData['docId']) && ($it['docId'] ?? '') === $chapterData['docId']);
+                if ($isSlugMatch || $isShareMatch || $isDocIdMatch) {
                     if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
                         $chapterData['shareKey'] = $it['shareKey'];
                     }

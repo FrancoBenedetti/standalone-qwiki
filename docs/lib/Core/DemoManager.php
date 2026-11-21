@@ -88,6 +88,14 @@ class DemoManager {
             @copy($demoDir . '/htaccess-content', $contentDir . '/.htaccess');
         }
 
+        // 6. Clean demo lifecycle state (data/trash & data/revisions)
+        foreach (['trash', 'revisions'] as $sub) {
+            $dataSub = $baseDir . '/data/' . $sub;
+            if (is_dir($dataSub)) {
+                self::deleteDirContents($dataSub);
+            }
+        }
+
         return [
             'success' => true,
             'message' => 'Demo package reloaded successfully to fresh state.',

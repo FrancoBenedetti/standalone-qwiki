@@ -50,23 +50,23 @@ $fields = $schema['fields'] ?? [];
             <div class="form-admin-info">
                 <span class="badge badge-form">FORM</span>
                 <span class="form-submission-count-badge" id="form-count-badge">
-                    📊 <strong id="form-count-val"><?= $submissionCount ?></strong> <?= $submissionCount === 1 ? 'response' : 'responses' ?>
+                    📊 <strong id="form-count-val"><?= $submissionCount ?></strong> <?= $submissionCount === 1 ? htmlspecialchars(__('ext_form.response_singular', 'response')) : htmlspecialchars(__('ext_form.response_plural', 'responses')) ?>
                 </span>
             </div>
             <div class="form-admin-actions">
                 <button type="button" class="btn btn-outline btn-sm" id="btn-view-form-submissions"
                         data-file="<?= htmlspecialchars($relFile) ?>"
                         data-title="<?= htmlspecialchars($title) ?>">
-                    📋 View Responses
+                    📋 <?= htmlspecialchars(__('ext_form.view_responses', 'View Responses')) ?>
                 </button>
                 <a href="api/admin.php?action=ext_form_export_csv&file=<?= urlencode($relFile) ?>" 
-                   class="btn btn-outline btn-sm" id="btn-export-form-csv" title="Download all submissions as CSV spreadsheet">
-                    📥 Export CSV
+                   class="btn btn-outline btn-sm" id="btn-export-form-csv" title="<?= htmlspecialchars(__('ext_form.export_csv_title', 'Download all submissions as CSV spreadsheet')) ?>">
+                    📥 <?= htmlspecialchars(__('ext_form.export_csv', 'Export CSV')) ?>
                 </a>
                 <button type="button" class="btn btn-primary btn-sm" id="btn-edit-form-schema"
                         data-file="<?= htmlspecialchars($relFile) ?>"
                         data-title="<?= htmlspecialchars($title) ?>">
-                    ✏️ Edit Form
+                    ✏️ <?= htmlspecialchars(__('ext_form.edit_form', 'Edit Form')) ?>
                 </button>
             </div>
         </div>
@@ -84,8 +84,8 @@ $fields = $schema['fields'] ?? [];
             <div class="form-alert form-alert-info">
                 <span class="form-alert-icon">🔒</span>
                 <div>
-                    <strong>Login Required</strong><br>
-                    You must be logged in to submit this form. Please log in using the button in the top menu.
+                    <strong><?= htmlspecialchars(__('ext_form.login_required_title', 'Login Required')) ?></strong><br>
+                    <?= htmlspecialchars(__('ext_form.login_required_desc', 'You must be logged in to submit this form. Please log in using the button in the top menu.')) ?>
                 </div>
             </div>
         <?php else: ?>
@@ -123,7 +123,7 @@ $fields = $schema['fields'] ?? [];
 
                             <?php elseif ($fType === 'select'): ?>
                                 <select name="fields[<?= $fId ?>]" id="fld-<?= $fId ?>" class="form-control" <?= $fReq ? 'required' : '' ?>>
-                                    <option value="">-- Please Select --</option>
+                                    <option value=""><?= htmlspecialchars(__('ext_form.please_select', '-- Please Select --')) ?></option>
                                     <?php foreach ($fOptions as $opt): ?>
                                         <option value="<?= htmlspecialchars($opt) ?>"><?= htmlspecialchars($opt) ?></option>
                                     <?php endforeach; ?>
@@ -187,16 +187,16 @@ $fields = $schema['fields'] ?? [];
     <div id="modal-form-submissions" class="modal-overlay">
         <div class="modal-card form-submissions-modal-dialog">
             <div class="modal-header">
-                <h3 id="modal-form-submissions-title">Submissions</h3>
+                <h3 id="modal-form-submissions-title"><?= htmlspecialchars(__('ext_form.submissions_title', 'Submissions')) ?></h3>
                 <button type="button" class="modal-close" id="btn-close-submissions-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
-                    <input type="text" id="submissions-search-input" class="form-control" placeholder="🔍 Search responses by keyword, user, email..." style="max-width: 320px;">
+                    <input type="text" id="submissions-search-input" class="form-control" placeholder="<?= htmlspecialchars(__('ext_form.search_responses_ph', '🔍 Search responses by keyword, user, email...')) ?>" style="max-width: 320px;">
                     <div style="display: flex; gap: 0.5rem;">
-                        <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-submissions">🔄 Refresh</button>
-                        <a href="api/admin.php?action=ext_form_export_csv&file=<?= urlencode($relFile) ?>" class="btn btn-outline btn-sm" id="btn-modal-export-csv">📥 Download CSV</a>
-                        <button type="button" class="btn form-btn-danger btn-sm" id="btn-clear-all-submissions">🗑️ Clear All</button>
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-refresh-submissions">🔄 <?= htmlspecialchars(__('common.refresh', 'Refresh')) ?></button>
+                        <a href="api/admin.php?action=ext_form_export_csv&file=<?= urlencode($relFile) ?>" class="btn btn-outline btn-sm" id="btn-modal-export-csv">📥 <?= htmlspecialchars(__('ext_form.download_csv', 'Download CSV')) ?></a>
+                        <button type="button" class="btn form-btn-danger btn-sm" id="btn-clear-all-submissions">🗑️ <?= htmlspecialchars(__('common.clear_all', 'Clear All')) ?></button>
                     </div>
                 </div>
                 <div class="form-submissions-table-wrap">
@@ -212,24 +212,24 @@ $fields = $schema['fields'] ?? [];
     <div id="modal-edit-form-schema" class="modal-overlay">
         <div class="modal-card" style="max-width: 760px; width: 95%;">
             <div class="modal-header">
-                <h3>✏️ Edit Form Design & Settings</h3>
+                <h3>✏️ <?= htmlspecialchars(__('ext_form.edit_design_title', 'Edit Form Design & Settings')) ?></h3>
                 <button type="button" class="modal-close" id="btn-close-edit-schema-modal">&times;</button>
             </div>
             <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
                 <form id="form-edit-schema-form">
                     <div class="form-group">
-                        <label class="form-label">Form Title</label>
+                        <label class="form-label"><?= htmlspecialchars(__('ext_form.title_label', 'Form Title')) ?></label>
                         <input type="text" id="edit-form-title" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Form Description / Instructions</label>
+                        <label class="form-label"><?= htmlspecialchars(__('ext_form.desc_label', 'Form Description / Instructions')) ?></label>
                         <textarea id="edit-form-desc" class="form-control" style="min-height: 60px;"></textarea>
                     </div>
                     
                     <div class="form-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <label class="form-label" style="margin-bottom: 0;">Form Fields</label>
-                            <button type="button" class="btn btn-outline btn-sm" id="btn-add-field-edit">+ Add Field</button>
+                            <label class="form-label" style="margin-bottom: 0;"><?= htmlspecialchars(__('ext_form.fields_label', 'Form Fields')) ?></label>
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-add-field-edit"><?= htmlspecialchars(__('ext_form.add_field_btn', '+ Add Field')) ?></button>
                         </div>
                         <div id="form-builder-fields-edit" class="form-builder-container">
                             <!-- Field cards rendered dynamically -->
@@ -237,38 +237,38 @@ $fields = $schema['fields'] ?? [];
                     </div>
 
                     <details style="margin-bottom: 1.25rem; border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 0.75rem;">
-                        <summary style="cursor: pointer; font-weight: 600; font-size: 0.9rem; user-select: none;">⚙️ Settings & Notifications</summary>
+                        <summary style="cursor: pointer; font-weight: 600; font-size: 0.9rem; user-select: none;">⚙️ <?= htmlspecialchars(__('ext_form.settings_notifications', 'Settings & Notifications')) ?></summary>
                         <div style="margin-top: 0.85rem; display: flex; flex-direction: column; gap: 0.75rem;">
                             <div>
-                                <label class="form-label">Submit Button Label</label>
+                                <label class="form-label"><?= htmlspecialchars(__('ext_form.submit_btn_label', 'Submit Button Label')) ?></label>
                                 <input type="text" id="edit-form-submit-text" class="form-control">
                             </div>
                             <div>
-                                <label class="form-label">Success Message</label>
+                                <label class="form-label"><?= htmlspecialchars(__('ext_form.success_msg_label', 'Success Message')) ?></label>
                                 <input type="text" id="edit-form-success-msg" class="form-control">
                             </div>
                             <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
                                 <label style="cursor: pointer; font-size: 0.9rem;">
-                                    <input type="checkbox" id="edit-form-require-login"> Require Login to Submit
+                                    <input type="checkbox" id="edit-form-require-login"> <?= htmlspecialchars(__('ext_form.require_login', 'Require Login to Submit')) ?>
                                 </label>
                                 <label style="cursor: pointer; font-size: 0.9rem;">
-                                    <input type="checkbox" id="edit-form-allow-multiple"> Allow Multiple Submissions
+                                    <input type="checkbox" id="edit-form-allow-multiple"> <?= htmlspecialchars(__('ext_form.allow_multiple', 'Allow Multiple Submissions')) ?>
                                 </label>
                             </div>
                             <div>
-                                <label class="form-label">Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, alerts on new response)</span></label>
+                                <label class="form-label"><?= __('ext_form.notify_email_html', 'Notification Email <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional, alerts on new response)</span>') ?></label>
                                 <input type="email" id="edit-form-notify-email" class="form-control">
                             </div>
                             <div>
-                                <label class="form-label">Outgoing Webhook URL <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional)</span></label>
+                                <label class="form-label"><?= __('ext_form.webhook_url_short_html', 'Outgoing Webhook URL <span class="text-muted" style="font-weight: normal; font-size: 0.85em;">(optional)</span>') ?></label>
                                 <input type="url" id="edit-form-webhook-url" class="form-control">
                             </div>
                         </div>
                     </details>
 
                     <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
-                        <button type="button" class="btn btn-outline" id="btn-cancel-edit-schema">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="btn-save-edit-schema">Save Changes</button>
+                        <button type="button" class="btn btn-outline" id="btn-cancel-edit-schema"><?= htmlspecialchars(__('common.cancel', 'Cancel')) ?></button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-edit-schema"><?= htmlspecialchars(__('editor.save_changes', 'Save Changes')) ?></button>
                     </div>
                 </form>
             </div>

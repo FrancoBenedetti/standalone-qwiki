@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const _t = (key, fallback, vars) => {
+    if (window.__t) return window.__t(key, fallback, vars);
+    let out = String(fallback);
+    if (vars && typeof vars === 'object') {
+      Object.keys(vars).forEach(k => { out = out.split('{' + k + '}').join(String(vars[k])); });
+    }
+    return out;
+  };
+
   // Initialize Core Subsystems
   if (window.QwikiApp) {
     if (window.QwikiApp.theme) window.QwikiApp.theme.init();
@@ -14,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     { btnId: 'btn-add-chapter', modalId: 'chapter-modal' },
     { btnId: 'btn-users', modalId: 'users-modal' },
     { btnId: 'btn-llm-keys', modalId: 'llm-keys-modal' },
+    { btnId: 'btn-trash-bin', modalId: 'trash-modal' },
     { btnId: 'btn-settings', modalId: 'settings-modal' },
     { btnId: 'btn-subwikis', modalId: 'subwikis-modal' },
     { btnId: 'btn-edit-chapter-meta', modalId: 'edit-chapter-modal' },
@@ -36,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modalId === 'llm-keys-modal') {
           loadLlmKeysList();
         }
+        if (modalId === 'trash-modal') {
+          loadTrashList();
+        }
         if (modalId === 'subwikis-modal') {
           loadSubwikisList();
         }
@@ -57,6 +70,17 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
         if (modalId === 'edit-chapter-modal') {
+          const editModalEl = document.getElementById('edit-chapter-modal');
+          if (editModalEl) {
+            editModalEl.querySelectorAll('.tab-btn').forEach(b => {
+              const isGen = b.getAttribute('data-tab') === 'edit-chapter-tab-general';
+              b.classList.toggle('active', isGen);
+              b.setAttribute('aria-selected', isGen ? 'true' : 'false');
+            });
+            editModalEl.querySelectorAll('.tab-content').forEach(c => {
+              c.classList.toggle('active', c.id === 'edit-chapter-tab-general');
+            });
+          }
           const replFileInput = document.getElementById('edit-chapter-replacement-file');
           if (replFileInput) replFileInput.value = '';
           const btnMeta = document.getElementById('btn-edit-chapter-meta');
@@ -94,6 +118,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (catSelect && curBookId) catSelect.value = curBookId;
 
             populateThemes(document.getElementById('edit-chapter-theme'), btnMeta.getAttribute('data-theme'));
+            const ogTitleInput = document.getElementById('edit-chapter-og-title');
+            if (ogTitleInput && btnMeta.hasAttribute('data-og-title')) {
+              ogTitleInput.value = btnMeta.getAttribute('data-og-title') || '';
+            }
             const descInput = document.getElementById('edit-chapter-description');
             if (descInput && btnMeta.hasAttribute('data-description')) {
               descInput.value = btnMeta.getAttribute('data-description') || '';
@@ -110,9 +138,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (allowCommentsSelect) {
               allowCommentsSelect.value = btnMeta.getAttribute('data-allow-comments') || 'inherit';
             }
+            const allowTalkSelect = document.getElementById('edit-chapter-allow-talk');
+            if (allowTalkSelect) {
+              allowTalkSelect.value = btnMeta.getAttribute('data-allow-talk') || 'inherit';
+            }
             const shareKeyInput = document.getElementById('edit-chapter-share-key');
             if (shareKeyInput) {
               shareKeyInput.value = btnMeta.getAttribute('data-share-key') || '';
+            }
+            const statusSelect = document.getElementById('edit-chapter-status');
+            if (statusSelect) {
+              statusSelect.value = btnMeta.getAttribute('data-status') || 'published';
             }
             const regenKeyHidden = document.getElementById('edit-chapter-regenerate-key');
             if (regenKeyHidden) {
@@ -133,22 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
               if (isParentLocked) {
                 docReadOnlyInput.disabled = true;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'This document is inside a locked category and inherits its lock.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_parent', 'This document is inside a locked category and inherits its lock.');
                 }
               } else if (isDemoMode && isDocProtected) {
                 docReadOnlyInput.disabled = true;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Protected demo documents cannot be unlocked in demo mode.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_demo', 'Protected demo documents cannot be unlocked in demo mode.');
                 }
               } else if (isDocReadOnly) {
                 docReadOnlyInput.disabled = false;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Uncheck to unlock this document and allow edits/deletion.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_unlock', 'Uncheck to unlock this document and allow edits/deletion.');
                 }
               } else {
                 docReadOnlyInput.disabled = false;
                 if (docReadOnlyHelp) {
-                  docReadOnlyHelp.textContent = 'Protected documents cannot be edited or deleted.';
+                  docReadOnlyHelp.textContent = _t('js.doc_lock_default', 'Protected documents cannot be edited or deleted.');
                 }
               }
             }
@@ -729,13 +765,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const docSub = subwikis.find(s => Boolean(s.isDocSubwiki));
+      const shortcutBtn = document.getElementById('btn-sync-docs-shortcut');
+      if (shortcutBtn) {
+        if (docSub) {
+          shortcutBtn.innerHTML = `🔄 Sync /${escapeHtml(docSub.slug)}/ Docs`;
+          shortcutBtn.setAttribute('data-slug', docSub.slug);
+        } else {
+          shortcutBtn.innerHTML = '📚 Deploy Qwiki Docs Mirror';
+          shortcutBtn.removeAttribute('data-slug');
+        }
+      }
+
       tbody.innerHTML = subwikis.map(sub => {
-        const isDoc = sub.isDocSubwiki || sub.slug === 'docs';
+        const isDoc = Boolean(sub.isDocSubwiki);
         return `
         <tr style="border-bottom: 1px solid var(--border-color);">
           <td style="padding: 0.6rem 0.75rem;">
             <strong>${escapeHtml(sub.title || sub.slug)}</strong>
-            ${isDoc ? '<span style="display:inline-block; font-size: 0.7rem; background: rgba(37,99,235,0.12); color: var(--accent-color, #2563eb); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; font-weight: 500;">Docs</span>' : ''}
+            ${isDoc ? '<span style="display:inline-block; font-size: 0.7rem; background: rgba(37,99,235,0.12); color: var(--accent-color, #2563eb); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; font-weight: 500;">Qwiki Docs Mirror</span>' : ''}
             <br>
             <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
           </td>
@@ -743,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <a href="${escapeHtml(sub.url)}" target="_blank" style="color: var(--accent-color); text-decoration: underline; font-weight: 500;">/${escapeHtml(sub.slug)}/ ↗</a>
           </td>
           <td style="padding: 0.6rem 0.75rem; text-align: right; white-space: nowrap;">
-            <button class="btn btn-outline btn-sm btn-sync-subwiki-docs" data-slug="${escapeHtml(sub.slug)}" title="Synchronize documentation content with latest releases" style="margin-right: 0.35rem; font-size: 0.8rem; padding: 0.2rem 0.5rem;">🔄 Sync Docs</button>
+            ${isDoc ? `<button class="btn btn-outline btn-sm btn-sync-subwiki-docs" data-slug="${escapeHtml(sub.slug)}" title="Synchronize documentation content with latest releases" style="margin-right: 0.35rem; font-size: 0.8rem; padding: 0.2rem 0.5rem;">🔄 Sync Docs</button>` : ''}
             <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
           </td>
         </tr>
@@ -873,24 +921,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Quick Sync Documentation Subwiki (/docs/) Button
+  // Quick Deploy / Sync Qwiki Docs Mirror Shortcut Button
   const btnSyncDocsShortcut = document.getElementById('btn-sync-docs-shortcut');
   if (btnSyncDocsShortcut) {
     btnSyncDocsShortcut.addEventListener('click', async () => {
-      if (!confirm('Synchronize the "/docs/" subwiki with the latest documentation and navigation structure?\n\nIf the /docs/ subwiki does not exist yet, it will be automatically created.')) {
+      const targetSlug = btnSyncDocsShortcut.getAttribute('data-slug') || 'docs';
+      const isNew = !btnSyncDocsShortcut.getAttribute('data-slug');
+      const promptMsg = isNew
+        ? `Deploy a new subwiki '/${targetSlug}/' mirroring official Qwiki documentation?\n\nThis will link canonical Qwiki guides and automatically keep them updated on new releases.`
+        : `Synchronize the '/${targetSlug}/' documentation mirror with the latest Qwiki release?`;
+
+      if (!confirm(promptMsg)) {
         return;
       }
       btnSyncDocsShortcut.disabled = true;
       const origText = btnSyncDocsShortcut.innerHTML;
-      btnSyncDocsShortcut.innerHTML = '⏳ Syncing /docs/...';
+      btnSyncDocsShortcut.innerHTML = `⏳ Syncing /${targetSlug}/...`;
       try {
         const formData = new FormData();
         formData.append('action', 'sync_subwiki_docs');
-        formData.append('slug', 'docs');
+        formData.append('slug', targetSlug);
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          alert(`✓ ${data.message || 'Documentation subwiki synchronized successfully!'}\n\nAccess it at: ${data.url || '/docs/'}`);
+          alert(`✓ ${data.message || 'Documentation mirror synchronized successfully!'}\n\nAccess it at: ${data.url || '/' + targetSlug + '/'}`);
           loadSubwikisList();
         } else {
           alert('Failed to synchronize documentation: ' + (data.error || 'Unknown error'));
@@ -900,6 +954,31 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         btnSyncDocsShortcut.disabled = false;
         btnSyncDocsShortcut.innerHTML = origText;
+      }
+    });
+  }
+
+  // Auto-fill and toggle behavior when "Mirror Official Qwiki Documentation" is checked
+  const isDocMirrorCheckbox = document.getElementById('new-subwiki-is-doc-mirror');
+  const includeDemoGroup = document.getElementById('group-include-demo');
+  const newSubwikiTitleInput = document.getElementById('new-subwiki-title');
+  if (isDocMirrorCheckbox) {
+    isDocMirrorCheckbox.addEventListener('change', () => {
+      if (isDocMirrorCheckbox.checked) {
+        if (newSubwikiTitleInput && !newSubwikiTitleInput.value.trim()) {
+          newSubwikiTitleInput.value = 'Qwiki Documentation';
+        }
+        if (newSubwikiSlugInput && !newSubwikiSlugInput.value.trim()) {
+          newSubwikiSlugInput.value = 'docs';
+          newSubwikiSlugInput.dispatchEvent(new Event('input'));
+        }
+        if (includeDemoGroup) {
+          includeDemoGroup.style.display = 'none';
+        }
+      } else {
+        if (includeDemoGroup) {
+          includeDemoGroup.style.display = 'block';
+        }
       }
     });
   }
@@ -1108,8 +1187,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const editBookAllowCommentsInput = document.getElementById('edit-book-allow-comments-input');
         if (editBookAllowCommentsInput) {
           const bookAllowComments = btn.getAttribute('data-book-allow-comments');
-          editBookAllowCommentsInput.checked = (bookAllowComments !== '0');
+          editBookAllowCommentsInput.checked = (bookAllowComments === '1' || bookAllowComments === 'true');
         }
+
+        const editBookAllowTalkInput = document.getElementById('edit-book-allow-talk-input');
+        if (editBookAllowTalkInput) {
+          const bookAllowTalk = btn.getAttribute('data-book-allow-talk');
+          editBookAllowTalkInput.checked = (bookAllowTalk === '1');
+        }
+
+        editBookModal.querySelectorAll('.tab-btn').forEach(b => {
+          const isGen = b.getAttribute('data-tab') === 'edit-book-tab-general';
+          b.classList.toggle('active', isGen);
+          b.setAttribute('aria-selected', isGen ? 'true' : 'false');
+        });
+        editBookModal.querySelectorAll('.tab-content').forEach(c => {
+          c.classList.toggle('active', c.id === 'edit-book-tab-general');
+        });
 
         editBookModal.classList.add('open');
       }
@@ -1170,6 +1264,263 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Delete Category
+  function openDeleteCategoryConfirmModal(bookId, bookTitle, confirmData) {
+    const confirmModal = document.getElementById('delete-category-confirm-modal');
+    if (!confirmModal) {
+      alert('Delete category failed: ' + (confirmData.error || 'Confirmation modal unavailable'));
+      return;
+    }
+    const counts = confirmData.counts || { documents: 0, categories: 0 };
+    const targets = Array.isArray(confirmData.targetCategories) ? confirmData.targetCategories : [];
+
+    const idHidden = document.getElementById('delete-cat-confirm-id');
+    const summaryEl = document.getElementById('delete-cat-confirm-summary');
+    const modeTrash = document.getElementById('delete-cat-mode-trash');
+    const modeMove = document.getElementById('delete-cat-mode-move');
+    const targetSelect = document.getElementById('delete-cat-target-select');
+
+    if (idHidden) idHidden.value = bookId;
+    if (summaryEl) {
+      summaryEl.textContent = `Category "${bookTitle}" contains ${counts.documents || 0} document(s) and ${counts.categories || 0} sub-category(ies). Choose how to proceed:`;
+    }
+    if (modeTrash) modeTrash.checked = true;
+    if (modeMove) modeMove.disabled = targets.length === 0 && (counts.documents || 0) > 0;
+    if (targetSelect) {
+      targetSelect.replaceChildren();
+      if ((counts.documents || 0) === 0 && (counts.categories || 0) > 0) {
+        const rootOpt = document.createElement('option');
+        rootOpt.value = '__root__';
+        rootOpt.textContent = 'Promote sub-categories to Top Level';
+        targetSelect.appendChild(rootOpt);
+      }
+      targets.forEach((t) => {
+        const opt = document.createElement('option');
+        opt.value = t.id || '';
+        opt.textContent = t.path || t.title || t.id || '';
+        targetSelect.appendChild(opt);
+      });
+      targetSelect.disabled = true;
+    }
+
+    const editBookModal = document.getElementById('edit-book-modal');
+    if (editBookModal) editBookModal.classList.remove('open');
+    confirmModal.classList.add('open');
+  }
+
+  const deleteCatConfirmForm = document.getElementById('delete-category-confirm-form');
+  if (deleteCatConfirmForm) {
+    const modeTrashRadio = document.getElementById('delete-cat-mode-trash');
+    const modeMoveRadio = document.getElementById('delete-cat-mode-move');
+    const targetSelectEl = document.getElementById('delete-cat-target-select');
+    const syncDeleteCatRadios = () => {
+      if (targetSelectEl && modeMoveRadio) {
+        targetSelectEl.disabled = !modeMoveRadio.checked;
+      }
+    };
+    if (modeTrashRadio) modeTrashRadio.addEventListener('change', syncDeleteCatRadios);
+    if (modeMoveRadio) modeMoveRadio.addEventListener('change', syncDeleteCatRadios);
+
+    deleteCatConfirmForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const idHidden = document.getElementById('delete-cat-confirm-id');
+      const submitBtn = document.getElementById('btn-confirm-delete-cat');
+      const bookId = idHidden ? idHidden.value.trim() : '';
+      const selectedMode = (modeMoveRadio && modeMoveRadio.checked) ? 'move_contents' : 'trash';
+      const targetBookId = (targetSelectEl && !targetSelectEl.disabled) ? targetSelectEl.value : '';
+
+      if (!bookId) return;
+      if (selectedMode === 'move_contents' && !targetBookId) {
+        alert('Please select a target category.');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Processing...';
+      }
+
+      const fd = new FormData();
+      fd.append('action', 'delete_book');
+      fd.append('bookId', bookId);
+      fd.append('mode', selectedMode);
+      if (selectedMode === 'move_contents') {
+        fd.append('targetBookId', targetBookId);
+      }
+
+      try {
+        const res = await fetch('api/admin.php?action=delete_book', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = 'index.php';
+        } else {
+          alert('Delete category failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Delete category request failed');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Proceed';
+        }
+      }
+    });
+  }
+
+  // Trash Bin UI Loader & Handlers
+  async function loadTrashList() {
+    const statusEl = document.getElementById('trash-modal-status');
+    const listEl = document.getElementById('trash-items-list');
+    const emptyBtn = document.getElementById('btn-empty-trash');
+    if (!statusEl || !listEl) return;
+
+    statusEl.textContent = _t('js.trash_loading', 'Loading trashed items...');
+    listEl.replaceChildren();
+    if (emptyBtn) emptyBtn.style.display = 'none';
+
+    try {
+      const res = await fetch('api/admin.php?action=trash_list');
+      const data = await res.json();
+      if (!data.success) {
+        statusEl.textContent = data.error || _t('js.trash_load_failed', 'Failed to load Trash Bin.');
+        return;
+      }
+      const items = Array.isArray(data.items) ? data.items : [];
+      statusEl.textContent = _t('js.trash_count', '{count} trashed item(s).', { count: items.length });
+      if (emptyBtn) {
+        emptyBtn.style.display = items.length > 0 ? 'inline-block' : 'none';
+      }
+      if (items.length === 0) {
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.color = 'var(--text-muted)';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.padding = '1.5rem 0';
+        emptyMsg.textContent = _t('js.trash_empty', 'Trash is empty.');
+        listEl.appendChild(emptyMsg);
+        return;
+      }
+
+      items.forEach((item) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'space-between';
+        row.style.gap = '0.75rem';
+        row.style.padding = '0.75rem 0.9rem';
+        row.style.border = '1px solid var(--border-color)';
+        row.style.borderRadius = '6px';
+        row.style.flexWrap = 'wrap';
+
+        const metaCol = document.createElement('div');
+        metaCol.style.minWidth = '200px';
+        metaCol.style.flex = '1';
+
+        const titleEl = document.createElement('div');
+        titleEl.style.fontWeight = '600';
+        titleEl.textContent = `${item.kind === 'category' ? '📁' : '📄'} ${item.title || item.slug || item.bookId || item.trashId}`;
+
+        const subEl = document.createElement('div');
+        subEl.style.fontSize = '0.8rem';
+        subEl.style.color = 'var(--text-muted)';
+        subEl.style.marginTop = '0.2rem';
+        const idLabel = item.kind === 'category'
+          ? _t('js.trash_cat_meta', 'Category • {docs} doc(s), {subs} sub(s)', { docs: item.documentCount || 0, subs: item.categoryCount || 0 })
+          : _t('js.trash_doc_meta', 'Document ({slug})', { slug: item.slug || '' });
+        subEl.textContent = `${idLabel} • ` + _t('js.trash_deleted_by', 'Deleted {date} by {user}', { date: item.deletedAt || '', user: item.deletedBy || 'admin' });
+
+        metaCol.appendChild(titleEl);
+        metaCol.appendChild(subEl);
+
+        const actionsCol = document.createElement('div');
+        actionsCol.style.display = 'flex';
+        actionsCol.style.gap = '0.45rem';
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'btn btn-outline btn-sm';
+        restoreBtn.textContent = _t('js.restore', 'Restore');
+        restoreBtn.addEventListener('click', async () => {
+          restoreBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('action', 'trash_restore');
+          fd.append('trashId', item.trashId || '');
+          try {
+            const r = await fetch('api/admin.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) {
+              window.location.reload();
+            } else {
+              alert(_t('js.restore_failed', 'Restore failed: {error}', { error: d.error || _t('js.unknown_error', 'Unknown error') }));
+              restoreBtn.disabled = false;
+            }
+          } catch (e) {
+            alert(_t('js.restore_req_failed', 'Restore request failed'));
+            restoreBtn.disabled = false;
+          }
+        });
+
+        const purgeBtn = document.createElement('button');
+        purgeBtn.type = 'button';
+        purgeBtn.className = 'btn btn-outline btn-danger-text btn-sm';
+        purgeBtn.textContent = _t('js.delete_forever', 'Delete Forever');
+        purgeBtn.addEventListener('click', async () => {
+          if (!confirm(_t('js.trash_purge_confirm', 'Permanently delete "{name}" and its stored revision snapshots? This cannot be undone.', { name: item.title || item.trashId }))) {
+            return;
+          }
+          purgeBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('action', 'trash_purge');
+          fd.append('trashId', item.trashId || '');
+          try {
+            const r = await fetch('api/admin.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) {
+              loadTrashList();
+            } else {
+              alert(_t('js.delete_failed', 'Delete failed: {error}', { error: d.error || _t('js.unknown_error', 'Unknown error') }));
+              purgeBtn.disabled = false;
+            }
+          } catch (e) {
+            alert(_t('js.delete_req_failed', 'Delete request failed'));
+            purgeBtn.disabled = false;
+          }
+        });
+
+        actionsCol.appendChild(restoreBtn);
+        actionsCol.appendChild(purgeBtn);
+        row.appendChild(metaCol);
+        row.appendChild(actionsCol);
+        listEl.appendChild(row);
+      });
+    } catch (err) {
+      statusEl.textContent = _t('js.trash_load_error', 'Error loading Trash Bin.');
+    }
+  }
+
+  const emptyTrashBtn = document.getElementById('btn-empty-trash');
+  if (emptyTrashBtn) {
+    emptyTrashBtn.addEventListener('click', async () => {
+      if (!confirm(_t('js.trash_empty_confirm', 'Permanently delete all items in Trash Bin and their revision histories? This cannot be undone.'))) {
+        return;
+      }
+      emptyTrashBtn.disabled = true;
+      const fd = new FormData();
+      fd.append('action', 'trash_empty');
+      try {
+        const res = await fetch('api/admin.php', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          loadTrashList();
+        } else {
+          alert(_t('js.trash_empty_failed', 'Empty Trash failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
+        }
+      } catch (err) {
+        alert(_t('js.trash_empty_req_failed', 'Empty Trash request failed'));
+      } finally {
+        emptyTrashBtn.disabled = false;
+      }
+    });
+  }
+
   const deleteBookBtn = document.getElementById('btn-delete-book');
   if (deleteBookBtn) {
     deleteBookBtn.addEventListener('click', async () => {
@@ -1201,6 +1552,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.success) {
           window.location.href = 'index.php';
+        } else if (data.requiresConfirmation) {
+          openDeleteCategoryConfirmModal(bookId, bookTitle, data);
         } else {
           alert('Delete category failed: ' + (data.error || 'Unknown error'));
         }
@@ -1210,17 +1563,58 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Sync Master Category Selector in Add Document Modal across all tabs
+  function syncChapterModalCategory() {
+    const chapterModal = document.getElementById('chapter-modal');
+    const masterSelect = document.getElementById('chapter-modal-category');
+    if (!chapterModal || !masterSelect) return;
+
+    const selectedCat = masterSelect.value;
+    const linkRootOverride = document.getElementById('link-root-override');
+
+    chapterModal.querySelectorAll('form').forEach(form => {
+      const bookIdField = form.querySelector('input[name="bookId"], select[name="bookId"]');
+      if (!bookIdField) return;
+      if (form.id === 'tab-link' && linkRootOverride && linkRootOverride.checked) {
+        bookIdField.value = '';
+      } else {
+        bookIdField.value = selectedCat;
+      }
+    });
+  }
+
+  const chapterMasterCat = document.getElementById('chapter-modal-category');
+  if (chapterMasterCat) {
+    chapterMasterCat.addEventListener('change', syncChapterModalCategory);
+  }
+  const linkRootOverrideCb = document.getElementById('link-root-override');
+  if (linkRootOverrideCb) {
+    linkRootOverrideCb.addEventListener('change', syncChapterModalCategory);
+  }
+  const btnAddChapter = document.getElementById('btn-add-chapter');
+  if (btnAddChapter) {
+    btnAddChapter.addEventListener('click', syncChapterModalCategory);
+  }
+
   // Tab Switcher inside Modals
   document.querySelectorAll('.tab-btn').forEach(tabBtn => {
     tabBtn.addEventListener('click', () => {
       const parentModal = tabBtn.closest('.modal-card');
-      parentModal.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      parentModal.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
       parentModal.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
       tabBtn.classList.add('active');
+      tabBtn.setAttribute('aria-selected', 'true');
       const targetTabId = tabBtn.getAttribute('data-tab');
       const targetContent = parentModal.querySelector('#' + targetTabId);
       if (targetContent) targetContent.classList.add('active');
+
+      if (parentModal.closest('#chapter-modal')) {
+        syncChapterModalCategory();
+      }
     });
   });
 
@@ -1233,6 +1627,9 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const formData = new FormData(form);
       formData.append('action', actionName);
+      if (window.SoftLock && typeof window.SoftLock.getTabId === 'function' && !formData.has('tab_id')) {
+        formData.append('tab_id', window.SoftLock.getTabId());
+      }
 
       // Encode content fields as base64 to bypass WAFs
       if (formData.has('content')) {
@@ -1318,6 +1715,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const formData = new FormData(originalForm);
           formData.append('action', 'upload_file');
           formData.append('conflictAction', 'replace');
+          if (window.SoftLock && typeof window.SoftLock.getTabId === 'function' && !formData.has('tab_id')) {
+            formData.append('tab_id', window.SoftLock.getTabId());
+          }
           const res = await fetch('api/admin.php', { method: 'POST', body: formData });
           const data = await res.json();
           if (data.success) {
@@ -1385,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const formData = new FormData(loginForm);
       formData.append('action', 'login');
       const submitBtn = document.getElementById('btn-login-submit');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Logging in...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.logging_in', 'Logging in...'); }
 
       try {
         const res = await fetch('api/admin.php', { method: 'POST', body: formData });
@@ -1403,20 +1803,20 @@ document.addEventListener('DOMContentLoaded', () => {
               }
             }
             const modalTitle = document.getElementById('login-modal-title');
-            if (modalTitle) modalTitle.textContent = 'Two-Factor Challenge';
+            if (modalTitle) modalTitle.textContent = _t('js.2fa_challenge', 'Two-Factor Challenge');
           } else if (data.require2fa_setup) {
-            alert('Two-Factor Authentication is enforced for your account policy. Please complete setup.');
+            alert(_t('js.2fa_enforced_setup', 'Two-Factor Authentication is enforced for your account policy. Please complete setup.'));
             window.location.reload();
           } else {
             window.location.reload();
           }
         } else {
-          alert('Login failed: ' + (data.error || 'Invalid credentials'));
+          alert(_t('js.login_failed', 'Login failed: {error}', { error: data.error || _t('js.invalid_credentials', 'Invalid credentials') }));
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Log In'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.log_in', 'Log In'); }
       }
     });
   }
@@ -1429,7 +1829,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!codeVal) return;
 
       const submitBtn = document.getElementById('btn-2fa-submit');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.verifying', 'Verifying...'); }
 
       const formData = new FormData();
       formData.append('action', 'verify_2fa');
@@ -1441,16 +1841,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           window.location.reload();
         } else {
-          alert('Verification failed: ' + (data.error || 'Invalid code'));
+          alert(_t('js.verification_failed', 'Verification failed: {error}', { error: data.error || _t('js.invalid_code', 'Invalid code') }));
           if (codeInput) {
             codeInput.value = '';
             codeInput.focus();
           }
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Verify & Continue'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.verify_continue', 'Verify & Continue'); }
       }
     });
 
@@ -1460,7 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
         login2faForm.style.display = 'none';
         if (loginForm) loginForm.style.display = 'block';
         const modalTitle = document.getElementById('login-modal-title');
-        if (modalTitle) modalTitle.textContent = 'Account Authentication';
+        if (modalTitle) modalTitle.textContent = _t('js.account_auth', 'Account Authentication');
       });
     }
 
@@ -1475,27 +1875,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const desc = document.getElementById('login-2fa-desc');
 
         if (usingRecoveryCode) {
-          btnToggleRecovery.textContent = 'Use authenticator code';
-          if (codeLabel) codeLabel.textContent = 'Emergency Recovery Code';
+          btnToggleRecovery.textContent = _t('js.use_auth_code', 'Use authenticator code');
+          if (codeLabel) codeLabel.textContent = _t('js.emergency_recovery_code', 'Emergency Recovery Code');
           if (codeInput) {
             codeInput.placeholder = 'xxxx-xxxx';
             codeInput.maxLength = 12;
             codeInput.value = '';
             codeInput.focus();
           }
-          if (heading) heading.textContent = 'Recovery Code Login';
-          if (desc) desc.textContent = 'Enter one of your 8 emergency backup codes.';
+          if (heading) heading.textContent = _t('js.recovery_login_title', 'Recovery Code Login');
+          if (desc) desc.textContent = _t('js.recovery_login_desc', 'Enter one of your 8 emergency backup codes.');
         } else {
-          btnToggleRecovery.textContent = 'Use recovery code';
-          if (codeLabel) codeLabel.textContent = 'Verification Code';
+          btnToggleRecovery.textContent = _t('js.use_recovery_code', 'Use recovery code');
+          if (codeLabel) codeLabel.textContent = _t('js.verification_code', 'Verification Code');
           if (codeInput) {
             codeInput.placeholder = '000000';
             codeInput.maxLength = 10;
             codeInput.value = '';
             codeInput.focus();
           }
-          if (heading) heading.textContent = 'Two-Factor Authentication';
-          if (desc) desc.textContent = 'Enter the 6-digit verification code from your authenticator app.';
+          if (heading) heading.textContent = _t('js.2fa_title', 'Two-Factor Authentication');
+          if (desc) desc.textContent = _t('js.2fa_desc', 'Enter the 6-digit verification code from your authenticator app.');
         }
       });
     }
@@ -1535,7 +1935,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!identifier) return;
 
       const submitBtn = document.getElementById('btn-submit-forgot');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.sending', 'Sending...'); }
 
       const formData = new FormData();
       formData.append('action', 'forgot_password');
@@ -1550,12 +1950,12 @@ document.addEventListener('DOMContentLoaded', () => {
           alertBox.style.background = 'rgba(16,185,129,0.1)';
           alertBox.style.border = '1px solid #10b981';
           alertBox.style.color = '#047857';
-          alertBox.textContent = data.message || 'If an account with that verified email exists, a reset link has been dispatched.';
+          alertBox.textContent = data.message || _t('js.forgot_sent', 'If an account with that verified email exists, a reset link has been dispatched.');
         }
       } catch (err) {
-        alert('Server request failed');
+        alert(_t('js.server_req_failed', 'Server request failed'));
       } finally {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Reset Link'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.send_reset_link', 'Send Reset Link'); }
       }
     });
   }
@@ -1575,7 +1975,7 @@ document.addEventListener('DOMContentLoaded', () => {
           statusBox.style.background = 'rgba(239,68,68,0.1)';
           statusBox.style.border = '1px solid #ef4444';
           statusBox.style.color = '#b91c1c';
-          statusBox.textContent = 'Password must be at least 4 characters long.';
+          statusBox.textContent = _t('js.pwd_min_length', 'Password must be at least 4 characters long.');
         }
         return;
       }
@@ -1586,13 +1986,13 @@ document.addEventListener('DOMContentLoaded', () => {
           statusBox.style.background = 'rgba(239,68,68,0.1)';
           statusBox.style.border = '1px solid #ef4444';
           statusBox.style.color = '#b91c1c';
-          statusBox.textContent = 'Passwords do not match.';
+          statusBox.textContent = _t('js.pwds_mismatch', 'Passwords do not match.');
         }
         return;
       }
 
       const submitBtn = document.getElementById('btn-submit-reset-password');
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = _t('js.saving', 'Saving...'); }
 
       const formData = new FormData(standaloneResetForm);
       formData.append('action', 'reset_password_submit');
@@ -1606,7 +2006,7 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.style.background = 'rgba(16,185,129,0.1)';
             statusBox.style.border = '1px solid #10b981';
             statusBox.style.color = '#047857';
-            statusBox.textContent = '✅ Password updated successfully! Redirecting...';
+            statusBox.textContent = '✅ ' + _t('js.pwd_updated_redirect', 'Password updated successfully! Redirecting...');
           }
           setTimeout(() => {
             window.location.href = window.location.pathname;
@@ -1617,13 +2017,13 @@ document.addEventListener('DOMContentLoaded', () => {
             statusBox.style.background = 'rgba(239,68,68,0.1)';
             statusBox.style.border = '1px solid #ef4444';
             statusBox.style.color = '#b91c1c';
-            statusBox.textContent = data.error || 'Password reset failed.';
+            statusBox.textContent = data.error || _t('js.pwd_reset_failed', 'Password reset failed.');
           }
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.save_new_pwd_login', 'Save New Password & Log In'); }
         }
       } catch (err) {
-        alert('Server request failed');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save New Password & Log In'; }
+        alert(_t('js.server_req_failed', 'Server request failed'));
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = _t('js.save_new_pwd_login', 'Save New Password & Log In'); }
       }
     });
   }
@@ -2291,8 +2691,8 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.style.alignItems = 'center';
           btn.style.justifyContent = 'center';
           btn.style.cursor = 'pointer';
-          btn.setAttribute('aria-label', 'Browse Image Gallery');
-          btn.title = 'Browse and select images from gallery';
+          btn.setAttribute('aria-label', _t('js.gallery_browse_aria', 'Browse Image Gallery'));
+          btn.title = _t('js.gallery_browse_title', 'Browse and select images from gallery');
           btn.innerHTML = '🖼️';
           btn.addEventListener('click', (e) => {
             e.preventDefault();
@@ -2307,6 +2707,22 @@ document.addEventListener('DOMContentLoaded', () => {
           return btn;
         };
 
+        const i18nCfg = window.QWIKI_I18N_CONFIG || {};
+        let editorLangCode = 'en-US';
+        if (i18nCfg.enabled && i18nCfg.tuiLocale && i18nCfg.tuiLocale !== 'en-US' && typeof toastui.Editor.setLanguage === 'function') {
+          editorLangCode = i18nCfg.tuiLocale;
+          const tuiStrings = {};
+          const rawStrings = i18nCfg.strings || {};
+          Object.keys(rawStrings).forEach((k) => {
+            if (k.indexOf('tui.') === 0) {
+              tuiStrings[k.slice(4)] = rawStrings[k];
+            }
+          });
+          if (Object.keys(tuiStrings).length > 0) {
+            toastui.Editor.setLanguage(editorLangCode, tuiStrings);
+          }
+        }
+
         const editorConfig = {
           el: editorContainer,
           initialValue: rawContent,
@@ -2314,6 +2730,7 @@ document.addEventListener('DOMContentLoaded', () => {
           previewStyle: 'vertical',
           height: '600px',
           theme: isDark ? 'dark' : '',
+          language: editorLangCode,
           usageStatistics: false,
           hideModeSwitch: isProtectedMode,
           toolbarItems: [
@@ -2325,7 +2742,7 @@ document.addEventListener('DOMContentLoaded', () => {
             [
               {
                 name: 'gallery',
-                tooltip: 'Browse Image Gallery',
+                tooltip: _t('js.gallery_browse_aria', 'Browse Image Gallery'),
                 el: createGalleryToolbarButton()
               }
             ]
@@ -2342,10 +2759,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                   callback(data.url, data.alt || 'image');
                 } else {
-                  alert('Image upload failed: ' + (data.error || 'Unknown error'));
+                  alert(_t('js.image_upload_failed', 'Image upload failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
                 }
               } catch (err) {
-                alert('Network request failed during image upload');
+                alert(_t('js.image_upload_net_failed', 'Network request failed during image upload'));
               }
             }
           }
@@ -2361,7 +2778,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tuiEditor = new toastui.Editor(editorConfig);
           } catch (fatalErr) {
             console.error('Toast UI Editor fatal initialization error:', fatalErr);
-            alert('Failed to initialize document editor: ' + fatalErr.message);
+            alert(_t('js.editor_init_failed', 'Failed to initialize document editor: {error}', { error: fatalErr.message }));
             if (htmlNotice) htmlNotice.style.display = 'none';
             editActions.style.display = 'none';
             editorContainer.style.display = 'none';
@@ -2379,7 +2796,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'needChangeMode' && args[0] === 'wysiwyg') {
               const currentContent = tuiEditor.getMarkdown();
               if (containsHtmlMarkup(currentContent) || /^---[\r\n]+[\s\S]*?[\r\n]+---/.test(currentContent) || containsLatexMath(currentContent)) {
-                alert('⚠️ Cannot switch to WYSIWYG mode: the document contains LaTeX math expressions, YAML frontmatter, or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.');
+                alert(_t('js.wysiwyg_blocked', '⚠️ Cannot switch to WYSIWYG mode: the document contains LaTeX math expressions, YAML frontmatter, or custom HTML tags which would be corrupted. Please continue editing in Markdown mode.'));
                 return;
               }
             }
@@ -2470,13 +2887,13 @@ document.addEventListener('DOMContentLoaded', () => {
           window.location.reload();
         } else {
           if (data.code === 'LOCKED_BY_OTHER') {
-            alert('Save Blocked: ' + (data.error || 'The document lock belongs to another session.'));
+            alert(_t('js.save_blocked', 'Save Blocked: {error}', { error: data.error || _t('js.lock_other_session', 'The document lock belongs to another session.') }));
           } else {
-            alert('Save failed: ' + (data.error || 'Unknown error'));
+            alert(_t('js.save_failed', 'Save failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
           }
         }
       } catch (err) {
-        alert('Save request failed');
+        alert(_t('js.save_req_failed', 'Save request failed'));
       }
     });
 
@@ -2506,7 +2923,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteChapterBtn = document.getElementById('btn-delete-chapter');
   if (deleteChapterBtn) {
     deleteChapterBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this document entry from the wiki structure?')) {
+      if (!confirm(_t('js.delete_doc_confirm', 'Are you sure you want to delete this document entry from the wiki structure?'))) {
         return;
       }
       const bookId = deleteChapterBtn.getAttribute('data-book');
@@ -2523,10 +2940,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           window.location.href = `${encodeURIComponent(bookId)}`;
         } else {
-          alert('Delete failed: ' + (data.error || 'Unknown error'));
+          alert(_t('js.delete_failed', 'Delete failed: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
         }
       } catch (err) {
-        alert('Delete request failed');
+        alert(_t('js.delete_req_failed', 'Delete request failed'));
       }
     });
   }
@@ -2535,7 +2952,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const deleteLinkBtn = document.getElementById('btn-delete-link');
   if (deleteLinkBtn) {
     deleteLinkBtn.addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to delete this hyperlink?')) {
+      if (!confirm(_t('js.delete_link_confirm', 'Are you sure you want to delete this hyperlink?'))) {
         return;
       }
       const slug = document.getElementById('edit-link-slug-hidden')?.value;
@@ -2891,25 +3308,34 @@ document.addEventListener('DOMContentLoaded', () => {
   // Theme Editor Modal Logic
   const themeEditorModal = document.getElementById('theme-editor-modal');
   if (themeEditorModal) {
-    const btnOpenThemeEditor = document.createElement('button');
-    btnOpenThemeEditor.type = 'button';
-    btnOpenThemeEditor.className = 'btn btn-outline';
-    btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
-    btnOpenThemeEditor.style.marginTop = '1rem';
-    btnOpenThemeEditor.style.width = '100%';
-    
-    // Inject it into settings modal
-    const settingsForm = document.getElementById('settings-form');
-    if (settingsForm) {
-      settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
-    }
+    const btnDirect = document.getElementById('btn-open-theme-editor-direct');
+    if (btnDirect) {
+      btnDirect.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    } else {
+      const btnOpenThemeEditor = document.createElement('button');
+      btnOpenThemeEditor.type = 'button';
+      btnOpenThemeEditor.className = 'btn btn-outline';
+      btnOpenThemeEditor.innerHTML = '🎨 Open Theme Editor';
+      btnOpenThemeEditor.style.marginTop = '1rem';
+      btnOpenThemeEditor.style.width = '100%';
+      
+      const settingsForm = document.getElementById('settings-form');
+      if (settingsForm) {
+        settingsForm.insertBefore(btnOpenThemeEditor, settingsForm.lastElementChild);
+      }
 
-    btnOpenThemeEditor.addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('settings-modal').classList.remove('open');
-      populateThemes(document.getElementById('editor-theme-selector'), '');
-      themeEditorModal.classList.add('open');
-    });
+      btnOpenThemeEditor.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('settings-modal').classList.remove('open');
+        populateThemes(document.getElementById('editor-theme-selector'), '');
+        themeEditorModal.classList.add('open');
+      });
+    }
 
     const btnLoadTheme = document.getElementById('btn-load-theme');
     const editorArea = document.getElementById('theme-editor-area');
@@ -3485,10 +3911,184 @@ document.addEventListener('DOMContentLoaded', () => {
         await mermaid.run({ nodes: unrenderedMermaid });
         normalizeMermaidSvgs();
       }
+      attachDiagramToolbars();
     } catch (err) {
       console.warn('Mermaid rendering error:', err);
     }
   }
+
+  function attachDiagramToolbars() {
+    document.querySelectorAll('.mermaid-diagram-container').forEach(container => {
+      if (container.querySelector('.diagram-toolbar')) return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      let inlineScale = 1;
+      const toolbar = document.createElement('div');
+      toolbar.className = 'diagram-toolbar';
+
+      const applyInlineScale = (scale) => {
+        inlineScale = Math.min(2.5, Math.max(0.4, scale));
+        const targetSvg = container.querySelector('.mermaid svg');
+        if (targetSvg) {
+          targetSvg.style.transformOrigin = 'top left';
+          targetSvg.style.transform = inlineScale === 1 ? '' : `scale(${inlineScale})`;
+        }
+      };
+
+      const btnZoomOut = document.createElement('button');
+      btnZoomOut.type = 'button';
+      btnZoomOut.className = 'diagram-toolbar-btn';
+      btnZoomOut.title = _t('js.diagram_zoom_out', 'Zoom Out');
+      btnZoomOut.textContent = '−';
+      btnZoomOut.addEventListener('click', () => applyInlineScale(inlineScale - 0.2));
+
+      const btnReset = document.createElement('button');
+      btnReset.type = 'button';
+      btnReset.className = 'diagram-toolbar-btn';
+      btnReset.title = _t('js.diagram_reset_zoom', 'Reset Zoom (100%)');
+      btnReset.textContent = '100%';
+      btnReset.addEventListener('click', () => applyInlineScale(1));
+
+      const btnZoomIn = document.createElement('button');
+      btnZoomIn.type = 'button';
+      btnZoomIn.className = 'diagram-toolbar-btn';
+      btnZoomIn.title = _t('js.diagram_zoom_in', 'Zoom In');
+      btnZoomIn.textContent = '+';
+      btnZoomIn.addEventListener('click', () => applyInlineScale(inlineScale + 0.2));
+
+      const btnDownload = document.createElement('button');
+      btnDownload.type = 'button';
+      btnDownload.className = 'diagram-toolbar-btn';
+      btnDownload.title = _t('js.diagram_download_svg', 'Download SVG');
+      btnDownload.textContent = '📥';
+      btnDownload.addEventListener('click', () => {
+        const currentSvg = container.querySelector('svg');
+        if (!currentSvg) return;
+        const serializer = new XMLSerializer();
+        const svgStr = serializer.serializeToString(currentSvg);
+        const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'diagram.svg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      const btnExpand = document.createElement('button');
+      btnExpand.type = 'button';
+      btnExpand.className = 'diagram-toolbar-btn diagram-toolbar-expand';
+      btnExpand.title = _t('js.diagram_expand_title', 'Expand Diagram in Fullscreen Lightbox');
+      btnExpand.textContent = '⛶ ' + _t('js.diagram_expand', 'Expand');
+      btnExpand.addEventListener('click', () => openMermaidLightbox(container));
+
+      toolbar.append(btnZoomOut, btnReset, btnZoomIn, btnDownload, btnExpand);
+      container.appendChild(toolbar);
+    });
+  }
+
+  function openMermaidLightbox(container) {
+    const svg = container && container.querySelector('svg');
+    if (!svg) return;
+
+    let modal = document.getElementById('mermaid-lightbox-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mermaid-lightbox-modal';
+      modal.className = 'mermaid-lightbox-overlay';
+      modal.innerHTML = `
+        <div class="mermaid-lightbox-header">
+          <span class="mermaid-lightbox-title">Diagram Viewer (Scroll to zoom, drag to pan, Esc to close)</span>
+          <div class="mermaid-lightbox-controls">
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-out" title="Zoom Out">−</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-reset" title="Reset View">Reset</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-zoom-in" title="Zoom In">+</button>
+            <button type="button" class="btn btn-outline btn-sm" id="lb-close" title="Close (Esc)">✕ Close</button>
+          </div>
+        </div>
+        <div class="mermaid-lightbox-stage" id="mermaid-lightbox-stage"></div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const stage = modal.querySelector('#mermaid-lightbox-stage');
+    stage.innerHTML = '';
+    const clonedSvg = svg.cloneNode(true);
+    clonedSvg.style.transform = '';
+    clonedSvg.style.maxWidth = 'none';
+    clonedSvg.style.cursor = 'grab';
+    stage.appendChild(clonedSvg);
+
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const updateTransform = () => {
+      clonedSvg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    };
+
+    const closeModal = () => {
+      modal.classList.remove('open');
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    };
+
+    const onMouseUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        clonedSvg.style.cursor = 'grab';
+      }
+    };
+
+    modal.querySelector('#lb-zoom-in').onclick = () => { scale = Math.min(4, scale + 0.25); updateTransform(); };
+    modal.querySelector('#lb-zoom-out').onclick = () => { scale = Math.max(0.25, scale - 0.25); updateTransform(); };
+    modal.querySelector('#lb-zoom-reset').onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
+    modal.querySelector('#lb-close').onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal || e.target === stage) closeModal(); };
+
+    stage.onwheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+      scale = Math.min(4, Math.max(0.25, scale + delta));
+      updateTransform();
+    };
+
+    stage.onmousedown = (e) => {
+      if (e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+      clonedSvg.style.cursor = 'grabbing';
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    document.addEventListener('keydown', onKeyDown);
+    modal.classList.add('open');
+  }
+
+  window.openMermaidLightbox = openMermaidLightbox;
 
   window.reRenderMermaidDiagrams = async function(theme) {
     if (typeof mermaid === 'undefined') return;
@@ -3510,6 +4110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await mermaid.run({ nodes: document.querySelectorAll('.mermaid-diagram-container .mermaid') });
       normalizeMermaidSvgs();
+      attachDiagramToolbars();
     } catch (e) {
       console.warn('Mermaid re-render failed:', e);
     }
@@ -3531,6 +4132,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Unicode box-drawing diagrams & tables are rendered as crisp monospace pre blocks
       if (hasBoxChars && !isExplicitSvgbob) {
+        pre.classList.add('pre-diagram');
         pre.style.lineHeight = '1.0';
         pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         pre.style.letterSpacing = '0px';
@@ -3562,6 +4164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Fallback styling if Svgbob could not render
+        pre.classList.add('pre-diagram');
         pre.style.lineHeight = '1.0';
         pre.style.fontFamily = '"DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, "Courier New", monospace';
         block.style.fontFamily = 'inherit';
@@ -4321,7 +4924,7 @@ document.addEventListener('DOMContentLoaded', () => {
           document.execCommand('copy');
         }
         const origText = btnCopyShareLink.textContent;
-        btnCopyShareLink.textContent = '✅ Copied!';
+        btnCopyShareLink.textContent = '✅ ' + _t('js.copied', 'Copied!');
         setTimeout(() => {
           btnCopyShareLink.textContent = origText;
         }, 2000);
@@ -4352,7 +4955,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const origText = btnModalSlack.textContent;
-      btnModalSlack.textContent = '✅ Copied for Slack!';
+      btnModalSlack.textContent = '✅ ' + _t('js.copied_slack', 'Copied for Slack!');
       setTimeout(() => {
         btnModalSlack.textContent = origText;
       }, 2000);
@@ -4378,12 +4981,12 @@ document.addEventListener('DOMContentLoaded', () => {
           updateShareStatusUI(data.publicShareable);
           btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
         } else {
-          alert('Failed to update sharing: ' + (data.error || 'Unknown error'));
+          alert(_t('js.share_update_failed', 'Failed to update sharing: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
           shareAdminTogglePublic.checked = !isPublic;
         }
       } catch (err) {
         console.error('Failed to update share settings:', err);
-        alert('Network error updating sharing status.');
+        alert(_t('js.share_update_net_err', 'Network error updating sharing status.'));
         shareAdminTogglePublic.checked = !isPublic;
       }
     });
@@ -4394,7 +4997,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnModalRegenerateShareKey.addEventListener('click', async () => {
       const slug = btnShareChapter.getAttribute('data-slug');
       if (!slug) return;
-      if (!confirm('Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.')) {
+      if (!confirm(_t('js.share_reset_confirm', 'Are you sure you want to reset the unique share key? Any previously distributed links will immediately stop working.'))) {
         return;
       }
       const isPublic = shareAdminTogglePublic ? (shareAdminTogglePublic.checked ? 1 : 0) : 1;
@@ -4412,13 +5015,13 @@ document.addEventListener('DOMContentLoaded', () => {
           btnShareChapter.setAttribute('data-share-key', data.shareKey);
           btnShareChapter.setAttribute('data-share-url', data.shareUrl);
           updateShareStatusUI(data.publicShareable);
-          alert('✅ Share key reset successfully! The new link is ready to copy.');
+          alert(_t('js.share_reset_ok', '✅ Share key reset successfully! The new link is ready to copy.'));
         } else {
-          alert('Failed to reset key: ' + (data.error || 'Unknown error'));
+          alert(_t('js.share_reset_failed', 'Failed to reset key: {error}', { error: data.error || _t('js.unknown_error', 'Unknown error') }));
         }
       } catch (err) {
         console.error('Failed to reset share key:', err);
-        alert('Network error while resetting share key.');
+        alert(_t('js.share_reset_net_err', 'Network error while resetting share key.'));
       }
     });
   }

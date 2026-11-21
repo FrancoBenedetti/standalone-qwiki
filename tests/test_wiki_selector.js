@@ -125,4 +125,15 @@ assert.strictEqual(menu.classList.contains('show'), false, 'Clicking outside clo
 assert.strictEqual(toggleBtn.getAttribute('aria-expanded'), 'false', 'aria-expanded resets on outside click');
 console.log('✅ 5. Filter reset on re-open and outside-click dismissal work');
 
+// 6. Verify narrow-screen responsive CSS and markup protections against header overlap
+const indexPhp = fs.readFileSync(path.join(__dirname, '..', 'index.php'), 'utf8');
+const qwikiCss = fs.readFileSync(path.join(__dirname, '..', 'assets', 'css', 'qwiki.css'), 'utf8');
+
+assert(indexPhp.includes('class="theme-btn-label"'), 'index.php #theme-toggle must wrap label in .theme-btn-label for mobile compact icon-only display');
+assert(/\.brand-subwiki-badge\s*\{[^}]*min-width:\s*0/s.test(qwikiCss), '.brand-subwiki-badge must set min-width: 0 to prevent flex min-width:auto overflow');
+assert(/\.brand-subwiki-badge\s*\{[^}]*overflow:\s*hidden/s.test(qwikiCss), '.brand-subwiki-badge must set overflow: hidden');
+assert(/\.header-actions\s*\{[^}]*flex-shrink:\s*0/s.test(qwikiCss), '.header-actions must set flex-shrink: 0 so right-side buttons never crush');
+assert(qwikiCss.includes('.theme-btn-label'), 'qwiki.css must define responsive hiding for .theme-btn-label');
+console.log('✅ 6. Narrow-screen responsive header CSS & markup protections verified');
+
 console.log('🎉 ALL HEADER WIKI SELECTOR TESTS PASSED!');

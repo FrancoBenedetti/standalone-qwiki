@@ -1,6 +1,8 @@
 <?php
 namespace Qwiki\Core;
 
+require_once __DIR__ . '/Translator.php';
+
 class Navigation {
     public const VALID_STATUSES = ['draft', 'review', 'published', 'archived'];
     public const DEFAULT_STATUS = 'published';
@@ -158,6 +160,7 @@ class Navigation {
                         if ($chVis === 'admin_only') continue;
                         if ($chVis === 'logged_in' && !$isViewer) continue;
                     }
+                    if (!self::isChapterVisibleForStatus($ch, $isAdmin)) continue;
                     $nodeId = $node['id'] ?? '';
                     if ($nodeId === $bookId) {
                         $linkUrl = urlencode($bookId) . "/" . urlencode($ch['slug'] ?? '');
@@ -200,20 +203,20 @@ class Navigation {
 
         echo "<a href='{$safeUrl}' {$targetAttr} class='nav-link nav-link-hyperlink {$depthClass}' {$docDragAttr}>";
         echo "<span class='nav-link-title-container'>";
-        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
         if ($depth === 0) echo "<span class='top-link-icon'>🔗</span> ";
         echo "{$safeTitle}</span>";
 
         echo "<span class='nav-link-actions-container'>";
         if ($isAdmin) {
-            echo "<button type='button' class='btn-edit-link-icon' data-book-id='" . htmlspecialchars($bookId) . "' data-slug='{$safeSlug}' data-title='{$safeTitle}' data-url='{$safeUrl}' data-description='{$chDesc}' data-visibility='" . htmlspecialchars($visibility) . "' title='Edit Link'>⚙️</button> ";
+            echo "<button type='button' class='btn-edit-link-icon' data-book-id='" . htmlspecialchars($bookId) . "' data-slug='{$safeSlug}' data-title='{$safeTitle}' data-url='{$safeUrl}' data-description='{$chDesc}' data-visibility='" . htmlspecialchars($visibility) . "' title='" . htmlspecialchars(\__('sidebar.edit_link', 'Edit Link')) . "'>⚙️</button> ";
         }
 
         if ($isAdmin || !$showDocTypesOnlyToAdmin) {
             if ($isExternal) {
-                echo "<span class='doc-badge badge-link' title='External Link (Opens in new tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg></span>";
+                echo "<span class='doc-badge badge-link' title='" . htmlspecialchars(\__('sidebar.external_link_title', 'External Link (Opens in new tab)')) . "'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg></span>";
             } else {
-                echo "<span class='doc-badge badge-internal-link' title='Internal Link (Opens in same tab)'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path><path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path></svg></span>";
+                echo "<span class='doc-badge badge-internal-link' title='" . htmlspecialchars(\__('sidebar.internal_link_title', 'Internal Link (Opens in same tab)')) . "'><svg class='doc-badge-svg' viewBox='0 0 24 24' width='13' height='13' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path><path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path></svg></span>";
             }
         }
         echo "</span>";
@@ -260,17 +263,20 @@ class Navigation {
         echo "<div class='nav-category-item {$indentClass} " . ($isExpanded ? '' : 'collapsed') . "' data-category-id='{$safeNodeId}' {$draggableAttr}>";
         echo "<div class='nav-category-header'{$headerTitleAttr}>";
         echo "<span>";
-        if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+        if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
         echo "{$icon} " . htmlspecialchars($nodeTitle);
         if ($isCatProtected) {
-            $lockTitle = $isCatDirectlyReadOnly ? 'Protected Category (Locked against deletion)' : 'Protected Category (Contains protected documents)';
+            $lockTitle = $isCatDirectlyReadOnly
+                ? \__('sidebar.protected_cat_locked', 'Protected Category (Locked against deletion)')
+                : \__('sidebar.protected_cat_contains', 'Protected Category (Contains protected documents)');
             echo " <span class='cat-lock-icon' title='" . htmlspecialchars($lockTitle) . "' style='font-size: 0.8rem; opacity: 0.8; vertical-align: middle;'>🔒</span>";
         }
         echo "</span>";
         echo "<span class='header-actions-inline'>";
         if ($isAdmin) {
-            $catAllowComments = isset($node['allowComments']) ? ($node['allowComments'] ? '1' : '0') : '';
-            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' title='Edit Category'>⚙️</button> ";
+            $catAllowComments = !empty($node['allowComments']) ? '1' : '0';
+            $catAllowTalk = isset($node['allowTalk']) ? ($node['allowTalk'] ? '1' : '0') : '0';
+            echo "<button class='btn-edit-cat-icon' data-book-id='" . htmlspecialchars($nodeId) . "' data-book-title='" . htmlspecialchars($nodeTitle) . "' data-book-description='{$nodeDesc}' data-book-theme='{$nodeTheme}' data-book-visibility='{$nodeVis}' data-book-readonly='" . ($isCatDirectlyReadOnly ? '1' : '0') . "' data-book-protected='" . ($isCatProtected ? '1' : '0') . "' data-book-allow-comments='{$catAllowComments}' data-book-allow-talk='{$catAllowTalk}' title='" . htmlspecialchars(\__('sidebar.edit_category', 'Edit Category')) . "'>⚙️</button> ";
         }
         echo "<span class='chevron-icon'>▾</span>";
         echo "</span>";
@@ -291,6 +297,7 @@ class Navigation {
                         if ($chVis === 'admin_only') continue;
                         if ($chVis === 'logged_in' && !$isViewer) continue;
                     }
+                    if (!self::isChapterVisibleForStatus($ch, $isAdmin)) continue;
                     $isActive = ($isExpanded && $activeChapterSlug === ($ch['slug'] ?? ''));
                     $docType = strtolower($ch['type'] ?? 'markdown');
                     $badgeClass = 'badge-' . htmlspecialchars($docType);
@@ -310,11 +317,12 @@ class Navigation {
 
                     echo "<a href='{$linkUrl}' class='nav-link " . ($isActive ? 'active' : '') . "' {$docDragAttr}>";
                     echo "<span>";
-                    if ($isAdmin) echo "<span class='drag-handle' title='Drag to reorder'>⣿</span> ";
+                    if ($isAdmin) echo "<span class='drag-handle' title='" . htmlspecialchars(\__('sidebar.drag_reorder', 'Drag to reorder')) . "'>⣿</span> ";
                     echo htmlspecialchars($ch['title'] ?? '') . "</span>";
                     $chStatus = strtolower($ch['status'] ?? self::DEFAULT_STATUS);
                     if ($isAdmin && $chStatus !== self::DEFAULT_STATUS) {
-                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='Status: " . htmlspecialchars(ucfirst($chStatus)) . "'>●</span>";
+                        $statusLabel = \__('status.' . $chStatus, ucfirst($chStatus));
+                        echo " <span class='nav-status-pill status-" . htmlspecialchars($chStatus) . "' title='" . htmlspecialchars(\__('sidebar.status_title', 'Status: {status}', ['status' => $statusLabel])) . "'>●</span>";
                     }
 
                     if ($isAdmin || !$showDocTypesOnlyToAdmin) {
@@ -338,7 +346,7 @@ class Navigation {
                                 $iconSvg = htmlspecialchars($docType);
                             }
                         }
-                        echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars($badgeTitle) . " Document'>{$iconSvg}</span>";
+                        echo "<span class='doc-badge {$badgeClass}' title='" . htmlspecialchars(\__('sidebar.doc_type_badge', '{type} Document', ['type' => $badgeTitle])) . "'>{$iconSvg}</span>";
                     }
                     echo "</a>";
                 }
@@ -494,6 +502,13 @@ class Navigation {
             }
         }
         return $result;
+    }
+
+    /**
+     * Alias for getCategoriesHierarchy (defaults to admin visibility when called from admin flows).
+     */
+    public static function getCategoryHierarchy(array $nodes, string $prefix = '', int $depth = 0, ?string $parentFolder = null, bool $isAdmin = true, bool $isViewer = true): array {
+        return self::getCategoriesHierarchy($nodes, $prefix, $depth, $parentFolder, $isAdmin, $isViewer);
     }
 
     /**
@@ -656,7 +671,7 @@ class Navigation {
     /**
      * Recursively updates category or folder node metadata in navigation tree
      */
-    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null): bool {
+    public static function updateNodeMeta(&$node, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly = null, $newDescription = null, $allowComments = null, $allowTalk = null): bool {
         if (($node['id'] ?? '') === $targetId) {
             $node['title'] = $newTitle;
             if ($newTheme !== '') {
@@ -689,12 +704,19 @@ class Navigation {
                     $node['allowComments'] = false;
                 }
             }
+            if ($allowTalk !== null) {
+                if ($allowTalk) {
+                    $node['allowTalk'] = true;
+                } else {
+                    $node['allowTalk'] = false;
+                }
+            }
             return true;
         }
         if (!empty($node['items']) && is_array($node['items'])) {
             foreach ($node['items'] as &$sub) {
                 if (isset($sub['type']) && $sub['type'] === 'folder') {
-                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments)) {
+                    if (self::updateNodeMeta($sub, $targetId, $newTitle, $newTheme, $newVisibility, $readOnly, $newDescription, $allowComments, $allowTalk)) {
                         return true;
                     }
                 }
@@ -769,6 +791,11 @@ class Navigation {
                             $ch['theme'] = $updatedData['theme'];
                         } elseif (array_key_exists('theme', $updatedData)) {
                             unset($ch['theme']);
+                        }
+                        if (isset($updatedData['ogTitle']) && $updatedData['ogTitle'] !== '') {
+                            $ch['ogTitle'] = $updatedData['ogTitle'];
+                        } elseif (array_key_exists('ogTitle', $updatedData)) {
+                            unset($ch['ogTitle']);
                         }
                         if (isset($updatedData['description']) && $updatedData['description'] !== '') {
                             $ch['description'] = $updatedData['description'];
@@ -859,11 +886,16 @@ class Navigation {
                     if (empty($chapterData['shareKey']) && !empty($it['shareKey'])) {
                         $chapterData['shareKey'] = $it['shareKey'];
                     }
+                    if (empty($chapterData['docId']) && !empty($it['docId'])) {
+                        $chapterData['docId'] = $it['docId'];
+                    }
                     $it = array_merge($it, $chapterData);
+                    self::ensureDocId($it);
                     $isUpdated = true;
                     return true;
                 }
             }
+            self::ensureDocId($chapterData);
             $node['items'][] = $chapterData;
             return true;
         }
@@ -877,6 +909,104 @@ class Navigation {
             }
         }
         return false;
+    }
+
+    /**
+     * Finds a category/folder node by ID and optionally outputs its parent category ID.
+     */
+    public static function findCategoryById(array $list, string $bookId, string &$parentId = ''): ?array {
+        foreach ($list as $node) {
+            if (($node['id'] ?? '') === $bookId) {
+                return $node;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $curId = (string)($node['id'] ?? '');
+                $found = self::findCategoryById($node['items'], $bookId, $parentId);
+                if ($found !== null) {
+                    if ($parentId === '') {
+                        $parentId = $curId;
+                    }
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Inserts a category/folder node under a specific parent category ID.
+     */
+    public static function insertCategoryIntoNode(array &$list, string $parentId, array $categoryNode): bool {
+        foreach ($list as &$node) {
+            if (($node['id'] ?? '') === $parentId) {
+                if (!isset($node['items']) || !is_array($node['items'])) {
+                    $node['items'] = [];
+                }
+                $node['items'][] = $categoryNode;
+                return true;
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                if (self::insertCategoryIntoNode($node['items'], $parentId, $categoryNode)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Ensures a document/chapter node has a permanent immutable docId.
+     */
+    public static function ensureDocId(array &$chapter): string {
+        if (empty($chapter['docId']) || !is_string($chapter['docId'])) {
+            $chapter['docId'] = 'doc_' . bin2hex(random_bytes(8));
+        }
+        return $chapter['docId'];
+    }
+
+    /**
+     * Finds a chapter in $books by slug or relative file path, ensures it has a docId,
+     * and returns the chapter node. Sets $created = true if a new docId was assigned.
+     */
+    public static function ensureDocIdForChapter(array &$books, string $slugOrFile, bool &$created = false): ?array {
+        $needle = ltrim(str_replace('\\', '/', trim($slugOrFile)), '/');
+        if ($needle === '') {
+            return null;
+        }
+        foreach ($books as &$node) {
+            if (!is_array($node)) continue;
+            $isFolder = (isset($node['type']) && $node['type'] === 'folder') || !empty($node['items']);
+            if (!$isFolder) {
+                $chSlug = (string)($node['slug'] ?? '');
+                $chFile = ltrim(str_replace('\\', '/', (string)($node['file'] ?? '')), '/');
+                if ($chSlug === $needle || ($chFile !== '' && $chFile === $needle)) {
+                    if (empty($node['docId'])) {
+                        $created = true;
+                    }
+                    self::ensureDocId($node);
+                    return $node;
+                }
+            }
+            if (!empty($node['items']) && is_array($node['items'])) {
+                $found = self::ensureDocIdForChapter($node['items'], $slugOrFile, $created);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Checks whether a chapter should be visible to the current user based on lifecycle status.
+     * Draft and archived documents are hidden from non-admins.
+     */
+    public static function isChapterVisibleForStatus(array $chapter, bool $isAdmin = false): bool {
+        if ($isAdmin) {
+            return true;
+        }
+        $status = strtolower(trim($chapter['status'] ?? self::DEFAULT_STATUS));
+        return !in_array($status, ['draft', 'archived'], true);
     }
 }
 

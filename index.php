@@ -796,7 +796,7 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
         </div>
         <div class="header-actions">
             <?php $extManager->renderToolbarUtilityWidgets($isAdmin, 'header'); ?>
-            <button class="btn btn-outline btn-sm" id="theme-toggle" title="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>">🌙 <?= htmlspecialchars(__('header.theme', 'Theme')) ?></button>
+            <button class="btn btn-outline btn-sm" id="theme-toggle" title="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>" aria-label="<?= htmlspecialchars(__('header.toggle_dark_light', 'Toggle Dark/Light Mode')) ?>"><span aria-hidden="true">🌙</span><span class="theme-btn-label"><?= htmlspecialchars(__('header.theme', 'Theme')) ?></span></button>
             <?php if ($isViewer): ?>
                 <div class="dropdown">
                     <button class="btn btn-outline btn-sm dropdown-toggle" id="user-dropdown-toggle">

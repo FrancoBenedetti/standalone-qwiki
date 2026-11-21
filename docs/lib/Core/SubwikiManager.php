@@ -371,6 +371,154 @@ class SubwikiManager {
     }
 
     /**
+     * Get the complete list of wikis (parent wiki + all subwikis) for the header wiki selector.
+     * Each item includes: slug, title, url, docCount, isCurrent, isParent.
+     *
+     * @param array|null $config Current wiki configuration array
+     * @param string $baseUrl Current wiki base URL
+     * @return array
+     */
+    public static function getWikiSelectorItems(?array $config = null, string $baseUrl = ''): array {
+        if ($config === null) {
+            $config = Config::load();
+        }
+        $currentBaseUrl = $baseUrl !== '' ? $baseUrl : Config::getBaseUrl();
+
+        $countDocs = static function (array $cfg): int {
+            $count = 0;
+            if (!empty($cfg['books']) && is_array($cfg['books'])) {
+                foreach ($cfg['books'] as $b) {
+                    $count += count($b['items'] ?? []);
+                }
+            }
+            return $count;
+        };
+
+        if (!self::isSubwiki()) {
+            $items = [
+                [
+                    'slug' => '',
+                    'title' => !empty($config['title']) ? (string)$config['title'] : 'Main Wiki',
+                    'url' => $currentBaseUrl,
+                    'docCount' => $countDocs($config),
+                    'isCurrent' => true,
+                    'isParent' => true,
+                    'exists' => true
+                ]
+            ];
+            foreach (self::listSubwikis() as $sub) {
+                $sub['isCurrent'] = false;
+                $sub['isParent'] = false;
+                $items[] = $sub;
+            }
+            return $items;
+        }
+
+        // Inside a child subwiki
+        $baseDir = Config::getBaseDir();
+        $parentDir = dirname($baseDir);
+        $currentSlug = basename($baseDir);
+        $parentConfigFile = $parentDir . '/qwiki.json';
+        $parentConfig = [];
+        if (file_exists($parentConfigFile)) {
+            $decoded = @json_decode(file_get_contents($parentConfigFile), true);
+            if (is_array($decoded)) {
+                $parentConfig = $decoded;
+            }
+        }
+
+        $items = [
+            [
+                'slug' => '',
+                'title' => self::getParentTitle($config),
+                'url' => !empty($config['parentUrl']) ? (string)$config['parentUrl'] : '../',
+                'docCount' => $countDocs($parentConfig),
+                'isCurrent' => false,
+                'isParent' => true,
+                'exists' => true
+            ]
+        ];
+
+        $subwikisMap = [];
+        $reserved = array_merge(Config::getReservedNames(), ['demo-data', 'assets', 'lib', 'content', 'uploads', 'api', 'tests']);
+        $registered = $parentConfig['subwikis'] ?? [];
+
+        foreach ($registered as $sub) {
+            $slug = $sub['slug'] ?? '';
+            if (empty($slug)) continue;
+            $dir = $parentDir . '/' . $slug;
+            $subConfigFile = $dir . '/qwiki.json';
+            $title = $sub['title'] ?? $slug;
+            $docCount = 0;
+
+            if ($slug === $currentSlug) {
+                $title = !empty($config['title']) ? (string)$config['title'] : $title;
+                $docCount = $countDocs($config);
+            } elseif (file_exists($subConfigFile)) {
+                $subData = @json_decode(file_get_contents($subConfigFile), true);
+                if (is_array($subData)) {
+                    $title = $subData['title'] ?? $title;
+                    $docCount = $countDocs($subData);
+                }
+            }
+
+            $isCurrent = ($slug === $currentSlug);
+            $subwikisMap[$slug] = [
+                'slug' => $slug,
+                'title' => $title,
+                'url' => $isCurrent ? $currentBaseUrl : ('../' . $slug . '/'),
+                'docCount' => $docCount,
+                'isCurrent' => $isCurrent,
+                'isParent' => false,
+                'exists' => is_dir($dir)
+            ];
+        }
+
+        $dirs = @glob($parentDir . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($dirs as $dir) {
+            $slug = basename($dir);
+            if (in_array($slug, $reserved, true) || isset($subwikisMap[$slug])) continue;
+            if (file_exists($dir . '/qwiki.json') && file_exists($dir . '/index.php')) {
+                $subData = @json_decode(file_get_contents($dir . '/qwiki.json'), true);
+                $title = is_array($subData) && !empty($subData['title']) ? $subData['title'] : $slug;
+                $docCount = is_array($subData) ? $countDocs($subData) : 0;
+                $isCurrent = ($slug === $currentSlug);
+                if ($isCurrent && !empty($config['title'])) {
+                    $title = (string)$config['title'];
+                    $docCount = $countDocs($config);
+                }
+                $subwikisMap[$slug] = [
+                    'slug' => $slug,
+                    'title' => $title,
+                    'url' => $isCurrent ? $currentBaseUrl : ('../' . $slug . '/'),
+                    'docCount' => $docCount,
+                    'isCurrent' => $isCurrent,
+                    'isParent' => false,
+                    'exists' => true
+                ];
+            }
+        }
+
+        if (!isset($subwikisMap[$currentSlug])) {
+            $subwikisMap[$currentSlug] = [
+                'slug' => $currentSlug,
+                'title' => !empty($config['title']) ? (string)$config['title'] : $currentSlug,
+                'url' => $currentBaseUrl,
+                'docCount' => $countDocs($config),
+                'isCurrent' => true,
+                'isParent' => false,
+                'exists' => true
+            ];
+        }
+
+        foreach ($subwikisMap as $subItem) {
+            $items[] = $subItem;
+        }
+
+        return $items;
+    }
+
+    /**
      * Deploy a new single-level subwiki from the parent wiki.
      */
     public static function deploySubwiki(string $slug, string $title, string $adminUser, string $adminPass, bool $includeDemoContent = false): array {
