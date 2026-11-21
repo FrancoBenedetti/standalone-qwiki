@@ -304,15 +304,21 @@ External automation scripts, CI/CD pipelines, and internal tools can publish doc
 - **Category Management Actions**:
   - `action=create_category` (or `add_book`): Dynamically provisions a new top-level or nested category (`id`, `title`, optional `description`, optional `parentId`). If the category already exists, safely updates title and description idempotently.
   - `action=list_categories` (or `get_books`): Returns an array of existing categories with their identifiers, titles, descriptions, and relative folder paths.
-- **Document Management & Lifecycle Actions**:
+- **Document Management, Tree Sync & Lifecycle Actions**:
+  - `action=get_tree` (or `sync_tree`, `list_chapters`, `get_chapters`): Returns recursive categories (`parent`, `depth`, `folder`) and all chapters enriched with `docId`, `status`, `sha256`, `mtime`, `dateModified`, and `sizeBytes`.
+  - `action=get_doc` (or `pull_doc`, `get_chapter`): Pulls raw document content, SHA-256 hash, lock status, comments, and talk discussions by `docId`, `shareKey`, `slug`, or `file`.
   - `action=set_status` (or `update_status`): Updates the lifecycle state of a document (`status: "draft" | "review" | "published" | "archived"`). Supports `approver`, `approverNote`, and `clean_source=true` (which strips draft watermarks, boundary comment blocks, and review dockets from disk upon publishing).
-  - `action=list_chapters` (or `get_chapters`): Lists all chapters within a given category (`bookId`) or across the entire wiki with full metadata.
   - `action=delete_chapter` (or `remove_chapter`): Moves the chapter node and file into `data/trash/` by default (`TrashManager`) for safe recovery. Pass `permanent=true` to permanently delete the file from disk and purge its revision history.
   - `action=resolve_share_key`: Resolves a 16-hex `shareKey` to the document's canonical slug, book, and web URLs.
-  - In-place updates: Pass `update=true` (or `overwrite=true`) and optional `slug` to update existing documents in place without breaking URLs or share keys.
+  - In-place updates & cross-category moves: Pass `docId`, `shareKey`, or `slug` (with `expectedSha256` optimistic concurrency checking) to update existing documents in place or relocate/rename them across categories without breaking share keys or losing form submissions.
+- **Interactive Form & Submission Actions**:
+  - `action=list_forms` (or `get_forms`): Lists all forms with `docId`, `sha256`, `fieldsCount`, `submissionsCount`, and `latestSubmissionAt`.
+  - `action=get_form_submissions` (or `export_form_csv`): Retrieves form schema and responses with optional `since_id`, `since`, `limit`, and `format=csv` (or `raw_csv=1`) export.
+  - `action=delete_form_submission` and `action=clear_form_submissions`: Delete an individual response by `id` or clear all responses for a form.
 - **Supported Formats**:
   - `type: "markdown"` (Default): Plain GitHub-Flavored Markdown.
   - `type: "html"`: Self-contained HTML documents (dossiers, reports). Automatically preserves `<style>`, `@media print`, `<meta>`, and SVG tags while sanitizing executable vectors.
+  - `type: "form"`: Interactive JSON form schemas (`.form.json`), automatically initializing and preserving companion `.submissions.json` response files.
 - **Response Payload**: The API returns a JSON response containing the document slug, file path, and an auto-generated cryptographic `shareKey` and `shareUrl`:
 ```json
 {

@@ -249,11 +249,13 @@ Standalone Qwiki enables multiple independent wikis to federate and transclude d
 
 ---
 
-## 🚀 19. Headless HTML & Markdown Publishing API, Category Management & Dual Auth
+## 🚀 19. Headless HTML, Markdown & Form Publishing API, Tree Sync & Dual Auth
 
-External automation pipelines, CI/CD runners, and AI agents can publish self-contained dossiers, reports, and guides directly into Qwiki without manual web UI interaction:
+External automation pipelines, CI/CD runners, and AI agents can publish self-contained dossiers, reports, interactive forms, and guides directly into Qwiki without manual web UI interaction:
 
-- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, and Markdown articles via `POST` requests authenticated with `HTTP_X_API_KEY` or active LLM access keys (`qwk_llm_...`).
+- **Headless Publishing Endpoint (`api/publish.php`)**: Programmatically publish self-contained HTML dossiers, grower guides, Markdown articles, and interactive JSON Forms (`type="form"`, `.form.json`) via `POST` requests authenticated with `HTTP_X_API_KEY` or active LLM access keys (`qwk_llm_...`).
+- **Recursive Tree Discovery & Immutable `docId` Move/Rename**: Query the full recursive category and chapter hierarchy (`action=get_tree`, `sync_tree`, `list_categories`, `list_chapters`) complete with `docId`, `sha256`, `mtime`, and `sizeBytes`. Pass `docId` when publishing or pulling (`action=get_doc`) to rename slugs or relocate documents across categories while automatically removing the old node from its previous category.
+- **Headless Form Submission Monitoring & CSV Export**: Monitor and manage interactive form responses remotely via `action=list_forms` (reporting `fieldsCount`, `submissionsCount`, and `latestSubmissionAt`), `action=get_form_submissions` (supporting incremental `since_id`, `since`, `limit`, and UTF-8 `format=csv` / `raw_csv` exports), `action=delete_form_submission`, and `action=clear_form_submissions`.
 - **Dynamic Category Provisioning & Management**: Dynamically create categories and nested sub-folders (`action=create_category`), update metadata idempotently, and list available categories (`action=list_categories`) directly through the API.
 - **HTML Sanitization & Style Preservation**: `Config::sanitizeHtml` safely preserves `<style>`, `@media print`, `<meta>`, SVG graphics, tables, and custom styling while stripping active executable vectors (`<script>`, inline event handlers, `javascript:`, `data:text/html`).
 - **Automated Cryptographic Share Key Generation**: Generates 16-character cryptographic tokens and returns working `shareUrl` and `shareKey` immediately upon document creation (across both `api/publish.php` and `assets/extensions/page-html/handler.php`), eliminating manual web UI interactions for external pipelines.
