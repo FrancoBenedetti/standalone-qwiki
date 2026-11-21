@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.25] - CompactFlow - 2026-11-21
+
+### 📱 Mobile & Narrow-Screen Header Layout Hardening
+- **Flexbox Overflow & Header Collision Fix (`assets/css/qwiki.css`)**: Added `flex: 1 1 0%; min-width: 0;` to `.brand-container` and `.brand-header-group`, `min-width: 0; flex-shrink: 1; overflow: hidden;` to `.brand-subwiki-badge`, `max-width: 100%;` to `.brand-wiki-selector` / `.brand-wiki-selector-toggle`, and `flex-shrink: 0;` to `.header-actions` and `.mobile-toggle` so the wiki badge truncates cleanly inside its pill and never spills over the right-side header action controls on narrow viewports (`360px` / `320px`).
+- **Compact Single-Row Mobile Controls (`index.php`, `assets/css/qwiki.css`, `assets/extensions/tool-language/style.css`)**: Wrapped the `#theme-toggle` text label in `.theme-btn-label` and hid it on `<= 640px` for icon-only (`🌙`) mobile display, scaled `.brand-logo img` height down to `28px` (`<= 640px`) and `24px` (`<= 420px`), tightened header paddings/gaps and `.qwiki-lang-select` widths, capped `#user-dropdown-toggle .doc-badge` width with ellipsis, and anchored `.brand-wiki-selector-menu` as a viewport-aligned fixed card (`left: 0.65rem; right: 0.65rem;`) on mobile screens.
+- **Subwiki Core Sync & Regression Tests (`docs/`, `tests/test_wiki_selector.js`)**: Cascaded v1.20.24–v1.20.25 core and extension updates to `docs/` and added responsive CSS/markup regression assertions in `tests/test_wiki_selector.js`.
+
 ## [1.20.24] - PolyglotFlow - 2026-11-21
 
 ### 📚 GitHub-Style Header Wiki Selector & Unified Wiki Name Badges

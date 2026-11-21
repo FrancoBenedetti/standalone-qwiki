@@ -10,6 +10,9 @@ use Qwiki\Core\LockManager;
 use Qwiki\Core\AuditLogger;
 use Qwiki\Core\Mailer;
 
+if (!class_exists('Qwiki\Core\Navigation') && file_exists(dirname(__DIR__, 3) . '/lib/Core/Navigation.php')) {
+    require_once dirname(__DIR__, 3) . '/lib/Core/Navigation.php';
+}
 if (!class_exists('Qwiki\Core\DocumentService') && file_exists(dirname(__DIR__, 3) . '/lib/Core/DocumentService.php')) {
     require_once dirname(__DIR__, 3) . '/lib/Core/DocumentService.php';
 }

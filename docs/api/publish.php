@@ -435,17 +435,37 @@ if ($action === 'create_category' || $action === 'add_book' || $action === 'upda
 
 if ($action === 'list_categories' || $action === 'get_books') {
     $categories = [];
-    foreach ($config['books'] ?? [] as $book) {
-        if (($book['type'] ?? '') === 'folder') {
-            $categories[] = [
-                'id' => $book['id'] ?? '',
-                'title' => $book['title'] ?? '',
-                'description' => $book['description'] ?? '',
-                'theme' => $book['theme'] ?? '',
-                'folder' => $book['folder'] ?? ('content/' . ($book['id'] ?? ''))
-            ];
+    $collectCats = function(array $nodes, ?string $parentId = null, ?string $parentFolder = null, int $depth = 0) use (&$collectCats, &$categories, $llmKeyRecord) {
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') === 'folder' || !empty($node['items'])) {
+                $catId = $node['id'] ?? '';
+                if ($catId === '') continue;
+                if ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all') {
+                    // Only include if matches or is inside scoped category
+                    if ($depth === 0 && strcasecmp((string)$llmKeyRecord['category'], (string)$catId) !== 0) {
+                        if (!empty($node['items']) && is_array($node['items'])) {
+                            $collectCats($node['items'], $catId, $node['folder'] ?? ('content/' . $catId), $depth + 1);
+                        }
+                        continue;
+                    }
+                }
+                $folder = $node['folder'] ?? (!empty($parentFolder) ? ($parentFolder . '/' . $catId) : ('content/' . $catId));
+                $categories[] = [
+                    'id' => $catId,
+                    'title' => $node['title'] ?? $catId,
+                    'description' => $node['description'] ?? '',
+                    'theme' => $node['theme'] ?? '',
+                    'parent' => $parentId,
+                    'depth' => $depth,
+                    'folder' => $folder
+                ];
+                if (!empty($node['items']) && is_array($node['items'])) {
+                    $collectCats($node['items'], $catId, $folder, $depth + 1);
+                }
+            }
         }
-    }
+    };
+    $collectCats($config['books'] ?? []);
     echo json_encode(['success' => true, 'categories' => $categories]);
     exit;
 }
@@ -559,29 +579,71 @@ if ($action === 'delete_chapter' || $action === 'delete_doc') {
     }
 }
 
-if ($action === 'list_chapters' || $action === 'get_chapters') {
+if ($action === 'list_chapters' || $action === 'get_chapters' || $action === 'get_tree' || $action === 'sync_tree') {
     $targetBookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
     $baseUrl = Config::getBaseUrl();
+    $baseDir = Config::getBaseDir();
     $chapters = [];
+    $categories = [];
 
-    $collectChapters = function($node, $catId) use (&$collectChapters, &$chapters, $targetBookId, $baseUrl) {
+    $collectTree = function($node, $catId, $parentId = null, $parentFolder = null, $depth = 0, $inScopedBranch = false) use (&$collectTree, &$chapters, &$categories, $targetBookId, $baseUrl, $baseDir, $llmKeyRecord) {
         $curCatId = $node['id'] ?? $catId;
+        $isScopedKey = ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all');
+        $nowInScoped = $inScopedBranch || !$isScopedKey || (strcasecmp((string)$llmKeyRecord['category'], (string)$curCatId) === 0);
+
+        $curFolder = $node['folder'] ?? (!empty($parentFolder) ? ($parentFolder . '/' . $curCatId) : ('content/' . $curCatId));
+        if ($nowInScoped && (empty($targetBookId) || $curCatId === $targetBookId)) {
+            if (!empty($curCatId) && (($node['type'] ?? '') === 'folder' || !empty($node['items']))) {
+                $categories[] = [
+                    'id' => $curCatId,
+                    'title' => $node['title'] ?? $curCatId,
+                    'description' => $node['description'] ?? '',
+                    'theme' => $node['theme'] ?? '',
+                    'parent' => $parentId,
+                    'depth' => $depth,
+                    'folder' => $curFolder
+                ];
+            }
+        }
+
         if (!empty($node['items']) && is_array($node['items'])) {
             foreach ($node['items'] as $item) {
                 if (isset($item['type']) && $item['type'] === 'folder') {
-                    $collectChapters($item, $item['id'] ?? $curCatId);
+                    $collectTree($item, $item['id'] ?? $curCatId, $curCatId, $curFolder, $depth + 1, $nowInScoped);
+                } elseif (($item['type'] ?? '') === 'link') {
+                    continue;
                 } else {
-                    if (empty($targetBookId) || $curCatId === $targetBookId) {
+                    if ($nowInScoped && (empty($targetBookId) || $curCatId === $targetBookId)) {
                         $sKey = $item['shareKey'] ?? '';
                         $slug = $item['slug'] ?? '';
+                        $relFile = $item['file'] ?? '';
+                        $absFile = !empty($relFile) ? Config::safePath($baseDir, $relFile) : null;
+                        $existsOnDisk = ($absFile && is_file($absFile));
+                        $sha256 = $existsOnDisk ? hash_file('sha256', $absFile) : '';
+                        $mtime = $existsOnDisk ? (filemtime($absFile) ?: 0) : 0;
+                        $sizeBytes = $existsOnDisk ? (filesize($absFile) ?: 0) : 0;
+                        $docType = strtolower($item['type'] ?? (
+                            preg_match('/\.form\.json$/i', $relFile) ? 'form' : (
+                                preg_match('/\.(html|htm)$/i', $relFile) ? 'html' : 'markdown'
+                            )
+                        ));
+
                         $chapters[] = [
+                            'docId' => $item['docId'] ?? '',
                             'bookId' => $curCatId,
                             'title' => $item['title'] ?? '',
                             'slug' => $slug,
-                            'type' => $item['type'] ?? 'markdown',
+                            'type' => $docType,
+                            'status' => $item['status'] ?? Navigation::DEFAULT_STATUS,
+                            'description' => $item['description'] ?? '',
                             'theme' => $item['theme'] ?? '',
-                            'file' => $item['file'] ?? '',
+                            'file' => $relFile,
                             'shareKey' => $sKey,
+                            'publicShareable' => !isset($item['publicShareable']) ? true : (bool)$item['publicShareable'],
+                            'sha256' => $sha256,
+                            'mtime' => $mtime,
+                            'dateModified' => $mtime ? date('c', $mtime) : '',
+                            'sizeBytes' => $sizeBytes,
                             'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
                             'url' => $baseUrl . urlencode($curCatId) . '/' . urlencode($slug)
                         ];
@@ -592,14 +654,17 @@ if ($action === 'list_chapters' || $action === 'get_chapters') {
     };
 
     foreach ($config['books'] ?? [] as $book) {
-        $collectChapters($book, $book['id'] ?? '');
+        $collectTree($book, $book['id'] ?? '', null, null, 0, false);
     }
 
     echo json_encode([
         'success' => true,
+        'siteTitle' => $config['title'] ?? 'Standalone Qwiki',
+        'siteTheme' => $config['theme'] ?? 'theme-default.css',
         'total' => count($chapters),
+        'categories' => $categories,
         'chapters' => $chapters
-    ]);
+    ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 }
 
@@ -640,6 +705,7 @@ if ($action === 'resolve_share_key' || $action === 'get_chapter_by_share_key' ||
 if ($action === 'get_doc' || $action === 'pull_doc' || $action === 'get_chapter') {
     $reqSlug = trim((string)($_POST['slug'] ?? $_GET['slug'] ?? ''));
     $reqShareKey = trim((string)($_POST['shareKey'] ?? $_GET['shareKey'] ?? ''));
+    $reqDocId = trim((string)($_POST['docId'] ?? $_GET['docId'] ?? ''));
     $reqBookId = trim((string)($_POST['bookId'] ?? $_GET['bookId'] ?? ''));
     $reqFile = trim((string)($_POST['file'] ?? $_GET['file'] ?? ''));
 
@@ -648,18 +714,21 @@ if ($action === 'get_doc' || $action === 'pull_doc' || $action === 'get_chapter'
     $rawIncTalk = $_POST['include_talk'] ?? $_GET['include_talk'] ?? '1';
     $includeTalk = !($rawIncTalk === '0' || $rawIncTalk === 'false' || $rawIncTalk === false);
 
-    if (empty($reqSlug) && empty($reqShareKey) && empty($reqFile)) {
+    if (empty($reqSlug) && empty($reqShareKey) && empty($reqDocId) && empty($reqFile)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'slug, shareKey, or file is required']);
+        echo json_encode(['success' => false, 'error' => 'slug, shareKey, docId, or file is required']);
         exit;
     }
 
     $matchedChapter = null;
     $matchedParent = null;
 
-    if (!empty($reqShareKey)) {
+    if (!empty($reqDocId)) {
+        $matchedChapter = Navigation::findChapterByDocId($config['books'] ?? [], $reqDocId, $matchedParent);
+    }
+    if ($matchedChapter === null && !empty($reqShareKey)) {
         $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $reqShareKey, $matchedParent);
-    } elseif (!empty($reqSlug)) {
+    } elseif ($matchedChapter === null && !empty($reqSlug)) {
         if (!empty($reqBookId)) {
             $findInBook = function(array $nodes, string $targetBookId, string $targetSlug, $inTargetBook = false, $curParent = null) use (&$findInBook) {
                 foreach ($nodes as $node) {
@@ -742,7 +811,11 @@ if ($action === 'get_doc' || $action === 'pull_doc' || $action === 'get_chapter'
     $sha256 = hash_file('sha256', $absFile);
     $mtime = filemtime($absFile) ?: time();
     $sizeBytes = filesize($absFile) ?: 0;
-    $docType = strtolower($matchedChapter['type'] ?? (preg_match('/\.(html|htm)$/i', $relFile) ? 'html' : 'markdown'));
+    $docType = strtolower($matchedChapter['type'] ?? (
+        preg_match('/\.form\.json$/i', $relFile) ? 'form' : (
+            preg_match('/\.(html|htm)$/i', $relFile) ? 'html' : 'markdown'
+        )
+    ));
 
     $lockStatus = LockManager::checkLock($relFile);
     $isProtected = Config::isChapterProtected($resolvedSlug, $config['books'] ?? [])
@@ -912,18 +985,378 @@ if ($action === 'set_status' || $action === 'update_status') {
     }
 }
 
+// Helper to resolve a form chapter from slug, docId, shareKey, or file
+$resolveFormChapter = function() use ($config, $llmKeyRecord) {
+    $reqSlug = trim((string)($_POST['slug'] ?? $_GET['slug'] ?? ''));
+    $reqDocId = trim((string)($_POST['docId'] ?? $_GET['docId'] ?? ''));
+    $reqShareKey = trim((string)($_POST['shareKey'] ?? $_GET['shareKey'] ?? ''));
+    $reqBookId = trim((string)($_POST['bookId'] ?? $_GET['bookId'] ?? ''));
+    $reqFile = trim((string)($_POST['file'] ?? $_GET['file'] ?? ''));
+
+    $matchedChapter = null;
+    $matchedParent = null;
+
+    if (!empty($reqDocId)) {
+        $matchedChapter = Navigation::findChapterByDocId($config['books'] ?? [], $reqDocId, $matchedParent);
+    }
+    if ($matchedChapter === null && !empty($reqShareKey)) {
+        $matchedChapter = Navigation::findChapterByShareKey($config['books'] ?? [], $reqShareKey, $matchedParent);
+    }
+    if ($matchedChapter === null && !empty($reqSlug)) {
+        $matchedChapter = Navigation::findChapterBySlug($config['books'] ?? [], $reqSlug, $matchedParent);
+    }
+    if ($matchedChapter === null && !empty($reqFile)) {
+        $findByFile = function(array $nodes, string $targetFile, $curParent = null) use (&$findByFile) {
+            foreach ($nodes as $node) {
+                $isFolder = (isset($node['type']) && $node['type'] === 'folder') || !empty($node['items']);
+                if ($isFolder) {
+                    if (!empty($node['items']) && is_array($node['items'])) {
+                        $res = $findByFile($node['items'], $targetFile, $node);
+                        if ($res !== null) return $res;
+                    }
+                } elseif (($node['file'] ?? '') === $targetFile) {
+                    return ['chapter' => $node, 'parent' => $curParent];
+                }
+            }
+            return null;
+        };
+        $fileMatch = $findByFile($config['books'] ?? [], $reqFile);
+        if ($fileMatch !== null) {
+            $matchedChapter = $fileMatch['chapter'];
+            $matchedParent = $fileMatch['parent'];
+        }
+    }
+
+    if ($matchedChapter === null) {
+        return ['error' => 'Form chapter not found', 'code' => 404];
+    }
+
+    $resolvedSlug = $matchedChapter['slug'] ?? '';
+    $resolvedBookId = (!empty($reqBookId) && $matchedParent && ($matchedParent['id'] ?? '') === $reqBookId)
+        ? $reqBookId
+        : (Navigation::findChapterParentId($config['books'] ?? [], $resolvedSlug) ?? ($matchedParent['id'] ?? ''));
+
+    if ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all') {
+        if (strcasecmp((string)$llmKeyRecord['category'], (string)$resolvedBookId) !== 0) {
+            return ['error' => 'API key is not authorized for this category', 'code' => 403];
+        }
+    }
+
+    $relFile = $matchedChapter['file'] ?? '';
+    $baseDir = Config::getBaseDir();
+    $absFile = !empty($relFile) ? Config::safePath($baseDir, $relFile) : null;
+    if (!$absFile || !is_file($absFile) || !preg_match('/\.form\.json$/i', $absFile)) {
+        return ['error' => 'Form schema file (.form.json) not found on disk', 'code' => 404];
+    }
+
+    $subFile = preg_replace('/\.form\.json$/i', '.submissions.json', $absFile);
+    return [
+        'chapter' => $matchedChapter,
+        'bookId' => $resolvedBookId,
+        'slug' => $resolvedSlug,
+        'relFile' => $relFile,
+        'absFile' => $absFile,
+        'subFile' => $subFile
+    ];
+};
+
+if ($action === 'list_forms' || $action === 'get_forms') {
+    $targetBookId = trim($_POST['bookId'] ?? $_GET['bookId'] ?? '');
+    $baseUrl = Config::getBaseUrl();
+    $baseDir = Config::getBaseDir();
+    $forms = [];
+
+    $collectForms = function($node, $catId, $inScopedBranch = false) use (&$collectForms, &$forms, $targetBookId, $baseUrl, $baseDir, $llmKeyRecord) {
+        $curCatId = $node['id'] ?? $catId;
+        $isScopedKey = ($llmKeyRecord !== null && !empty($llmKeyRecord['category']) && $llmKeyRecord['category'] !== 'all');
+        $nowInScoped = $inScopedBranch || !$isScopedKey || (strcasecmp((string)$llmKeyRecord['category'], (string)$curCatId) === 0);
+
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as $item) {
+                if (isset($item['type']) && $item['type'] === 'folder') {
+                    $collectForms($item, $item['id'] ?? $curCatId, $nowInScoped);
+                } else {
+                    $relFile = $item['file'] ?? '';
+                    $isForm = (($item['type'] ?? '') === 'form') || preg_match('/\.form\.json$/i', $relFile);
+                    if ($isForm && $nowInScoped && (empty($targetBookId) || $curCatId === $targetBookId)) {
+                        $absFile = !empty($relFile) ? Config::safePath($baseDir, $relFile) : null;
+                        $subCount = 0;
+                        $latestSubAt = null;
+                        $fieldsCount = 0;
+                        $sha256 = '';
+                        if ($absFile && is_file($absFile)) {
+                            $sha256 = hash_file('sha256', $absFile);
+                            $schema = json_decode((string)file_get_contents($absFile), true);
+                            if (is_array($schema) && isset($schema['fields']) && is_array($schema['fields'])) {
+                                $fieldsCount = count($schema['fields']);
+                            }
+                            $subFile = preg_replace('/\.form\.json$/i', '.submissions.json', $absFile);
+                            if ($subFile && is_file($subFile)) {
+                                $lines = file($subFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+                                if (is_array($lines)) {
+                                    $subCount = count($lines);
+                                    if ($subCount > 0) {
+                                        $lastEntry = json_decode($lines[$subCount - 1], true);
+                                        if (is_array($lastEntry)) {
+                                            $latestSubAt = $lastEntry['created_at'] ?? null;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        $sKey = $item['shareKey'] ?? '';
+                        $slug = $item['slug'] ?? '';
+                        $forms[] = [
+                            'docId' => $item['docId'] ?? '',
+                            'bookId' => $curCatId,
+                            'slug' => $slug,
+                            'title' => $item['title'] ?? '',
+                            'file' => $relFile,
+                            'status' => $item['status'] ?? Navigation::DEFAULT_STATUS,
+                            'shareKey' => $sKey,
+                            'sha256' => $sha256,
+                            'fieldsCount' => $fieldsCount,
+                            'submissionsCount' => $subCount,
+                            'latestSubmissionAt' => $latestSubAt,
+                            'shareUrl' => !empty($sKey) ? ($baseUrl . '?share=' . urlencode($sKey)) : '',
+                            'url' => $baseUrl . urlencode($curCatId) . '/' . urlencode($slug)
+                        ];
+                    }
+                }
+            }
+        }
+    };
+
+    foreach ($config['books'] ?? [] as $book) {
+        $collectForms($book, $book['id'] ?? '', false);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'total' => count($forms),
+        'forms' => $forms
+    ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
+}
+
+if ($action === 'get_form_submissions' || $action === 'ext_form_get_submissions' || $action === 'export_form_csv' || $action === 'ext_form_export_csv') {
+    $resolved = $resolveFormChapter();
+    if (isset($resolved['error'])) {
+        http_response_code($resolved['code'] ?? 404);
+        echo json_encode(['success' => false, 'error' => $resolved['error']]);
+        exit;
+    }
+
+    $absFile = $resolved['absFile'];
+    $subFile = $resolved['subFile'];
+    $schema = json_decode((string)file_get_contents($absFile), true);
+    if (!is_array($schema)) {
+        $schema = [];
+    }
+
+    $since = trim((string)($_POST['since'] ?? $_GET['since'] ?? ''));
+    $sinceId = trim((string)($_POST['since_id'] ?? $_POST['sinceId'] ?? $_GET['since_id'] ?? $_GET['sinceId'] ?? ''));
+    $limit = isset($_POST['limit']) ? (int)$_POST['limit'] : (isset($_GET['limit']) ? (int)$_GET['limit'] : 0);
+    $format = strtolower(trim((string)($_POST['format'] ?? $_GET['format'] ?? 'json')));
+    if ($action === 'export_form_csv' || $action === 'ext_form_export_csv') {
+        $format = 'csv';
+    }
+
+    $allItems = [];
+    if ($subFile && is_file($subFile)) {
+        $lines = file($subFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                $entry = json_decode($line, true);
+                if (is_array($entry)) {
+                    $allItems[] = $entry;
+                }
+            }
+        }
+    }
+
+    $filtered = $allItems;
+    if ($sinceId !== '') {
+        $afterIdx = null;
+        foreach ($filtered as $idx => $item) {
+            if (($item['id'] ?? '') === $sinceId) {
+                $afterIdx = $idx;
+                break;
+            }
+        }
+        if ($afterIdx !== null) {
+            $filtered = array_slice($filtered, $afterIdx + 1);
+        }
+    }
+    if ($since !== '') {
+        $sinceTs = strtotime($since);
+        if ($sinceTs !== false) {
+            $filtered = array_values(array_filter($filtered, function($item) use ($sinceTs) {
+                $itemTs = !empty($item['created_at']) ? strtotime($item['created_at']) : false;
+                return $itemTs !== false && $itemTs >= $sinceTs;
+            }));
+        }
+    }
+
+    if ($limit > 0 && count($filtered) > $limit) {
+        $filtered = array_slice($filtered, -$limit);
+    }
+
+    if ($format === 'csv') {
+        $fields = $schema['fields'] ?? [];
+        $headers = ['Submission ID', 'Date / Time', 'Submitted By', 'IP Hash'];
+        $fieldMap = [];
+        foreach ($fields as $f) {
+            $fId = $f['id'] ?? '';
+            $fLabel = $f['label'] ?? $fId;
+            $headers[] = $fLabel;
+            $fieldMap[] = $fId;
+        }
+        $fp = fopen('php://temp', 'r+');
+        fprintf($fp, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($fp, $headers);
+        foreach ($filtered as $entry) {
+            $row = [
+                $entry['id'] ?? '',
+                $entry['created_at'] ?? '',
+                $entry['submitted_by'] ?? '',
+                $entry['ip_hash'] ?? ''
+            ];
+            $entryData = $entry['data'] ?? [];
+            foreach ($fieldMap as $fId) {
+                $val = $entryData[$fId] ?? '';
+                $row[] = is_array($val) ? implode(', ', $val) : (string)$val;
+            }
+            fputcsv($fp, $row);
+        }
+        rewind($fp);
+        $csvContent = stream_get_contents($fp);
+        fclose($fp);
+
+        $rawCsv = !empty($_POST['raw_csv']) || !empty($_GET['raw_csv']) || $action === 'export_form_csv' || $action === 'ext_form_export_csv';
+        if ($rawCsv) {
+            if (!headers_sent()) {
+                header('Content-Type: text/csv; charset=UTF-8');
+                header('Content-Disposition: attachment; filename="' . $resolved['slug'] . '-submissions-' . date('Y-m-d') . '.csv"');
+            }
+            echo $csvContent;
+            exit;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'slug' => $resolved['slug'],
+            'bookId' => $resolved['bookId'],
+            'total' => count($allItems),
+            'returned' => count($filtered),
+            'csv' => $csvContent
+        ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'docId' => $resolved['chapter']['docId'] ?? '',
+        'bookId' => $resolved['bookId'],
+        'slug' => $resolved['slug'],
+        'title' => $resolved['chapter']['title'] ?? ($schema['title'] ?? ''),
+        'file' => $resolved['relFile'],
+        'schema' => $schema,
+        'total' => count($allItems),
+        'returned' => count($filtered),
+        'submissions' => array_reverse($filtered)
+    ], JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
+}
+
+if ($action === 'delete_form_submission' || $action === 'ext_form_delete_submission') {
+    $resolved = $resolveFormChapter();
+    if (isset($resolved['error'])) {
+        http_response_code($resolved['code'] ?? 404);
+        echo json_encode(['success' => false, 'error' => $resolved['error']]);
+        exit;
+    }
+
+    $subId = trim((string)($_POST['id'] ?? $_POST['submissionId'] ?? $_GET['id'] ?? ''));
+    if ($subId === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Submission id is required']);
+        exit;
+    }
+
+    $subFile = $resolved['subFile'];
+    if (!$subFile || !is_file($subFile)) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'No submissions found']);
+        exit;
+    }
+
+    $lines = file($subFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $kept = [];
+    $deleted = false;
+    if (is_array($lines)) {
+        foreach ($lines as $line) {
+            $entry = json_decode($line, true);
+            if (is_array($entry) && ($entry['id'] ?? '') === $subId) {
+                $deleted = true;
+                continue;
+            }
+            $kept[] = $line;
+        }
+    }
+
+    if (!$deleted) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => "Submission '{$subId}' not found"]);
+        exit;
+    }
+
+    $newContent = count($kept) > 0 ? implode("\n", $kept) . "\n" : '';
+    file_put_contents($subFile, $newContent, LOCK_EX);
+
+    echo json_encode([
+        'success' => true,
+        'deleted' => true,
+        'id' => $subId,
+        'remaining' => count($kept)
+    ]);
+    exit;
+}
+
+if ($action === 'clear_form_submissions' || $action === 'ext_form_clear_submissions') {
+    $resolved = $resolveFormChapter();
+    if (isset($resolved['error'])) {
+        http_response_code($resolved['code'] ?? 404);
+        echo json_encode(['success' => false, 'error' => $resolved['error']]);
+        exit;
+    }
+
+    $subFile = $resolved['subFile'];
+    if ($subFile && is_file($subFile)) {
+        file_put_contents($subFile, '', LOCK_EX);
+    }
+
+    echo json_encode([
+        'success' => true,
+        'cleared' => true,
+        'slug' => $resolved['slug']
+    ]);
+    exit;
+}
+
 // 3. Extract and Validate Document Inputs
 $bookId = trim($_POST['bookId'] ?? '');
 $title = trim($_POST['title'] ?? '');
 $content = $_POST['content'] ?? '';
 $type = strtolower(trim($_POST['type'] ?? 'markdown'));
-if (!in_array($type, ['markdown', 'html'], true)) {
+if (!in_array($type, ['markdown', 'html', 'form'], true)) {
     $type = 'markdown';
 }
 
 $ogTitle = trim($_POST['ogTitle'] ?? ($_POST['og_title'] ?? ''));
 $description = trim($_POST['description'] ?? '');
 $providedShareKey = trim($_POST['shareKey'] ?? '');
+$providedDocId = trim($_POST['docId'] ?? ($_POST['doc_id'] ?? ''));
 $hasThemeParam = isset($_POST['theme']);
 $providedTheme = $hasThemeParam ? validate_theme_filename($_POST['theme']) : '';
 if ($providedTheme === false) {
@@ -1033,7 +1466,7 @@ if (empty($baseSlug)) {
     $baseSlug = 'doc-' . time();
 }
 
-$ext = ($type === 'html') ? '.html' : '.md';
+$ext = ($type === 'form') ? '.form.json' : (($type === 'html') ? '.html' : '.md');
 
 // Helper to find an existing chapter with this slug in target category
 $findExistingChapterInFolder = function($node, $targetFolderId, $targetSlug) use (&$findExistingChapterInFolder) {
@@ -1059,15 +1492,27 @@ $findExistingChapterInFolder = function($node, $targetFolderId, $targetSlug) use
 };
 
 $existingChapter = null;
-if (!empty($providedShareKey)) {
+$existingParentId = null;
+
+if (!empty($providedDocId)) {
+    $parentOfDoc = null;
+    $chapterByDocId = Navigation::findChapterByDocId($config['books'] ?? [], $providedDocId, $parentOfDoc);
+    if ($chapterByDocId !== null) {
+        $existingChapter = $chapterByDocId;
+        $existingParentId = $parentOfDoc['id'] ?? null;
+    }
+}
+
+if ($existingChapter === null && !empty($providedShareKey)) {
     $parentOfShare = null;
     $chapterByShare = Navigation::findChapterByShareKey($config['books'] ?? [], $providedShareKey, $parentOfShare);
     if ($chapterByShare !== null) {
         $existingChapter = $chapterByShare;
+        $existingParentId = $parentOfShare['id'] ?? null;
         if (empty($providedSlug) || $providedSlug === ($chapterByShare['slug'] ?? '')) {
             $baseSlug = $chapterByShare['slug'] ?? $baseSlug;
         }
-        if (!empty($parentOfShare['id']) && $parentOfShare['id'] !== $targetNodeId) {
+        if (empty($_POST['bookId']) && !empty($parentOfShare['id']) && $parentOfShare['id'] !== $targetNodeId) {
             $targetNodeId = $parentOfShare['id'];
             foreach ($config['books'] as $b) {
                 $resolvedShareFolder = find_target_folder($b, $targetNodeId);
@@ -1090,7 +1535,10 @@ if (!empty($providedShareKey)) {
 if ($existingChapter === null) {
     foreach ($config['books'] as $b) {
         $existingChapter = $findExistingChapterInFolder($b, $targetNodeId, $baseSlug);
-        if ($existingChapter !== null) break;
+        if ($existingChapter !== null) {
+            $existingParentId = $targetNodeId;
+            break;
+        }
     }
 }
 
@@ -1150,6 +1598,20 @@ if ($type === 'html') {
 
     $sanitizedContent = Config::ensureHtmlBaseHref($sanitizedContent, $targetRelFile);
     $sanitizedContent = DocumentService::applyHtmlStatusToContent($sanitizedContent, $docStatus, $cleanOnPublish);
+} elseif ($type === 'form') {
+    $parsedSchema = json_decode((string)$content, true);
+    if (!is_array($parsedSchema) || !isset($parsedSchema['fields']) || !is_array($parsedSchema['fields'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Invalid form schema JSON: must be a JSON object with a "fields" array']);
+        exit;
+    }
+    if (!empty($title) && empty($parsedSchema['title'])) {
+        $parsedSchema['title'] = $title;
+    }
+    if (empty($description) && !empty($parsedSchema['description'])) {
+        $description = trim((string)$parsedSchema['description']);
+    }
+    $sanitizedContent = json_encode($parsedSchema, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 } else {
     $sanitizedContent = sanitize_markdown($content);
 }
@@ -1224,6 +1686,19 @@ if (empty($writeRes['success'])) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Failed to write document file to disk']);
     exit;
+}
+
+if ($type === 'form') {
+    $targetSubFile = preg_replace('/\.form\.json$/i', '.submissions.json', $targetAbsFile);
+    if ($oldAbsFile && $oldAbsFile !== $targetAbsFile && preg_match('/\.form\.json$/i', $oldAbsFile)) {
+        $oldSubFile = preg_replace('/\.form\.json$/i', '.submissions.json', $oldAbsFile);
+        if ($oldSubFile && $targetSubFile && is_file($oldSubFile) && !is_file($targetSubFile)) {
+            @rename($oldSubFile, $targetSubFile);
+        }
+    }
+    if ($targetSubFile && !file_exists($targetSubFile)) {
+        @file_put_contents($targetSubFile, '', LOCK_EX);
+    }
 }
 
 // 7. Auto-Generate Share Key with Collision Check
@@ -1307,7 +1782,39 @@ if (!empty($_POST['translations'])) {
 }
 
 // 9. Insert or Update Chapter Node and Atomic Save
-$isUpdated = false;
+if ($existingChapter !== null && $existingParentId !== null && $existingParentId !== $targetNodeId) {
+    $removeOldByDocIdOrSlug = function(&$node, $targetFolderId, $targetDocId, $targetSlug) use (&$removeOldByDocIdOrSlug) {
+        if (($node['id'] ?? '') === $targetFolderId && !empty($node['items']) && is_array($node['items'])) {
+            $filtered = [];
+            foreach ($node['items'] as $it) {
+                $isFolder = (isset($it['type']) && $it['type'] === 'folder');
+                if (!$isFolder && ((!empty($targetDocId) && ($it['docId'] ?? '') === $targetDocId) || ($it['slug'] ?? '') === $targetSlug)) {
+                    continue;
+                }
+                $filtered[] = $it;
+            }
+            $node['items'] = $filtered;
+            return true;
+        }
+        if (!empty($node['items']) && is_array($node['items'])) {
+            foreach ($node['items'] as &$child) {
+                if (isset($child['type']) && $child['type'] === 'folder') {
+                    if ($removeOldByDocIdOrSlug($child, $targetFolderId, $targetDocId, $targetSlug)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
+    foreach ($config['books'] as &$book) {
+        if ($removeOldByDocIdOrSlug($book, $existingParentId, $docId, $existingChapter['slug'] ?? '')) {
+            break;
+        }
+    }
+}
+
+$isUpdated = ($existingChapter !== null);
 $saved = false;
 foreach ($config['books'] as &$book) {
     if (upsert_chapter_into_node($book, $targetNodeId, $chapterData, $isUpdated)) {
