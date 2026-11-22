@@ -231,6 +231,30 @@ try {
 
     echo "PASS\n";
 
+    // ----------------------------------------------------
+    // 7. Symlinked Doc-Mirror Path Validation (Config::safePath)
+    // ----------------------------------------------------
+    echo "7. Testing Config::safePath() on Symlinked Doc-Mirror Subwiki: ";
+
+    $symlinkSync = SubwikiManager::syncDocumentation($testSlug, 'symlink', true);
+    assert($symlinkSync['success'] === true, "Symlink sync must succeed");
+    if (($symlinkSync['mode'] ?? '') === 'symlink') {
+        $resolvedHtml = Config::safePath($testDir, 'content/getting-started/interactive-dashboard.html');
+        assert($resolvedHtml !== false && file_exists($resolvedHtml), "safePath must resolve HTML file through doc-mirror symlink");
+
+        $resolvedForm = Config::safePath($testDir, 'content/getting-started/feedback-survey.form.json');
+        assert($resolvedForm !== false && file_exists($resolvedForm), "safePath must resolve form schema through doc-mirror symlink");
+
+        $resolvedNew = Config::safePath($testDir, 'content/getting-started/nonexistent-test-artifact.json');
+        assert($resolvedNew !== false, "safePath must resolve non-existent target inside symlinked content dir");
+
+        assert(Config::safePath($testDir, 'content/../../qwiki.json') === false, "safePath must block traversal out of symlinked content");
+        assert(Config::safePath($testDir, 'content/../qwiki-default.json') === false, "safePath must block traversal to demo-data root");
+        assert(Config::safePath($testDir, '../qwiki.json') === false, "safePath must block traversal out of subwiki root");
+    }
+
+    echo "PASS\n";
+
 } finally {
     // Clean up test subwiki
     cleanupTestDir($testDir);

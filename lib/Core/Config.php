@@ -302,27 +302,54 @@ class Config {
         return trim($slug, '-');
     }
 
+    /**
+     * Resolves a relative path within $baseDir while preventing directory traversal.
+     * For documentation-mirror subwikis whose `content` directory is symlinked to the
+     * parent `demo-data/content` directory, paths under `content/` are also permitted
+     * within that canonical target.
+     */
     public static function safePath($baseDir, $subPath) {
         $realBase = realpath($baseDir);
         if ($realBase === false) return false;
-        
-        $combined = $realBase . '/' . ltrim($subPath, '/\\');
+
+        $isWithinRoot = static function (string $path, string $root): bool {
+            return $path === $root || strpos($path, $root . DIRECTORY_SEPARATOR) === 0;
+        };
+
+        $allowedRoots = [$realBase];
+        $normalizedSub = ltrim(str_replace('\\', '/', (string)$subPath), '/');
+        if (($normalizedSub === 'content' || strpos($normalizedSub, 'content/') === 0) && is_link($realBase . '/content')) {
+            $contentReal = realpath($realBase . '/content');
+            $canonicalDemoContent = realpath(dirname($realBase) . '/demo-data/content');
+            if ($contentReal !== false && $canonicalDemoContent !== false && $contentReal === $canonicalDemoContent) {
+                $allowedRoots[] = $contentReal;
+            }
+        }
+
+        $combined = $realBase . '/' . $normalizedSub;
         $realTarget = realpath($combined);
-        
+
         // If file doesn't exist yet, check directory part
         if ($realTarget === false) {
             $dirPart = dirname($combined);
             $realDir = realpath($dirPart);
-            if ($realDir === false || strpos($realDir, $realBase) !== 0) {
+            if ($realDir === false) {
                 return false;
             }
-            return $combined;
-        }
-
-        if (strpos($realTarget, $realBase) !== 0) {
+            foreach ($allowedRoots as $root) {
+                if ($isWithinRoot($realDir, $root)) {
+                    return $realDir . DIRECTORY_SEPARATOR . basename($combined);
+                }
+            }
             return false;
         }
-        return $realTarget;
+
+        foreach ($allowedRoots as $root) {
+            if ($isWithinRoot($realTarget, $root)) {
+                return $realTarget;
+            }
+        }
+        return false;
     }
 
     public static function copyDir($src, $dst) {
