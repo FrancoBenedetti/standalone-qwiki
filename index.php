@@ -1110,12 +1110,6 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                             <button class="btn btn-outline btn-sm" id="btn-print-chapter" title="<?= htmlspecialchars(__('doc.print_pdf', 'Print or Download as PDF')) ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                             </button>
-                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="<?= htmlspecialchars(__('doc.toggle_toc_title', 'Toggle Table of Contents (])')) ?>" aria-label="<?= htmlspecialchars(__('doc.toggle_toc_aria', 'Toggle Table of Contents')) ?>">
-                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                    <line x1="15" y1="3" x2="15" y2="21"></line>
-                                </svg>
-                            </button>
                             <?php
                             $chapterShareKey = $activeChapter['shareKey'] ?? '';
                             $chapterShareUrl = !empty($chapterShareKey) ? ($baseUrl . '?share=' . urlencode($chapterShareKey)) : '';
@@ -1190,6 +1184,12 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                                 </button>
                             <?php endif; ?>
+                            <button type="button" class="btn btn-outline btn-sm toc-collapse-btn" id="btn-toggle-right-toc" title="<?= htmlspecialchars(__('doc.toggle_toc_title', 'Toggle Table of Contents (])')) ?>" aria-label="<?= htmlspecialchars(__('doc.toggle_toc_aria', 'Toggle Table of Contents')) ?>">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="15" y1="3" x2="15" y2="21"></line>
+                                </svg>
+                            </button>
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                         <div id="edit-actions" style="display: none; gap: 0.75rem; align-items: center;">
