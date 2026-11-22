@@ -182,6 +182,58 @@ class AuditLogger {
     }
 
     /**
+     * Resolve a user's configured email address from Config (if any).
+     */
+    public static function resolveUserEmail(string $username): ?string {
+        if ($username === '' || $username === 'guest' || $username === 'unknown') {
+            return null;
+        }
+        $config = Config::load();
+        foreach (($config['users'] ?? []) as $u) {
+            if (!empty($u['username']) && strcasecmp($u['username'], $username) === 0) {
+                return !empty($u['email']) ? (string)$u['email'] : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Helper for logging direct/authenticated document reads
+     *
+     * @param array $chapter Active chapter record
+     * @param string $format 'html'|'raw'
+     * @param string|null $username Acting user or null for auto-session resolution
+     */
+    public static function logDocAccess(array $chapter, string $format = 'html', ?string $username = null): bool {
+        if ($username === null) {
+            if (Auth::isLoggedIn()) {
+                $u = Auth::getCurrentUser();
+                $username = $u['username'] ?? 'unknown';
+            } else {
+                $username = 'guest';
+            }
+        }
+
+        $userEmail = self::resolveUserEmail($username);
+
+        $details = [
+            'docId'      => $chapter['docId'] ?? '',
+            'slug'       => $chapter['slug'] ?? '',
+            'title'      => $chapter['title'] ?? '',
+            'file'       => $chapter['file'] ?? '',
+            'type'       => $chapter['type'] ?? 'markdown',
+            'format'     => $format,
+            'user_agent' => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255)
+        ];
+
+        if ($userEmail !== null) {
+            $details['user_email'] = $userEmail;
+        }
+
+        return self::log('content', 'doc_read', 200, $details, $username);
+    }
+
+    /**
      * Helper for logging authentication events
      */
     public static function logAuth(string $event, int $status = 200, array $details = [], ?string $username = null): bool {
@@ -286,7 +338,7 @@ class AuditLogger {
                     elseif (stripos($record['ip'] ?? '', $searchTerm) !== false) $found = true;
                     elseif (stripos($record['event'] ?? '', $searchTerm) !== false) $found = true;
                     elseif (!empty($record['details']) && is_array($record['details'])) {
-                        foreach (['slug', 'title', 'file', 'share_key', 'referrer'] as $f) {
+                        foreach (['docId', 'slug', 'title', 'file', 'share_key', 'referrer', 'user_email'] as $f) {
                             if (!empty($record['details'][$f]) && stripos((string)$record['details'][$f], $searchTerm) !== false) {
                                 $found = true;
                                 break;

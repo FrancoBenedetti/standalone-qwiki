@@ -433,6 +433,9 @@ if (($_GET['view'] ?? '') === 'raw' || !empty($_GET['raw'])) {
         echo "<!DOCTYPE html><html><head><title>Document Not Found</title></head><body><h1>404 Not Found</h1><p>Document not found.</p></body></html>";
         exit;
     }
+    if (!$isShareMode && ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '') !== 'iframe') {
+        AuditLogger::logDocAccess($activeChapter, 'raw');
+    }
     DocumentService::streamDocumentRaw($activeChapter, $baseDir, $baseUrl);
 }
 
@@ -484,6 +487,9 @@ if (!$isShareMode && !$shareError) {
 $renderedContent = '';
 $rawMarkdownContent = '';
 if ($activeChapter && !$shareError) {
+    if (!$isShareMode && $canViewContent && empty($isAccessRestricted)) {
+        AuditLogger::logDocAccess($activeChapter, 'html');
+    }
     $renderedContent = $extManager->renderPage($activeChapter, $activeBook, $config);
     if (($activeChapter['type'] ?? 'markdown') === 'markdown') {
         $filePath = $baseDir . '/' . ($activeChapter['file'] ?? '');

@@ -248,6 +248,7 @@ function initActivityLogExtension() {
 
             // Actor & IP
             const user = item.user || 'guest';
+            const userEmail = details.user_email ? String(details.user_email) : '';
             const ip = item.ip || '—';
             const ipType = item.ip_type ? `(${escapeHtml(item.ip_type)})` : '';
 
@@ -273,6 +274,7 @@ function initActivityLogExtension() {
                     <td>
                         <div class="act-actor-box">
                             <span class="act-actor-user">${escapeHtml(user)}</span>
+                            ${userEmail ? `<span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(userEmail)}</span>` : ''}
                             <span class="act-actor-ip" title="${escapeHtml(ip)} ${ipType}">${escapeHtml(ip)}</span>
                         </div>
                     </td>

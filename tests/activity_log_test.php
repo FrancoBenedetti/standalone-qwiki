@@ -74,6 +74,21 @@ assertTest("AuditLogger::logAuth records failed login", $logAuthRes === true);
 $logMutationRes = AuditLogger::logMutation('doc_saved', 200, ['file' => 'content/test/test.md', 'size_bytes' => 1234], 'admin');
 assertTest("AuditLogger::logMutation records document mutation", $logMutationRes === true);
 
+$testDocId = 'doc_' . bin2hex(random_bytes(4));
+$logDocReadRes = AuditLogger::logDocAccess([
+    'docId' => $testDocId,
+    'slug'  => 'test-read-doc',
+    'title' => 'Test Read Document',
+    'file'  => 'content/test/test-read-doc.md',
+    'type'  => 'markdown'
+], 'html', 'admin');
+assertTest("AuditLogger::logDocAccess returns true on success", $logDocReadRes === true);
+
+$queryDocRead = AuditLogger::queryLogs(['event' => 'doc_read', 'search' => $testDocId], 1, 10);
+assertTest("AuditLogger::queryLogs finds doc_read by docId", $queryDocRead['total'] >= 1);
+assertTest("doc_read records acting user", ($queryDocRead['items'][0]['user'] ?? '') === 'admin');
+assertTest("doc_read records format=html", ($queryDocRead['items'][0]['details']['format'] ?? '') === 'html');
+
 // 6. Test Querying Logs
 $queryAll = AuditLogger::queryLogs([], 1, 50);
 assertTest("AuditLogger::queryLogs returns items array", isset($queryAll['items']) && is_array($queryAll['items']));
