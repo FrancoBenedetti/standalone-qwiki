@@ -206,6 +206,34 @@ window.QwikiApp.modals = (function() {
         }
       });
     }
+
+    // Move wiki title / switcher between header (desktop) and sub-header strip (mobile)
+    const brandHeaderGroup = document.querySelector('.brand-header-group');
+    const mobileWikiContextBar = document.getElementById('mobile-wiki-context-bar');
+    const wikiContextEl = brandHeaderGroup
+      ? brandHeaderGroup.querySelector(':scope > .brand-wiki-selector, :scope > .brand-subwiki-badge')
+      : null;
+
+    if (brandHeaderGroup && mobileWikiContextBar && wikiContextEl) {
+      const mobileHeaderMq = window.matchMedia('(max-width: 640px)');
+      const syncWikiContextPlacement = (isMobile) => {
+        if (wikiSelectorMenu && wikiSelectorMenu.classList.contains('show')) {
+          wikiSelectorMenu.classList.remove('show');
+          if (wikiSelectorToggle) wikiSelectorToggle.setAttribute('aria-expanded', 'false');
+        }
+        const target = isMobile ? mobileWikiContextBar : brandHeaderGroup;
+        if (wikiContextEl.parentElement !== target) {
+          target.appendChild(wikiContextEl);
+        }
+      };
+
+      syncWikiContextPlacement(mobileHeaderMq.matches);
+      if (typeof mobileHeaderMq.addEventListener === 'function') {
+        mobileHeaderMq.addEventListener('change', (e) => syncWikiContextPlacement(e.matches));
+      } else if (typeof mobileHeaderMq.addListener === 'function') {
+        mobileHeaderMq.addListener((e) => syncWikiContextPlacement(e.matches));
+      }
+    }
   }
 
   return {

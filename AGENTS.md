@@ -11,11 +11,14 @@ Before bumping a version, tagging, and pushing a new release to the repository:
    - Do NOT add ad-hoc test pages, scratch scripts, or internal testing files (e.g. `test.html`, `payment-guide.html`, `pitch-deck.html`, `malicious-test*`) into `demo-data/` or `demo-data/qwiki-default.json`. Demo data must remain clean, professional, and directly relevant to Standalone Qwiki.
 3. **Align Default Configuration**:
    - Keep `demo-data/qwiki-default.json` aligned with the standard navigation tree, valid document types, and latest configuration keys (`feedAccessToken`, `feedItemCount`, etc.).
-4. **Version Bump & Release Sequence**:
+4. **Verify UI Localization & Language Packs**:
+   - Audit all UI changes (PHP `__()`, JS `t()`, and extension `manifest.json` titles/descriptions) to ensure every new or updated UI string has appropriate language entries across all language options in `assets/extensions/tool-language/locales/` (configured in `assets/extensions/tool-language/locales.json`).
+   - Run `php bin/check-i18n.php`, `php tests/test_language_i18n.php`, and `node tests/test_language_i18n.js` to verify key parity across all locale packs.
+5. **Version Bump & Release Sequence**:
    - Update `VERSION` in `lib/Core/Config.php`.
    - Update `CHANGELOG.md` with release version, date, and categorized change summary.
    - Update `README.md` if any new major features or system requirements were introduced.
-   - Verify all test suites pass (`node tests/test_video_embed.js && php tests/lock_test.php && php tests/lock_integration_test.php`).
+   - Verify all test suites pass (`node tests/test_video_embed.js && php tests/lock_test.php && php tests/lock_integration_test.php && php bin/check-i18n.php && php tests/test_language_i18n.php && node tests/test_language_i18n.js`).
    - Commit changes, create an annotated git tag (`vX.Y.Z`), and push both `main` and the new tag to the remote repository.
 
 ---

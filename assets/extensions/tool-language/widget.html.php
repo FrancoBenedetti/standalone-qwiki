@@ -12,6 +12,8 @@ $ariaLabel = __('lang.select_label', 'Select interface language');
 ?>
 <div class="qwiki-lang-wrap" data-context="<?= htmlspecialchars($ctx) ?>">
     <span class="qwiki-lang-icon" aria-hidden="true">🌐</span>
+    <span class="qwiki-lang-short" aria-hidden="true"><?= htmlspecialchars(strtoupper((string)$activeLang)) ?></span>
+    <span class="qwiki-lang-caret" aria-hidden="true">▾</span>
     <select
         id="<?= htmlspecialchars($selectId) ?>"
         class="qwiki-lang-select"

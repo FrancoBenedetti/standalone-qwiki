@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.26] - CanvasFlow - 2026-11-22
+
+### ✍️ Fullscreen Markdown Editor Mode
+- **Distraction-Free Fullscreen Editing (`index.php`, `assets/js/app.js`, `assets/css/qwiki.css`)**: Added a **Fullscreen** toggle button (`#btn-editor-fullscreen`) in the edit action bar and a matching fullscreen button in the Toast UI Editor toolbar, complete with `F11` toggle and `Esc` exit shortcuts and dynamic viewport height syncing (`syncFullscreenEditorHeight()`).
+
+### 📊 Mermaid Diagram Fit-to-Screen & Viewport
+- **Auto-Fit & Interactive Diagram Viewport (`assets/js/app.js`, `assets/css/qwiki.css`)**: Wrapped rendered `.mermaid` SVGs in a scrollable viewport that automatically computes an initial fit-to-screen scale when diagrams exceed available container dimensions, and added a **Fit** toolbar button (`js.diagram_fit` / `js.diagram_fit_title`) alongside zoom, reset, expand, and SVG download controls.
+
+### 📱 Mobile Header & Language Widget Refinements
+- **Responsive Mobile Wiki Context Strip (`index.php`, `assets/js/core/modals.js`, `assets/css/qwiki.css`)**: Added `#mobile-wiki-context-bar` below the header on narrow viewports (`<= 640px`) and automatically relocated `.brand-wiki-selector` / `.brand-subwiki-badge` into it so the primary header remains clean on small screens.
+- **Compact Mobile Login & Language Selector (`index.php`, `assets/extensions/tool-language/widget.html.php`, `assets/extensions/tool-language/style.css`)**: Added an icon + `.login-btn-label` structure to `#btn-login` for compact mobile rendering, and added a short language badge (`.qwiki-lang-short`) and caret (`.qwiki-lang-caret`) to the `tool-language` header widget.
+
+### 🌐 Localization & Release Workflow
+- **Afrikaans & Italian Locale Parity (`assets/extensions/tool-language/locales/af.json`, `assets/extensions/tool-language/locales/it.json`)**: Added Afrikaans (`af`) and Italian (`it`) translations for all new fullscreen editor and diagram fit-to-screen UI keys.
+- **Automated Tests & Release Guidelines (`tests/test_editor_fullscreen.js`, `tests/test_mermaid_toolbar.js`, `AGENTS.md`)**: Added regression tests for fullscreen editor toggling and Mermaid toolbar controls, and added mandatory pre-release i18n parity checks to `AGENTS.md`.
+
 ## [1.20.25] - CompactFlow - 2026-11-21
 
 ### 📱 Mobile & Narrow-Screen Header Layout Hardening

@@ -198,6 +198,8 @@
         "doc.toggle_sidebar_title": "Wissel Navigasiekantbalk ([)",
         "doc.toggle_toc_aria": "Wissel Inhoudsopgawe",
         "doc.toggle_toc_title": "Wissel Inhoudsopgawe (])",
+        "editor.fullscreen": "Wissel Volskerm (F11)",
+        "editor.fullscreen_label": "Volskerm",
         "editor.gallery_title": "Blaai en kies beelde uit galery",
         "editor.image_gallery": "Beeldgalery",
         "editor.save_changes": "Stoor Veranderinge",
@@ -780,6 +782,10 @@
         "visibility.public": "Publiek (Almal)"
     },
     "js": {
+        "editor.exit_fullscreen": "Verlaat Volskerm (Esc)",
+        "editor.exit_fullscreen_label": "Verlaat Volskerm",
+        "editor.fullscreen": "Wissel Volskerm (F11)",
+        "editor.fullscreen_label": "Volskerm",
         "ext_comments.cancel": "Kanselleer",
         "ext_comments.confirm_delete": "Is jy seker jy wil hierdie kommentaar skrap?",
         "ext_comments.delete": "Skrap",
@@ -879,6 +885,8 @@
         "js.diagram_download_svg": "Laai SVG af",
         "js.diagram_expand": "Vergroot",
         "js.diagram_expand_title": "Vergroot diagram in volskerm-ligkas",
+        "js.diagram_fit": "Pas",
+        "js.diagram_fit_title": "Pas Diagram by Skerm",
         "js.diagram_reset_zoom": "Stel Zoem Terug (100%)",
         "js.diagram_zoom_in": "Zoem In",
         "js.diagram_zoom_out": "Zoem Uit",

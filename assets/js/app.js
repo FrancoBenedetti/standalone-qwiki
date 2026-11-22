@@ -2499,12 +2499,69 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const btnSaveInline = document.getElementById('btn-save-inline-markdown');
   const btnEditorGallery = document.getElementById('btn-editor-gallery');
+  const btnEditorFullscreen = document.getElementById('btn-editor-fullscreen');
   const readActions = document.getElementById('read-actions');
   const editActions = document.getElementById('edit-actions');
   const contentBody = document.getElementById('content-body');
   const editorContainer = document.getElementById('inline-editor-container');
   const rawMarkdownData = document.getElementById('raw-markdown-data');
   let tuiEditor = null;
+
+  function syncFullscreenEditorHeight() {
+    if (!tuiEditor || typeof tuiEditor.setHeight !== 'function') return;
+    if (!document.body.classList.contains('editor-fullscreen')) {
+      tuiEditor.setHeight('600px');
+      return;
+    }
+    const header = document.querySelector('.content-header');
+    const htmlNotice = document.getElementById('editor-html-notice');
+    const headerHeight = header ? header.offsetHeight : 0;
+    const noticeHeight = (htmlNotice && htmlNotice.style.display !== 'none') ? htmlNotice.offsetHeight + 12 : 0;
+    const targetHeight = Math.max(300, window.innerHeight - headerHeight - noticeHeight - 28);
+    tuiEditor.setHeight(`${targetHeight}px`);
+  }
+
+  function setEditorFullscreen(enabled) {
+    const isEnabled = Boolean(enabled);
+    document.documentElement.classList.toggle('editor-fullscreen', isEnabled);
+    document.body.classList.toggle('editor-fullscreen', isEnabled);
+
+    if (btnEditorFullscreen) {
+      btnEditorFullscreen.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
+      btnEditorFullscreen.title = isEnabled
+        ? _t('editor.exit_fullscreen', 'Exit Fullscreen (Esc)')
+        : _t('editor.fullscreen', 'Toggle Fullscreen (F11)');
+      const expandIcon = btnEditorFullscreen.querySelector('.icon-expand');
+      const compressIcon = btnEditorFullscreen.querySelector('.icon-compress');
+      const labelEl = btnEditorFullscreen.querySelector('.fullscreen-btn-label');
+      if (expandIcon) expandIcon.style.display = isEnabled ? 'none' : 'inline-block';
+      if (compressIcon) compressIcon.style.display = isEnabled ? 'inline-block' : 'none';
+      if (labelEl) {
+        labelEl.textContent = isEnabled
+          ? _t('editor.exit_fullscreen_label', 'Exit Fullscreen')
+          : _t('editor.fullscreen_label', 'Fullscreen');
+      }
+    }
+
+    if (editorContainer) {
+      const toolbarFsBtn = editorContainer.querySelector('.fullscreen-editor-toolbar-btn');
+      if (toolbarFsBtn) {
+        toolbarFsBtn.classList.toggle('is-active', isEnabled);
+        toolbarFsBtn.setAttribute('aria-pressed', isEnabled ? 'true' : 'false');
+        toolbarFsBtn.title = isEnabled
+          ? _t('editor.exit_fullscreen', 'Exit Fullscreen (Esc)')
+          : _t('editor.fullscreen', 'Toggle Fullscreen (F11)');
+      }
+    }
+
+    const mainContent = document.querySelector('.app-content');
+    const header = document.querySelector('.content-header');
+    if (mainContent && header) {
+      mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
+    }
+
+    syncFullscreenEditorHeight();
+  }
 
   // Helper to detect complex HTML markup that would be stripped by Toast UI WYSIWYG mode
   function containsHtmlMarkup(md) {
@@ -2707,6 +2764,31 @@ document.addEventListener('DOMContentLoaded', () => {
           return btn;
         };
 
+        const createFullscreenToolbarButton = () => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'toastui-editor-toolbar-icons fullscreen-editor-toolbar-btn';
+          btn.style.backgroundImage = 'none';
+          btn.style.fontSize = '15px';
+          btn.style.lineHeight = '1';
+          btn.style.padding = '0';
+          btn.style.margin = '0';
+          btn.style.display = 'inline-flex';
+          btn.style.alignItems = 'center';
+          btn.style.justifyContent = 'center';
+          btn.style.cursor = 'pointer';
+          btn.setAttribute('aria-label', _t('editor.fullscreen', 'Toggle Fullscreen (F11)'));
+          btn.setAttribute('aria-pressed', document.body.classList.contains('editor-fullscreen') ? 'true' : 'false');
+          btn.title = _t('editor.fullscreen', 'Toggle Fullscreen (F11)');
+          btn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>';
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setEditorFullscreen(!document.body.classList.contains('editor-fullscreen'));
+          });
+          return btn;
+        };
+
         const i18nCfg = window.QWIKI_I18N_CONFIG || {};
         let editorLangCode = 'en-US';
         if (i18nCfg.enabled && i18nCfg.tuiLocale && i18nCfg.tuiLocale !== 'en-US' && typeof toastui.Editor.setLanguage === 'function') {
@@ -2744,6 +2826,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: 'gallery',
                 tooltip: _t('js.gallery_browse_aria', 'Browse Image Gallery'),
                 el: createGalleryToolbarButton()
+              },
+              {
+                name: 'fullscreen',
+                tooltip: _t('editor.fullscreen', 'Toggle Fullscreen (F11)'),
+                el: createFullscreenToolbarButton()
               }
             ]
           ],
@@ -2829,6 +2916,13 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    if (btnEditorFullscreen) {
+      btnEditorFullscreen.addEventListener('click', (e) => {
+        e.preventDefault();
+        setEditorFullscreen(!document.body.classList.contains('editor-fullscreen'));
+      });
+    }
+
     if (window.SoftLock) {
       window.SoftLock.onEvicted((evictedFile) => {
         if (evictedFile === file && tuiEditor) {
@@ -2852,6 +2946,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const mainContent = document.querySelector('.app-content');
       if (mainContent) mainContent.classList.remove('is-editing-doc');
+      setEditorFullscreen(false);
       editActions.style.display = 'none';
       editorContainer.style.display = 'none';
       readActions.style.display = 'flex';
@@ -2897,23 +2992,43 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Window resize handler to maintain exact sticky toolbar offset
+    // Window resize handler to maintain exact sticky toolbar offset & fullscreen height
     window.addEventListener('resize', () => {
       const mainContent = document.querySelector('.app-content.is-editing-doc');
       const header = document.querySelector('.content-header');
       if (mainContent && header) {
         mainContent.style.setProperty('--edit-header-height', `${header.offsetHeight}px`);
       }
+      if (document.body.classList.contains('editor-fullscreen')) {
+        syncFullscreenEditorHeight();
+      }
     });
 
-    // Ctrl+S / Cmd+S shortcut inside inline Markdown editor
+    // Keyboard shortcuts inside inline Markdown editor (Ctrl/Cmd+S, F11, Esc)
     document.addEventListener('keydown', (e) => {
+      const isEditing = editorContainer && editorContainer.style.display !== 'none';
+      if (!isEditing) return;
+
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        if (editorContainer && editorContainer.style.display !== 'none') {
+        e.preventDefault();
+        if (btnSaveInline && !btnSaveInline.disabled) {
+          btnSaveInline.click();
+        }
+        return;
+      }
+
+      if (e.key === 'F11') {
+        e.preventDefault();
+        setEditorFullscreen(!document.body.classList.contains('editor-fullscreen'));
+        return;
+      }
+
+      if (e.key === 'Escape' && document.body.classList.contains('editor-fullscreen')) {
+        const hasOpenModal = Boolean(document.querySelector('.modal.open, .modal[style*="display: flex"], .modal[style*="display: block"]'));
+        const hasOpenPopup = Boolean(editorContainer.querySelector('.toastui-editor-popup[style*="display: block"]'));
+        if (!hasOpenModal && !hasOpenPopup) {
           e.preventDefault();
-          if (btnSaveInline && !btnSaveInline.disabled) {
-            btnSaveInline.click();
-          }
+          setEditorFullscreen(false);
         }
       }
     });
@@ -3917,45 +4032,121 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getSvgNaturalSize(svg) {
+    if (!svg) return { width: 0, height: 0 };
+    if (svg.dataset.naturalWidth && svg.dataset.naturalHeight) {
+      return {
+        width: parseFloat(svg.dataset.naturalWidth),
+        height: parseFloat(svg.dataset.naturalHeight)
+      };
+    }
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    let w = vb && vb.width > 0 ? vb.width : parseFloat(svg.getAttribute('width')) || 0;
+    let h = vb && vb.height > 0 ? vb.height : parseFloat(svg.getAttribute('height')) || 0;
+    if (!w || !h) {
+      const rect = svg.getBoundingClientRect();
+      w = w || rect.width;
+      h = h || rect.height;
+    }
+    if (w > 0 && h > 0) {
+      svg.dataset.naturalWidth = String(w);
+      svg.dataset.naturalHeight = String(h);
+    }
+    return { width: w, height: h };
+  }
+
   function attachDiagramToolbars() {
     document.querySelectorAll('.mermaid-diagram-container').forEach(container => {
       if (container.querySelector('.diagram-toolbar')) return;
-      const svg = container.querySelector('svg');
+      const diagramEl = container.querySelector('.mermaid');
+      const svg = diagramEl && diagramEl.querySelector('svg');
       if (!svg) return;
 
-      let inlineScale = 1;
+      let viewport = container.querySelector('.mermaid-viewport');
+      if (!viewport) {
+        viewport = document.createElement('div');
+        viewport.className = 'mermaid-viewport';
+        diagramEl.parentNode.insertBefore(viewport, diagramEl);
+        viewport.appendChild(diagramEl);
+      }
+
+      const { width: natW, height: natH } = getSvgNaturalSize(svg);
+      const availW = viewport.clientWidth || container.clientWidth || 0;
+      const availH = Math.max(320, Math.floor(window.innerHeight * 0.72));
+      let fitScale = 1;
+      if (availW > 0 && natW > 0 && natH > 0) {
+        const rawFit = Math.min(1, availW / natW, availH / natH);
+        if (rawFit < 0.98) {
+          fitScale = Math.max(0.1, Math.floor(rawFit * 100) / 100);
+        }
+      }
+
+      const minScale = Math.min(0.2, fitScale);
+      const maxScale = 3.0;
+      let inlineScale = fitScale;
+
+      const toolbarRow = document.createElement('div');
+      toolbarRow.className = 'diagram-toolbar-row';
+
       const toolbar = document.createElement('div');
       toolbar.className = 'diagram-toolbar';
-
-      const applyInlineScale = (scale) => {
-        inlineScale = Math.min(2.5, Math.max(0.4, scale));
-        const targetSvg = container.querySelector('.mermaid svg');
-        if (targetSvg) {
-          targetSvg.style.transformOrigin = 'top left';
-          targetSvg.style.transform = inlineScale === 1 ? '' : `scale(${inlineScale})`;
-        }
-      };
 
       const btnZoomOut = document.createElement('button');
       btnZoomOut.type = 'button';
       btnZoomOut.className = 'diagram-toolbar-btn';
       btnZoomOut.title = _t('js.diagram_zoom_out', 'Zoom Out');
       btnZoomOut.textContent = '−';
-      btnZoomOut.addEventListener('click', () => applyInlineScale(inlineScale - 0.2));
 
       const btnReset = document.createElement('button');
       btnReset.type = 'button';
       btnReset.className = 'diagram-toolbar-btn';
       btnReset.title = _t('js.diagram_reset_zoom', 'Reset Zoom (100%)');
       btnReset.textContent = '100%';
-      btnReset.addEventListener('click', () => applyInlineScale(1));
 
       const btnZoomIn = document.createElement('button');
       btnZoomIn.type = 'button';
       btnZoomIn.className = 'diagram-toolbar-btn';
       btnZoomIn.title = _t('js.diagram_zoom_in', 'Zoom In');
       btnZoomIn.textContent = '+';
-      btnZoomIn.addEventListener('click', () => applyInlineScale(inlineScale + 0.2));
+
+      const applyInlineScale = (scale) => {
+        inlineScale = Math.min(maxScale, Math.max(minScale, scale));
+        const targetSvg = container.querySelector('.mermaid svg');
+        if (targetSvg) {
+          const { width: w, height: h } = getSvgNaturalSize(targetSvg);
+          if (w > 0 && h > 0) {
+            targetSvg.style.transform = '';
+            if (Math.abs(inlineScale - 1) < 0.001) {
+              targetSvg.style.width = '';
+              targetSvg.style.height = '';
+            } else {
+              targetSvg.style.width = `${Math.round(w * inlineScale)}px`;
+              targetSvg.style.height = `${Math.round(h * inlineScale)}px`;
+            }
+          } else {
+            targetSvg.style.transformOrigin = 'top left';
+            targetSvg.style.transform = inlineScale === 1 ? '' : `scale(${inlineScale})`;
+          }
+        }
+        btnReset.textContent = `${Math.round(inlineScale * 100)}%`;
+      };
+
+      const getStep = () => (inlineScale < 0.8 ? 0.15 : 0.2);
+      btnZoomOut.addEventListener('click', () => applyInlineScale(inlineScale - getStep()));
+      btnReset.addEventListener('click', () => applyInlineScale(1));
+      btnZoomIn.addEventListener('click', () => applyInlineScale(inlineScale + getStep()));
+
+      toolbar.append(btnZoomOut, btnReset, btnZoomIn);
+
+      if (fitScale < 0.98) {
+        const btnFit = document.createElement('button');
+        btnFit.type = 'button';
+        btnFit.className = 'diagram-toolbar-btn';
+        btnFit.title = _t('js.diagram_fit_title', 'Fit Diagram to Screen');
+        btnFit.textContent = _t('js.diagram_fit', 'Fit');
+        btnFit.addEventListener('click', () => applyInlineScale(fitScale));
+        toolbar.appendChild(btnFit);
+      }
 
       const btnDownload = document.createElement('button');
       btnDownload.type = 'button';
@@ -3965,8 +4156,12 @@ document.addEventListener('DOMContentLoaded', () => {
       btnDownload.addEventListener('click', () => {
         const currentSvg = container.querySelector('svg');
         if (!currentSvg) return;
+        const downloadClone = currentSvg.cloneNode(true);
+        downloadClone.style.width = '';
+        downloadClone.style.height = '';
+        downloadClone.style.transform = '';
         const serializer = new XMLSerializer();
-        const svgStr = serializer.serializeToString(currentSvg);
+        const svgStr = serializer.serializeToString(downloadClone);
         const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -3985,8 +4180,11 @@ document.addEventListener('DOMContentLoaded', () => {
       btnExpand.textContent = '⛶ ' + _t('js.diagram_expand', 'Expand');
       btnExpand.addEventListener('click', () => openMermaidLightbox(container));
 
-      toolbar.append(btnZoomOut, btnReset, btnZoomIn, btnDownload, btnExpand);
-      container.appendChild(toolbar);
+      toolbar.append(btnDownload, btnExpand);
+      toolbarRow.appendChild(toolbar);
+      container.insertBefore(toolbarRow, viewport);
+
+      applyInlineScale(fitScale);
     });
   }
 
@@ -4018,19 +4216,36 @@ document.addEventListener('DOMContentLoaded', () => {
     stage.innerHTML = '';
     const clonedSvg = svg.cloneNode(true);
     clonedSvg.style.transform = '';
+    clonedSvg.style.width = '';
+    clonedSvg.style.height = '';
     clonedSvg.style.maxWidth = 'none';
     clonedSvg.style.cursor = 'grab';
     stage.appendChild(clonedSvg);
 
-    let scale = 1;
+    const { width: natW, height: natH } = getSvgNaturalSize(svg);
+    const stageW = Math.max(320, window.innerWidth - 96);
+    const stageH = Math.max(240, window.innerHeight - 140);
+    let initialScale = 1;
+    if (natW > 0 && natH > 0) {
+      const fit = Math.min(1, stageW / natW, stageH / natH);
+      if (fit < 0.98) {
+        initialScale = Math.max(0.1, Math.floor(fit * 100) / 100);
+      }
+    }
+
+    let scale = initialScale;
     let panX = 0;
     let panY = 0;
     let isDragging = false;
     let startX = 0;
     let startY = 0;
 
+    const resetBtn = modal.querySelector('#lb-zoom-reset');
     const updateTransform = () => {
       clonedSvg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      if (resetBtn) {
+        resetBtn.textContent = `${Math.round(scale * 100)}%`;
+      }
     };
 
     const closeModal = () => {
@@ -4060,16 +4275,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
+    const minLbScale = Math.min(0.25, initialScale);
     modal.querySelector('#lb-zoom-in').onclick = () => { scale = Math.min(4, scale + 0.25); updateTransform(); };
-    modal.querySelector('#lb-zoom-out').onclick = () => { scale = Math.max(0.25, scale - 0.25); updateTransform(); };
-    modal.querySelector('#lb-zoom-reset').onclick = () => { scale = 1; panX = 0; panY = 0; updateTransform(); };
+    modal.querySelector('#lb-zoom-out').onclick = () => { scale = Math.max(minLbScale, scale - 0.25); updateTransform(); };
+    modal.querySelector('#lb-zoom-reset').onclick = () => { scale = initialScale; panX = 0; panY = 0; updateTransform(); };
     modal.querySelector('#lb-close').onclick = closeModal;
     modal.onclick = (e) => { if (e.target === modal || e.target === stage) closeModal(); };
 
     stage.onwheel = (e) => {
       e.preventDefault();
       const delta = e.deltaY < 0 ? 0.15 : -0.15;
-      scale = Math.min(4, Math.max(0.25, scale + delta));
+      scale = Math.min(4, Math.max(minLbScale, scale + delta));
       updateTransform();
     };
 
@@ -4085,6 +4301,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('mouseup', onMouseUp);
 
     document.addEventListener('keydown', onKeyDown);
+    updateTransform();
     modal.classList.add('open');
   }
 

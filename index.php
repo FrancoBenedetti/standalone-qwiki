@@ -855,7 +855,10 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                     </div>
                 </div>
             <?php else: ?>
-                <button class="btn btn-outline btn-sm" id="btn-login"><?= htmlspecialchars(__('auth.login', 'Login')) ?></button>
+                <button class="btn btn-outline btn-sm" id="btn-login" title="<?= htmlspecialchars(__('auth.login', 'Login')) ?>" aria-label="<?= htmlspecialchars(__('auth.login', 'Login')) ?>">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+                    <span class="login-btn-label"><?= htmlspecialchars(__('auth.login', 'Login')) ?></span>
+                </button>
             <?php endif; ?>
         </div>
     </header>
@@ -975,6 +978,9 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
 
         <!-- Main Content Area -->
         <main class="app-content">
+            <?php if (!$isShareMode): ?>
+            <div class="mobile-wiki-context-bar" id="mobile-wiki-context-bar"></div>
+            <?php endif; ?>
             <?php if ($routeAction === 'reset_password'): ?>
                 <div class="content-body" style="max-width: 480px; margin: 3rem auto; padding: 2.5rem; background: var(--bg-surface, #fff); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
                     <div style="text-align: center; margin-bottom: 1.5rem;">
@@ -1187,6 +1193,11 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                         </div>
                         <?php if ($isAdmin && !$isPageReadOnly && ($activeChapter['type'] ?? 'markdown') === 'markdown'): ?>
                         <div id="edit-actions" style="display: none; gap: 0.75rem; align-items: center;">
+                            <button type="button" class="btn btn-outline btn-sm" id="btn-editor-fullscreen" title="<?= htmlspecialchars(__('editor.fullscreen', 'Toggle Fullscreen (F11)')) ?>" aria-pressed="false">
+                                <svg class="icon-expand" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: text-bottom;"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                                <svg class="icon-compress" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none; margin-right: 4px; vertical-align: text-bottom;"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                                <span class="fullscreen-btn-label"><?= htmlspecialchars(__('editor.fullscreen_label', 'Fullscreen')) ?></span>
+                            </button>
                             <button type="button" class="btn btn-outline btn-sm" id="btn-editor-gallery" title="<?= htmlspecialchars(__('editor.gallery_title', 'Browse and select images from gallery')) ?>">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: text-bottom;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                                 <?= htmlspecialchars(__('editor.image_gallery', 'Image Gallery')) ?>

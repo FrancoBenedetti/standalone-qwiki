@@ -198,6 +198,8 @@
         "doc.toggle_sidebar_title": "Attiva/disattiva barra di navigazione ([)",
         "doc.toggle_toc_aria": "Attiva/disattiva Sommario",
         "doc.toggle_toc_title": "Attiva/disattiva Sommario (])",
+        "editor.fullscreen": "Attiva/disattiva Schermo Intero (F11)",
+        "editor.fullscreen_label": "Schermo Intero",
         "editor.gallery_title": "Sfoglia e seleziona immagini dalla galleria",
         "editor.image_gallery": "Galleria Immagini",
         "editor.save_changes": "Salva Modifiche",
@@ -780,6 +782,10 @@
         "visibility.public": "Pubblico (Tutti)"
     },
     "js": {
+        "editor.exit_fullscreen": "Esci da Schermo Intero (Esc)",
+        "editor.exit_fullscreen_label": "Esci da Schermo Intero",
+        "editor.fullscreen": "Attiva/disattiva Schermo Intero (F11)",
+        "editor.fullscreen_label": "Schermo Intero",
         "ext_comments.cancel": "Annulla",
         "ext_comments.confirm_delete": "Sei sicuro di voler eliminare questo commento?",
         "ext_comments.delete": "Elimina",
@@ -879,6 +885,8 @@
         "js.diagram_download_svg": "Scarica SVG",
         "js.diagram_expand": "Espandi",
         "js.diagram_expand_title": "Espandi diagramma a schermo intero",
+        "js.diagram_fit": "Adatta",
+        "js.diagram_fit_title": "Adatta Diagramma allo Schermo",
         "js.diagram_reset_zoom": "Ripristina Zoom (100%)",
         "js.diagram_zoom_in": "Ingrandisci",
         "js.diagram_zoom_out": "Riduci",
