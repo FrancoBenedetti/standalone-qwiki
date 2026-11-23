@@ -304,15 +304,18 @@ if (!function_exists('gemini_call_api')) {
                     ];
                 }
 
-                // Handle non-404 errors immediately unless the model is deprecated/unavailable to new users
+                // Fall back to next model/version on 404, deprecated model, or transient 429/5xx high-demand errors
                 $rawErrMsg = $resData['error']['message'] ?? "Gemini API error (HTTP {$httpCode})";
-                $isModelUnavailable = ($httpCode === 404) || (stripos($rawErrMsg, 'no longer available') !== false);
-                if (!$isModelUnavailable) {
+                $status = $resData['error']['status'] ?? '';
+                $shouldFallback = in_array($httpCode, [404, 429, 500, 502, 503, 504], true)
+                    || $status === 'UNAVAILABLE'
+                    || $status === 'RESOURCE_EXHAUSTED'
+                    || stripos($rawErrMsg, 'no longer available') !== false
+                    || stripos($rawErrMsg, 'high demand') !== false
+                    || stripos($rawErrMsg, 'overloaded') !== false;
+                if (!$shouldFallback) {
                     $errorMsg = $rawErrMsg;
-                    $status = $resData['error']['status'] ?? '';
-                    if ($status === 'RESOURCE_EXHAUSTED') {
-                        $errorMsg = 'Gemini API quota exceeded for this key. Please check your Google AI Studio quota.';
-                    } elseif ($status === 'INVALID_ARGUMENT' && stripos($errorMsg, 'API key') !== false) {
+                    if ($status === 'INVALID_ARGUMENT' && stripos($errorMsg, 'API key') !== false) {
                         $errorMsg = 'Invalid Gemini API key. Please check the key in AI Assistant Settings.';
                     }
                     return ['success' => false, 'error' => $errorMsg, 'http_code' => $httpCode];

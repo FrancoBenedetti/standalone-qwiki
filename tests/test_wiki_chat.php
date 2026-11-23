@@ -335,6 +335,40 @@ $resLoop = WikiChatService::runChatTurn('Loop forever', [], null, false, $infini
 assert_test($loopCount === WikiChatService::MAX_TOOL_STEPS, 'Infinite tool loop stops at MAX_TOOL_STEPS');
 assert_test(($resLoop['success'] ?? false) === true && !empty($resLoop['reply']), 'Infinite tool loop returns graceful fallback reply');
 
+// 3b. High demand (HTTP 503) triggers fallback to next model
+$fallbackAttempt = 0;
+$highDemandTransport = function (string $url, array $payload) use (&$fallbackAttempt) {
+    $fallbackAttempt++;
+    if ($fallbackAttempt === 1) {
+        return [
+            'httpCode' => 503,
+            'body' => [
+                'error' => [
+                    'code' => 503,
+                    'status' => 'UNAVAILABLE',
+                    'message' => 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.'
+                ]
+            ]
+        ];
+    }
+    return [
+        'httpCode' => 200,
+        'body' => [
+            'candidates' => [
+                [
+                    'content' => [
+                        'role' => 'model',
+                        'parts' => [['text' => 'Answered via fallback model.']]
+                    ]
+                ]
+            ]
+        ]
+    ];
+};
+$resFallback = WikiChatService::runChatTurn('Test fallback', [], null, false, $highDemandTransport);
+assert_test(($resFallback['success'] ?? false) === true && $fallbackAttempt === 2, 'HTTP 503 high demand falls back to next model');
+assert_test(($resFallback['reply'] ?? '') === 'Answered via fallback model.', 'Fallback model returns valid reply');
+
 // 4. Handler access control (admin_only rejects non-admin)
 $cfgAdminOnly = Config::load();
 $cfgAdminOnly['wikiChat']['accessMode'] = 'admin_only';

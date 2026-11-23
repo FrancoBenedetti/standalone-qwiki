@@ -538,18 +538,8 @@ class WikiChatService {
         ];
 
         $cleanModel = preg_replace('#^models/#', '', trim($creds['model'] ?: 'gemini-3.8-flash')) ?: 'gemini-3.8-flash';
-        if ($cleanModel === 'gemini-3.8-flash') {
-            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-        } elseif ($cleanModel === 'gemini-2.5-flash') {
-            $modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
-        } elseif ($cleanModel === 'gemini-2.5-pro') {
-            $modelsToTry = ['gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-        } elseif ($cleanModel === 'gemini-3.5-flash') {
-            $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash'];
-        } else {
-            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-        }
-        $modelsToTry = array_values(array_unique($modelsToTry));
+        $fallbackPool = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+        $modelsToTry = array_values(array_unique(array_merge([$cleanModel], $fallbackPool)));
         $model = $modelsToTry[0];
 
         $apiKey = $creds['apiKey'];
@@ -584,8 +574,14 @@ class WikiChatService {
                 $httpCode = (int)($resp['httpCode'] ?? 0);
                 $body = $resp['body'] ?? [];
                 $errText = (string)($body['error']['message'] ?? '');
-                $isModelUnavailable = ($httpCode === 404) || (stripos($errText, 'no longer available') !== false);
-                if (!$isModelUnavailable) {
+                $errStatus = (string)($body['error']['status'] ?? '');
+                $isTransientOrUnavailable = in_array($httpCode, [404, 429, 500, 502, 503, 504], true)
+                    || $errStatus === 'UNAVAILABLE'
+                    || $errStatus === 'RESOURCE_EXHAUSTED'
+                    || stripos($errText, 'no longer available') !== false
+                    || stripos($errText, 'high demand') !== false
+                    || stripos($errText, 'overloaded') !== false;
+                if (!$isTransientOrUnavailable) {
                     $model = $candidateModel;
                     break;
                 }
