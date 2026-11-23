@@ -448,4 +448,224 @@ class WikiChatService {
                 ];
         }
     }
+
+    public static function runChatTurn(
+        string $message,
+        array $history = [],
+        ?string $activeSlug = null,
+        bool $includeActiveDoc = true,
+        ?callable $httpTransport = null
+    ): array {
+        $config = Config::load();
+        if (!self::canCurrentUserAccessChat($config)) {
+            return ['success' => false, 'code' => 403, 'error' => 'You do not have permission to access Wiki AI Chat.'];
+        }
+
+        $message = trim($message);
+        if ($message === '') {
+            return ['success' => false, 'code' => 400, 'error' => 'Message cannot be empty.'];
+        }
+        if (mb_strlen($message) > self::MAX_MESSAGE_CHARS) {
+            $message = mb_substr($message, 0, self::MAX_MESSAGE_CHARS);
+        }
+
+        $keyRes = self::resolveWikiLlmKey($config, true);
+        if (empty($keyRes['success']) || empty($keyRes['key'])) {
+            return [
+                'success' => false,
+                'code' => 403,
+                'error' => $keyRes['error'] ?? 'No active Wiki LLM Access Key is available.'
+            ];
+        }
+        $keyRecord = $keyRes['key'];
+
+        $isAdmin = Auth::isAdmin();
+        $isViewer = Auth::isViewer();
+
+        // Demo mode deterministic fallback if no real API key is configured
+        $creds = self::resolveLlmCredentials();
+        if (Config::isDemoMode() && empty($creds['apiKey']) && $httpTransport === null) {
+            $matches = array_slice(
+                self::filterDocsForCaller(LlmAccess::searchDocuments($keyRecord, $message, 5), $isAdmin, $isViewer),
+                0,
+                3
+            );
+            $reply = "Demo Mode: Here are the most relevant wiki chapters for your query:\n\n";
+            $sources = [];
+            if (empty($matches)) {
+                $reply .= "No exact keyword matches were found. Try asking about installation, features, or configuration.";
+            } else {
+                foreach ($matches as $m) {
+                    $reply .= "- [{$m['title']}]({$m['slug']}): {$m['excerpt']}\n";
+                    $sources[] = ['title' => $m['title'], 'slug' => $m['slug'], 'url' => $m['url']];
+                }
+            }
+            return [
+                'success' => true,
+                'reply' => $reply,
+                'sources' => $sources,
+                'tool_calls' => [],
+                'model_used' => 'demo-mode',
+                'key_source' => 'demo',
+            ];
+        }
+
+        if (empty($creds['apiKey']) && $httpTransport === null) {
+            return ['success' => false, 'code' => 403, 'error' => 'No Gemini API key is configured.'];
+        }
+
+        $promptInfo = self::buildSystemPrompt($keyRecord, $activeSlug, $includeActiveDoc, $isAdmin, $isViewer);
+        $sysPrompt = $promptInfo['prompt'];
+
+        $contents = [];
+        $trimmedHistory = array_slice($history, -(self::MAX_HISTORY_TURNS * 2));
+        foreach ($trimmedHistory as $turn) {
+            if (!is_array($turn)) continue;
+            $role = ($turn['role'] ?? '') === 'model' ? 'model' : 'user';
+            $text = trim((string)($turn['text'] ?? ''));
+            if ($text === '') continue;
+            if (mb_strlen($text) > self::MAX_MESSAGE_CHARS) {
+                $text = mb_substr($text, 0, self::MAX_MESSAGE_CHARS);
+            }
+            $contents[] = [
+                'role' => $role,
+                'parts' => [['text' => $text]]
+            ];
+        }
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [['text' => $message]]
+        ];
+
+        $model = $creds['model'] ?: 'gemini-2.5-flash';
+        $apiKey = $creds['apiKey'];
+        $tools = [['functionDeclarations' => self::getGeminiToolsDeclaration()]];
+        $sourcesMap = [];
+        if (!empty($promptInfo['activeDoc'])) {
+            $ad = $promptInfo['activeDoc'];
+            $sourcesMap[$ad['slug']] = $ad;
+        }
+        $toolCallsLog = [];
+
+        $transport = $httpTransport ?? function (string $url, array $payload) {
+            return self::callGeminiHttp($url, $payload);
+        };
+
+        for ($step = 0; $step < self::MAX_TOOL_STEPS; $step++) {
+            $payload = [
+                'systemInstruction' => ['parts' => [['text' => $sysPrompt]]],
+                'contents' => $contents,
+                'tools' => $tools,
+                'generationConfig' => ['temperature' => 0.3],
+            ];
+
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/" . rawurlencode($model) . ":generateContent?key=" . rawurlencode($apiKey);
+            $resp = $transport($url, $payload);
+            $httpCode = (int)($resp['httpCode'] ?? 0);
+            $body = $resp['body'] ?? [];
+
+            if ($httpCode >= 400 || empty($body['candidates'][0]['content'])) {
+                $errMsg = $body['error']['message'] ?? ($resp['error'] ?? "Gemini API error (HTTP {$httpCode})");
+                return ['success' => false, 'code' => $httpCode ?: 502, 'error' => $errMsg];
+            }
+
+            $candidateContent = $body['candidates'][0]['content'];
+            $parts = $candidateContent['parts'] ?? [];
+            $functionCalls = [];
+            $textParts = [];
+
+            foreach ($parts as $part) {
+                if (!empty($part['functionCall']) && is_array($part['functionCall'])) {
+                    $functionCalls[] = $part['functionCall'];
+                } elseif (isset($part['text'])) {
+                    $textParts[] = (string)$part['text'];
+                }
+            }
+
+            if (empty($functionCalls)) {
+                $replyText = trim(implode("\n", $textParts));
+                if ($replyText === '') {
+                    $replyText = 'I could not generate a response for that query.';
+                }
+                return [
+                    'success' => true,
+                    'reply' => $replyText,
+                    'sources' => array_values($sourcesMap),
+                    'tool_calls' => $toolCallsLog,
+                    'model_used' => $model,
+                    'key_source' => $creds['keySource'],
+                ];
+            }
+
+            $contents[] = [
+                'role' => 'model',
+                'parts' => $parts
+            ];
+
+            $responseParts = [];
+            foreach ($functionCalls as $fc) {
+                $fnName = (string)($fc['name'] ?? '');
+                $fnArgs = isset($fc['args']) && is_array($fc['args']) ? $fc['args'] : [];
+                $exec = self::executeToolCall($fnName, $fnArgs, $keyRecord, $isAdmin, $isViewer);
+
+                $toolCallsLog[] = [
+                    'name' => $fnName,
+                    'args' => $fnArgs,
+                    'success' => !empty($exec['result']['success'])
+                ];
+                if (!empty($exec['source']) && !empty($exec['source']['slug'])) {
+                    $sourcesMap[$exec['source']['slug']] = $exec['source'];
+                }
+
+                $responseParts[] = [
+                    'functionResponse' => [
+                        'name' => $fnName,
+                        'response' => $exec['result']
+                    ]
+                ];
+            }
+
+            $contents[] = [
+                'role' => 'user',
+                'parts' => $responseParts
+            ];
+        }
+
+        return [
+            'success' => true,
+            'reply' => 'I reached the maximum number of tool lookup steps for this turn. Please try narrowing your question or specifying a chapter.',
+            'sources' => array_values($sourcesMap),
+            'tool_calls' => $toolCallsLog,
+            'model_used' => $model,
+            'key_source' => $creds['keySource'],
+        ];
+    }
+
+    private static function callGeminiHttp(string $url, array $payload): array {
+        if (!function_exists('curl_init')) {
+            return ['httpCode' => 500, 'body' => [], 'error' => 'PHP cURL extension is required.'];
+        }
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 45,
+        ]);
+        $raw = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($raw === false) {
+            return ['httpCode' => 0, 'body' => [], 'error' => $curlErr ?: 'Network request failed'];
+        }
+        $decoded = json_decode($raw, true);
+        return [
+            'httpCode' => $httpCode,
+            'body' => is_array($decoded) ? $decoded : [],
+            'error' => null
+        ];
+    }
 }

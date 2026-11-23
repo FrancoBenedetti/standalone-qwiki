@@ -218,4 +218,116 @@ assert_test(!empty($promptInfo['activeDoc']) && $promptInfo['activeDoc']['slug']
 $unknownTool = WikiChatService::executeToolCall('unknown_tool', [], $activeKeyRecord, false, true);
 assert_test(($unknownTool['result']['success'] ?? true) === false && strpos($unknownTool['result']['error'] ?? '', 'Unsupported tool') !== false, 'Unknown tool returns structured error');
 
+// === Task 3: runChatTurn() & handler.php ===
+// 1. Single-pass answer (no tool call)
+$singlePassTransport = function (string $url, array $payload) {
+    return [
+        'httpCode' => 200,
+        'body' => [
+            'candidates' => [
+                [
+                    'content' => [
+                        'role' => 'model',
+                        'parts' => [['text' => 'Here is a direct answer from the current page.']]
+                    ]
+                ]
+            ]
+        ]
+    ];
+};
+$resSingle = WikiChatService::runChatTurn('Summarize this page', [], 'introduction', true, $singlePassTransport);
+assert_test(($resSingle['success'] ?? false) === true, 'Single-pass runChatTurn succeeds');
+assert_test(($resSingle['reply'] ?? '') === 'Here is a direct answer from the current page.', 'Single-pass returns model reply');
+assert_test(empty($resSingle['tool_calls']), 'Single-pass has no tool_calls');
+
+// 2. Multi-step tool call loop
+$callCount = 0;
+$multiStepTransport = function (string $url, array $payload) use (&$callCount) {
+    $callCount++;
+    if ($callCount === 1) {
+        return [
+            'httpCode' => 200,
+            'body' => [
+                'candidates' => [
+                    [
+                        'content' => [
+                            'role' => 'model',
+                            'parts' => [
+                                [
+                                    'functionCall' => [
+                                        'name' => 'qwiki_get_document',
+                                        'args' => ['slug' => 'installation']
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+    }
+    return [
+        'httpCode' => 200,
+        'body' => [
+            'candidates' => [
+                [
+                    'content' => [
+                        'role' => 'model',
+                        'parts' => [['text' => 'See [Installation Guide](installation) for details.']]
+                    ]
+                ]
+            ]
+        ]
+    ];
+};
+$resMulti = WikiChatService::runChatTurn('How do I install?', [], null, false, $multiStepTransport);
+assert_test(($resMulti['success'] ?? false) === true && $callCount === 2, 'Multi-step tool loop completes in 2 calls');
+assert_test(count($resMulti['tool_calls'] ?? []) === 1, 'Multi-step records 1 tool call');
+$sourceSlugs = array_column($resMulti['sources'] ?? [], 'slug');
+assert_test(in_array('installation', $sourceSlugs, true), 'Multi-step cites installation slug in sources');
+
+// 3. Max tool step limit (Review Focus #5)
+$loopCount = 0;
+$infiniteToolTransport = function (string $url, array $payload) use (&$loopCount) {
+    $loopCount++;
+    return [
+        'httpCode' => 200,
+        'body' => [
+            'candidates' => [
+                [
+                    'content' => [
+                        'role' => 'model',
+                        'parts' => [
+                            [
+                                'functionCall' => [
+                                    'name' => 'qwiki_list_tree',
+                                    'args' => []
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ];
+};
+$resLoop = WikiChatService::runChatTurn('Loop forever', [], null, false, $infiniteToolTransport);
+assert_test($loopCount === WikiChatService::MAX_TOOL_STEPS, 'Infinite tool loop stops at MAX_TOOL_STEPS');
+assert_test(($resLoop['success'] ?? false) === true && !empty($resLoop['reply']), 'Infinite tool loop returns graceful fallback reply');
+
+// 4. Handler access control (admin_only rejects non-admin)
+$cfgAdminOnly = Config::load();
+$cfgAdminOnly['wikiChat']['accessMode'] = 'admin_only';
+Config::save($cfgAdminOnly);
+$_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
+$_SESSION['qwiki_user'] = ['username' => 'bob', 'role' => 'viewer'];
+$action = 'ext_wiki_chat_ask';
+$requestData = ['message' => 'Hello'];
+$handlerRes = include __DIR__ . '/../assets/extensions/tool-wiki-chat/handler.php';
+assert_test(($handlerRes['success'] ?? true) === false, 'Handler rejects non-admin when accessMode is admin_only');
+
+// Restore public mode for any subsequent tests
+$cfgAdminOnly['wikiChat']['accessMode'] = 'public';
+Config::save($cfgAdminOnly);
+
 echo "\nAll current tests passed!\n";
