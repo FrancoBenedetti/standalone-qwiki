@@ -537,7 +537,19 @@ class WikiChatService {
             'parts' => [['text' => $message]]
         ];
 
-        $model = $creds['model'] ?: 'gemini-2.5-flash';
+        $cleanModel = preg_replace('#^models/#', '', trim($creds['model'] ?: 'gemini-2.5-flash')) ?: 'gemini-2.5-flash';
+        if ($cleanModel === 'gemini-2.5-flash') {
+            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+        } elseif ($cleanModel === 'gemini-2.5-pro') {
+            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+        } elseif ($cleanModel === 'gemini-3.5-flash') {
+            $modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+        } else {
+            $modelsToTry = [$cleanModel, 'gemini-2.5-flash', 'gemini-3.5-flash'];
+        }
+        $modelsToTry = array_values(array_unique($modelsToTry));
+        $model = $modelsToTry[0];
+
         $apiKey = $creds['apiKey'];
         $tools = [['functionDeclarations' => self::getGeminiToolsDeclaration()]];
         $sourcesMap = [];
@@ -559,10 +571,21 @@ class WikiChatService {
                 'generationConfig' => ['temperature' => 0.3],
             ];
 
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/" . rawurlencode($model) . ":generateContent?key=" . rawurlencode($apiKey);
-            $resp = $transport($url, $payload);
-            $httpCode = (int)($resp['httpCode'] ?? 0);
-            $body = $resp['body'] ?? [];
+            $candidatesToAttempt = ($step === 0) ? $modelsToTry : [$model];
+            $resp = null;
+            $httpCode = 0;
+            $body = [];
+
+            foreach ($candidatesToAttempt as $candidateModel) {
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/" . rawurlencode($candidateModel) . ":generateContent?key=" . rawurlencode($apiKey);
+                $resp = $transport($url, $payload);
+                $httpCode = (int)($resp['httpCode'] ?? 0);
+                $body = $resp['body'] ?? [];
+                if ($httpCode !== 404) {
+                    $model = $candidateModel;
+                    break;
+                }
+            }
 
             if ($httpCode >= 400 || empty($body['candidates'][0]['content'])) {
                 $errMsg = $body['error']['message'] ?? ($resp['error'] ?? "Gemini API error (HTTP {$httpCode})");
