@@ -330,4 +330,39 @@ assert_test(($handlerRes['success'] ?? true) === false, 'Handler rejects non-adm
 $cfgAdminOnly['wikiChat']['accessMode'] = 'public';
 Config::save($cfgAdminOnly);
 
+// === Task 4: Widget & Drawer Rendering ===
+// 1. Public mode: non-admin header toolbar includes btn-open-wiki-chat
+$_SESSION = [];
+ob_start();
+$extManager->renderToolbarUtilityWidgets(false, 'header');
+$headerOutPublic = ob_get_clean();
+assert_test(strpos($headerOutPublic, 'id="btn-open-wiki-chat"') !== false, 'Public mode renders btn-open-wiki-chat in header toolbar for non-admin');
+
+// 2. admin_only mode: non-admin omits button, admin includes button
+$cfgMode = Config::load();
+$cfgMode['wikiChat']['accessMode'] = 'admin_only';
+Config::save($cfgMode);
+
+$_SESSION = [];
+ob_start();
+$extManager->renderToolbarUtilityWidgets(false, 'header');
+$headerOutAnon = ob_get_clean();
+assert_test(strpos($headerOutAnon, 'btn-open-wiki-chat') === false, 'admin_only mode hides btn-open-wiki-chat from non-admin');
+
+$_SESSION['qwiki_instance'] = Auth::getInstanceIdentifier();
+$_SESSION['qwiki_user'] = ['username' => 'admin', 'role' => 'admin'];
+ob_start();
+$extManager->renderToolbarUtilityWidgets(true, 'header');
+$headerOutAdmin = ob_get_clean();
+assert_test(strpos($headerOutAdmin, 'id="btn-open-wiki-chat"') !== false, 'admin_only mode renders btn-open-wiki-chat for admin');
+
+// 3. renderUtilityModals(false) outputs id="wiki-chat-drawer" when canCurrentUserAccessChat() is true
+$cfgMode['wikiChat']['accessMode'] = 'public';
+Config::save($cfgMode);
+$_SESSION = [];
+ob_start();
+$extManager->renderUtilityModals(false);
+$modalOut = ob_get_clean();
+assert_test(strpos($modalOut, 'id="wiki-chat-drawer"') !== false, 'renderUtilityModals(false) outputs wiki-chat-drawer when accessible');
+
 echo "\nAll current tests passed!\n";
