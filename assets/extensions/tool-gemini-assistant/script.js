@@ -919,6 +919,23 @@
 
                     showBanner('Gemini API settings saved successfully!', 'success');
                     fetchSettings();
+
+                    // Unlock any Site-API-Key-gated extension toggles in Qwiki Settings without requiring a page reload
+                    if (data.hasSiteKey) {
+                        var extTab = document.getElementById('settings-tab-extensions');
+                        if (extTab) {
+                            extTab.querySelectorAll('.ext-card').forEach(function(card) {
+                                var keyNoticeBtn = card.querySelector('.btn-open-gemini-assistant');
+                                if (keyNoticeBtn) {
+                                    var cb = card.querySelector('input[type="checkbox"][disabled]');
+                                    if (cb) cb.disabled = false;
+                                    if (keyNoticeBtn.parentElement) {
+                                        keyNoticeBtn.parentElement.style.display = 'none';
+                                    }
+                                }
+                            });
+                        }
+                    }
                 })
                 .catch(function(err) {
                     if (btnSave) {
