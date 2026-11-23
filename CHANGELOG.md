@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.27] - AuditFlow - 2026-11-23
+
+### 🔍 Direct Document Read Audit Logging
+- **Authenticated & Direct Read Tracking (`lib/Core/AuditLogger.php`, `index.php`, `tests/activity_log_test.php`)**: Added `AuditLogger::logDocAccess()` to record `doc_read` events in the `content` category whenever a document is viewed directly (HTML or non-iframe raw view), resolving and storing the signed-in user's configured email alongside `username` and `docId` while skipping `Sec-Fetch-Dest: iframe` raw requests to prevent double-logging embedded HTML documents.
+- **Activity Log Search & Actor Email Display (`lib/Core/AuditLogger.php`, `assets/extensions/tool-activity-log/script.js`)**: Indexed `docId` and `user_email` in `AuditLogger::queryLogs()` search queries and displayed the user's email in the Activity & Access Log actor column.
+
+### 🐛 Subwiki & Header Toolbar Fixes
+- **Symlinked Doc-Mirror Path Resolution (`lib/Core/Config.php`, `tests/sync_docs_test.php`)**: Updated `Config::safePath()` to use directory-boundary prefix checks and allowlist the canonical `../demo-data/content` target when `<subwiki>/content` is a symlink to it and the requested path enters via `content/`, resolving 404/file-not-found errors for HTML, PDF, and Form pages in symlinked documentation mirrors while preserving traversal protection.
+- **Right Sidebar Toggle Alignment (`index.php`)**: Moved `#btn-toggle-right-toc` to the extreme right of `#read-actions` in the document header toolbar for visual symmetry with the left sidebar toggle.
+
 ## [1.20.26] - CanvasFlow - 2026-11-22
 
 ### ✍️ Fullscreen Markdown Editor Mode
