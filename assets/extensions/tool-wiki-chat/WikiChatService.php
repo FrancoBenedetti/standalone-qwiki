@@ -645,25 +645,44 @@ class WikiChatService {
         if (!function_exists('curl_init')) {
             return ['httpCode' => 500, 'body' => [], 'error' => 'PHP cURL extension is required.'];
         }
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_TIMEOUT => 45,
-        ]);
-        $raw = curl_exec($ch);
-        $curlErr = curl_error($ch);
-        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $attempt = function (?int $ipResolve) use ($url, $payload): array {
+            $ch = curl_init($url);
+            $opts = [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_POSTFIELDS => json_encode($payload),
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 45,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            ];
+            if ($ipResolve !== null) {
+                $opts[CURLOPT_IPRESOLVE] = $ipResolve;
+            }
+            curl_setopt_array($ch, $opts);
+            $raw = curl_exec($ch);
+            $curlErrno = curl_errno($ch);
+            $curlErr = curl_error($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return ['raw' => $raw, 'errno' => $curlErrno, 'err' => $curlErr, 'httpCode' => $httpCode];
+        };
 
-        if ($raw === false) {
-            return ['httpCode' => 0, 'body' => [], 'error' => $curlErr ?: 'Network request failed'];
+        $res = $attempt(null);
+        if ($res['raw'] === false && in_array($res['errno'], [7, 28], true) && defined('CURL_IPRESOLVE_V4')) {
+            $retry = $attempt(CURL_IPRESOLVE_V4);
+            if ($retry['raw'] !== false || $retry['httpCode'] > 0) {
+                $res = $retry;
+            }
         }
-        $decoded = json_decode($raw, true);
+
+        if ($res['raw'] === false) {
+            return ['httpCode' => 0, 'body' => [], 'error' => $res['err'] ?: 'Network request failed'];
+        }
+        $decoded = json_decode($res['raw'], true);
         return [
-            'httpCode' => $httpCode,
+            'httpCode' => $res['httpCode'],
             'body' => is_array($decoded) ? $decoded : [],
             'error' => null
         ];

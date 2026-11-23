@@ -105,6 +105,52 @@ if (!function_exists('gemini_get_resolved_config')) {
     }
 }
 
+if (!function_exists('gemini_curl_request')) {
+    function gemini_curl_request(string $url, array $headers, ?string $jsonPayload = null, int $timeout = 45): array {
+        $attempt = function (?int $ipResolve) use ($url, $headers, $jsonPayload, $timeout): array {
+            $ch = curl_init();
+            $opts = [
+                CURLOPT_URL => $url,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => $headers,
+                CURLOPT_TIMEOUT => $timeout,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            ];
+            if ($jsonPayload !== null) {
+                $opts[CURLOPT_POST] = true;
+                $opts[CURLOPT_POSTFIELDS] = $jsonPayload;
+            }
+            if ($ipResolve !== null) {
+                $opts[CURLOPT_IPRESOLVE] = $ipResolve;
+            }
+            curl_setopt_array($ch, $opts);
+            $response = curl_exec($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErrno = curl_errno($ch);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            return [
+                'response' => $response,
+                'httpCode' => $httpCode,
+                'errno' => $curlErrno,
+                'error' => $curlError,
+            ];
+        };
+
+        $res = $attempt(null);
+        // Retry over IPv4 if default (IPv6-first) timed out or failed to connect
+        if ($res['error'] !== '' && in_array($res['errno'], [7, 28], true) && defined('CURL_IPRESOLVE_V4')) {
+            $retry = $attempt(CURL_IPRESOLVE_V4);
+            if ($retry['error'] === '' || $retry['httpCode'] > 0) {
+                return $retry;
+            }
+        }
+        return $res;
+    }
+}
+
 if (!function_exists('gemini_list_models')) {
     /**
      * Queries Google Gemini ModelService.ListModels to retrieve models available to this key
@@ -120,24 +166,19 @@ if (!function_exists('gemini_list_models')) {
         foreach ($versions as $ver) {
             $url = "https://generativelanguage.googleapis.com/{$ver}/models?key=" . urlencode($apiKey);
 
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $url,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
+            $curlRes = gemini_curl_request(
+                $url,
+                [
                     'Content-Type: application/json',
                     'x-goog-api-key: ' . $apiKey,
                     'User-Agent: Standalone-Qwiki-Gemini-Assistant/1.0'
                 ],
-                CURLOPT_TIMEOUT => 12,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_SSL_VERIFYPEER => true
-            ]);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+                null,
+                15
+            );
+            $response = $curlRes['response'];
+            $httpCode = $curlRes['httpCode'];
+            $curlError = $curlRes['error'];
 
             if ($curlError) {
                 $lastError = 'Connection failed: ' . $curlError;
@@ -228,29 +269,22 @@ if (!function_exists('gemini_call_api')) {
             foreach ($apiVersions as $ver) {
                 $url = "https://generativelanguage.googleapis.com/{$ver}/models/" . urlencode($candidateName) . ":generateContent?key=" . urlencode($apiKey);
 
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $url,
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => $jsonPayload,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HTTPHEADER => [
+                $curlRes = gemini_curl_request(
+                    $url,
+                    [
                         'Content-Type: application/json',
                         'x-goog-api-key: ' . $apiKey,
                         'User-Agent: Standalone-Qwiki-Gemini-Assistant/1.0'
                     ],
-                    CURLOPT_TIMEOUT => 20,
-                    CURLOPT_CONNECTTIMEOUT => 5,
-                    CURLOPT_SSL_VERIFYPEER => true
-                ]);
-
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curlError = curl_error($ch);
-                curl_close($ch);
+                    $jsonPayload,
+                    45
+                );
+                $response = $curlRes['response'];
+                $httpCode = $curlRes['httpCode'];
+                $curlError = $curlRes['error'];
 
                 if ($curlError) {
-                    return ['success' => false, 'error' => 'Connection to Gemini API failed: ' . $curlError];
+                    return ['success' => false, 'is_network_error' => true, 'error' => 'Connection to Gemini API failed: ' . $curlError];
                 }
 
                 $resData = json_decode($response, true);
@@ -519,11 +553,12 @@ if ($action === 'ext_gemini_test_connection') {
 
     $res = gemini_call_api($testKey, $testModel, $contents, ['temperature' => 0.1]);
 
-    // Discover models available on this key
-    $modelsList = gemini_list_models($testKey);
-    $availableModels = $modelsList['success'] ? $modelsList['models'] : [];
-
     if (!$res['success']) {
+        $availableModels = [];
+        if (empty($res['is_network_error'])) {
+            $modelsList = gemini_list_models($testKey);
+            $availableModels = $modelsList['success'] ? $modelsList['models'] : [];
+        }
         gemini_json_reply([
             'success' => false,
             'error' => $res['error'],
@@ -531,6 +566,10 @@ if ($action === 'ext_gemini_test_connection') {
         ]);
         return;
     }
+
+    // Discover models available on this key
+    $modelsList = gemini_list_models($testKey);
+    $availableModels = $modelsList['success'] ? $modelsList['models'] : [];
 
     $modelUsed = $res['model_used'] ?? $testModel;
     $msg = 'Successfully connected to Google Gemini (' . htmlspecialchars($modelUsed) . ')!';
