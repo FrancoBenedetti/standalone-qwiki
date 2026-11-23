@@ -1,9 +1,14 @@
 (function () {
     'use strict';
 
-    var t = function (key, fallback, params) {
-        if (typeof window._t === 'function') {
+    var _t = function (key, fallback, params) {
+        if (typeof window._t === 'function' && window._t !== _t) {
             return window._t(key, fallback, params);
+        }
+        if (params && typeof fallback === 'string') {
+            return fallback.replace(/\{(\w+)\}/g, function (_, k) {
+                return params[k] !== undefined ? params[k] : '{' + k + '}';
+            });
         }
         return fallback || key;
     };
@@ -130,7 +135,7 @@
                 var details = document.createElement('details');
                 details.className = 'wiki-chat-tools-chip';
                 var summary = document.createElement('summary');
-                summary.textContent = '🔍 ' + t('ext_chat.tools_used', 'Used {count} wiki lookup(s)', { count: meta.toolCalls.length });
+                summary.textContent = '🔍 ' + _t('ext_chat.tools_used', 'Used {count} wiki lookup(s)', { count: meta.toolCalls.length });
                 details.appendChild(summary);
                 var ul = document.createElement('ul');
                 ul.className = 'wiki-chat-tools-list';
@@ -189,8 +194,8 @@
                     if (keyBadgeEl) {
                         var isPersonal = data.keySource === 'user';
                         keyBadgeEl.textContent = isPersonal
-                            ? '👤 ' + t('ext_chat.key_personal', 'Personal Key')
-                            : '🌐 ' + t('ext_chat.key_site', 'Site Key');
+                            ? '👤 ' + _t('ext_chat.key_personal', 'Personal Key')
+                            : '🌐 ' + _t('ext_chat.key_site', 'Site Key');
                     }
                     if (isAdmin && Array.isArray(data.llmKeys)) {
                         var selectEl = document.getElementById('wiki-chat-llm-key');
@@ -309,7 +314,7 @@
                 inputEl.value = '';
 
                 appendMessage('user', msg, null);
-                var thinkingBubble = appendMessage('model', t('ext_chat.thinking', 'Thinking...'), null);
+                var thinkingBubble = appendMessage('model', _t('ext_chat.thinking', 'Thinking...'), null);
 
                 var payload = {
                     message: msg,
@@ -330,7 +335,7 @@
                     .then(function (data) {
                         thinkingBubble.remove();
                         if (!data || !data.success) {
-                            var errText = (data && data.error) ? data.error : t('ext_chat.error_generic', 'Failed to get a response.');
+                            var errText = (data && data.error) ? data.error : _t('ext_chat.error_generic', 'Failed to get a response.');
                             appendMessage('model', '⚠️ ' + errText, null);
                             return;
                         }
@@ -344,7 +349,7 @@
                     })
                     .catch(function () {
                         thinkingBubble.remove();
-                        appendMessage('model', '⚠️ ' + t('ext_chat.error_network', 'Network error while contacting Wiki AI Chat.'), null);
+                        appendMessage('model', '⚠️ ' + _t('ext_chat.error_network', 'Network error while contacting Wiki AI Chat.'), null);
                     })
                     .finally(function () {
                         isSending = false;
@@ -360,7 +365,7 @@
         if (settingsForm) {
             settingsForm.addEventListener('submit', function (e) {
                 e.preventDefault();
-                if (settingsStatus) settingsStatus.textContent = t('ext_chat.saving', 'Saving...');
+                if (settingsStatus) settingsStatus.textContent = _t('ext_chat.saving', 'Saving...');
                 var payload = {
                     accessMode: document.getElementById('wiki-chat-access-mode').value,
                     llmKeyId: document.getElementById('wiki-chat-llm-key').value,
@@ -375,13 +380,13 @@
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                         if (data && data.success) {
-                            if (settingsStatus) settingsStatus.textContent = '✅ ' + t('ext_chat.saved', 'Saved!');
+                            if (settingsStatus) settingsStatus.textContent = '✅ ' + _t('ext_chat.saved', 'Saved!');
                         } else {
                             if (settingsStatus) settingsStatus.textContent = '⚠️ ' + ((data && data.error) || 'Error');
                         }
                     })
                     .catch(function () {
-                        if (settingsStatus) settingsStatus.textContent = '⚠️ ' + t('ext_chat.error_network', 'Network error');
+                        if (settingsStatus) settingsStatus.textContent = '⚠️ ' + _t('ext_chat.error_network', 'Network error');
                     });
             });
         }

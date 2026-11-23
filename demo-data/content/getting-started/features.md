@@ -220,6 +220,10 @@ Standalone Qwiki bundles a native AI assistant utility extension (`tool-gemini-a
   - **Free & Paid Tier Coexistence**: Allows experimental, hobbyist, or community installations to let users bring their own free-tier API keys without overburdening the shared site key, while professional installations can provide a single paid site-wide key.
 - **Role-Based Permissions & Safeguards**: Signed-in viewers can launch the assistant from the header utility bar to summarize content, test models, and inspect social preview cards using either the site key or their personal key. Direct document updates and site configuration changes remain strictly restricted to administrators.
 - **Interactive Model Discovery & Key Management**: Query Google's API to auto-detect active models supported by your API key, or choose from high-performance presets with automated version fallback and connection testing. Keys are securely stored and masked in the UI; in demo mode, simulated responses are provided safely.
+- **Wiki AI Chat (`tool-wiki-chat`)**: An optional slide-over conversational assistant (`💬 Ask Wiki`, shortcut `Ctrl+Shift+K`) that lets permitted readers interrogate wiki contents via `LlmAccess` (`llms.txt` index + active chapter context + multi-step `search`/`doc` tool calls):
+  - **Hard Site API Key Gate**: Disabled by default and can only be enabled when a Site Default Gemini API key is configured (`qwiki.json` or `GEMINI_API_KEY` / `QWIKI_GEMINI_API_KEY`). Automatically deactivates if the site key is removed.
+  - **Three-Tier Audience Access Control**: Administrators configure who can see and use the chat drawer: **All Visitors** (`public`), **Viewers & Admins Only** (`logged_in`), or **Admins Only** (`admin_only`), with automatic caller visibility filtering so `logged_in` and `admin_only` chapters are never exposed to anonymous visitors.
+  - **Two-Tier BYOK & Scoped `qwk_llm_...` Key**: Uses a signed-in user's personal Gemini API key when set (falling back to the Site Default Key) and scopes document retrieval to an auto-provisioned or admin-selected `qwk_llm_...` key.
 
 ---
 
