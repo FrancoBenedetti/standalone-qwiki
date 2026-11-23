@@ -209,6 +209,26 @@ assert_test(($anonDoc['result']['success'] ?? true) === false, 'Anonymous caller
 $viewerDoc = WikiChatService::executeToolCall('qwiki_get_document', ['slug' => 'private-doc'], $activeKeyRecord, false, true);
 assert_test(($viewerDoc['result']['success'] ?? false) === true, 'Signed-in viewer can retrieve logged_in document');
 
+// Draft and Archived documents must never be exposed even to admins
+$draftMd = $tempDir . '/content/draft-doc.md';
+file_put_contents($draftMd, "# Secret Draft\n\nUnpublished draft content.");
+$cfgDraft = Config::load();
+$cfgDraft['books'][0]['items'][] = [
+    'id' => 'draft-doc',
+    'title' => 'Unpublished Draft Doc',
+    'slug' => 'draft-doc',
+    'file' => 'content/draft-doc.md',
+    'type' => 'markdown',
+    'status' => 'draft',
+    'visibility' => 'public'
+];
+Config::save($cfgDraft);
+$adminTree = WikiChatService::executeToolCall('qwiki_list_tree', [], $activeKeyRecord, true, true);
+$adminSlugs = array_column($adminTree['result']['documents'] ?? [], 'slug');
+assert_test(!in_array('draft-doc', $adminSlugs, true), 'Draft document is excluded from tree even for admins');
+$adminDraftDoc = WikiChatService::executeToolCall('qwiki_get_document', ['slug' => 'draft-doc'], $activeKeyRecord, true, true);
+assert_test(($adminDraftDoc['result']['success'] ?? true) === false, 'Draft document cannot be retrieved via tool call');
+
 // 5. Grounded system prompt & unknown tool handling
 $promptInfo = WikiChatService::buildSystemPrompt($activeKeyRecord, 'introduction', true, false, true);
 assert_test(strpos($promptInfo['prompt'], 'api/llm.php') !== false, 'System prompt includes /api/llm.php spec');
