@@ -54,9 +54,9 @@ if (!function_exists('gemini_get_resolved_config')) {
         $envKey = getenv('GEMINI_API_KEY') ?: getenv('QWIKI_GEMINI_API_KEY');
         $isEnvKey = !empty($envKey);
         $siteKey = $isEnvKey ? trim($envKey) : trim($geminiConfig['apiKey'] ?? '');
-        $siteModel = trim($geminiConfig['model'] ?? 'gemini-2.5-flash');
+        $siteModel = trim($geminiConfig['model'] ?? 'gemini-3.8-flash');
         if (empty($siteModel)) {
-            $siteModel = 'gemini-2.5-flash';
+            $siteModel = 'gemini-3.8-flash';
         }
 
         // 2. User personal key and model (from users.json)
@@ -230,29 +230,31 @@ if (!function_exists('gemini_call_api')) {
         // Clean model name (strip leading 'models/' prefix if present)
         $cleanModel = preg_replace('#^models/#', '', trim($model));
         if (empty($cleanModel)) {
-            $cleanModel = 'gemini-2.5-flash';
+            $cleanModel = 'gemini-3.8-flash';
         }
 
-        // Build list of models to try in sequence if 404 occurs.
-        // Active 2026 models are prioritized; legacy models are automatically upgraded.
+        // Build list of models to try in sequence if 404 / deprecated occurs.
+        // Active 2026 models are prioritized; legacy models automatically fall back to gemini-3.8-flash.
         $modelsToTry = [$cleanModel];
 
-        if ($cleanModel === 'gemini-2.5-flash') {
-            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+        if ($cleanModel === 'gemini-3.8-flash') {
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+        } elseif ($cleanModel === 'gemini-2.5-flash') {
+            $modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
         } elseif ($cleanModel === 'gemini-2.5-pro') {
-            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+            $modelsToTry = ['gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
         } elseif ($cleanModel === 'gemini-2.5-flash-lite') {
-            $modelsToTry = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+            $modelsToTry = ['gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
         } elseif ($cleanModel === 'gemini-3.5-flash') {
-            $modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash'];
         } elseif ($cleanModel === 'gemini-2.0-flash' || $cleanModel === 'gemini-1.5-flash') {
             // Deprecated/shut down models automatically upgrade to active equivalents
-            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash', $cleanModel];
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash', $cleanModel];
         } elseif ($cleanModel === 'gemini-1.5-pro' || $cleanModel === 'gemini-2.0-pro') {
-            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', $cleanModel];
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-pro', 'gemini-3.5-flash', $cleanModel];
         } else {
             // Custom or preview model name: try requested first, then fall back to standard flash
-            $modelsToTry = [$cleanModel, 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
         }
 
         // De-duplicate while preserving order
@@ -302,9 +304,11 @@ if (!function_exists('gemini_call_api')) {
                     ];
                 }
 
-                // Handle non-404 errors immediately (quota, bad key, bad request) - no fallback needed
-                if ($httpCode !== 404) {
-                    $errorMsg = $resData['error']['message'] ?? "Gemini API error (HTTP {$httpCode})";
+                // Handle non-404 errors immediately unless the model is deprecated/unavailable to new users
+                $rawErrMsg = $resData['error']['message'] ?? "Gemini API error (HTTP {$httpCode})";
+                $isModelUnavailable = ($httpCode === 404) || (stripos($rawErrMsg, 'no longer available') !== false);
+                if (!$isModelUnavailable) {
+                    $errorMsg = $rawErrMsg;
                     $status = $resData['error']['status'] ?? '';
                     if ($status === 'RESOURCE_EXHAUSTED') {
                         $errorMsg = 'Gemini API quota exceeded for this key. Please check your Google AI Studio quota.';
@@ -479,7 +483,7 @@ if ($action === 'ext_gemini_save_settings') {
         }
 
         if ($rawSiteModel !== null) {
-            $config['gemini']['model'] = !empty($rawSiteModel) ? $rawSiteModel : 'gemini-2.5-flash';
+            $config['gemini']['model'] = !empty($rawSiteModel) ? $rawSiteModel : 'gemini-3.8-flash';
         }
 
         Config::save($config);
@@ -523,7 +527,7 @@ if ($action === 'ext_gemini_test_connection') {
 
     $testModel = trim($params['model'] ?? ($params['userModel'] ?? ($params['siteModel'] ?? $cfg['model'])));
     if (empty($testModel)) {
-        $testModel = 'gemini-2.5-flash';
+        $testModel = 'gemini-3.8-flash';
     }
 
     if (empty($testKey)) {

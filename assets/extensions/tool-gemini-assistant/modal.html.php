@@ -268,10 +268,11 @@ if (!function_exists('gemini_build_doc_options')) {
                         <label class="form-label" for="gemini-select-user-model" style="margin-bottom: 0.35rem;"><?= htmlspecialchars(__('ext_gemini.preferred_model_personal', 'Preferred Model (Personal)')) ?></label>
                         <select id="gemini-select-user-model" class="form-control">
                             <option value=""><?= htmlspecialchars(__('ext_gemini.inherit_site_model', '(Inherit Site Default Model)')) ?></option>
-                            <option value="gemini-2.5-flash">gemini-2.5-flash (Fast, hybrid reasoning)</option>
-                            <option value="gemini-2.5-pro">gemini-2.5-pro (Advanced: Complex reasoning & code)</option>
-                            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Cost-efficient, high throughput)</option>
-                            <option value="gemini-3.5-flash">gemini-3.5-flash (Next-generation high performance)</option>
+                            <option value="gemini-3.8-flash">gemini-3.8-flash (Recommended: Latest fast reasoning)</option>
+                            <option value="gemini-3.5-flash">gemini-3.5-flash (High performance)</option>
+                            <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy: Fast hybrid reasoning)</option>
+                            <option value="gemini-2.5-pro">gemini-2.5-pro (Legacy: Complex reasoning & code)</option>
+                            <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Legacy: Cost-efficient)</option>
                         </select>
                     </div>
                 </div>
@@ -303,17 +304,18 @@ if (!function_exists('gemini_build_doc_options')) {
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label" for="gemini-select-site-model" style="margin-bottom: 0.35rem;"><?= htmlspecialchars(__('ext_gemini.site_default_model_label', 'Site Default Model')) ?></label>
                             <select id="gemini-select-site-model" class="form-control">
-                                <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended: Fast, hybrid reasoning, 1M context)</option>
-                                <option value="gemini-2.5-pro">gemini-2.5-pro (Advanced: Complex reasoning & code synthesis)</option>
-                                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Cost-efficient, high throughput)</option>
-                                <option value="gemini-3.5-flash">gemini-3.5-flash (Next-generation high performance)</option>
+                                <option value="gemini-3.8-flash">gemini-3.8-flash (Recommended: Latest fast reasoning)</option>
+                                <option value="gemini-3.5-flash">gemini-3.5-flash (High performance)</option>
+                                <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy: Fast hybrid reasoning)</option>
+                                <option value="gemini-2.5-pro">gemini-2.5-pro (Legacy: Complex reasoning & code)</option>
+                                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Legacy: Cost-efficient)</option>
                             </select>
                         </div>
                     <?php else: ?>
                         <div style="padding: 0.75rem 1rem; background: var(--bg-surface, rgba(0,0,0,0.02)); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <span><?= htmlspecialchars(__('ext_gemini.status_label', 'Status:')) ?> <strong id="gemini-viewer-site-status"><?= htmlspecialchars(__('ext_gemini.checking', 'Checking...')) ?></strong></span>
-                                <span id="gemini-viewer-site-model" style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">gemini-2.5-flash</span>
+                                <span id="gemini-viewer-site-model" style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">gemini-3.8-flash</span>
                             </div>
                             <small style="color: var(--text-muted); display: block; margin-top: 0.35rem;">
                                 <?= htmlspecialchars(__('ext_gemini.admin_only_site_key_note', '🔒 Only administrators can edit the site-wide default key. Use the Personal API Key section above to set your own key.')) ?>

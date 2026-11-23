@@ -161,7 +161,7 @@
                     viewerSiteStatus.style.color = data.hasSiteKey ? '#10b981' : 'var(--text-muted)';
                 }
                 if (viewerSiteModel) {
-                    viewerSiteModel.textContent = data.siteModel || 'gemini-2.5-flash';
+                    viewerSiteModel.textContent = data.siteModel || 'gemini-3.8-flash';
                 }
                 if (cardSite) {
                     if (data.keySource === 'site' || data.keySource === 'env') {

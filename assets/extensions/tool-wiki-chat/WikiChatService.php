@@ -70,9 +70,9 @@ class WikiChatService {
         $envKey = getenv('GEMINI_API_KEY') ?: getenv('QWIKI_GEMINI_API_KEY');
         $isEnvKey = !empty($envKey) && trim((string)$envKey) !== '';
         $siteKey = $isEnvKey ? trim((string)$envKey) : trim((string)($geminiConfig['apiKey'] ?? ''));
-        $siteModel = trim((string)($geminiConfig['model'] ?? 'gemini-2.5-flash'));
+        $siteModel = trim((string)($geminiConfig['model'] ?? 'gemini-3.8-flash'));
         if ($siteModel === '') {
-            $siteModel = 'gemini-2.5-flash';
+            $siteModel = 'gemini-3.8-flash';
         }
 
         $userRecord = !empty($username) ? Auth::getUser($username) : null;
@@ -537,15 +537,17 @@ class WikiChatService {
             'parts' => [['text' => $message]]
         ];
 
-        $cleanModel = preg_replace('#^models/#', '', trim($creds['model'] ?: 'gemini-2.5-flash')) ?: 'gemini-2.5-flash';
-        if ($cleanModel === 'gemini-2.5-flash') {
-            $modelsToTry = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash'];
+        $cleanModel = preg_replace('#^models/#', '', trim($creds['model'] ?: 'gemini-3.8-flash')) ?: 'gemini-3.8-flash';
+        if ($cleanModel === 'gemini-3.8-flash') {
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+        } elseif ($cleanModel === 'gemini-2.5-flash') {
+            $modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
         } elseif ($cleanModel === 'gemini-2.5-pro') {
-            $modelsToTry = ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+            $modelsToTry = ['gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
         } elseif ($cleanModel === 'gemini-3.5-flash') {
-            $modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+            $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash'];
         } else {
-            $modelsToTry = [$cleanModel, 'gemini-2.5-flash', 'gemini-3.5-flash'];
+            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
         }
         $modelsToTry = array_values(array_unique($modelsToTry));
         $model = $modelsToTry[0];
@@ -581,7 +583,9 @@ class WikiChatService {
                 $resp = $transport($url, $payload);
                 $httpCode = (int)($resp['httpCode'] ?? 0);
                 $body = $resp['body'] ?? [];
-                if ($httpCode !== 404) {
+                $errText = (string)($body['error']['message'] ?? '');
+                $isModelUnavailable = ($httpCode === 404) || (stripos($errText, 'no longer available') !== false);
+                if (!$isModelUnavailable) {
                     $model = $candidateModel;
                     break;
                 }
