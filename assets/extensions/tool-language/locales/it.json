@@ -1043,6 +1043,7 @@
         "ext_chat.saved": "Salvato!",
         "ext_chat.saving": "Salvataggio...",
         "ext_chat.thinking": "Elaborazione...",
-        "ext_chat.tools_used": "Usate {count} ricerche nel wiki"
+        "ext_chat.tools_used": "Usate {count} ricerche nel wiki",
+        "ext_chat.copy_btn": "Copia risposta"
     }
 }

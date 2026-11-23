@@ -283,13 +283,77 @@
 
 .wiki-chat-bubble ul,
 .wiki-chat-bubble ol {
-    margin: 0.35rem 0;
-    padding-left: 1.25rem;
+    margin: 0.4rem 0;
+    padding-left: 1.35rem;
+}
+
+.wiki-chat-bubble li {
+    margin-bottom: 0.25rem;
+}
+
+.wiki-chat-bubble h3,
+.wiki-chat-bubble h4 {
+    margin: 0.65rem 0 0.3rem 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.wiki-chat-bubble hr {
+    border: none;
+    border-top: 1px solid var(--border-color, #cbd5e1);
+    margin: 0.6rem 0;
 }
 
 .wiki-chat-bubble a {
     color: var(--accent-color, #2563eb);
     text-decoration: underline;
+}
+
+.wiki-chat-msg-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.wiki-chat-copy-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: var(--text-muted, #64748b);
+    margin-left: auto;
+}
+
+.wiki-chat-copy-btn:hover {
+    background: var(--bg-card, #f1f5f9);
+    border-color: var(--border-color, #cbd5e1);
+}
+
+.wiki-chat-typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 4px;
+}
+
+.wiki-chat-typing span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.4;
+    animation: wikiChatDot 1.2s infinite ease-in-out;
+}
+
+.wiki-chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+.wiki-chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes wikiChatDot {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
+    40% { opacity: 1; transform: scale(1.1); }
 }
 
 .wiki-chat-tools-chip {

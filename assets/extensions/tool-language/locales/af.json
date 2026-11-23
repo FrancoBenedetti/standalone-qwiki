@@ -1043,6 +1043,7 @@
         "ext_chat.saved": "Gestoor!",
         "ext_chat.saving": "Stoor tans...",
         "ext_chat.thinking": "Dink tans...",
-        "ext_chat.tools_used": "{count} wiki-opsoek(e) gebruik"
+        "ext_chat.tools_used": "{count} wiki-opsoek(e) gebruik",
+        "ext_chat.copy_btn": "Kopieer antwoord"
     }
 }

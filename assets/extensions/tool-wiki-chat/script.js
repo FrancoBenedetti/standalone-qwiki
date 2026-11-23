@@ -38,56 +38,112 @@
         return trimmed;
     }
 
+    function formatInlineMd(line, baseUrl) {
+        // Inline code
+        var out = line.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+        // Links [label](url)
+        out = out.replace(/\[([^\]]+)\]\(([^)\n]+)\)/g, function (_, label, href) {
+            var safeHref = escapeHtml(sanitizeUrl(href, baseUrl));
+            return '<a href="' + safeHref + '">' + label + '</a>';
+        });
+        // Bold & italic (single-line only to avoid cross-paragraph bleed)
+        out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+        out = out.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+        return out;
+    }
+
     function renderMarkdownSafe(md, baseUrl) {
-        var text = escapeHtml(md || '');
+        var text = escapeHtml(md || '').replace(/\r\n/g, '\n');
 
         // Fenced code blocks
         var codeBlocks = [];
         text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function (_, lang, code) {
             var idx = codeBlocks.length;
             codeBlocks.push('<pre><code>' + code.trim() + '</code></pre>');
-            return '%%CODEBLOCK_' + idx + '%%';
+            return '\n%%CODEBLOCK_' + idx + '%%\n';
         });
 
-        // Inline code
-        text = text.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+        var lines = text.split('\n');
+        var htmlParts = [];
+        var listType = null; // 'ul' | 'ol'
+        var paraLines = [];
 
-        // Links [label](url)
-        text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (_, label, href) {
-            var safeHref = escapeHtml(sanitizeUrl(href, baseUrl));
-            return '<a href="' + safeHref + '">' + label + '</a>';
-        });
-
-        // Bold & italic
-        text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-        text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-
-        // Headings
-        text = text.replace(/^###\s+(.+)$/gm, '<strong>$1</strong>');
-        text = text.replace(/^##\s+(.+)$/gm, '<strong>$1</strong>');
-        text = text.replace(/^#\s+(.+)$/gm, '<strong>$1</strong>');
-
-        // Unordered list items
-        text = text.replace(/^(?:-|\*)\s+(.+)$/gm, '<li>$1</li>');
-        text = text.replace(/(<li>[\s\S]*?<\/li>)(?!\n<li>)/g, '<ul>$1</ul>');
-        text = text.replace(/<\/ul>\n<ul>/g, '\n');
-
-        // Paragraphs
-        var blocks = text.split(/\n{2,}/);
-        text = blocks.map(function (b) {
-            b = b.trim();
-            if (!b) return '';
-            if (/^<(?:ul|ol|pre|p|div)/.test(b) || /^%%CODEBLOCK_\d+%%$/.test(b)) {
-                return b;
+        function flushPara() {
+            if (paraLines.length > 0) {
+                htmlParts.push('<p>' + paraLines.map(function (l) { return formatInlineMd(l, baseUrl); }).join('<br>') + '</p>');
+                paraLines = [];
             }
-            return '<p>' + b.replace(/\n/g, '<br>') + '</p>';
-        }).join('');
+        }
+        function flushList() {
+            if (listType) {
+                htmlParts.push('</' + listType + '>');
+                listType = null;
+            }
+        }
 
+        for (var i = 0; i < lines.length; i++) {
+            var rawLine = lines[i];
+            var trimmed = rawLine.trim();
+
+            if (trimmed === '') {
+                flushPara();
+                flushList();
+                continue;
+            }
+            if (/^%%CODEBLOCK_\d+%%$/.test(trimmed)) {
+                flushPara();
+                flushList();
+                htmlParts.push(trimmed);
+                continue;
+            }
+            if (/^-{3,}$/.test(trimmed) || /^\*{3,}$/.test(trimmed)) {
+                flushPara();
+                flushList();
+                htmlParts.push('<hr>');
+                continue;
+            }
+            var hMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+            if (hMatch) {
+                flushPara();
+                flushList();
+                var tag = hMatch[1].length >= 4 ? 'h4' : 'h3';
+                htmlParts.push('<' + tag + '>' + formatInlineMd(hMatch[2], baseUrl) + '</' + tag + '>');
+                continue;
+            }
+            var ulMatch = rawLine.match(/^\s*[-*]\s+(.+)$/);
+            if (ulMatch) {
+                flushPara();
+                if (listType !== 'ul') {
+                    flushList();
+                    listType = 'ul';
+                    htmlParts.push('<ul>');
+                }
+                htmlParts.push('<li>' + formatInlineMd(ulMatch[1], baseUrl) + '</li>');
+                continue;
+            }
+            var olMatch = rawLine.match(/^\s*\d+\.\s+(.+)$/);
+            if (olMatch) {
+                flushPara();
+                if (listType !== 'ol') {
+                    flushList();
+                    listType = 'ol';
+                    htmlParts.push('<ol>');
+                }
+                htmlParts.push('<li>' + formatInlineMd(olMatch[1], baseUrl) + '</li>');
+                continue;
+            }
+
+            flushList();
+            paraLines.push(trimmed);
+        }
+        flushPara();
+        flushList();
+
+        var result = htmlParts.join('');
         codeBlocks.forEach(function (html, idx) {
-            text = text.replace('%%CODEBLOCK_' + idx + '%%', html);
+            result = result.replace('%%CODEBLOCK_' + idx + '%%', html);
         });
-
-        return text;
+        return result;
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -152,22 +208,48 @@
             bubble.className = 'wiki-chat-bubble';
             if (role === 'user') {
                 bubble.textContent = text;
+            } else if (meta && meta.isLoading) {
+                bubble.innerHTML = '<span class="wiki-chat-typing"><span></span><span></span><span></span></span> ' + escapeHtml(text);
             } else {
                 bubble.innerHTML = renderMarkdownSafe(text, baseUrl);
             }
             wrapper.appendChild(bubble);
 
-            if (role === 'model' && meta && Array.isArray(meta.sources) && meta.sources.length > 0) {
-                var sourcesDiv = document.createElement('div');
-                sourcesDiv.className = 'wiki-chat-sources';
-                meta.sources.forEach(function (src) {
-                    var a = document.createElement('a');
-                    a.className = 'wiki-chat-source-pill';
-                    a.href = sanitizeUrl(src.url || src.slug || '#', baseUrl);
-                    a.textContent = '📄 ' + (src.title || src.slug);
-                    sourcesDiv.appendChild(a);
-                });
-                wrapper.appendChild(sourcesDiv);
+            if (role === 'model' && !(meta && meta.isLoading)) {
+                var footer = document.createElement('div');
+                footer.className = 'wiki-chat-msg-footer';
+
+                if (meta && Array.isArray(meta.sources) && meta.sources.length > 0) {
+                    var sourcesDiv = document.createElement('div');
+                    sourcesDiv.className = 'wiki-chat-sources';
+                    meta.sources.forEach(function (src) {
+                        var a = document.createElement('a');
+                        a.className = 'wiki-chat-source-pill';
+                        a.href = sanitizeUrl(src.url || src.slug || '#', baseUrl);
+                        a.textContent = '📄 ' + (src.title || src.slug);
+                        sourcesDiv.appendChild(a);
+                    });
+                    footer.appendChild(sourcesDiv);
+                }
+
+                if (navigator.clipboard && text) {
+                    var copyBtn = document.createElement('button');
+                    copyBtn.type = 'button';
+                    copyBtn.className = 'wiki-chat-copy-btn';
+                    copyBtn.title = _t('ext_chat.copy_btn', 'Copy response');
+                    copyBtn.textContent = '📋';
+                    copyBtn.addEventListener('click', function () {
+                        navigator.clipboard.writeText(text).then(function () {
+                            copyBtn.textContent = '✅';
+                            setTimeout(function () { copyBtn.textContent = '📋'; }, 1500);
+                        }).catch(function () {});
+                    });
+                    footer.appendChild(copyBtn);
+                }
+
+                if (footer.childNodes.length > 0) {
+                    wrapper.appendChild(footer);
+                }
             }
 
             messagesEl.appendChild(wrapper);
@@ -314,7 +396,7 @@
                 inputEl.value = '';
 
                 appendMessage('user', msg, null);
-                var thinkingBubble = appendMessage('model', _t('ext_chat.thinking', 'Thinking...'), null);
+                var thinkingBubble = appendMessage('model', _t('ext_chat.thinking', 'Thinking...'), { isLoading: true });
 
                 var payload = {
                     message: msg,

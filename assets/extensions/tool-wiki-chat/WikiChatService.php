@@ -241,7 +241,24 @@ class WikiChatService {
 
         $rawDocs = LlmAccess::buildDocumentTree($keyRecord);
         $scopedDocs = self::filterDocsForCaller($rawDocs, $isAdmin, $isViewer);
-        $llmsTxt = LlmAccess::renderLlmsTxt($scopedDocs, $wikiTitle, $siteDesc);
+
+        $indexLines = [];
+        foreach ($scopedDocs as $doc) {
+            $dTitle = $doc['title'] ?? 'Untitled';
+            $dUrl = $doc['url'] ?? ($doc['slug'] ?? '');
+            $dSlug = $doc['slug'] ?? '';
+            $dType = strtoupper($doc['type'] ?? 'MD');
+            $dDesc = trim((string)($doc['description'] ?? ''));
+            $line = "- [{$dTitle}]({$dUrl}) [{$dType}] (slug: `{$dSlug}`)";
+            if ($dDesc !== '') {
+                $line .= ": {$dDesc}";
+            }
+            $indexLines[] = $line;
+        }
+        $llmsTxt = "# {$wikiTitle}\n"
+            . ($siteDesc !== '' ? "> {$siteDesc}\n\n" : "\n")
+            . "## Available Documents\n\n"
+            . implode("\n", $indexLines) . "\n";
 
         $baseUrl = Config::getBaseUrl();
         $apiEndpoint = rtrim($baseUrl, '/') . '/api/llm.php';
@@ -258,9 +275,10 @@ class WikiChatService {
             . "- Assigned Scoped Key: `{$keyName}` (Category Scope: {$keyScope}; Permitted Types: {$allowedTypes})\n"
             . "- You have function tools (`qwiki_list_tree`, `qwiki_search_documents`, `qwiki_get_document`) backed directly by this key.\n\n"
             . "## Citation & Accuracy Rules\n"
-            . "1. Always cite source chapters using relative Markdown links with their slug (e.g., `[Chapter Title](slug)`).\n"
-            . "2. If the answer is not in the currently active chapter, use `qwiki_search_documents` or `qwiki_get_document` to read relevant chapters from the index below.\n"
-            . "3. If the information cannot be found in the wiki, clearly state that it is not covered in the available wiki documentation.\n\n"
+            . "1. Always cite source chapters using their exact canonical URL from the index below (e.g., `[Chapter Title](https://.../category/slug)`).\n"
+            . "2. Only reference or summarize the **Currently Open Chapter** if the user's question refers to 'this page', 'this article', or its specific topic. For general wiki-wide questions (e.g., 'What topics are covered in this wiki?'), answer from the full index without appending an unrequested summary of the open chapter.\n"
+            . "3. If the answer is not in the currently active chapter, use `qwiki_search_documents` or `qwiki_get_document` to read relevant chapters from the index below.\n"
+            . "4. If the information cannot be found in the wiki, clearly state that it is not covered in the available wiki documentation.\n\n"
             . "## Scoped Wiki Document Index (`llms.txt`)\n"
             . $llmsTxt . "\n";
 
@@ -397,6 +415,16 @@ class WikiChatService {
                 $limit = isset($args['limit']) ? max(1, min(20, (int)$args['limit'])) : 8;
                 $rawMatches = LlmAccess::searchDocuments($keyRecord, $query, $limit * 2);
                 $matches = array_slice(self::filterDocsForCaller($rawMatches, $isAdmin, $isViewer), 0, $limit);
+                $matchSources = [];
+                foreach (array_slice($matches, 0, 3) as $m) {
+                    if (!empty($m['slug'])) {
+                        $matchSources[] = [
+                            'title' => $m['title'] ?? $m['slug'],
+                            'slug' => $m['slug'],
+                            'url' => $m['url'] ?? '',
+                        ];
+                    }
+                }
                 return [
                     'result' => [
                         'success' => true,
@@ -404,7 +432,8 @@ class WikiChatService {
                         'count' => count($matches),
                         'matches' => $matches
                     ],
-                    'source' => null
+                    'source' => null,
+                    'sources' => $matchSources
                 ];
 
             case 'qwiki_get_document':
@@ -545,10 +574,7 @@ class WikiChatService {
         $apiKey = $creds['apiKey'];
         $tools = [['functionDeclarations' => self::getGeminiToolsDeclaration()]];
         $sourcesMap = [];
-        if (!empty($promptInfo['activeDoc'])) {
-            $ad = $promptInfo['activeDoc'];
-            $sourcesMap[$ad['slug']] = $ad;
-        }
+        $activeDocMeta = $promptInfo['activeDoc'] ?? null;
         $toolCallsLog = [];
 
         $transport = $httpTransport ?? function (string $url, array $payload) {
@@ -610,6 +636,9 @@ class WikiChatService {
                 if ($replyText === '') {
                     $replyText = 'I could not generate a response for that query.';
                 }
+                if ($activeDocMeta && !empty($activeDocMeta['slug']) && stripos($replyText, $activeDocMeta['slug']) !== false) {
+                    $sourcesMap[$activeDocMeta['slug']] = $activeDocMeta;
+                }
                 return [
                     'success' => true,
                     'reply' => $replyText,
@@ -638,6 +667,13 @@ class WikiChatService {
                 ];
                 if (!empty($exec['source']) && !empty($exec['source']['slug'])) {
                     $sourcesMap[$exec['source']['slug']] = $exec['source'];
+                }
+                if (!empty($exec['sources']) && is_array($exec['sources'])) {
+                    foreach ($exec['sources'] as $ms) {
+                        if (!empty($ms['slug'])) {
+                            $sourcesMap[$ms['slug']] = $ms;
+                        }
+                    }
                 }
 
                 $responseParts[] = [
