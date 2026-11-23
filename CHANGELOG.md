@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.28] - ChatFlow - 2026-11-23
+
+### 💬 Wiki AI Chat Extension (`tool-wiki-chat`)
+- **Conversational Wiki Interrogation (`assets/extensions/tool-wiki-chat/WikiChatService.php`, `handler.php`)**: Added the `tool-wiki-chat` utility extension (`id: "wiki_chat"`) powered by a hybrid architecture combining the scoped `llms.txt` document tree index, active chapter context, `/api/llm.php` schema metadata, and multi-step Gemini `functionDeclarations` (`qwiki_list_tree`, `qwiki_search_documents`, `qwiki_get_document`) backed by `LlmAccess` (capped at `MAX_TOOL_STEPS = 4`).
+- **Slide-Over Chat Drawer & Toolbar Trigger (`widget.html.php`, `modal.html.php`, `style.css`, `script.js`)**: Added a header toolbar **Ask Wiki** button (`#btn-open-wiki-chat`, shortcut `Ctrl+Shift+K`) and an expandable right-docked chat drawer (`#wiki-chat-drawer`) with `sessionStorage` history, safe Markdown + clickable wiki citation rendering, collapsible lookup chips, starter prompt pills, and an in-drawer Admin Settings tab.
+
+### 🔐 Activation Gate, Audience Access Control & Two-Tier BYOK
+- **Hard Site API Key Gate (`lib/Core/Config.php`, `lib/Core/ExtensionManager.php`, `templates/modals/settings.php`, `api/admin.php`)**: Added `Config::hasSiteGeminiApiKey()` and `requiresSiteApiKey` / `defaultEnabled` manifest enforcement so `wiki_chat` defaults to disabled, cannot be enabled without a Site Default Gemini API Key (`qwiki.json` or `GEMINI_API_KEY` / `QWIKI_GEMINI_API_KEY`), and automatically deactivates if the site key is removed.
+- **Three-Tier Audience Policy & Caller Visibility Filtering (`WikiChatService.php`)**: Added admin-selectable `accessMode` (`public`, `logged_in`, `admin_only`), auto-provisioned or admin-pinned `qwk_llm_...` scoped keys, and caller-aware filtering (`filterDocsForCaller()`) so `logged_in` and `admin_only` chapters are never exposed to unauthenticated visitors.
+- **Two-Tier BYOK & Viewer Modal Access (`index.php`, `lib/Core/ExtensionManager.php`)**: Updated `renderUtilityModals($isAdmin)` to render non-`adminOnly` utility modals for authorized readers so signed-in Viewers can configure their personal `geminiApiKey` (`users.json`) to override the Site Default Key.
+
+### 🌐 Localization, Documentation & Tests
+- **Afrikaans & Italian Locale Parity (`assets/extensions/tool-language/locales/af.json`, `assets/extensions/tool-language/locales/it.json`)**: Added Afrikaans (`af`) and Italian (`it`) translations for all new `ext.wiki_chat.*`, `ext_chat.*`, and `settings.ext_requires_api_key` keys.
+- **Documentation & Test Suite (`demo-data/content/`, `tests/test_wiki_chat.php`)**: Documented `tool-wiki-chat` in `features.md` and `site-settings-users.md`, and added `tests/test_wiki_chat.php` covering activation gating, audience modes, BYOK precedence, key provisioning/revocation, caller visibility filtering, and multi-step tool execution.
+
 ## [1.20.27] - AuditFlow - 2026-11-23
 
 ### 🔍 Direct Document Read Audit Logging
