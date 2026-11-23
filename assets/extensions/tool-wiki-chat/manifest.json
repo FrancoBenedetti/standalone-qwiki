@@ -1,0 +1,21 @@
+{
+  "id": "wiki_chat",
+  "type": "utility",
+  "adminOnly": false,
+  "defaultEnabled": false,
+  "requiresSiteApiKey": true,
+  "title": "Wiki AI Chat",
+  "description": "Conversational AI chat assistant allowing users to interrogate wiki contents using a scoped LLM access key.",
+  "icon": "💬",
+  "placement": "header_toolbar",
+  "widget": "widget.html.php",
+  "modal": "modal.html.php",
+  "handler": "handler.php",
+  "actions": [
+    "ext_wiki_chat_get_config",
+    "ext_wiki_chat_save_config",
+    "ext_wiki_chat_ask"
+  ],
+  "styles": ["style.css"],
+  "scripts": ["script.js"]
+}

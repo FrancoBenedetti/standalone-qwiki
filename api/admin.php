@@ -2084,8 +2084,13 @@ switch ($action) {
             $submittedExtensions = isset($_POST['extensions']) && is_array($_POST['extensions']) ? $_POST['extensions'] : [];
             $allDiscovered = ExtensionManager::getInstance()->getAllExtensions();
             $extensionsConfig = $config['extensions'] ?? [];
+            $hasSiteKey = Config::hasSiteGeminiApiKey($config);
             foreach ($allDiscovered as $extId => $extInfo) {
-                $extensionsConfig[$extId] = !empty($submittedExtensions[$extId]);
+                if (!empty($extInfo['requiresSiteApiKey']) && !$hasSiteKey) {
+                    $extensionsConfig[$extId] = false;
+                } else {
+                    $extensionsConfig[$extId] = !empty($submittedExtensions[$extId]);
+                }
             }
             $config['extensions'] = $extensionsConfig;
         }

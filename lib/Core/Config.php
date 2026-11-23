@@ -593,6 +593,18 @@ class Config {
         return self::save($config);
     }
 
+    public static function hasSiteGeminiApiKey(?array $config = null): bool {
+        $envKey = getenv('GEMINI_API_KEY') ?: getenv('QWIKI_GEMINI_API_KEY');
+        if (!empty($envKey) && trim((string)$envKey) !== '') {
+            return true;
+        }
+        if ($config === null) {
+            $config = self::load();
+        }
+        $siteKey = trim((string)($config['gemini']['apiKey'] ?? ''));
+        return $siteKey !== '';
+    }
+
     /**
      * Ensures an HTML document has an appropriate <base href="..."> tag
      * resolving relative paths based on document depth.

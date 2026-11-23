@@ -1326,9 +1326,9 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
         <?php if ($isAdmin): ?>
             <?php require $templatesDir . '/modals/theme_editor.php'; ?>
             <?php require $templatesDir . '/modals/update_available.php'; ?>
-            <!-- Utility Modals Injected by Extensions -->
-            <?php $extManager->renderUtilityModals(); ?>
         <?php endif; ?>
+        <!-- Utility Modals Injected by Extensions -->
+        <?php $extManager->renderUtilityModals($isAdmin); ?>
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>

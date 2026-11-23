@@ -79,24 +79,38 @@ class ExtensionManager {
     }
 
     public function isExtensionEnabled(string $id): bool {
+        $this->discover();
         $config = Config::load();
+        $ext = $this->pageTypes[$id] ?? $this->utilities[$id] ?? null;
+
+        if (!empty($ext['requiresSiteApiKey']) && !Config::hasSiteGeminiApiKey($config)) {
+            return false;
+        }
+
         $extensions = $config['extensions'] ?? [];
         if (array_key_exists($id, $extensions)) {
             return !empty($extensions[$id]);
+        }
+        if (is_array($ext) && array_key_exists('defaultEnabled', $ext)) {
+            return !empty($ext['defaultEnabled']);
         }
         return true;
     }
 
     public function getAllExtensions(): array {
         $this->discover();
+        $config = Config::load();
+        $hasSiteKey = Config::hasSiteGeminiApiKey($config);
         $all = [];
         foreach ($this->pageTypes as $id => $ext) {
             $ext['enabled'] = $this->isExtensionEnabled($id);
+            $ext['keySatisfied'] = empty($ext['requiresSiteApiKey']) || $hasSiteKey;
             $ext['category'] = 'page_type';
             $all[$id] = $ext;
         }
         foreach ($this->utilities as $id => $ext) {
             $ext['enabled'] = $this->isExtensionEnabled($id);
+            $ext['keySatisfied'] = empty($ext['requiresSiteApiKey']) || $hasSiteKey;
             $ext['category'] = 'utility';
             $all[$id] = $ext;
         }
@@ -456,9 +470,12 @@ class ExtensionManager {
         }
     }
 
-    public function renderUtilityModals() {
+    public function renderUtilityModals(bool $isAdmin = true): void {
         $this->discover();
         foreach ($this->getEnabledUtilities() as $id => $util) {
+            if (!$isAdmin && !empty($util['adminOnly'])) {
+                continue;
+            }
             $modalFile = $util['base_dir'] . '/' . ($util['modal'] ?? 'modal.html.php');
             if (file_exists($modalFile)) {
                 $utility = $util;

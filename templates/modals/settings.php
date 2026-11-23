@@ -163,6 +163,7 @@ foreach ($allExtensions as $id => $ext) {
                         <?php foreach ($utilityExts as $id => $ext):
                             $extTitle = __('ext.' . $id . '.title', $ext['title'] ?? ucfirst($id));
                             $extDesc = __('ext.' . $id . '.desc', $ext['description'] ?? __('settings.ext_util_default_desc', 'Workspace productivity and administrative tool.'));
+                            $requiresKeyBlocked = !empty($ext['requiresSiteApiKey']) && empty($ext['keySatisfied']);
                         ?>
                             <div class="ext-card">
                                 <div class="ext-card-info">
@@ -175,10 +176,17 @@ foreach ($allExtensions as $id => $ext) {
                                         <div class="ext-card-desc">
                                             <?= htmlspecialchars($extDesc) ?>
                                         </div>
+                                        <?php if ($requiresKeyBlocked): ?>
+                                            <div style="margin-top: 0.45rem;">
+                                                <button type="button" class="btn btn-outline btn-xs btn-open-gemini-assistant" data-gemini-tab="settings" style="font-size: 0.75rem; padding: 0.2rem 0.55rem;">
+                                                    <?= htmlspecialchars(__('settings.ext_requires_api_key', '🔑 Set Site API Key to Enable')) ?>
+                                                </button>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                                 <label class="switch-toggle" title="<?= htmlspecialchars(__('settings.toggle_ext_title', 'Toggle {name}', ['name' => $extTitle])) ?>">
-                                    <input type="checkbox" name="extensions[<?= htmlspecialchars($id) ?>]" value="1" <?= !empty($ext['enabled']) ? 'checked' : '' ?>>
+                                    <input type="checkbox" name="extensions[<?= htmlspecialchars($id) ?>]" value="1" <?= !empty($ext['enabled']) ? 'checked' : '' ?> <?= $requiresKeyBlocked ? 'disabled' : '' ?>>
                                     <span class="switch-slider"></span>
                                 </label>
                             </div>
