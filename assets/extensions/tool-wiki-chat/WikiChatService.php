@@ -269,16 +269,18 @@ class WikiChatService {
             : 'markdown';
 
         $prompt = "You are the AI Documentation Assistant for \"{$wikiTitle}\".\n"
-            . "Answer user questions accurately using ONLY the wiki content provided below or retrieved via your tools.\n\n"
+            . "Your job is to fulfill the user's exact request (summarize, explain, compare, extract, etc.) grounded strictly in the wiki content.\n\n"
             . "## Wiki API & Key Context\n"
             . "- Wiki LLM API Endpoint: `{$apiEndpoint}` (supports `mode=tree`, `mode=search`, `mode=doc`, `mode=comments`, `mode=talk`)\n"
             . "- Assigned Scoped Key: `{$keyName}` (Category Scope: {$keyScope}; Permitted Types: {$allowedTypes})\n"
             . "- You have function tools (`qwiki_list_tree`, `qwiki_search_documents`, `qwiki_get_document`) backed directly by this key.\n\n"
-            . "## Citation & Accuracy Rules\n"
-            . "1. Always cite source chapters using their exact canonical URL from the index below (e.g., `[Chapter Title](https://.../category/slug)`).\n"
-            . "2. Only reference or summarize the **Currently Open Chapter** if the user's question refers to 'this page', 'this article', or its specific topic. For general wiki-wide questions (e.g., 'What topics are covered in this wiki?'), answer from the full index without appending an unrequested summary of the open chapter.\n"
-            . "3. If the answer is not in the currently active chapter, use `qwiki_search_documents` or `qwiki_get_document` to read relevant chapters from the index below.\n"
-            . "4. If the information cannot be found in the wiki, clearly state that it is not covered in the available wiki documentation.\n\n"
+            . "## Response & Synthesis Rules\n"
+            . "1. **Prioritize the user's directive**: Strictly follow the user's requested task, format, tone, and length/word-count constraint.\n"
+            . "2. **Synthesize — do NOT reproduce or reword**: When asked to summarize, distill the core thesis, key takeaways, and essential facts in your own words. Never walk through and paraphrase every section/bullet of the source document. If the source document is already near or shorter than a requested word limit, give a genuinely condensed summary rather than padding or rewriting the full article.\n"
+            . "3. **Keep formatting clean**: Use concise headings and lists. Do not insert `---` horizontal dividers between sections, and do not append a trailing `*(Source: ...)*` footer (the UI renders source pills automatically).\n"
+            . "4. **Cite canonical URLs**: Reference source chapters inline using their exact canonical URL from the index below (e.g., `[Chapter Title](https://.../category/slug)`).\n"
+            . "5. **Scope active chapter usage**: Only reference the Currently Open Chapter if the user's question refers to 'this page', 'this article', or its topic. For wiki-wide questions, answer from the full index without appending an unrequested summary of the open chapter.\n"
+            . "6. **Tool lookup & honesty**: Use `qwiki_search_documents` or `qwiki_get_document` when information is not in the active chapter (or if the active chapter is truncated). If information is not in the wiki, state that clearly.\n\n"
             . "## Scoped Wiki Document Index (`llms.txt`)\n"
             . $llmsTxt . "\n";
 
@@ -294,13 +296,13 @@ class WikiChatService {
                 ];
                 $contentText = (string)($doc['content'] ?? '');
                 if (strlen($contentText) > self::MAX_ACTIVE_DOC_CHARS) {
-                    $contentText = substr($contentText, 0, self::MAX_ACTIVE_DOC_CHARS) . "\n...[truncated]";
+                    $contentText = substr($contentText, 0, self::MAX_ACTIVE_DOC_CHARS) . "\n...[truncated; call qwiki_get_document with offset=" . self::MAX_ACTIVE_DOC_CHARS . " to read more]";
                 }
-                $prompt .= "\n## Currently Open Chapter\n"
+                $prompt .= "\n## Currently Open Chapter (Reference Material)\n"
                     . "- Title: " . ($doc['title'] ?? '') . "\n"
                     . "- Slug: " . ($doc['slug'] ?? $activeSlug) . "\n"
                     . "- URL: " . ($doc['url'] ?? '') . "\n\n"
-                    . "```markdown\n" . $contentText . "\n```\n";
+                    . "<open_chapter>\n" . $contentText . "\n</open_chapter>\n";
             }
         }
 
