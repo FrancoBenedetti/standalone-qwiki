@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.29] - ChatFlow Stability - 2026-11-24
+
+### 🛠️ Wiki AI Chat Reliability & Synthesis Fixes
+- **IPv4-First cURL & Timeout Protection (`assets/extensions/tool-wiki-chat/WikiChatService.php`, `handler.php`)**: Switched `WikiChatService::callGeminiHttp()` to prefer `CURL_IPRESOLVE_V4` first (`CURLOPT_CONNECTTIMEOUT => 6`, `CURLOPT_TIMEOUT => 25`) with default fallback, avoiding 45s IPv6 stalls that caused PHP/proxy `504` timeouts during multi-step tool calls, and added `@set_time_limit(60)` for `ext_wiki_chat_ask`.
+- **Protobuf Empty `functionCall.args` Serialization Fix (`WikiChatService.php`, `tests/test_wiki_chat.php`)**: Normalized `functionCall['args']` and `functionResponse['response']` to `(object)` when echoing model turns back to Gemini so parameterless tool calls (`qwiki_list_tree()`) serialize as `{}` instead of `[]`.
+- **User-Directive Priority & Synthesis Prompting (`WikiChatService.php`)**: Updated `buildSystemPrompt()` with explicit synthesis rules (distilling key takeaways rather than paraphrasing every section/bullet, omitting `---` dividers and trailing source footers, and wrapping the active chapter in `<open_chapter>` reference tags with pagination hints).
+- **Transparent HTTP Error Reporting (`assets/extensions/tool-wiki-chat/script.js`)**: Updated `ext_wiki_chat_ask` response parsing to read raw text before `JSON.parse()` so non-JSON server responses surface their actual HTTP status code instead of a generic network error.
+
 ## [1.20.28] - ChatFlow - 2026-11-23
 
 ### 💬 Wiki AI Chat Extension (`tool-wiki-chat`)
