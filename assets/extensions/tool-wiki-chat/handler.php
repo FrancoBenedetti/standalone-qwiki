@@ -73,7 +73,7 @@ switch ($action) {
         ];
 
     case 'ext_wiki_chat_ask':
-        @set_time_limit(60);
+        @set_time_limit(90);
         if (!WikiChatService::canCurrentUserAccessChat($config)) {
             if (!headers_sent()) http_response_code(403);
             return ['success' => false, 'error' => 'You do not have permission to use Wiki AI Chat.'];

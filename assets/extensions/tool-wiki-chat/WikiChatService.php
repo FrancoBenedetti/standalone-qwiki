@@ -730,7 +730,7 @@ class WikiChatService {
                 CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
                 CURLOPT_POSTFIELDS => json_encode($payload),
                 CURLOPT_CONNECTTIMEOUT => 6,
-                CURLOPT_TIMEOUT => 25,
+                CURLOPT_TIMEOUT => 55,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             ];
