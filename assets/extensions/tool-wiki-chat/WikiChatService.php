@@ -569,7 +569,7 @@ class WikiChatService {
         ];
 
         $cleanModel = preg_replace('#^models/#', '', trim($creds['model'] ?: 'gemini-3.8-flash')) ?: 'gemini-3.8-flash';
-        $fallbackPool = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-pro'];
+        $fallbackPool = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'];
         $modelsToTry = array_values(array_unique(array_merge([$cleanModel], $fallbackPool)));
         $model = $modelsToTry[0];
 
@@ -595,13 +595,15 @@ class WikiChatService {
             $resp = null;
             $httpCode = 0;
             $body = [];
+            $primaryError = null;
+            $primaryHttpCode = 0;
 
-            foreach ($candidatesToAttempt as $candidateModel) {
+            foreach ($candidatesToAttempt as $idx => $candidateModel) {
                 $url = "https://generativelanguage.googleapis.com/v1beta/models/" . rawurlencode($candidateModel) . ":generateContent?key=" . rawurlencode($apiKey);
                 $resp = $transport($url, $payload);
                 $httpCode = (int)($resp['httpCode'] ?? 0);
                 $body = $resp['body'] ?? [];
-                $errText = (string)($body['error']['message'] ?? '');
+                $errText = (string)($body['error']['message'] ?? ($resp['error'] ?? ''));
                 $errStatus = (string)($body['error']['status'] ?? '');
                 $isTransientOrUnavailable = in_array($httpCode, [404, 429, 500, 502, 503, 504], true)
                     || $errStatus === 'UNAVAILABLE'
@@ -609,6 +611,10 @@ class WikiChatService {
                     || stripos($errText, 'no longer available') !== false
                     || stripos($errText, 'high demand') !== false
                     || stripos($errText, 'overloaded') !== false;
+                if ($idx === 0 && ($httpCode >= 400 || empty($body['candidates'][0]['content']))) {
+                    $primaryError = $errText ?: "Gemini API error (HTTP {$httpCode})";
+                    $primaryHttpCode = $httpCode;
+                }
                 if (!$isTransientOrUnavailable) {
                     $model = $candidateModel;
                     break;
@@ -616,8 +622,9 @@ class WikiChatService {
             }
 
             if ($httpCode >= 400 || empty($body['candidates'][0]['content'])) {
-                $errMsg = $body['error']['message'] ?? ($resp['error'] ?? "Gemini API error (HTTP {$httpCode})");
-                return ['success' => false, 'code' => $httpCode ?: 502, 'error' => $errMsg];
+                $errMsg = $primaryError ?: ($body['error']['message'] ?? ($resp['error'] ?? "Gemini API error (HTTP {$httpCode})"));
+                $errCode = $primaryHttpCode ?: ($httpCode ?: 502);
+                return ['success' => false, 'code' => $errCode, 'error' => $errMsg];
             }
 
             $candidateContent = $body['candidates'][0]['content'];

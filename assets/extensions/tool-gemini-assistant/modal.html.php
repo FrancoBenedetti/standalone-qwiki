@@ -270,6 +270,7 @@ if (!function_exists('gemini_build_doc_options')) {
                             <option value=""><?= htmlspecialchars(__('ext_gemini.inherit_site_model', '(Inherit Site Default Model)')) ?></option>
                             <option value="gemini-3.8-flash">gemini-3.8-flash (Recommended: Latest fast reasoning)</option>
                             <option value="gemini-3.5-flash">gemini-3.5-flash (High performance)</option>
+                            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Advanced reasoning &amp; code)</option>
                             <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy: Fast hybrid reasoning)</option>
                             <option value="gemini-2.5-pro">gemini-2.5-pro (Legacy: Complex reasoning & code)</option>
                             <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Legacy: Cost-efficient)</option>
@@ -306,6 +307,7 @@ if (!function_exists('gemini_build_doc_options')) {
                             <select id="gemini-select-site-model" class="form-control">
                                 <option value="gemini-3.8-flash">gemini-3.8-flash (Recommended: Latest fast reasoning)</option>
                                 <option value="gemini-3.5-flash">gemini-3.5-flash (High performance)</option>
+                                <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Advanced reasoning &amp; code)</option>
                                 <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy: Fast hybrid reasoning)</option>
                                 <option value="gemini-2.5-pro">gemini-2.5-pro (Legacy: Complex reasoning & code)</option>
                                 <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Legacy: Cost-efficient)</option>

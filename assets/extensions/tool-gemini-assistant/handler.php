@@ -238,23 +238,17 @@ if (!function_exists('gemini_call_api')) {
         $modelsToTry = [$cleanModel];
 
         if ($cleanModel === 'gemini-3.8-flash') {
-            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-        } elseif ($cleanModel === 'gemini-2.5-flash') {
-            $modelsToTry = ['gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash-lite'];
-        } elseif ($cleanModel === 'gemini-2.5-pro') {
-            $modelsToTry = ['gemini-2.5-pro', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
-        } elseif ($cleanModel === 'gemini-2.5-flash-lite') {
-            $modelsToTry = ['gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'];
+        } elseif ($cleanModel === 'gemini-3.1-pro-preview') {
+            $modelsToTry = ['gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-3.5-flash'];
         } elseif ($cleanModel === 'gemini-3.5-flash') {
-            $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-2.5-flash'];
-        } elseif ($cleanModel === 'gemini-2.0-flash' || $cleanModel === 'gemini-1.5-flash') {
-            // Deprecated/shut down models automatically upgrade to active equivalents
-            $modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash', $cleanModel];
-        } elseif ($cleanModel === 'gemini-1.5-pro' || $cleanModel === 'gemini-2.0-pro') {
-            $modelsToTry = ['gemini-3.8-flash', 'gemini-2.5-pro', 'gemini-3.5-flash', $cleanModel];
+            $modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.1-pro-preview'];
+        } elseif ($cleanModel === 'gemini-2.5-flash' || $cleanModel === 'gemini-2.5-flash-lite' || $cleanModel === 'gemini-2.0-flash' || $cleanModel === 'gemini-1.5-flash') {
+            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'];
+        } elseif ($cleanModel === 'gemini-2.5-pro' || $cleanModel === 'gemini-2.0-pro' || $cleanModel === 'gemini-1.5-pro') {
+            $modelsToTry = [$cleanModel, 'gemini-3.1-pro-preview', 'gemini-3.8-flash', 'gemini-3.5-flash'];
         } else {
-            // Custom or preview model name: try requested first, then fall back to standard flash
-            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-flash'];
+            $modelsToTry = [$cleanModel, 'gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'];
         }
 
         // De-duplicate while preserving order
