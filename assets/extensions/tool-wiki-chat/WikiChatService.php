@@ -722,8 +722,8 @@ class WikiChatService {
                 CURLOPT_POST => true,
                 CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
                 CURLOPT_POSTFIELDS => json_encode($payload),
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 45,
+                CURLOPT_CONNECTTIMEOUT => 6,
+                CURLOPT_TIMEOUT => 25,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             ];
@@ -739,9 +739,10 @@ class WikiChatService {
             return ['raw' => $raw, 'errno' => $curlErrno, 'err' => $curlErr, 'httpCode' => $httpCode];
         };
 
-        $res = $attempt(null);
-        if ($res['raw'] === false && in_array($res['errno'], [7, 28], true) && defined('CURL_IPRESOLVE_V4')) {
-            $retry = $attempt(CURL_IPRESOLVE_V4);
+        $primaryResolve = defined('CURL_IPRESOLVE_V4') ? CURL_IPRESOLVE_V4 : null;
+        $res = $attempt($primaryResolve);
+        if ($res['raw'] === false && $primaryResolve !== null && in_array($res['errno'], [6, 7, 28], true)) {
+            $retry = $attempt(null);
             if ($retry['raw'] !== false || $retry['httpCode'] > 0) {
                 $res = $retry;
             }

@@ -413,7 +413,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 })
-                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        return r.text().then(function (txt) {
+                            var parsed = null;
+                            try {
+                                parsed = JSON.parse(txt);
+                            } catch (e) {}
+                            if (!parsed) {
+                                throw new Error('HTTP ' + r.status + (r.statusText ? ' ' + r.statusText : ''));
+                            }
+                            return parsed;
+                        });
+                    })
                     .then(function (data) {
                         thinkingBubble.remove();
                         if (!data || !data.success) {
@@ -429,9 +440,10 @@
                         history.push({ role: 'model', text: data.reply || '', meta: meta });
                         saveHistory();
                     })
-                    .catch(function () {
+                    .catch(function (err) {
                         thinkingBubble.remove();
-                        appendMessage('model', '⚠️ ' + _t('ext_chat.error_network', 'Network error while contacting Wiki AI Chat.'), null);
+                        var detail = (err && err.message) ? ' (' + err.message + ')' : '';
+                        appendMessage('model', '⚠️ ' + _t('ext_chat.error_network', 'Network error while contacting Wiki AI Chat.') + detail, null);
                     })
                     .finally(function () {
                         isSending = false;
