@@ -651,9 +651,18 @@ class WikiChatService {
                 ];
             }
 
+            $normalizedParts = [];
+            foreach ($parts as $p) {
+                if (!empty($p['functionCall']) && is_array($p['functionCall'])) {
+                    $fcCopy = $p['functionCall'];
+                    $fcCopy['args'] = (object)(isset($fcCopy['args']) && is_array($fcCopy['args']) ? $fcCopy['args'] : []);
+                    $p['functionCall'] = $fcCopy;
+                }
+                $normalizedParts[] = $p;
+            }
             $contents[] = [
                 'role' => 'model',
-                'parts' => $parts
+                'parts' => $normalizedParts
             ];
 
             $responseParts = [];
@@ -681,7 +690,7 @@ class WikiChatService {
                 $responseParts[] = [
                     'functionResponse' => [
                         'name' => $fnName,
-                        'response' => $exec['result']
+                        'response' => (object)$exec['result']
                     ]
                 ];
             }

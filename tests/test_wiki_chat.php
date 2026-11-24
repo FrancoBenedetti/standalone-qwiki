@@ -369,6 +369,52 @@ $resFallback = WikiChatService::runChatTurn('Test fallback', [], null, false, $h
 assert_test(($resFallback['success'] ?? false) === true && $fallbackAttempt === 2, 'HTTP 503 high demand falls back to next model');
 assert_test(($resFallback['reply'] ?? '') === 'Answered via fallback model.', 'Fallback model returns valid reply');
 
+// 3c. Empty functionCall args [] must serialize as JSON object {}, not list []
+$emptyArgsStep = 0;
+$secondPayloadJson = '';
+$emptyArgsTransport = function (string $url, array $payload) use (&$emptyArgsStep, &$secondPayloadJson) {
+    $emptyArgsStep++;
+    if ($emptyArgsStep === 1) {
+        return [
+            'httpCode' => 200,
+            'body' => [
+                'candidates' => [
+                    [
+                        'content' => [
+                            'role' => 'model',
+                            'parts' => [
+                                [
+                                    'functionCall' => [
+                                        'name' => 'qwiki_list_tree',
+                                        'args' => []
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+    }
+    $secondPayloadJson = json_encode($payload);
+    return [
+        'httpCode' => 200,
+        'body' => [
+            'candidates' => [
+                [
+                    'content' => [
+                        'role' => 'model',
+                        'parts' => [['text' => 'Listed tree cleanly.']]
+                    ]
+                ]
+            ]
+        ]
+    ];
+};
+$resEmptyArgs = WikiChatService::runChatTurn('List all docs', [], null, false, $emptyArgsTransport);
+assert_test(($resEmptyArgs['success'] ?? false) === true, 'Empty functionCall args succeeds');
+assert_test(strpos($secondPayloadJson, '"args":{}') !== false, 'Empty functionCall args serializes as JSON object {}');
+
 // 4. Handler access control (admin_only rejects non-admin)
 $cfgAdminOnly = Config::load();
 $cfgAdminOnly['wikiChat']['accessMode'] = 'admin_only';
