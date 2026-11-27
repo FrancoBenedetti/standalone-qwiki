@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.30] - Talk & Comments Access - 2026-11-27
+
+### 💬 Signed-In Viewer Access for Talk Pages & Comments
+- **Non-Admin Chapter Context Resolution (`index.php`, `docs/index.php`, `tool-comments/script.js`, `tool-talk/script.js`)**: Attached `data-slug` and `data-book` attributes directly to `#content-body` for active, non-share, viewable chapters and updated both `tool-comments` and `tool-talk` client scripts to read from `#content-body` first (falling back to admin-only toolbar buttons). Signed-in users without edit rights (`viewer` role) can now view and participate in both Document Comments and Talk Pages.
+- **Authenticated Talk Retrieval Guard (`assets/extensions/tool-talk/handler.php`, `docs/assets/extensions/tool-talk/handler.php`)**: Enforced `Auth::isLoggedIn()` (`401 Unauthorized` for unauthenticated guests) on `ext_talk_get`, aligning Talk Pages with Document Comments so discussions are consistently accessible to all signed-in users while keeping raw Markdown editing (`ext_talk_save_raw`) restricted to `editor` and `admin` roles.
+
 ## [1.20.29] - ChatFlow Stability - 2026-11-24
 
 ### 🛠️ Wiki AI Chat Reliability & Synthesis Fixes
