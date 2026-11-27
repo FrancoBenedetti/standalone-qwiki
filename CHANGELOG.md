@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.31] - Print Isolation & QR Decals - 2026-11-27
+
+### 🖨️ Print & PDF Dark-Mode Isolation
+- **Theme-Independent Print Variables (`assets/css/qwiki.css`)**: Overrode `:root`, `[data-theme="dark"]`, and `[data-theme="light"]` CSS custom properties inside `@media print` with light, print-safe colors and `color-scheme: light !important`, ensuring active dark mode never leaks into printed pages or PDF exports.
+- **Inline Code, Header & Diagram Contrast (`assets/css/qwiki.css`)**: Styled inline `.content-body code` with light background and high-contrast dark text (while keeping `.content-body pre code` borderless), hid `.content-header` and `.sidebar-resizer` in `@media print` to eliminate the dark top bar, and forced dark print fills/strokes on Svgbob SVG diagrams.
+
+### 🏷️ Equipment QR Decals & A4 Decal Sheet
+- **Share Modal QR Preview & Decal Actions (`templates/modals/share.php`, `assets/js/app.js`, `assets/js/qrcode.min.js`, `assets/css/qwiki.css`)**: Added a live Level-H SVG QR code preview to the Share modal with **Download SVG** and **Print Decal** actions for chassis, control panels, and offline printouts.
+- **Printable A4 QR Decal Sheet (`templates/qr-sheet.php`, `index.php`)**: Added the `?qr_sheet=1` route and printable A4 decal sheet template for generating batch QR decals across all shareable chapters, linked directly from the Share modal admin controls.
+
+### 📊 Mermaid ELK Layout & Diagram Wrapping
+- **Mermaid v11 + ELK Layout Engine (`index.php`, `assets/js/app.js`)**: Upgraded Mermaid initialization to load `mermaid@11` alongside `@mermaid-js/layout-elk` with `lineHops: true`, `wrappingWidth: 160`, and async `ensureMermaidReady()` synchronization.
+
+### 🌐 Localization
+- **Afrikaans & Italian Locale Parity (`assets/extensions/tool-language/locales/af.json`, `assets/extensions/tool-language/locales/it.json`)**: Added `af` and `it` translations for all new `share.*` QR decal and A4 decal sheet keys.
+
 ## [1.20.30] - Talk & Comments Access - 2026-11-27
 
 ### 💬 Signed-In Viewer Access for Talk Pages & Comments
