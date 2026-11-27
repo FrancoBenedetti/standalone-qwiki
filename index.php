@@ -104,6 +104,59 @@ if ($routeAction === 'reset_password') {
     $emailVerificationResult = Auth::verifyEmail($verifyToken);
 }
 
+// Printable A4 QR Decal Sheet route (admin-only)
+if (isset($_GET['qr_sheet']) && $_GET['qr_sheet'] === '1') {
+    if (!$isAdmin) {
+        http_response_code(403);
+        echo 'Administrator access required to print QR decal sheets.';
+        exit;
+    }
+    $qrDecals = [];
+    $qrCategories = [];
+    $configChanged = false;
+    $collectDecals = function (&$nodes, $catTitle = '') use (&$collectDecals, &$qrDecals, &$qrCategories, &$configChanged, $baseUrl) {
+        foreach ($nodes as &$node) {
+            if (!empty($node['chapters']) && is_array($node['chapters'])) {
+                $nodeCat = $node['title'] ?? $catTitle;
+                foreach ($node['chapters'] as &$ch) {
+                    $isPub = !isset($ch['publicShareable']) || !empty($ch['publicShareable']);
+                    $isPublished = !isset($ch['status']) || $ch['status'] === 'published';
+                    if (!$isPub || !$isPublished) {
+                        continue;
+                    }
+                    if (empty($ch['shareKey'])) {
+                        $ch['shareKey'] = Navigation::generateShareKey();
+                        $configChanged = true;
+                    }
+                    if ($nodeCat !== '' && !in_array($nodeCat, $qrCategories, true)) {
+                        $qrCategories[] = $nodeCat;
+                    }
+                    $qrDecals[] = [
+                        'slug' => $ch['slug'] ?? '',
+                        'title' => $ch['title'] ?? ($ch['slug'] ?? 'Manual'),
+                        'category' => $nodeCat,
+                        'shareUrl' => $baseUrl . '?share=' . urlencode($ch['shareKey']),
+                    ];
+                }
+                unset($ch);
+            }
+            if (!empty($node['folders']) && is_array($node['folders'])) {
+                $collectDecals($node['folders'], $node['title'] ?? $catTitle);
+            }
+        }
+        unset($node);
+    };
+    if (!empty($config['books']) && is_array($config['books'])) {
+        $collectDecals($config['books']);
+    }
+    if ($configChanged) {
+        Config::save($config);
+    }
+    $siteTitle = $config['site_title'] ?? ($config['title'] ?? 'Qwiki Manual');
+    require __DIR__ . '/templates/qr-sheet.php';
+    exit;
+}
+
 // Share link routing
 $shareKey = trim($_GET['share'] ?? '');
 $isShareMode = false;
@@ -1332,7 +1385,26 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
     <?php endif; ?>
 
     <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        window.__mermaidReady = new Promise(function (resolve) {
+            window.__mermaidReadyResolve = resolve;
+        });
+    </script>
+    <script type="module" onerror="window.__mermaidReadyResolve && window.__mermaidReadyResolve(null)">
+        Promise.all([
+            import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'),
+            import('https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0/dist/mermaid-layout-elk.esm.min.mjs')
+        ]).then(function (mods) {
+            const mermaid = mods[0].default;
+            const elkLayouts = mods[1].default;
+            mermaid.registerLayoutLoaders(elkLayouts);
+            window.mermaid = mermaid;
+            window.__mermaidReadyResolve(mermaid);
+        }).catch(function (err) {
+            console.warn('Mermaid/ELK load failed:', err);
+            window.__mermaidReadyResolve(null);
+        });
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
     <script src="<?= htmlspecialchars($assetsUrl) ?>/js/soft-lock.js?v=<?= @filemtime(__DIR__ . '/assets/js/soft-lock.js') ?: time() ?>"></script>

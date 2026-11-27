@@ -3681,10 +3681,19 @@ document.addEventListener('DOMContentLoaded', () => {
     MERMAID_DIAGRAM_TYPES.forEach(type => {
       diagramConfigs[type] = { useMaxWidth: false };
     });
+    diagramConfigs.flowchart = {
+      ...diagramConfigs.flowchart,
+      wrappingWidth: 160,
+      htmlLabels: true
+    };
 
     return {
       startOnLoad: false,
       theme: theme === 'light' ? 'default' : 'dark',
+      layout: 'elk',
+      elk: {
+        lineHops: true
+      },
       securityLevel: 'loose',
       fontSize: 16,
       themeVariables: {
@@ -3693,6 +3702,13 @@ document.addEventListener('DOMContentLoaded', () => {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       ...diagramConfigs
     };
+  }
+
+  async function ensureMermaidReady() {
+    if (typeof mermaid === 'undefined' && window.__mermaidReady) {
+      await window.__mermaidReady;
+    }
+    return typeof mermaid !== 'undefined';
   }
 
   function normalizeMermaidSvgs() {
@@ -3996,7 +4012,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.normalizeLatexSymbols = normalizeLatexSymbols;
 
   async function renderMermaidDiagrams(theme) {
-    if (typeof mermaid === 'undefined') return;
+    if (!(await ensureMermaidReady())) return;
 
     try {
       mermaid.initialize(getMermaidConfig(theme));
@@ -4308,7 +4324,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.openMermaidLightbox = openMermaidLightbox;
 
   window.reRenderMermaidDiagrams = async function(theme) {
-    if (typeof mermaid === 'undefined') return;
+    if (!(await ensureMermaidReady())) return;
     const containers = document.querySelectorAll('.mermaid-diagram-container[data-mermaid-src]');
     if (containers.length === 0) return;
 
@@ -5023,6 +5039,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCopyShareLink = document.getElementById('btn-copy-share-link');
   const shareAdminTogglePublic = document.getElementById('share-admin-toggle-public');
   const btnModalRegenerateShareKey = document.getElementById('btn-modal-regenerate-share-key');
+  const shareQrContainer = document.getElementById('share-qr-container');
+  const shareQrPreview = document.getElementById('share-qr-preview');
+  const btnDownloadShareQr = document.getElementById('btn-download-share-qr');
+  const btnPrintSingleDecal = document.getElementById('btn-print-single-decal');
+
+  const updateShareQrPreview = (url) => {
+    if (!shareQrContainer || !shareQrPreview) return;
+    if (!url || url.startsWith('Generating') || url.startsWith('Failed') || !window.QRCode || !window.QRCode.generateSvg) {
+      shareQrContainer.style.display = 'none';
+      shareQrPreview.innerHTML = '';
+      return;
+    }
+    try {
+      shareQrPreview.innerHTML = window.QRCode.generateSvg(url, 180, 2);
+      shareQrContainer.style.display = 'flex';
+    } catch (err) {
+      console.error('Failed to generate QR SVG:', err);
+      shareQrContainer.style.display = 'none';
+    }
+  };
 
   const updateShareStatusUI = (isPublic) => {
     if (!shareStatusContainer) return;
@@ -5062,9 +5098,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (initialShareUrl && shareLinkInput) {
           shareLinkInput.value = initialShareUrl;
           updateModalSocialShareLinks(initialShareUrl, btnShareChapter.getAttribute('data-title'));
+          updateShareQrPreview(initialShareUrl);
           updateShareStatusUI(isInitiallyPublic);
         } else if (shareLinkInput) {
           shareLinkInput.value = 'Generating secure share link...';
+          updateShareQrPreview('');
         }
         try {
           const res = await fetch(`api/admin.php?action=get_or_create_share_key&slug=${encodeURIComponent(slug)}`);
@@ -5072,6 +5110,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (data.success) {
             if (shareLinkInput) shareLinkInput.value = data.shareUrl;
             updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
+            updateShareQrPreview(data.shareUrl);
             updateShareStatusUI(data.publicShareable);
             btnShareChapter.setAttribute('data-share-key', data.shareKey);
             btnShareChapter.setAttribute('data-share-url', data.shareUrl);
@@ -5229,6 +5268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success) {
           if (shareLinkInput) shareLinkInput.value = data.shareUrl;
           updateModalSocialShareLinks(data.shareUrl, btnShareChapter.getAttribute('data-title'));
+          updateShareQrPreview(data.shareUrl);
           btnShareChapter.setAttribute('data-share-key', data.shareKey);
           btnShareChapter.setAttribute('data-share-url', data.shareUrl);
           updateShareStatusUI(data.publicShareable);
@@ -5240,6 +5280,53 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('Failed to reset share key:', err);
         alert(_t('js.share_reset_net_err', 'Network error while resetting share key.'));
       }
+    });
+  }
+
+  // Download SVG & Print Single Decal inside Share Modal
+  if (btnDownloadShareQr && shareQrPreview) {
+    btnDownloadShareQr.addEventListener('click', () => {
+      const svgEl = shareQrPreview.querySelector('svg');
+      if (!svgEl) return;
+      const slug = (btnShareChapter && btnShareChapter.getAttribute('data-slug')) || 'manual';
+      const svgContent = '<?xml version="1.0" encoding="UTF-8"?>\n' + svgEl.outerHTML;
+      const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${slug.replace(/[^a-zA-Z0-9_-]/g, '-')}-decal.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    });
+  }
+
+  if (btnPrintSingleDecal && shareQrPreview) {
+    btnPrintSingleDecal.addEventListener('click', () => {
+      const svgEl = shareQrPreview.querySelector('svg');
+      if (!svgEl) return;
+      const title = (btnShareChapter && btnShareChapter.getAttribute('data-title')) || document.title;
+      const url = (shareLinkInput && shareLinkInput.value) || window.location.href;
+      const brandEl = document.querySelector('.navbar-brand-title, .brand-title, .sidebar-title');
+      const brand = brandEl ? brandEl.textContent.trim() : 'Equipment Manual';
+      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const win = window.open('', '_blank', 'width=520,height=420');
+      if (!win) return;
+      win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)} — QR Decal</title>`
+        + `<style>@page{size:A4 portrait;margin:15mm;}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;margin:0;padding:24px;display:flex;justify-content:center;}`
+        + `.decal{width:99mm;min-height:67mm;border:1px solid #d1d5db;border-radius:3mm;padding:5mm;display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box;}`
+        + `.hdr{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #e5e7eb;padding-bottom:2mm;}`
+        + `.body{display:flex;align-items:center;gap:4mm;padding-top:3mm;}`
+        + `.qr svg{width:32mm;height:32mm;display:block;}`
+        + `.ttl{font-size:11pt;font-weight:700;line-height:1.2;margin-bottom:2mm;}`
+        + `.cta{font-size:8.5pt;font-weight:600;color:#1f2937;margin-bottom:1.5mm;}`
+        + `.url{font-family:monospace;font-size:7pt;color:#4b5563;word-break:break-all;}`
+        + `</style></head><body>`
+        + `<div class="decal"><div class="hdr">${esc(brand)}</div><div class="body"><div class="qr">${svgEl.outerHTML}</div>`
+        + `<div><div class="ttl">${esc(title)}</div><div class="cta">Scan for live manual, wiring &amp; parts</div><div class="url">${esc(url)}</div></div></div></div>`
+        + `<script>window.onload=function(){window.print();};<\/script></body></html>`);
+      win.document.close();
     });
   }
 

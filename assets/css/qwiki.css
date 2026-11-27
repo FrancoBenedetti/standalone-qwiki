@@ -1565,6 +1565,25 @@ body.editor-fullscreen .toastui-editor-popup {
   flex-shrink: 0;
 }
 
+/* Match crisp node/subgraph drop shadows and light-theme purple subgraph borders */
+.mermaid-diagram-container .mermaid svg .node rect,
+.mermaid-diagram-container .mermaid svg .node polygon,
+.mermaid-diagram-container .mermaid svg .node circle,
+.mermaid-diagram-container .mermaid svg .node ellipse,
+.mermaid-diagram-container .mermaid svg .cluster rect,
+.mermaid-lightbox-stage svg .node rect,
+.mermaid-lightbox-stage svg .node polygon,
+.mermaid-lightbox-stage svg .node circle,
+.mermaid-lightbox-stage svg .node ellipse,
+.mermaid-lightbox-stage svg .cluster rect {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.12));
+}
+
+[data-theme="light"] .mermaid-diagram-container .mermaid svg .cluster rect,
+[data-theme="light"] .mermaid-lightbox-stage svg .cluster rect {
+  stroke: #9370DB !important;
+}
+
 .svgbob-diagram-container svg {
   min-width: 0;
   max-width: none;
@@ -1960,10 +1979,36 @@ textarea.form-control {
 }
 
 @media print {
+    /* Force light/print-safe theme variables regardless of active screen theme */
+    :root,
+    [data-theme="dark"],
+    [data-theme="light"] {
+        --bg-primary: #ffffff !important;
+        --bg-secondary: #f8fafc !important;
+        --bg-card: #ffffff !important;
+        --bg-card-hover: #f1f5f9 !important;
+        --bg-surface: #ffffff !important;
+        --bg-hover: #f1f5f9 !important;
+        --text-primary: #0f172a !important;
+        --text-secondary: #334155 !important;
+        --text-muted: #64748b !important;
+        --text-color: #0f172a !important;
+        --border-color: #cbd5e1 !important;
+        --link-color: #1d4ed8 !important;
+        --link-hover: #1e40af !important;
+        --link-visited: #4338ca !important;
+        --code-bg: #f1f5f9 !important;
+        --code-text: #0f172a !important;
+        --shadow-glow: none !important;
+        color-scheme: light !important;
+    }
+
     /* Hide UI elements */
     .app-header,
     .app-sidebar,
+    .sidebar-resizer,
     .app-toc,
+    .content-header,
     .content-actions,
     .breadcrumbs,
     .mobile-toggle,
@@ -2142,7 +2187,13 @@ textarea.form-control {
         overflow-wrap: break-word !important;
     }
 
-    /* Code Blocks & ASCII Diagrams */
+    /* Inline Code, Code Blocks & ASCII Diagrams */
+    .content-body code {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+    }
+
     .content-body pre {
         background: #f8fafc !important;
         color: #0f172a !important;
@@ -2164,6 +2215,8 @@ textarea.form-control {
     .content-body pre code {
         background: transparent !important;
         color: inherit !important;
+        border: none !important;
+        padding: 0 !important;
         font-size: inherit !important;
         white-space: inherit !important;
     }
@@ -2202,6 +2255,23 @@ textarea.form-control {
         max-width: 100% !important;
         height: auto !important;
         width: auto !important;
+    }
+
+    :root .svgbob-diagram-container svg text {
+        fill: #1e293b !important;
+    }
+
+    :root .svgbob-diagram-container svg path,
+    :root .svgbob-diagram-container svg line,
+    :root .svgbob-diagram-container svg rect,
+    :root .svgbob-diagram-container svg polygon,
+    :root .svgbob-diagram-container svg circle {
+        stroke: #475569 !important;
+    }
+
+    :root .svgbob-diagram-container svg marker path {
+        fill: #475569 !important;
+        stroke: none !important;
     }
 
     /* Images & Blockquotes */
@@ -3435,6 +3505,59 @@ body.mode-fullscreen .gdoc-container iframe {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+}
+
+.share-qr-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.02));
+}
+
+.share-qr-preview {
+  flex-shrink: 0;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.share-qr-preview svg {
+  display: block;
+  width: 112px;
+  height: 112px;
+}
+
+.share-qr-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.share-qr-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.share-qr-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.share-qr-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
 }
 
 
