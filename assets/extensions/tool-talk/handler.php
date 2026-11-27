@@ -40,6 +40,14 @@ $isAdmin = Auth::isAdmin();
 
 switch ($action) {
     case 'ext_talk_get':
+        if (!$isLoggedIn) {
+            if (!headers_sent()) {
+                http_response_code(401);
+            }
+            echo json_encode(['success' => false, 'code' => 401, 'error' => 'Authentication required to view talk pages.']);
+            return;
+        }
+
         $isTalkEnabled = TalkService::isTalkEnabled($book, $slug, $config);
         $topics = TalkService::getTopics($book, $slug);
         $raw = TalkService::getRawContent($book, $slug);

@@ -15,11 +15,13 @@
     const deleteBtn = document.getElementById('btn-delete-chapter');
     const postboxBtn = document.getElementById('btn-send-to-postbox');
 
-    const slug = (metaBtn && metaBtn.getAttribute('data-slug')) ||
+    const slug = contentBody.getAttribute('data-slug') ||
+                 (metaBtn && metaBtn.getAttribute('data-slug')) ||
                  (deleteBtn && deleteBtn.getAttribute('data-slug')) ||
                  (postboxBtn && postboxBtn.getAttribute('data-slug')) || '';
 
-    const book = (metaBtn && (metaBtn.getAttribute('data-category-id') || metaBtn.getAttribute('data-book-id'))) ||
+    const book = contentBody.getAttribute('data-book') ||
+                 (metaBtn && (metaBtn.getAttribute('data-category-id') || metaBtn.getAttribute('data-book-id'))) ||
                  (deleteBtn && deleteBtn.getAttribute('data-book')) ||
                  (postboxBtn && postboxBtn.getAttribute('data-book')) || '';
 

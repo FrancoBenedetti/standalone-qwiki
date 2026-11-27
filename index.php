@@ -1221,7 +1221,7 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                     <textarea id="raw-markdown-data" style="display: none;"><?= htmlspecialchars($rawMarkdownContent) ?></textarea>
                     <div id="inline-editor-container" style="display: none; margin-top: 1rem; width: 100%;"></div>
                 <?php endif; ?>
-                <div class="content-body" id="content-body">
+                <div class="content-body" id="content-body"<?php if ($activeChapter && $canViewContent && empty($isAccessRestricted) && !$isShareMode): ?> data-slug="<?= htmlspecialchars($activeChapter['slug'] ?? '') ?>" data-book="<?= htmlspecialchars($currentCategoryId ?? '') ?>"<?php endif; ?>>
                     <?php if (!empty($isAccessRestricted)): ?>
                         <div style="text-align: center; padding: 4rem 2rem;">
                             <div style="font-size: 3rem; margin-bottom: 1rem;">🔒</div>
