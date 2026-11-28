@@ -181,5 +181,86 @@ if (!empty($shareKey)) {
     echo "9. Zen reader floating bar contains Telegram and Slack share actions (PASS)\n";
 }
 
+// 7. Test API: Unauthenticated guest generating share key for public doc without existing shareKey,
+// and rejection for publicShareable=false or logged_in visibility docs.
+$qwikiJsonPath = __DIR__ . '/../qwiki.json';
+$origQwikiJson = file_get_contents($qwikiJsonPath);
+try {
+    $testConfig = json_decode($origQwikiJson, true);
+    $testConfig['books'][] = [
+        'id' => 'test-share-rights-book',
+        'title' => 'Test Share Rights Book',
+        'visibility' => 'public',
+        'items' => [
+            [
+                'title' => 'Public No Key',
+                'slug' => 'test-public-no-key',
+                'type' => 'markdown',
+                'file' => 'content/getting-started/introduction.md',
+                'status' => 'published',
+            ],
+            [
+                'title' => 'Public Disabled Share',
+                'slug' => 'test-public-disabled-share',
+                'type' => 'markdown',
+                'file' => 'content/getting-started/introduction.md',
+                'status' => 'published',
+                'publicShareable' => false,
+            ],
+            [
+                'title' => 'Logged In Only',
+                'slug' => 'test-logged-in-only',
+                'type' => 'markdown',
+                'file' => 'content/getting-started/introduction.md',
+                'status' => 'published',
+                'visibility' => 'logged_in',
+            ],
+        ],
+    ];
+    file_put_contents($qwikiJsonPath, json_encode($testConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+    $runGuestShare = function (string $slug): array {
+        $cmd = sprintf(
+            'php -r %s',
+            escapeshellarg(sprintf('
+                require_once "%s/../lib/Core/Config.php";
+                require_once "%s/../lib/Core/Auth.php";
+                \Qwiki\Core\Config::init();
+                \Qwiki\Core\Auth::startSession();
+                unset($_SESSION["qwiki_user"]);
+                unset($_SESSION["qwiki_admin"]);
+                $_GET["action"] = "get_or_create_share_key";
+                $_GET["slug"] = "%s";
+                $_REQUEST = $_GET;
+                include "%s/../api/admin.php";
+            ', __DIR__, __DIR__, $slug, __DIR__))
+        );
+        return json_decode(trim(shell_exec($cmd)), true) ?: [];
+    };
+
+    $resPublic = $runGuestShare('test-public-no-key');
+    if (empty($resPublic['success']) || empty($resPublic['shareUrl']) || strpos($resPublic['shareUrl'], '?share=') === false) {
+        echo "FAIL: Guest must be able to generate share link for public doc without existing key: " . json_encode($resPublic) . "\n";
+        exit(1);
+    }
+    echo "10. Unauthenticated guest can generate share link for public doc without existing shareKey (PASS)\n";
+
+    $resDisabled = $runGuestShare('test-public-disabled-share');
+    if (!empty($resDisabled['success'])) {
+        echo "FAIL: Guest must NOT get share link when publicShareable is false\n";
+        exit(1);
+    }
+    echo "11. Unauthenticated guest is denied when publicShareable is false (PASS)\n";
+
+    $resRestricted = $runGuestShare('test-logged-in-only');
+    if (!empty($resRestricted['success'])) {
+        echo "FAIL: Guest must NOT get share link for logged_in-only doc\n";
+        exit(1);
+    }
+    echo "12. Unauthenticated guest is denied for logged_in-only doc (PASS)\n";
+} finally {
+    file_put_contents($qwikiJsonPath, $origQwikiJson);
+}
+
 echo "\nALL SHARE RIGHTS TESTS PASSED! 🎉\n";
 

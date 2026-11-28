@@ -2,7 +2,7 @@
 namespace Qwiki\Core;
 
 class Config {
-    const VERSION = '1.20.31';
+    const VERSION = '1.20.32';
 
     private static $baseDir = null;
     private static $configFile = null;
@@ -115,6 +115,20 @@ class Config {
                     'fromName' => 'Standalone Qwiki'
                 ];
             }
+            $govDefaults = [
+                'responsibilityMode' => 'standard',
+                'maintainerName' => '',
+                'contentNotice' => '',
+                'enforceNoticeOnSubwikis' => true,
+                'abuseContact' => '',
+                'showPageAttribution' => false,
+                'requireEditorTerms' => false,
+                'editorTermsVersion' => '1.0'
+            ];
+            $data['governance'] = array_merge(
+                $govDefaults,
+                isset($data['governance']) && is_array($data['governance']) ? $data['governance'] : []
+            );
             return $data;
         }
         return ['title' => 'Standalone Qwiki', 'books' => []];

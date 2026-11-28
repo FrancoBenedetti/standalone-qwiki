@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.20.32] - Governance & Public Share Flow - 2026-11-28
+
+### 🛡️ Content Responsibility & Subwiki Governance
+- **Governance Core & Config Defaults (`lib/Core/Governance.php`, `lib/Core/Config.php`, `tests/governance_test.php`)**: Added `Qwiki\Core\Governance` to resolve site and subwiki content responsibility notices, enforce root domain policies across subwikis, sanitize `mailto:` / `https://` abuse report links (rejecting unsafe `javascript:` / `data:` URIs), and track editor terms acceptance versions.
+- **Content Responsibility Footer & Page Attribution (`index.php`, `assets/css/qwiki.css`)**: Added `.content-responsibility-footer` displaying the responsibility badge (`Contributors' Content`, `Independent Subwiki`, or `Official Subwiki`), notice text, optional last-editor/update-date attribution, and **Report content** / **Report to domain admin** links.
+- **Settings, Subwiki Deployment & Editor Terms (`templates/modals/settings.php`, `templates/modals/subwikis.php`, `templates/modals/editor_terms.php`, `api/admin.php`)**: Added Governance settings in **Qwiki Settings**, `maintainerName` and `responsibilityMode` options when deploying subwikis, and an **Editor Content Responsibility Agreement** modal (`accept_editor_terms` action with audit logging).
+- **Subwiki Suspension & Restoration (`lib/Core/SubwikiManager.php`, `api/admin.php`, `assets/js/app.js`, `index.php`)**: Added non-destructive subwiki suspension (`toggle_subwiki_suspension`), **Suspend** / **Restore** controls and **Suspended** status badges in the Subwikis manager, and a clean suspended notice screen for visitors.
+
+### 🔗 Public Share Link Generation & Modal UX
+- **Guest Share Key Generation & Visibility Enforcement (`api/admin.php`, `tests/share_rights_test.php`)**: Updated `get_or_create_share_key` to validate `Auth::canView($config)` and `Navigation::findChapterAndPath()`, allowing guests to generate `?share=` links for public, published, shareable chapters while blocking `publicShareable: false` and `logged_in`-only chapters.
+- **Disabled Public Share Fallback (`assets/js/app.js`)**: Updated the Share modal to fall back to the current page URL, social links, and QR preview when public sharing is disabled on a chapter.
+
+### 🌐 Localization
+- **Afrikaans & Italian Locale Parity (`assets/extensions/tool-language/locales/af.json`, `assets/extensions/tool-language/locales/it.json`)**: Added `af` and `it` translations for all new `governance.*`, `settings.gov_*`, and `subwikis.*` keys.
+
 ## [1.20.31] - Print Isolation & QR Decals - 2026-11-27
 
 ### 🖨️ Print & PDF Dark-Mode Isolation

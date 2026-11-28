@@ -58,6 +58,19 @@
                         <input type="password" name="adminPass" id="new-subwiki-pass" class="form-control" placeholder="<?= htmlspecialchars(__('subwikis.admin_pass_ph', 'Password for subwiki')) ?>" autocomplete="new-password" required>
                     </div>
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="new-subwiki-maintainer"><?= htmlspecialchars(__('subwikis.maintainer_label', 'Maintainer / Responsible Person (Optional)')) ?></label>
+                        <input type="text" name="maintainerName" id="new-subwiki-maintainer" class="form-control" placeholder="<?= htmlspecialchars(__('subwikis.maintainer_ph', 'e.g. Jane Doe or Team Alpha')) ?>">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" for="new-subwiki-resp-mode"><?= htmlspecialchars(__('subwikis.resp_mode_label', 'Content Responsibility')) ?></label>
+                        <select name="responsibilityMode" id="new-subwiki-resp-mode" class="form-control">
+                            <option value="independent" selected><?= htmlspecialchars(__('settings.gov_mode_independent', 'Independent Subwiki (Separate from Domain Owner)')) ?></option>
+                            <option value="domain-managed"><?= htmlspecialchars(__('settings.gov_mode_domain', 'Domain-Managed (Official Subwiki)')) ?></option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-group" style="margin-bottom: 0.6rem;">
                     <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem; cursor: pointer;">
                         <input type="checkbox" name="isDocMirror" id="new-subwiki-is-doc-mirror" value="1">

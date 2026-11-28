@@ -11,6 +11,7 @@ require_once __DIR__ . '/../lib/Core/RemoteContentManager.php';
 require_once __DIR__ . '/../lib/Core/AuditLogger.php';
 require_once __DIR__ . '/../lib/Core/DocumentService.php';
 require_once __DIR__ . '/../lib/Core/TrashManager.php';
+require_once __DIR__ . '/../lib/Core/Governance.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -23,6 +24,7 @@ use Qwiki\Core\RemoteContentManager;
 use Qwiki\Core\AuditLogger;
 use Qwiki\Core\DocumentService;
 use Qwiki\Core\TrashManager;
+use Qwiki\Core\Governance;
 
 if (!defined('QWIKI_VERSION')) {
     define('QWIKI_VERSION', Config::VERSION);
@@ -1220,27 +1222,42 @@ switch ($action) {
         break;
 
     case 'get_or_create_share_key':
+        if (!Auth::canView($config)) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
+            exit;
+        }
         $slug = trim($_REQUEST['slug'] ?? '');
         if (empty($slug)) {
             echo json_encode(['success' => false, 'error' => 'Document slug is required']);
             exit;
         }
-        $chapter = Navigation::findChapterBySlug($config['books'], $slug);
+        $isAdmin = Auth::isAdmin();
+        $isViewer = Auth::isViewer();
+        $chapter = null;
+        foreach ($config['books'] ?? [] as $book) {
+            $trail = [];
+            $activeIds = [];
+            $found = Navigation::findChapterAndPath($book, null, $slug, $trail, $activeIds, $isAdmin, $isViewer);
+            if ($found) {
+                $chapter = $found;
+                break;
+            }
+        }
         if (!$chapter) {
             echo json_encode(['success' => false, 'error' => 'Document not found']);
             exit;
         }
-        if (!Navigation::isChapterVisibleForStatus($chapter, Auth::isAdmin())) {
+        if (!Navigation::isChapterVisibleForStatus($chapter, $isAdmin)) {
             echo json_encode(['success' => false, 'error' => 'Draft and archived documents cannot be publicly shared.']);
             exit;
         }
         $shareKey = $chapter['shareKey'] ?? '';
         $isPublic = !isset($chapter['publicShareable']) || !empty($chapter['publicShareable']);
+        if (!$isPublic && !$isViewer && !$isAdmin) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized. Public sharing is disabled for this document.']);
+            exit;
+        }
         if (empty($shareKey)) {
-            if (!Auth::isViewer() && !Auth::isAdmin()) {
-                echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in to share documents.']);
-                exit;
-            }
             $shareKey = Navigation::generateShareKey();
             $updatedData = ['shareKey' => $shareKey];
             foreach ($config['books'] as &$book) {
@@ -1249,9 +1266,6 @@ switch ($action) {
                     break;
                 }
             }
-        } elseif (!$isPublic && !Auth::isViewer() && !Auth::isAdmin()) {
-            echo json_encode(['success' => false, 'error' => 'Unauthorized. Public sharing is disabled for this document.']);
-            exit;
         }
         $baseUrl = Config::getBaseUrl();
         $shareUrl = $baseUrl . '?share=' . urlencode($shareKey);
@@ -2070,6 +2084,14 @@ switch ($action) {
             ];
         }
 
+        if (isset($_POST['governance']) && is_array($_POST['governance'])) {
+            $govInput = $_POST['governance'];
+            if (!isset($govInput['editorTermsVersion']) && isset($config['governance']['editorTermsVersion'])) {
+                $govInput['editorTermsVersion'] = $config['governance']['editorTermsVersion'];
+            }
+            $config['governance'] = Governance::sanitizeInput($govInput, Config::isSubwiki());
+        }
+
         if (Config::isSubwiki()) {
             if (isset($_POST['parentTitle'])) {
                 $config['parentTitle'] = trim($_POST['parentTitle']);
@@ -2502,6 +2524,14 @@ switch ($action) {
             echo json_encode(['success' => true, 'has_update' => false]);
             exit;
         }
+        if (isset($_POST['governance']) && is_array($_POST['governance'])) {
+            $govInput = $_POST['governance'];
+            if (!isset($govInput['editorTermsVersion']) && isset($config['governance']['editorTermsVersion'])) {
+                $govInput['editorTermsVersion'] = $config['governance']['editorTermsVersion'];
+            }
+            $config['governance'] = Governance::sanitizeInput($govInput, Config::isSubwiki());
+        }
+
         if (Config::isSubwiki()) {
             echo json_encode([
                 'success' => true,
@@ -2577,6 +2607,14 @@ switch ($action) {
             echo json_encode(['success' => false, 'error' => 'In-app updates are disabled in demo mode.']);
             exit;
         }
+        if (isset($_POST['governance']) && is_array($_POST['governance'])) {
+            $govInput = $_POST['governance'];
+            if (!isset($govInput['editorTermsVersion']) && isset($config['governance']['editorTermsVersion'])) {
+                $govInput['editorTermsVersion'] = $config['governance']['editorTermsVersion'];
+            }
+            $config['governance'] = Governance::sanitizeInput($govInput, Config::isSubwiki());
+        }
+
         if (Config::isSubwiki()) {
             echo json_encode(['success' => false, 'error' => 'Subwikis are updated automatically from the parent Qwiki.']);
             exit;
@@ -2749,6 +2787,14 @@ switch ($action) {
 
     case 'deploy_subwiki':
         if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        if (isset($_POST['governance']) && is_array($_POST['governance'])) {
+            $govInput = $_POST['governance'];
+            if (!isset($govInput['editorTermsVersion']) && isset($config['governance']['editorTermsVersion'])) {
+                $govInput['editorTermsVersion'] = $config['governance']['editorTermsVersion'];
+            }
+            $config['governance'] = Governance::sanitizeInput($govInput, Config::isSubwiki());
+        }
+
         if (Config::isSubwiki()) {
             echo json_encode(['success' => false, 'error' => 'Subwikis cannot deploy further subwikis. Maximum depth reached.']);
             exit;
@@ -2759,8 +2805,12 @@ switch ($action) {
         $adminPass = trim($_POST['adminPass'] ?? '');
         $includeDemo = !empty($_POST['includeDemo']);
         $isDocMirror = !empty($_POST['isDocMirror']);
+        $govOverrides = [
+            'maintainerName' => trim($_POST['maintainerName'] ?? ''),
+            'responsibilityMode' => trim($_POST['responsibilityMode'] ?? ($isDocMirror ? 'domain-managed' : 'independent'))
+        ];
 
-        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo && !$isDocMirror);
+        $res = SubwikiManager::deploySubwiki($slug, $title, $adminUser, $adminPass, $includeDemo && !$isDocMirror, $govOverrides);
         if ($res['success'] && $isDocMirror) {
             $syncRes = SubwikiManager::syncDocumentation($slug, 'auto', true);
             if ($syncRes['success']) {
@@ -2776,6 +2826,53 @@ switch ($action) {
         $deleteFiles = !empty($_POST['deleteFiles']);
         $res = SubwikiManager::deleteSubwiki($slug, $deleteFiles);
         echo json_encode($res);
+        break;
+
+    case 'toggle_subwiki_suspension':
+        if (!Auth::isAdmin()) { echo json_encode(['success' => false, 'error' => 'Unauthorized']); exit; }
+        $slug = trim($_POST['slug'] ?? '');
+        $suspended = !empty($_POST['suspended']) && ($_POST['suspended'] === '1' || $_POST['suspended'] === 'true');
+        $reason = trim($_POST['reason'] ?? '');
+        $res = SubwikiManager::toggleSuspension($slug, $suspended, $reason);
+        if (!empty($res['success'])) {
+            AuditLogger::log('subwiki_suspension', Auth::getUsername() ?? 'admin', [
+                'slug' => $res['slug'] ?? $slug,
+                'suspended' => $suspended,
+                'reason' => $reason
+            ]);
+        }
+        echo json_encode($res);
+        break;
+
+    case 'accept_editor_terms':
+        $currentUser = Auth::getCurrentUser();
+        if (!$currentUser || empty($currentUser['username'])) {
+            echo json_encode(['success' => false, 'error' => 'Authentication required']);
+            exit;
+        }
+        $usersData = Config::loadUsers();
+        $requiredVersion = trim((string)($config['governance']['editorTermsVersion'] ?? '1.0'));
+        if ($requiredVersion === '') $requiredVersion = '1.0';
+        $acceptedAt = gmdate('Y-m-d\TH:i:s\Z');
+        $updated = false;
+        if (isset($usersData['users']) && is_array($usersData['users'])) {
+            foreach ($usersData['users'] as &$u) {
+                if (($u['username'] ?? '') === $currentUser['username']) {
+                    $u['acceptedTermsVersion'] = $requiredVersion;
+                    $u['acceptedTermsAt'] = $acceptedAt;
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($u);
+        }
+        if ($updated) {
+            Config::saveUsers($usersData);
+            AuditLogger::log('accept_editor_terms', $currentUser['username'], ['version' => $requiredVersion]);
+            echo json_encode(['success' => true, 'version' => $requiredVersion, 'acceptedAt' => $acceptedAt]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'User record not found']);
+        }
         break;
 
     case 'sync_subwiki_docs':

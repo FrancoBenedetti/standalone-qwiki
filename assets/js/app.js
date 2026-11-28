@@ -779,11 +779,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       tbody.innerHTML = subwikis.map(sub => {
         const isDoc = Boolean(sub.isDocSubwiki);
+        const isSuspended = Boolean(sub.suspended);
         return `
         <tr style="border-bottom: 1px solid var(--border-color);">
           <td style="padding: 0.6rem 0.75rem;">
             <strong>${escapeHtml(sub.title || sub.slug)}</strong>
             ${isDoc ? '<span style="display:inline-block; font-size: 0.7rem; background: rgba(37,99,235,0.12); color: var(--accent-color, #2563eb); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; font-weight: 500;">Qwiki Docs Mirror</span>' : ''}
+            ${isSuspended ? '<span style="display:inline-block; font-size: 0.7rem; background: rgba(239,68,68,0.12); color: var(--danger-color, #ef4444); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem; font-weight: 600;">Suspended</span>' : ''}
             <br>
             <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(sub.slug)}</span>
           </td>
@@ -792,10 +794,44 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
           <td style="padding: 0.6rem 0.75rem; text-align: right; white-space: nowrap;">
             ${isDoc ? `<button class="btn btn-outline btn-sm btn-sync-subwiki-docs" data-slug="${escapeHtml(sub.slug)}" title="Synchronize documentation content with latest releases" style="margin-right: 0.35rem; font-size: 0.8rem; padding: 0.2rem 0.5rem;">🔄 Sync Docs</button>` : ''}
+            <button class="btn btn-outline btn-sm btn-suspend-subwiki" data-slug="${escapeHtml(sub.slug)}" data-suspended="${isSuspended ? '1' : '0'}" style="margin-right: 0.35rem; font-size: 0.8rem; padding: 0.2rem 0.5rem;">${isSuspended ? 'Restore' : 'Suspend'}</button>
             <button class="btn btn-outline btn-sm btn-delete-subwiki" data-slug="${escapeHtml(sub.slug)}" style="color: var(--danger-color, #ef4444); border-color: var(--danger-color, #ef4444); font-size: 0.8rem; padding: 0.2rem 0.5rem;">Delete</button>
           </td>
         </tr>
       `}).join('');
+
+      tbody.querySelectorAll('.btn-suspend-subwiki').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const slug = btn.getAttribute('data-slug');
+          const currentlySuspended = btn.getAttribute('data-suspended') === '1';
+          let reason = '';
+          if (!currentlySuspended) {
+            reason = prompt(`Suspend subwiki "/${slug}/"? Optional reason shown to visitors:`, '');
+            if (reason === null) return;
+          } else if (!confirm(`Restore subwiki "/${slug}/" to active status?`)) {
+            return;
+          }
+          btn.disabled = true;
+          try {
+            const formData = new FormData();
+            formData.append('action', 'toggle_subwiki_suspension');
+            formData.append('slug', slug);
+            formData.append('suspended', currentlySuspended ? '0' : '1');
+            formData.append('reason', reason);
+            const res = await fetch('api/admin.php', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.success) {
+              loadSubwikisList();
+            } else {
+              alert('Failed to update suspension status: ' + (data.error || 'Unknown error'));
+            }
+          } catch (err) {
+            alert('Request failed while updating subwiki status.');
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
 
       tbody.querySelectorAll('.btn-sync-subwiki-docs').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -5116,13 +5152,21 @@ document.addEventListener('DOMContentLoaded', () => {
             btnShareChapter.setAttribute('data-share-url', data.shareUrl);
             btnShareChapter.setAttribute('data-public-shareable', data.publicShareable ? '1' : '0');
           } else if (!initialShareUrl) {
-            if (shareLinkInput) shareLinkInput.value = 'Failed: ' + (data.error || 'Unknown error');
+            if (!isInitiallyPublic) {
+              if (shareLinkInput) shareLinkInput.value = window.location.href;
+              updateModalSocialShareLinks(window.location.href, btnShareChapter.getAttribute('data-title'));
+              updateShareQrPreview(window.location.href);
+              updateShareStatusUI(false);
+            } else if (shareLinkInput) {
+              shareLinkInput.value = 'Failed: ' + (data.error || 'Unknown error');
+            }
           }
         } catch (err) {
           console.error('Failed to get share link:', err);
           if (shareLinkInput && !initialShareUrl) {
             shareLinkInput.value = window.location.href;
             updateModalSocialShareLinks(window.location.href, btnShareChapter.getAttribute('data-title'));
+            updateShareQrPreview(window.location.href);
           }
         }
         return;

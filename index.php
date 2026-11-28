@@ -12,6 +12,7 @@ require_once __DIR__ . '/lib/Core/MetadataManager.php';
 require_once __DIR__ . '/lib/Core/DocumentService.php';
 require_once __DIR__ . '/lib/Core/AuditLogger.php';
 require_once __DIR__ . '/lib/Core/Translator.php';
+require_once __DIR__ . '/lib/Core/Governance.php';
 
 use Qwiki\Core\Config;
 use Qwiki\Core\Auth;
@@ -24,6 +25,7 @@ use Qwiki\Core\MetadataManager;
 use Qwiki\Core\DocumentService;
 use Qwiki\Core\AuditLogger;
 use Qwiki\Core\Translator;
+use Qwiki\Core\Governance;
 
 Auth::startSession();
 if (!defined('QWIKI_VERSION')) {
@@ -89,6 +91,47 @@ $domainName = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = rtrim(dirname($_SERVER['SCRIPT_NAME'] === '/' || $_SERVER['SCRIPT_NAME'] === '\\' ? '' : $_SERVER['SCRIPT_NAME']), '/\\');
 $assetsUrl = defined('QWIKI_ASSETS_URL') ? rtrim(QWIKI_ASSETS_URL, '/') : 'assets';
 $brandLogoUrl = SubwikiManager::resolveBrandLogoUrl($config, $isSubwiki, $assetsUrl);
+$governanceNotice = Governance::resolveNotice($config, $domainName, $isSubwiki);
+
+if (!empty($config['suspended'])) {
+    http_response_code(503);
+    $suspReason = trim((string)($config['suspendedReason'] ?? ''));
+    $suspContact = $governanceNotice['parentAbuseContact'] !== '' ? $governanceNotice['parentAbuseContact'] : $governanceNotice['abuseContact'];
+    $suspHref = Governance::buildReportHref($suspContact, $protocol . $domainName . ($_SERVER['REQUEST_URI'] ?? ''), '', (string)($config['title'] ?? 'Qwiki'));
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($config['title'] ?? 'Wiki') ?> — <?= htmlspecialchars(__('governance.suspended_title', 'Wiki Unavailable')) ?></title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1.5rem; }
+        .susp-card { max-width: 520px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 2.25rem; text-align: center; box-shadow: 0 4px 18px rgba(0,0,0,0.06); }
+        .susp-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+        h1 { font-size: 1.35rem; margin: 0 0 0.75rem; }
+        p { color: #475569; line-height: 1.55; margin: 0 0 1rem; font-size: 0.95rem; }
+        .susp-reason { background: #f1f5f9; border-radius: 6px; padding: 0.75rem 1rem; font-size: 0.875rem; color: #334155; margin-bottom: 1.25rem; }
+        a.susp-link { color: #2563eb; text-decoration: none; font-weight: 500; }
+        a.susp-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="susp-card">
+        <div class="susp-icon">⏸️</div>
+        <h1><?= htmlspecialchars(__('governance.suspended_heading', 'This wiki has been temporarily suspended')) ?></h1>
+        <p><?= htmlspecialchars(__('governance.suspended_desc', 'Access to this wiki is currently disabled by the domain administrator.')) ?></p>
+        <?php if ($suspReason !== ''): ?>
+            <div class="susp-reason"><?= htmlspecialchars($suspReason) ?></div>
+        <?php endif; ?>
+        <?php if ($suspHref !== ''): ?>
+            <p><a class="susp-link" href="<?= htmlspecialchars($suspHref) ?>"><?= htmlspecialchars(__('governance.contact_domain_admin', 'Contact Domain Administrator')) ?></a></p>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
+<?php
+    exit;
+}
 
 // Check for action triggers: reset_password or verify_email
 $routeAction = $_GET['action'] ?? '';
@@ -1025,7 +1068,7 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
             </nav>
             <?php if ($showPoweredBy): ?>
             <div class="sidebar-footer">
-                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="<?= htmlspecialchars(__('sidebar.powered_by_title', 'Powered by Qwiki — Click to open qwiki.wiki in a new tab')) ?>">
+                <a href="https://qwiki.wiki" target="_blank" rel="noopener noreferrer" class="qwiki-powered-badge" title="<?= htmlspecialchars(__('sidebar.powered_by_title', 'Powered by Qwiki (open-source wiki software — content is managed by this site\'s operators)')) ?>">
                     <span class="badge-icon">⚡</span>
                     <span class="badge-text"><?= __('common.powered_by_html', 'Powered by <strong>Qwiki</strong>') ?></span>
                     <svg class="badge-external-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -1229,8 +1272,8 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                                     </button>
                                 <?php endif; ?>
                                 <?php if ($extManager->isExtensionEnabled('revisions') && in_array($activeChapter['type'] ?? 'markdown', ['markdown', 'html', 'pdf', 'form'])): ?>
-                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="<?= htmlspecialchars(__('doc.revision_history', 'Revision History')) ?>">
-                                        🕒
+                                    <button type="button" class="btn btn-outline btn-sm" id="btn-chapter-revisions" title="<?= htmlspecialchars(__('doc.revision_history', 'Revision History')) ?>" aria-label="<?= htmlspecialchars(__('doc.revision_history', 'Revision History')) ?>">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>
                                     </button>
                                 <?php endif; ?>
                                 <?php $extManager->renderChapterHeaderUtilityButtons($isAdmin); ?>
@@ -1326,6 +1369,53 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
                     <p><?= htmlspecialchars(__('doc.none_selected_desc', 'Select a category or document from the sidebar to view content.')) ?></p>
                 </div>
             <?php endif; ?>
+            <?php
+            $currentPageUrl = $protocol . $domainName . ($_SERVER['REQUEST_URI'] ?? '');
+            $currentPageTitle = $activeChapter['title'] ?? '';
+            $wikiTitleStr = (string)($config['title'] ?? 'Qwiki');
+            $reportHref = Governance::buildReportHref($governanceNotice['abuseContact'], $currentPageUrl, $currentPageTitle, $wikiTitleStr);
+            $parentReportHref = $governanceNotice['parentAbuseContact'] !== ''
+                ? Governance::buildReportHref($governanceNotice['parentAbuseContact'], $currentPageUrl, $currentPageTitle, $wikiTitleStr)
+                : '';
+            $showPageAttr = !empty($config['governance']['showPageAttribution']) && !empty($activeChapter) && empty($isAccessRestricted);
+            $attrAuthor = trim((string)($activeChapter['updatedBy'] ?? ''));
+            $attrTime = trim((string)($activeChapter['updatedAt'] ?? ''));
+            if ($showPageAttr && $attrTime === '' && !empty($activeChapter['file'])) {
+                $resolvedAttrPath = Config::safePath($baseDir, $activeChapter['file']);
+                if ($resolvedAttrPath && file_exists($resolvedAttrPath)) {
+                    $attrTime = date('Y-m-d', filemtime($resolvedAttrPath));
+                }
+            }
+            ?>
+            <footer class="content-responsibility-footer" aria-label="<?= htmlspecialchars(__('governance.footer_aria', 'Content Responsibility Notice')) ?>">
+                <?php if ($showPageAttr && ($attrAuthor !== '' || $attrTime !== '')): ?>
+                    <div class="content-page-attribution">
+                        <?php if ($attrAuthor !== '' && $attrTime !== ''): ?>
+                            <?= htmlspecialchars(__('governance.last_updated_by_on', 'Last updated by {author} on {date}', ['author' => $attrAuthor, 'date' => $attrTime])) ?>
+                        <?php elseif ($attrAuthor !== ''): ?>
+                            <?= htmlspecialchars(__('governance.last_updated_by', 'Last updated by {author}', ['author' => $attrAuthor])) ?>
+                        <?php else: ?>
+                            <?= htmlspecialchars(__('governance.last_updated_on', 'Last updated on {date}', ['date' => $attrTime])) ?>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+                <div class="content-responsibility-row">
+                    <span class="content-responsibility-badge<?= $governanceNotice['isIndependent'] ? ' is-independent' : '' ?>">
+                        <?= htmlspecialchars($governanceNotice['badge']) ?>
+                    </span>
+                    <span class="content-responsibility-text"><?= htmlspecialchars($governanceNotice['text']) ?></span>
+                    <?php if ($reportHref !== ''): ?>
+                        <a href="<?= htmlspecialchars($reportHref) ?>" class="content-responsibility-report"<?= strpos($reportHref, 'http') === 0 ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>
+                            <?= htmlspecialchars(__('governance.report_content', 'Report content')) ?>
+                        </a>
+                    <?php endif; ?>
+                    <?php if ($parentReportHref !== ''): ?>
+                        <a href="<?= htmlspecialchars($parentReportHref) ?>" class="content-responsibility-report"<?= strpos($parentReportHref, 'http') === 0 ? ' target="_blank" rel="noopener noreferrer"' : '' ?>>
+                            <?= htmlspecialchars(__('governance.report_to_domain', 'Report to domain admin')) ?>
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </footer>
         </main>
 
         <?php if (!$isShareMode && !$shareError && empty($isAccessRestricted)): ?>
@@ -1379,6 +1469,9 @@ $availableLangCodes = array_keys(Translator::getAvailableLanguages());
         <?php if ($isAdmin): ?>
             <?php require $templatesDir . '/modals/theme_editor.php'; ?>
             <?php require $templatesDir . '/modals/update_available.php'; ?>
+            <?php if ($currentUser && !Governance::hasAcceptedTerms($currentUser, $config)): ?>
+                <?php require $templatesDir . '/modals/editor_terms.php'; ?>
+            <?php endif; ?>
         <?php endif; ?>
         <!-- Utility Modals Injected by Extensions -->
         <?php $extManager->renderUtilityModals($isAdmin); ?>

@@ -91,6 +91,56 @@ foreach ($allExtensions as $id => $ext) {
                             <span><?= htmlspecialchars(__('settings.show_subwikis_sidebar', 'Show Subwikis Selector in Header Bar')) ?></span>
                         </label>
                     </div>
+                    <?php
+                    $govCfg = $config['governance'] ?? [];
+                    $govMode = $govCfg['responsibilityMode'] ?? 'standard';
+                    ?>
+                    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 1.5rem 0 1.25rem;">
+                    <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem;"><?= htmlspecialchars(__('settings.governance_heading', 'Content Responsibility & Governance')) ?></h4>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-gov-maintainer"><?= htmlspecialchars(__('settings.gov_maintainer', 'Maintainer / Responsible Organization')) ?></label>
+                        <input type="text" name="governance[maintainerName]" id="setting-gov-maintainer" class="form-control" value="<?= htmlspecialchars($govCfg['maintainerName'] ?? '') ?>" placeholder="<?= htmlspecialchars(__('settings.gov_maintainer_ph', 'e.g. Documentation Team or Acme Corp')) ?>">
+                    </div>
+                    <?php if (!empty($isSubwiki)): ?>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-gov-mode"><?= htmlspecialchars(__('settings.gov_mode', 'Subwiki Responsibility Mode')) ?></label>
+                        <select name="governance[responsibilityMode]" id="setting-gov-mode" class="form-control">
+                            <option value="standard" <?= $govMode === 'standard' ? 'selected' : '' ?>><?= htmlspecialchars(__('settings.gov_mode_standard', 'Standard (Contributors & Editors)')) ?></option>
+                            <option value="independent" <?= $govMode === 'independent' ? 'selected' : '' ?>><?= htmlspecialchars(__('settings.gov_mode_independent', 'Independent Subwiki (Separate from Domain Owner)')) ?></option>
+                            <option value="domain-managed" <?= $govMode === 'domain-managed' ? 'selected' : '' ?>><?= htmlspecialchars(__('settings.gov_mode_domain', 'Domain-Managed (Official Subwiki)')) ?></option>
+                        </select>
+                    </div>
+                    <?php else: ?>
+                        <input type="hidden" name="governance[responsibilityMode]" value="<?= htmlspecialchars($govMode) ?>">
+                    <?php endif; ?>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-gov-notice"><?= htmlspecialchars(__('settings.gov_notice', 'Custom Content Responsibility Notice')) ?></label>
+                        <textarea name="governance[contentNotice]" id="setting-gov-notice" class="form-control" style="min-height: 70px;" placeholder="<?= htmlspecialchars(__('settings.gov_notice_ph', 'Leave blank to use the default localized responsibility notice.')) ?>"><?= htmlspecialchars($govCfg['contentNotice'] ?? '') ?></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="setting-gov-abuse"><?= htmlspecialchars(__('settings.gov_abuse_contact', 'Abuse / Takedown Report Contact (Email or URL)')) ?></label>
+                        <input type="text" name="governance[abuseContact]" id="setting-gov-abuse" class="form-control" value="<?= htmlspecialchars($govCfg['abuseContact'] ?? '') ?>" placeholder="abuse@example.com or https://example.com/report">
+                    </div>
+                    <?php if (empty($isSubwiki)): ?>
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="governance[enforceNoticeOnSubwikis]" value="1" <?= !empty($govCfg['enforceNoticeOnSubwikis']) ? 'checked' : '' ?>>
+                            <span><?= htmlspecialchars(__('settings.gov_enforce_subwikis', 'Enforce Domain Notice & Report Contact on All Subwikis')) ?></span>
+                        </label>
+                    </div>
+                    <?php endif; ?>
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="governance[showPageAttribution]" value="1" <?= !empty($govCfg['showPageAttribution']) ? 'checked' : '' ?>>
+                            <span><?= htmlspecialchars(__('settings.gov_page_attribution', 'Show Last Editor / Update Date on Pages')) ?></span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" name="governance[requireEditorTerms]" value="1" <?= !empty($govCfg['requireEditorTerms']) ? 'checked' : '' ?>>
+                            <span><?= htmlspecialchars(__('settings.gov_require_terms', 'Require Editors to Accept Content Responsibility Terms')) ?></span>
+                        </label>
+                    </div>
                 </div>
 
                 <!-- Tab 2: Security & Access -->

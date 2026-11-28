@@ -238,7 +238,8 @@ class SubwikiManager {
                 'docCount' => $docCount,
                 'createdAt' => $sub['createdAt'] ?? date('Y-m-d H:i:s'),
                 'exists' => is_dir($dir),
-                'isDocSubwiki' => $isDoc
+                'isDocSubwiki' => $isDoc,
+                'suspended' => !empty($subData['suspended'])
             ];
         }
 
@@ -268,7 +269,8 @@ class SubwikiManager {
                     'createdAt' => date('Y-m-d H:i:s', filectime($dir)),
                     'exists' => true,
                     'unregistered' => true,
-                    'isDocSubwiki' => $isDoc
+                    'isDocSubwiki' => $isDoc,
+                    'suspended' => !empty($subData['suspended'])
                 ];
             }
         }
@@ -521,7 +523,7 @@ class SubwikiManager {
     /**
      * Deploy a new single-level subwiki from the parent wiki.
      */
-    public static function deploySubwiki(string $slug, string $title, string $adminUser, string $adminPass, bool $includeDemoContent = false): array {
+    public static function deploySubwiki(string $slug, string $title, string $adminUser, string $adminPass, bool $includeDemoContent = false, array $governanceOverrides = []): array {
         if (self::isSubwiki()) {
             return [
                 'success' => false,
@@ -629,6 +631,17 @@ class SubwikiManager {
             ];
         }
 
+        $govDefaults = Governance::getDefaults();
+        $govMode = (string)($governanceOverrides['responsibilityMode'] ?? 'independent');
+        if (!in_array($govMode, ['standard', 'independent', 'domain-managed'], true)) {
+            $govMode = 'independent';
+        }
+        $childGovernance = array_merge($govDefaults, [
+            'responsibilityMode' => $govMode,
+            'maintainerName' => mb_substr(trim((string)($governanceOverrides['maintainerName'] ?? '')), 0, 120),
+            'enforceNoticeOnSubwikis' => false
+        ]);
+
         // Create child qwiki.json with subwiki metadata
         $childConfig = [
             'title' => $title,
@@ -641,6 +654,7 @@ class SubwikiManager {
             'parentTitle' => $parentConfig['title'] ?? 'Parent Qwiki',
             'defaultBook' => 'getting-started',
             'requireLoginToView' => false,
+            'governance' => $childGovernance,
             'books' => $books
         ];
         file_put_contents($targetDir . '/qwiki.json', json_encode($childConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -707,6 +721,38 @@ class SubwikiManager {
         }
 
         return ['success' => true];
+    }
+
+    /**
+     * Suspend or unsuspend a deployed subwiki without deleting its files.
+     */
+    public static function toggleSuspension(string $slug, bool $suspended, string $reason = ''): array {
+        if (self::isSubwiki()) {
+            return ['success' => false, 'error' => 'Only the parent wiki can suspend subwikis.'];
+        }
+        $slug = Config::makeSlug($slug);
+        if ($slug === '') {
+            return ['success' => false, 'error' => 'Invalid subwiki slug.'];
+        }
+        $subConfigFile = Config::getBaseDir() . '/' . $slug . '/qwiki.json';
+        if (!file_exists($subConfigFile)) {
+            return ['success' => false, 'error' => 'Subwiki configuration not found.'];
+        }
+        $subData = @json_decode(file_get_contents($subConfigFile), true);
+        if (!is_array($subData)) {
+            return ['success' => false, 'error' => 'Invalid subwiki configuration.'];
+        }
+        $subData['suspended'] = $suspended;
+        $subData['suspendedReason'] = $suspended ? mb_substr(trim($reason), 0, 500) : '';
+        if (file_put_contents($subConfigFile, json_encode($subData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX) === false) {
+            return ['success' => false, 'error' => 'Failed to update subwiki configuration.'];
+        }
+        return [
+            'success' => true,
+            'slug' => $slug,
+            'suspended' => $suspended,
+            'message' => $suspended ? "Subwiki '{$slug}' has been suspended." : "Subwiki '{$slug}' has been restored."
+        ];
     }
 
     /**

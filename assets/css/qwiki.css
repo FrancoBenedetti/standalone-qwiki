@@ -1183,8 +1183,19 @@ mark.qwiki-search-mark.qwiki-search-mark-active {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 1rem;
+}
+
+.content-header-left {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .content-header {
+    flex-wrap: wrap;
+  }
 }
 
 /* Sticky Document Editor Toolbar & Edit Actions in Markdown Edit Mode */
@@ -1298,7 +1309,10 @@ body.editor-fullscreen .toastui-editor-popup {
 .breadcrumbs {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 0.875rem;
   color: var(--text-muted);
 }
@@ -1315,6 +1329,7 @@ body.editor-fullscreen .toastui-editor-popup {
 .content-actions {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.75rem;
 }
 
@@ -3568,3 +3583,62 @@ body.mode-fullscreen .gdoc-container iframe {
 
 
 
+
+/* Content Responsibility & Governance Footer */
+.content-responsibility-footer {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  line-height: 1.45;
+}
+
+.content-page-attribution {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+.content-responsibility-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+}
+
+.content-responsibility-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--bg-secondary, rgba(128, 128, 128, 0.12));
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.content-responsibility-badge.is-independent {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.content-responsibility-text {
+  flex: 1 1 260px;
+}
+
+.content-responsibility-report {
+  color: var(--primary-color, #2563eb);
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.content-responsibility-report:hover {
+  text-decoration: underline;
+}
